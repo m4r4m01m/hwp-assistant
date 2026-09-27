@@ -1,0 +1,127 @@
+{
+  "recorded_at_utc": "2026-09-27T10:05:50.689520+00:00",
+  "old_run": {
+    "id": "44ed30fc-ac37-4590-96bd-0f472397b24a",
+    "document_id": "20a47965-0f42-4d69-926f-1f0fefb61684",
+    "status": "ready",
+    "base_version": "dd75da78-f648-4ae7-aeae-0588513ae8b1",
+    "application_count": 0,
+    "version_count": 1,
+    "original_preserved": true
+  },
+  "new_task": {
+    "id": "ca00261c-b9f0-4d91-8263-4b3641b3ad65",
+    "status": "ready",
+    "base_version": "f8f04b7e-c2c5-4e09-bf61-e17973d49a32",
+    "application_count": 0,
+    "version_count": 1
+  },
+  "document_id": "95270b84-65ab-459c-a806-33fbc758e892",
+  "conversation_id": "b5ec2373-c757-40cb-adcd-604f9d61b0dc",
+  "phase": "waiting_for_user_approval",
+  "visible_window": {
+    "runner_session": 1,
+    "windows": [
+      {
+        "pid": 21604,
+        "session": 1,
+        "visible": true,
+        "minimized": false
+      }
+    ]
+  },
+  "model_request_count": 1,
+  "actual_execution": {
+    "executor": "codex-cli",
+    "auth": "existing ChatGPT login",
+    "sandbox": "read-only",
+    "shell_tool": false,
+    "mcp_tools": [
+      {
+        "server": "hwp_document",
+        "tool": "read_rewrite_task",
+        "status": "completed"
+      },
+      {
+        "server": "hwp_document",
+        "tool": "submit_rewrite_candidates",
+        "status": "completed"
+      }
+    ],
+    "completed": true,
+    "codex_thread_id": "01a0e24b-01b2-74a3-8964-389b11b6df16",
+    "usage": {
+      "input_tokens": 44247,
+      "cached_input_tokens": 31872,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 457,
+      "reasoning_output_tokens": 0
+    },
+    "exit_code": 0
+  },
+  "as_is": "회의 자료는 금요일까지 준비합니다. 담당자는 준비가 끝나면 팀에 알려 주면 좋겠습니다.",
+  "selection": {
+    "charOffset": 0,
+    "kind": "body_paragraph",
+    "length": 48,
+    "paragraph": 2,
+    "section": 0
+  },
+  "request_revision": 2,
+  "candidates": [
+    {
+      "id": "78c8ef0d-c714-5e4c-9200-47519caa7573",
+      "ordinal": 1,
+      "replacement": "회의 자료는 금요일까지 준비합니다. 담당자는 준비를 마치면 팀에 알려 주시기 바랍니다.",
+      "reason": "준비 기한을 유지하고, 완료 후 알림 요청을 명확한 업무 문체로 정리했습니다."
+    },
+    {
+      "id": "b1fb6743-d42e-5476-a2ad-a70200160ad0",
+      "ordinal": 2,
+      "replacement": "회의 자료는 금요일까지 준비하며, 담당자는 자료 준비가 완료되면 팀에 그 사실을 알려 주시면 좋겠습니다.",
+      "reason": "두 문장을 자연스럽게 연결하고, 알림 대상을 분명히 하면서 부드러운 요청의 어조를 유지했습니다."
+    }
+  ],
+  "checks": {
+    "before_approval": {
+      "unsaved_input_matches": true,
+      "editor_unchanged": true,
+      "confirmed_version_count": 1,
+      "non_target_unsaved_edit_present": true,
+      "displayed_candidate_ids": [
+        "78c8ef0d-c714-5e4c-9200-47519caa7573",
+        "b1fb6743-d42e-5476-a2ad-a70200160ad0"
+      ]
+    }
+  },
+  "live_buffer_check": {
+    "at": "2026-09-27T10:05:50.316Z",
+    "revision": 2,
+    "document_sha256": "3b77e1cf32188bdf1983e91f8828dee2cba93eef4aaa329ec83c7ed3ff6218f6",
+    "text_sha256": "827bad7430c5424fe294d2c50b9f5a6b45b0470bfffd3346c99cef61bc139014",
+    "base_version": "f8f04b7e-c2c5-4e09-bf61-e17973d49a32"
+  },
+  "ui_clicks": [],
+  "stages": {
+    "approval": "not executed",
+    "apply": "not executed",
+    "save": "not executed",
+    "reopen": "not executed"
+  },
+  "harness_repairs": [
+    {
+      "at": "2026-09-27T10:03:43.046Z",
+      "cause": "JSON key order caused a false harness conflict",
+      "prior_failure": "Error: 승인 전 편집 상태/선택 대상/기준 버전이 변경되었습니다. 강제 적용하지 않고 창과 후보를 보존합니다.",
+      "method": "One-off local Node debugging reconnects same Playwright objects to corrected continuation; no browser restart, no AI call, no document mutation",
+      "live_revision": 2,
+      "live_document_sha256": "3b77e1cf32188bdf1983e91f8828dee2cba93eef4aaa329ec83c7ed3ff6218f6",
+      "current_version": "f8f04b7e-c2c5-4e09-bf61-e17973d49a32"
+    }
+  ],
+  "original_historical_blob_count": 25,
+  "original_historical_blobs_unchanged": 25,
+  "dynamic_evidence_file": ".cache/codex-human-2026-09-27-run2/proof.json",
+  "functional_code_changes": false,
+  "failure": null
+}

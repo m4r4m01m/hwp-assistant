@@ -1,0 +1,481 @@
+import json
+import os
+import secrets
+import time
+import uuid
+from pathlib import Path
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request, HTTPException, Header, Query
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+from .db import Access, ChangeSet, Document, Version, make_engine, transaction
+from .hwpx import validate, digest, loss_warnings, MAX_FILE
+from .llm import OpenAICompatible
+from .auth import COOKIE, authenticate, credentials, require_access, bind_lease, require_lease_owner
+from .schema import migrate
+from .changes import apply_delta, describe_changes
+
+
+class Name(BaseModel):
+    name: str = Field(min_length=1, max_length=235)
+
+
+class Review(BaseModel):
+    document_id: str
+    base_version: str
+    revision: int = Field(ge=0)
+    original: str = Field(min_length=1, max_length=12000)
+    target: dict
+
+
+def create_app(database_url=None, storage_dir=None):
+    users = credentials()
+    folder = Path(storage_dir or os.getenv("STORAGE_DIR", "./data/files")).resolve()
+    folder.mkdir(parents=True, exist_ok=True)
+    engine = make_engine(
+        database_url or os.getenv("DATABASE_URL", "sqlite:///./data/metadata.db")
+    )
+
+    # Explicit initial migration is also exposed as python -m app.migrate.
+    @asynccontextmanager
+    async def lifespan(app):
+        migrate(engine, users)
+        yield
+        engine.dispose()
+
+    app = FastAPI(title="HWPX 공용 문서함", lifespan=lifespan)
+    app.state.engine = engine
+    app.state.folder = folder
+    app.state.users = users
+    lease_seconds = int(os.getenv("SESSION_TTL_SECONDS", "120"))
+
+    @app.middleware("http")
+    async def same_origin(request, call_next):
+        # No CORS. Cross-origin browser writes are rejected, including simple POSTs.
+        origin = request.headers.get("origin")
+        if (
+            request.method not in ("GET", "HEAD", "OPTIONS")
+            and origin
+            and origin != f"{request.url.scheme}://{request.headers.get('host')}"
+        ):
+            return JSONResponse(
+                {"detail": "다른 출처의 쓰기 요청은 허용하지 않습니다."},
+                status_code=403,
+            )
+        if request.url.path.startswith("/api/") and request.url.path not in (
+            "/api/health", "/api/auth/login", "/api/auth/status"
+        ):
+            try:
+                bearer = request.headers.get("authorization", "")
+                token = bearer[7:] if bearer.startswith("Bearer ") else request.cookies.get(COOKIE, "")
+                if token.startswith("hwp-run-"):
+                    from .rewrite import run_identity
+                    request.state.user, request.state.run_task = run_identity(engine, token, request.url.path, request.method)
+                else:
+                    request.state.user = authenticate(token, users) if users else "local"
+            except HTTPException as exc:
+                return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+        response = await call_next(request)
+        if request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
+    def locked(db, doc_id, user, role="editor"):
+        return require_access(db, doc_id, user, role, lock=True)
+
+    def check_lease(doc, token):
+        if (
+            not token
+            or not secrets.compare_digest(doc.lease_token or "", token)
+            or doc.lease_until <= time.time()
+        ):
+            raise HTTPException(
+                409,
+                "편집 세션이 만료되었거나 다른 탭이 사용 중입니다. 복구용 다운로드 후 다시 여세요.",
+            )
+
+    def write_file(key, data):
+        # Exclusive immutable key. fsync before metadata commit; crash orphans are not versions.
+        with (folder / key).open("xb") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        if os.name != "nt":
+            fd = os.open(folder, os.O_RDONLY)
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+
+    def version_dict(v):
+        return {
+            k: getattr(v, k)
+            for k in (
+                "id",
+                "document_id",
+                "base_version",
+                "size",
+                "sha256",
+                "created_at",
+                "cause",
+            )
+        }
+
+    def doc_dict(d):
+        return {
+            k: getattr(d, k) for k in ("id", "name", "current_version", "created_at")
+        }
+
+    async def body(request):
+        chunks = bytearray()
+        async for chunk in request.stream():
+            chunks.extend(chunk)
+            if len(chunks) > MAX_FILE:
+                raise HTTPException(413, "30MB 한도를 초과했습니다.")
+        data = bytes(chunks)
+        validate(data)
+        return data
+
+    def publish(db, doc, data, base, token, request_id, cause):
+        if not request_id or len(request_id) > 64:
+            raise HTTPException(422, "Idempotency-Key가 필요합니다.")
+        fingerprint = digest(json.dumps([base, cause, digest(data)]).encode())
+        existing = db.scalar(
+            select(Version).where(
+                Version.document_id == doc.id, Version.request_id == request_id
+            )
+        )
+        if existing:
+            if existing.fingerprint != fingerprint or existing.session_hash != digest(
+                (token or "").encode()
+            ):
+                raise HTTPException(
+                    409, "같은 요청 ID를 다른 저장에 사용할 수 없습니다."
+                )
+            if cause != "upload":
+                check_lease(doc, token)
+            if doc.current_version != existing.id:
+                raise HTTPException(
+                    409, "이 저장 이후 새 버전이 생겼습니다. 최신 문서를 다시 여세요."
+                )
+            return existing  # Already committed receipt; does not renew or modify anything.
+        if cause != "upload":
+            check_lease(doc, token)
+            if doc.current_version != base:
+                raise HTTPException(
+                    409,
+                    "기준 버전 충돌. 변경사항을 복구용 다운로드하고 최신 문서를 다시 여세요.",
+                )
+        if cause == "web-edit" and base:
+            old = db.get(Version, base)
+            lost = loss_warnings((folder / old.storage_key).read_bytes(), data)
+            if lost:
+                recovery = str(uuid.uuid4()) + ".hwpx"
+                write_file(recovery, data)
+                raise HTTPException(
+                    422,
+                    {
+                        "message": "리소스/개체 누락 감지로 게시를 차단했습니다.",
+                        "missing": lost,
+                        "recovery_key": recovery,
+                    },
+                )
+        key = str(uuid.uuid4()) + ".hwpx"
+        write_file(key, data)
+        v = Version(
+            id=str(uuid.uuid4()),
+            document_id=doc.id,
+            base_version=base,
+            storage_key=key,
+            size=len(data),
+            sha256=digest(data),
+            created_at=time.time(),
+            cause=cause,
+            request_id=request_id,
+            fingerprint=fingerprint,
+            session_hash=digest((token or "").encode()),
+        )
+        db.add(v)
+        db.flush()
+        if base:
+            old = db.get(Version, base)
+            before = (folder / old.storage_key).read_bytes()
+            db.add(ChangeSet(version_id=v.id, base_sha256=old.sha256,
+                             entries=json.dumps(describe_changes(before, data))))
+        doc.current_version = v.id
+        return v
+
+    @app.get("/api/auth/status")
+    def auth_status():
+        return {"authentication_required": bool(users)}
+
+    class Login(BaseModel):
+        token: str = Field(min_length=24, max_length=500)
+
+    @app.post("/api/auth/login")
+    def login(value: Login, request: Request):
+        if not users:
+            raise HTTPException(400, "단일 사용자 개발 모드입니다.")
+        user = authenticate(value.token, users)
+        response = JSONResponse({"user_id": user})
+        response.set_cookie(COOKIE, value.token, httponly=True, samesite="strict",
+                            secure=request.url.scheme == "https", max_age=28800, path="/api")
+        return response
+
+    @app.post("/api/auth/logout")
+    def logout():
+        response = JSONResponse({"ok": True})
+        response.delete_cookie(COOKIE, path="/api")
+        return response
+
+    @app.get("/api/auth/me")
+    def me(request: Request):
+        return {"user_id": request.state.user, "authentication_required": bool(users)}
+
+    @app.get("/api/health")
+    def health():
+        return {"ok": True}
+
+    @app.get("/api/documents")
+    def documents(request: Request, q: str = ""):
+        with Session(engine) as db:
+            return [
+                {**doc_dict(d), "role": db.get(Access, (d.id, request.state.user)).role}
+                for d in db.scalars(
+                    select(Document)
+                    .join(Access, Access.document_id == Document.id)
+                    .where(Access.user_id == request.state.user)
+                    .where(Document.name.contains(q, autoescape=True))
+                    .order_by(Document.created_at.desc())
+                )
+            ]
+
+    @app.post("/api/documents")
+    async def upload(
+        request: Request,
+        document_id: str,
+        name: str = Query(min_length=1, max_length=235),
+        idempotency_key: str = Header(),
+    ):
+        try:
+            uuid.UUID(document_id)
+        except ValueError:
+            raise HTTPException(422, "문서 ID는 UUID여야 합니다.")
+        if not name.lower().endswith(".hwpx"):
+            raise HTTPException(422, "HWPX 파일만 업로드하세요.")
+        data = await body(request)
+        with transaction(engine) as db:
+            # Serialize concurrent creation/retries by stable client document UUID on PostgreSQL.
+            if engine.dialect.name == "postgresql":
+                from sqlalchemy import text
+
+                db.execute(
+                    text("SELECT pg_advisory_xact_lock(:key)"),
+                    {"key": int(digest(document_id.encode())[:15], 16)},
+                )
+            doc = db.get(Document, document_id)
+            if not doc:
+                doc = Document(
+                    id=document_id, name=name, created_at=time.time(), lease_until=0
+                )
+                db.add(doc)
+                db.flush()
+                db.add(Access(document_id=doc.id, user_id=request.state.user, role="owner"))
+            elif not db.scalar(
+                select(Version).where(
+                    Version.document_id == doc.id, Version.request_id == idempotency_key
+                )
+            ):
+                raise HTTPException(409, "이미 존재하는 문서 ID입니다.")
+            else:
+                require_access(db, doc.id, request.state.user, "owner", lock=True)
+            publish(db, doc, data, None, None, idempotency_key, "upload")
+            result = {**doc_dict(doc), "role": "owner"}
+        return result
+
+    @app.patch("/api/documents/{doc_id}")
+    def rename(doc_id: str, value: Name, request: Request):
+        with transaction(engine) as db:
+            doc = locked(db, doc_id, request.state.user)
+            doc.name = (
+                value.name
+                if value.name.lower().endswith(".hwpx")
+                else value.name + ".hwpx"
+            )
+            return doc_dict(doc)
+
+    @app.post("/api/documents/{doc_id}/session")
+    def acquire(doc_id: str, request: Request):
+        with transaction(engine) as db:
+            doc = locked(db, doc_id, request.state.user)
+            if doc.lease_token and doc.lease_until > time.time():
+                raise HTTPException(
+                    409,
+                    "다른 편집 세션이 사용 중입니다. 탭을 닫거나 최대 120초 후 다시 시도하세요.",
+                )
+            doc.lease_token = secrets.token_urlsafe(32)
+            doc.lease_until = time.time() + lease_seconds
+            bind_lease(db, doc, request.state.user)
+            return {
+                "token": doc.lease_token,
+                "expires_at": doc.lease_until,
+                "document": {**doc_dict(doc), "role": db.get(Access, (doc.id, request.state.user)).role},
+            }
+
+    @app.put("/api/documents/{doc_id}/session")
+    def renew(doc_id: str, request: Request, x_edit_session: str = Header()):
+        with transaction(engine) as db:
+            doc = locked(db, doc_id, request.state.user)
+            require_lease_owner(db, doc, request.state.user)
+            check_lease(doc, x_edit_session)
+            doc.lease_until = time.time() + lease_seconds
+            return {"expires_at": doc.lease_until}
+
+    @app.delete("/api/documents/{doc_id}/session")
+    def release(doc_id: str, request: Request, x_edit_session: str = Header()):
+        with transaction(engine) as db:
+            doc = locked(db, doc_id, request.state.user)
+            require_lease_owner(db, doc, request.state.user)
+            if secrets.compare_digest(doc.lease_token or "", x_edit_session):
+                doc.lease_token = None
+                doc.lease_until = 0
+            return {"ok": True}
+
+    @app.get("/api/documents/{doc_id}/versions")
+    def versions(doc_id: str, request: Request):
+        with Session(engine) as db:
+            require_access(db, doc_id, request.state.user)
+            return [
+                version_dict(v)
+                for v in db.scalars(
+                    select(Version)
+                    .where(Version.document_id == doc_id)
+                    .order_by(Version.created_at.desc())
+                )
+            ]
+
+    @app.get("/api/documents/{doc_id}/versions/{version_id}/file")
+    def download(doc_id: str, version_id: str, request: Request):
+        with Session(engine) as db:
+            doc = require_access(db, doc_id, request.state.user)
+            v = db.get(Version, version_id)
+            if not doc or not v or v.document_id != doc_id:
+                raise HTTPException(404, "버전을 찾을 수 없습니다.")
+            return FileResponse(
+                folder / v.storage_key,
+                filename=doc.name,
+                media_type="application/hwp+zip",
+                headers={"ETag": f'"{v.sha256}"', "Cache-Control": "no-store"},
+            )
+
+    @app.post("/api/documents/{doc_id}/versions")
+    async def save(
+        doc_id: str,
+        request: Request,
+        base_version: str,
+        cause: str,
+        x_edit_session: str = Header(),
+        idempotency_key: str = Header(),
+        x_application_id: str | None = Header(default=None),
+    ):
+        if cause not in ("web-edit", "reupload"):
+            raise HTTPException(422, "올바르지 않은 생성 원인")
+        delta = request.headers.get("content-type", "").split(";")[0] == "application/vnd.hwp.delta+json"
+        if delta:
+            raw = bytearray()
+            async for chunk in request.stream():
+                raw.extend(chunk)
+                if len(raw) > MAX_FILE * 1.4 + 10000:
+                    raise HTTPException(413, "변경분 크기 한도 초과")
+        else:
+            data = await body(request)
+        with transaction(engine) as db:
+            doc = locked(db, doc_id, request.state.user)
+            require_lease_owner(db, doc, request.state.user)
+            if delta:
+                old = db.get(Version, base_version)
+                if not old or old.document_id != doc.id:
+                    raise HTTPException(409, "기준 버전을 찾을 수 없습니다.")
+                data = apply_delta((folder / old.storage_key).read_bytes(), bytes(raw))
+            application = None
+            if x_application_id:
+                from .rewrite import validate_application_save
+                application = validate_application_save(db, doc, x_application_id, request.state.user,
+                                                        idempotency_key, base_version, data)
+            v = publish(
+                db, doc, data, base_version, x_edit_session, idempotency_key, cause
+            )
+            result = version_dict(v)
+            if application:
+                application.saved_version, application.status = v.id, "saved"
+        return result
+
+    @app.post("/api/documents/{doc_id}/versions/{version_id}/restore")
+    def restore(
+        doc_id: str,
+        version_id: str,
+        base_version: str,
+        request: Request,
+        x_edit_session: str = Header(),
+        idempotency_key: str = Header(),
+    ):
+        with transaction(engine) as db:
+            doc = locked(db, doc_id, request.state.user)
+            require_lease_owner(db, doc, request.state.user)
+            old = db.get(Version, version_id)
+            if not old or old.document_id != doc_id:
+                raise HTTPException(404, "버전을 찾을 수 없습니다.")
+            v = publish(
+                db,
+                doc,
+                (folder / old.storage_key).read_bytes(),
+                base_version,
+                x_edit_session,
+                idempotency_key,
+                "restore",
+            )
+            result = version_dict(v)
+        return result
+
+    @app.get("/api/ai/models")
+    async def models():
+        provider = OpenAICompatible()
+        ids = await provider.models()
+        return {
+            "models": ids,
+            "configured_model": provider.model,
+            "model_available": provider.model in ids,
+        }
+
+    @app.post("/api/ai/review")
+    async def review(value: Review, request: Request, x_edit_session: str = Header()):
+        with transaction(engine) as db:
+            doc = locked(db, value.document_id, request.state.user)
+            require_lease_owner(db, doc, request.state.user)
+            check_lease(doc, x_edit_session)
+            if doc.current_version != value.base_version:
+                raise HTTPException(409, "기준 버전이 변경되었습니다.")
+        proposal = await OpenAICompatible().review(value.original)
+        # Access/base can change while the provider is running.
+        with transaction(engine) as db:
+            doc = locked(db, value.document_id, request.state.user)
+            require_lease_owner(db, doc, request.state.user)
+            check_lease(doc, x_edit_session)
+            if doc.current_version != value.base_version:
+                raise HTTPException(409, "기준 버전이 변경되었습니다.")
+        return {
+            **value.model_dump(),
+            **proposal.model_dump(),
+            "original_sha256": digest(value.original.encode()),
+        }
+
+    from .collaboration import install_collaboration
+    install_collaboration(app, locked, check_lease, publish, doc_dict, version_dict)
+    from .rewrite import install_rewrite
+    install_rewrite(app, check_lease)
+    return app
+
+
+app = create_app()

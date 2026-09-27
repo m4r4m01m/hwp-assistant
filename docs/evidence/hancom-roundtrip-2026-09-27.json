@@ -1,0 +1,52 @@
+{
+  "recorded_at_utc": "2026-09-27T10:40:27.909944+00:00",
+  "scope": "Synthetic saved HWPX copy: actual Hancom open, edit, save, then web import verification",
+  "source_document_id": "95270b84-65ab-459c-a806-33fbc758e892",
+  "source_version_id": "24cda4c4-af72-4093-91eb-06cf41b80b07",
+  "source_file": ".cache/codex-human-2026-09-27-run2/saved-synthetic.hwpx",
+  "input_copy": ".cache/hancom-roundtrip-2026-09-27/hancom-input-copy.hwpx",
+  "source_and_copy_sha256": "570caafb554daa6bbe9754d8f206ab41184b76bbf293da962320ba0b513f61a6",
+  "input_copy_size": 7611,
+  "planned_hancom_output": ".cache/hancom-roundtrip-2026-09-27/hancom-saved.hwpx",
+  "planned_added_paragraph": "한컴 왕복 확인: 한컴에서 직접 수정하고 저장했습니다.",
+  "environment_checks": {
+    "computer_use_initialized": true,
+    "hancom_in_installed_app_list": false,
+    "hwp_exe_app_paths_registry_match": false,
+    "hancom_uninstall_registry_match": false,
+    "standard_program_files_or_local_programs_hancom_directory_match": false,
+    "hwp_hwpx_file_association": false,
+    "hwpframe_com_registration": false,
+    "hwp_exe_on_path": false,
+    "hancom_appx_match": false,
+    "limitation": "Nonstandard/portable installation not ruled out; executable path requested from user"
+  },
+  "stages": {
+    "source_and_unchanged_copy": "passed",
+    "hancom_open": "not executed: no Hancom executable found",
+    "hancom_edit": "not executed",
+    "hancom_save": "not executed",
+    "hancom_output_reopen": "not executed",
+    "web_import_of_hancom_output": "not executed"
+  },
+  "source_document_versions": [
+    {
+      "id": "f8f04b7e-c2c5-4e09-bf61-e17973d49a32",
+      "base_version": null,
+      "sha256": "b5d507b0a4c195a3ddb4b778e894291eac92204134bb28263cb9d3c55c92d98d",
+      "file_preserved": true
+    },
+    {
+      "id": "24cda4c4-af72-4093-91eb-06cf41b80b07",
+      "base_version": "f8f04b7e-c2c5-4e09-bf61-e17973d49a32",
+      "sha256": "570caafb554daa6bbe9754d8f206ab41184b76bbf293da962320ba0b513f61a6",
+      "file_preserved": true
+    }
+  ],
+  "original_historical_blobs_unchanged": 25,
+  "original_historical_blob_count": 25,
+  "product_code_changed": false,
+  "ai_calls": 0,
+  "server_restarts": 0,
+  "new_server_document_or_version_created": false
+}

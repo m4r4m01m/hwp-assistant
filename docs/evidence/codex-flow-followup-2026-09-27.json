@@ -1,0 +1,43 @@
+{
+  "checked_at_utc": "2026-09-27T09:34:48.007424+00:00",
+  "task": {
+    "id": "44ed30fc-ac37-4590-96bd-0f472397b24a",
+    "document_id": "20a47965-0f42-4d69-926f-1f0fefb61684",
+    "base_version": "dd75da78-f648-4ae7-aeae-0588513ae8b1",
+    "status": "ready"
+  },
+  "request_snapshot": {
+    "revision": 1,
+    "target": {
+      "charOffset": 0,
+      "kind": "body_paragraph",
+      "length": 48,
+      "paragraph": 1,
+      "section": 0
+    },
+    "text_sha256": "827bad7430c5424fe294d2c50b9f5a6b45b0470bfffd3346c99cef61bc139014"
+  },
+  "current_version": "dd75da78-f648-4ae7-aeae-0588513ae8b1",
+  "base_is_current": true,
+  "application_records": [],
+  "confirmed_versions": [
+    {
+      "id": "dd75da78-f648-4ae7-aeae-0588513ae8b1",
+      "base_version": null,
+      "sha256": "238cb87dbdcdc18d7f8ed54bec256b6753dd756cbecf22bd6fcb82d65d8d9ccb"
+    }
+  ],
+  "original_blob_matches_metadata": true,
+  "preexisting_blobs_unchanged": 25,
+  "preexisting_blob_count": 25,
+  "choice_marker_exists": false,
+  "recorded_choice": null,
+  "previous_harness_completed_at": null,
+  "live_browser_buffer": "not observed: existing harness is headless; no connected CUA tab/document session",
+  "approval": "not recorded",
+  "apply": "not executed",
+  "save": "not executed",
+  "web_reopen_of_new_version": "not executed",
+  "new_model_calls": 0,
+  "functional_code_changes": false
+}

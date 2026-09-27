@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hwp_assistant}
+      POSTGRES_USER: ${POSTGRES_USER:-hwp_assistant}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-development-only}
+    volumes:
+      - metadata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-hwp_assistant}:${POSTGRES_PASSWORD:-local-development-only}@db:5432/${POSTGRES_DB:-hwp_assistant}
+      STORAGE_DIR: /data/files
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-30}
+      SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-120}
+      HWP_AUTH_TOKENS: ${HWP_AUTH_TOKENS:-}
+      HWP_LEGACY_OWNER: ${HWP_LEGACY_OWNER:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - documents:/data/files
+    depends_on:
+      db:
+        condition: service_healthy
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      - api
+volumes:
+  metadata:
+  documents:

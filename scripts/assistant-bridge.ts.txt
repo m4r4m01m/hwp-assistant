@@ -1,0 +1,37 @@
+
+// HWP Assistant downstream bridge. Read-only evidence and reported export only;
+// all text mutations still use rhwp's public exact-command SDK.
+import { collectTargetEvidence as assistantEvidence } from './document-agent/controller';
+let assistantRevision = 0;
+const assistantListeners = new Set<() => void>();
+eventBus.on('document-mutated', () => {
+  assistantRevision += 1;
+  for (const listener of assistantListeners) listener();
+});
+(window as any).hwpAssistantBridge = {
+  async newDocument() { await initPromise; await createNewDocument(); },
+  revision: () => assistantRevision,
+  subscribe(listener: () => void) {
+    assistantListeners.add(listener);
+    return () => assistantListeners.delete(listener);
+  },
+  snapshot() {
+    if (!documentAgent) throw new Error('편집기 초기화 중');
+    const state = documentAgent.getDocumentState();
+    const selection = documentAgent.getSelectionContext();
+    if (!selection.editable || !selection.target) throw new Error('AI 적용은 단일 서식의 본문 문단만 지원합니다. 표·필드·혼합 서식은 미지원입니다.');
+    return { state, selection, evidence: assistantEvidence(wasm, selection.target), revision: assistantRevision };
+  },
+  exportSnapshot() {
+    if (!documentAgent) throw new Error('편집기 초기화 중');
+    const artifact = wasm.exportHwpxWithReport();
+    return { ...artifact, revision: assistantRevision, epoch: wasm.documentGeneration };
+  },
+  warnings: () => wasm.getValidationWarnings(),
+  async acknowledge(revision: number, epoch: number, name: string) {
+    // Atomic check + markClean occurs before the first await in completeHostSave.
+    if (revision !== assistantRevision || epoch !== wasm.documentGeneration) return false;
+    await completeHostSave(name);
+    return revision === assistantRevision && epoch === wasm.documentGeneration;
+  },
+};
