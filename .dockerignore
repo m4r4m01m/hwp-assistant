@@ -1,0 +1,11 @@
+.git
+.env
+.venv
+.research
+.cache
+data
+**/node_modules
+frontend/public/rhwp
+frontend/dist
+**/__pycache__
+**/test-results

@@ -21,3 +21,4 @@ print("--- 1st prompt end ---")
 print("--- 2nd prompt start ---")
 print(chat("방금 쓴 거에서 '향후 계획' 항목 추가해줘"))  # 앞 대화를 기억하는 것처럼 동작
 print("--- 2nd prompt end ---")
+

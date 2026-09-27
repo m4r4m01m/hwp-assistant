@@ -1,0 +1,136 @@
+{
+  "recorded_at_utc": "2026-09-27T10:59:47.273552+00:00",
+  "hancom_executable": "C:\\Program Files (x86)\\Hnc\\Office 2018\\HOffice100\\Bin\\Hwp.exe",
+  "hancom_product_version": "10.0.0.5060",
+  "previous_discovery_corrected": "User-provided explicit path exists and launches successfully; earlier negative discovery was incomplete",
+  "source_document_id": "95270b84-65ab-459c-a806-33fbc758e892",
+  "source_version_id": "24cda4c4-af72-4093-91eb-06cf41b80b07",
+  "source_versions_preserved": [
+    {
+      "id": "f8f04b7e-c2c5-4e09-bf61-e17973d49a32",
+      "base_version": null,
+      "sha256": "b5d507b0a4c195a3ddb4b778e894291eac92204134bb28263cb9d3c55c92d98d",
+      "cause": "upload",
+      "blob_matches_db_hash": true
+    },
+    {
+      "id": "24cda4c4-af72-4093-91eb-06cf41b80b07",
+      "base_version": "f8f04b7e-c2c5-4e09-bf61-e17973d49a32",
+      "sha256": "570caafb554daa6bbe9754d8f206ab41184b76bbf293da962320ba0b513f61a6",
+      "cause": "web-edit",
+      "blob_matches_db_hash": true
+    }
+  ],
+  "historical_blobs_preserved": 25,
+  "input": {
+    "sha256": "570caafb554daa6bbe9754d8f206ab41184b76bbf293da962320ba0b513f61a6",
+    "size": 7611,
+    "paragraphs": [
+      "",
+      "보존 확인: 회의 장소는 제1회의실입니다. 담당 부서는 운영팀입니다.",
+      "회의 자료는 금요일까지 준비하며, 담당자는 자료 준비가 완료되면 팀에 그 사실을 알려 주시면 좋겠습니다."
+    ],
+    "winBrush": [
+      {
+        "faceColor": "none",
+        "hatchColor": "#999999",
+        "alpha": "0"
+      }
+    ]
+  },
+  "actual_hancom_output": {
+    "sha256": "6f0f727f185102699955777bc4ba2b98e9ae08b866aa9cbbb4d22f86a0ef4db6",
+    "size": 13914,
+    "paragraphs": [
+      "",
+      "보존 확인: 회의 장소는 제1회의실입니다. 담당 부서는 운영팀입니다.",
+      "회의 자료는 금요일까지 준비하며, 담당자는 자료 준비가 완료되면 팀에 그 사실을 알려 주시면 좋겠습니다.",
+      "한컴 왕복 확인: 한컴에서 직접 수정하고 저장했습니다."
+    ],
+    "winBrush": [
+      {
+        "faceColor": "#000000",
+        "hatchColor": "#999999",
+        "alpha": "0"
+      }
+    ]
+  },
+  "ui_execution_phases": [
+    {
+      "phase": "opened",
+      "at": "2026-09-27T10:52:39.700Z"
+    },
+    {
+      "phase": "edited",
+      "at": "2026-09-27T10:53:37.166Z"
+    },
+    {
+      "phase": "edit_confirmed",
+      "at": "2026-09-27T10:54:03.907Z"
+    },
+    {
+      "phase": "saved_by_hancom",
+      "at": "2026-09-27T10:55:44.486Z"
+    },
+    {
+      "phase": "reopened_hancom_saved",
+      "at": "2026-09-27T10:57:03.322Z"
+    }
+  ],
+  "web_import": {
+    "document_id": "e5523401-52ac-4836-84f5-8e7811e4b22d",
+    "version_id": "af0115fe-bbce-4d06-949e-786735925e58",
+    "versions": [
+      {
+        "id": "af0115fe-bbce-4d06-949e-786735925e58",
+        "base_version": null,
+        "sha256": "6f0f727f185102699955777bc4ba2b98e9ae08b866aa9cbbb4d22f86a0ef4db6",
+        "cause": "upload",
+        "blob_matches_db_hash": true
+      }
+    ],
+    "upload_http_status": 200,
+    "stages": {
+      "upload": "passed",
+      "web_open": "passed",
+      "web_reopen": "passed"
+    }
+  },
+  "stages": {
+    "hancom_open": "passed: text present; visual defect below",
+    "hancom_edit": "passed: added paragraph via native UI",
+    "hancom_save": "passed: actual HWPX output from Save As",
+    "hancom_reopen": "passed for text after closing saved document",
+    "web_import_and_reopen": "passed for text and persisted uploaded bytes",
+    "visual_compatibility": "failed: black paragraph background obscures text in Hancom and reimported web document"
+  },
+  "visual_evidence": [
+    ".cache/hancom-roundtrip-2026-09-27/hancom-generated-preview.png",
+    ".cache/hancom-roundtrip-2026-09-27/web-reopened.png"
+  ],
+  "observed_fill_difference": {
+    "input": [
+      {
+        "faceColor": "none",
+        "hatchColor": "#999999",
+        "alpha": "0"
+      }
+    ],
+    "hancom_output": [
+      {
+        "faceColor": "#000000",
+        "hatchColor": "#999999",
+        "alpha": "0"
+      }
+    ],
+    "root_cause": "not yet proven; observed serialization/interpretation difference, not repaired"
+  },
+  "content_preservation_passed": true,
+  "overall_hancom_compatibility": "not passed",
+  "scope_limit": "One synthetic plain-text document; no tables, pictures, complex layout or repeated cycles tested",
+  "ai_calls": 0,
+  "product_code_changes": false,
+  "server_restart": false,
+  "harness_note": "Initial web harness import path error corrected before browser launch or upload; one actual product upload performed",
+  "next_smallest_task": "Reproduce and fix default no-fill/background output through the real engine; do not rewrite historical HWPX XML"
+}

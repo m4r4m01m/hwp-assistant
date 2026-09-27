@@ -1,0 +1,547 @@
+{
+  "recorded_at_utc": "2026-09-27T12:29:25.732021+00:00",
+  "scope": "Build wiring + Windows no-opt packaging + actual Hancom 2018 simple table UI roundtrip; NO AI",
+  "build": {
+    "metadata": {
+      "version": "0.8.6",
+      "commit": "e8800c8def63449808a4092798442652ed460552",
+      "externalWebFonts": false,
+      "diagnostic": true,
+      "bridge_sha256": "4ad7f7906c3685848cdeb85acb533c2a4f6200aea560c2df378fa17bc79931be",
+      "bundle": {
+        "index.html": "21b7f25c5b62b0925a3c166e3a8cec9bd6ffbc7e8d64db5169d25bc09941e6c0",
+        "rhwp.js": "12029c04cb7f4af12dc6c1026a0499e49e3a01d1bce4b6e2f79f51da1aa59da7",
+        "assets/rhwp_bg-DdftfNrC.wasm": "0e81cdeb4a61de8dd12be6d79d3bf06a8c1153525883e4112f4dcb1257d68195",
+        "assets/canvaskit-renderer-G9QZqpU4.js": "3ad7c1e8fced26e22b8bc7d404bcf3c63cd79b4f9b4057ea1c2e5559dfd08172",
+        "assets/index-CKntJATf.js": "6c4ed8c27192da6b1c5e83159fea76f652da0237e9779ebbe931c64b941774a1",
+        "assets/studio-plugin-Cp8dJ3L_.js": "abdcbcab732aad8d91b551c97ff045bec6b140ae87d94c5fd44235d5515fb4e7"
+      },
+      "coreBuild": {
+        "commit": "e8800c8def63449808a4092798442652ed460552",
+        "patch": "rhwp-0.8.6-empty-fill",
+        "rust": "1.93.1",
+        "wasm_bindgen": "0.2.127",
+        "profile": "release",
+        "wasm_opt": false,
+        "purpose": "native diagnostic build; deployment optimization not verified",
+        "patch_sha256": "377171f8996a35046203d2ceb358ef580b1091fd067ee0ae2e053c4294013656",
+        "source_sha256": {
+          "header.rs": "7ab5d7bd3dca464fab2b9bf65351f95547bf335835e7338e546e65d9e73ed754",
+          "shape.rs": "52053c287545bc14bab65df5cf311e277e15d3007870ff622a217faa9a9826cb",
+          "char_shapes.rs": "47ee45e9a0ef6c5b0c27a342ad1982030d10a9d965157fe4d01fb1fe22fd832a"
+        },
+        "lock_sha256": "9b981042e21ec5166d8a0d74e968d646805803659adaedeb8a56241c57f75440",
+        "wasm_sha256": "0e81cdeb4a61de8dd12be6d79d3bf06a8c1153525883e4112f4dcb1257d68195",
+        "binding_sha256": "e84c5b03cd32927a86e1a2c8acf2c43d60127fcff83f8896daf85b864c78968a"
+      }
+    },
+    "windows_wasm_pack": "0.15.0 --release --no-opt",
+    "same_wasm_sha256": "0e81cdeb4a61de8dd12be6d79d3bf06a8c1153525883e4112f4dcb1257d68195",
+    "docker_execution": "not run: Docker engine and WSL Linux unavailable",
+    "optimized_deployment": "not verified",
+    "default_engine_replaced": false,
+    "source_preservation": {
+      "kind": "build-source preservation fixture; no document data",
+      "exit_code": 1,
+      "source_preserved": true,
+      "reason": "Preserving unknown source changes"
+    }
+  },
+  "table_product": {
+    "sha256": "9bf7d3446588b6800610f8432188ce48e039f495db00222920e9ec8aef13a87f",
+    "bytes": 8129,
+    "paragraphs": [
+      {
+        "text": "표 서식 보존 시험",
+        "align": "CENTER",
+        "bold": true
+      },
+      {
+        "text": "보존 문단: 표 밖 문장을 유지합니다.",
+        "align": "LEFT",
+        "bold": false
+      }
+    ],
+    "tables": [
+      {
+        "rows": "2",
+        "cols": "2",
+        "cells": [
+          {
+            "text": "항목",
+            "geometry": {
+              "cellAddr": {
+                "colAddr": "0",
+                "rowAddr": "0"
+              },
+              "cellSpan": {
+                "colSpan": "1",
+                "rowSpan": "1"
+              },
+              "cellSz": {
+                "width": "20977",
+                "height": "282"
+              },
+              "cellMargin": {
+                "left": "510",
+                "right": "510",
+                "top": "141",
+                "bottom": "141"
+              }
+            },
+            "borders": {
+              "leftBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "rightBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "topBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "bottomBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              }
+            }
+          },
+          {
+            "text": "값",
+            "geometry": {
+              "cellAddr": {
+                "colAddr": "1",
+                "rowAddr": "0"
+              },
+              "cellSpan": {
+                "colSpan": "1",
+                "rowSpan": "1"
+              },
+              "cellSz": {
+                "width": "20977",
+                "height": "282"
+              },
+              "cellMargin": {
+                "left": "510",
+                "right": "510",
+                "top": "141",
+                "bottom": "141"
+              }
+            },
+            "borders": {
+              "leftBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "rightBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "topBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "bottomBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              }
+            }
+          },
+          {
+            "text": "일정",
+            "geometry": {
+              "cellAddr": {
+                "colAddr": "0",
+                "rowAddr": "1"
+              },
+              "cellSpan": {
+                "colSpan": "1",
+                "rowSpan": "1"
+              },
+              "cellSz": {
+                "width": "20977",
+                "height": "282"
+              },
+              "cellMargin": {
+                "left": "510",
+                "right": "510",
+                "top": "141",
+                "bottom": "141"
+              }
+            },
+            "borders": {
+              "leftBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "rightBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "topBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "bottomBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              }
+            }
+          },
+          {
+            "text": "금요일",
+            "geometry": {
+              "cellAddr": {
+                "colAddr": "1",
+                "rowAddr": "1"
+              },
+              "cellSpan": {
+                "colSpan": "1",
+                "rowSpan": "1"
+              },
+              "cellSz": {
+                "width": "20977",
+                "height": "282"
+              },
+              "cellMargin": {
+                "left": "510",
+                "right": "510",
+                "top": "141",
+                "bottom": "141"
+              }
+            },
+            "borders": {
+              "leftBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "rightBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "topBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "bottomBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "table_hancom": {
+    "sha256": "dc518c5f05acfb396ecc77f1d928f5c4066b6b96e461a03995c352b48b3512b9",
+    "bytes": 16695,
+    "paragraphs": [
+      {
+        "text": "표 서식 보존 시험",
+        "align": "CENTER",
+        "bold": true
+      },
+      {
+        "text": "보존 문단: 표 밖 문장을 유지합니다.",
+        "align": "LEFT",
+        "bold": false
+      }
+    ],
+    "tables": [
+      {
+        "rows": "2",
+        "cols": "2",
+        "cells": [
+          {
+            "text": "항목",
+            "geometry": {
+              "cellAddr": {
+                "colAddr": "0",
+                "rowAddr": "0"
+              },
+              "cellSpan": {
+                "colSpan": "1",
+                "rowSpan": "1"
+              },
+              "cellSz": {
+                "width": "20977",
+                "height": "282"
+              },
+              "cellMargin": {
+                "left": "510",
+                "right": "510",
+                "top": "141",
+                "bottom": "141"
+              }
+            },
+            "borders": {
+              "leftBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "rightBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "topBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "bottomBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              }
+            }
+          },
+          {
+            "text": "값",
+            "geometry": {
+              "cellAddr": {
+                "colAddr": "1",
+                "rowAddr": "0"
+              },
+              "cellSpan": {
+                "colSpan": "1",
+                "rowSpan": "1"
+              },
+              "cellSz": {
+                "width": "20977",
+                "height": "282"
+              },
+              "cellMargin": {
+                "left": "510",
+                "right": "510",
+                "top": "141",
+                "bottom": "141"
+              }
+            },
+            "borders": {
+              "leftBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "rightBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "topBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "bottomBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              }
+            }
+          },
+          {
+            "text": "일정",
+            "geometry": {
+              "cellAddr": {
+                "colAddr": "0",
+                "rowAddr": "1"
+              },
+              "cellSpan": {
+                "colSpan": "1",
+                "rowSpan": "1"
+              },
+              "cellSz": {
+                "width": "20977",
+                "height": "282"
+              },
+              "cellMargin": {
+                "left": "510",
+                "right": "510",
+                "top": "141",
+                "bottom": "141"
+              }
+            },
+            "borders": {
+              "leftBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "rightBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "topBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "bottomBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              }
+            }
+          },
+          {
+            "text": "금요일 한컴 확인",
+            "geometry": {
+              "cellAddr": {
+                "colAddr": "1",
+                "rowAddr": "1"
+              },
+              "cellSpan": {
+                "colSpan": "1",
+                "rowSpan": "1"
+              },
+              "cellSz": {
+                "width": "20977",
+                "height": "282"
+              },
+              "cellMargin": {
+                "left": "510",
+                "right": "510",
+                "top": "141",
+                "bottom": "141"
+              }
+            },
+            "borders": {
+              "leftBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "rightBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "topBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              },
+              "bottomBorder": {
+                "type": "SOLID",
+                "width": "0.12 mm",
+                "color": "#000000"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "documents": [
+    {
+      "document_id": "964e4e10-ccd5-45e2-985f-a3de327dcaab",
+      "versions": [
+        {
+          "id": "3decb9ad-02a1-45d2-a50f-829fa0a80eae",
+          "base_version": null,
+          "sha256": "9bf7d3446588b6800610f8432188ce48e039f495db00222920e9ec8aef13a87f",
+          "cause": "upload",
+          "blob_matches_db_hash": true
+        }
+      ]
+    },
+    {
+      "document_id": "12157886-37ca-4615-baa2-456bce72631b",
+      "versions": [
+        {
+          "id": "cff9db40-2a9b-4946-8d27-1467c2264864",
+          "base_version": null,
+          "sha256": "dc518c5f05acfb396ecc77f1d928f5c4066b6b96e461a03995c352b48b3512b9",
+          "cause": "upload",
+          "blob_matches_db_hash": true
+        }
+      ]
+    },
+    {
+      "document_id": "f60eb7e8-4e59-4394-9a09-5d29641f61bd",
+      "versions": [
+        {
+          "id": "cacfd52a-528f-4d17-aae8-ad2516bf402e",
+          "base_version": null,
+          "sha256": "94625e69b4b2443e0e2ad473fd6f29fa2ebed0a9b13ac255fe21e3458c82b34e",
+          "cause": "upload",
+          "blob_matches_db_hash": true
+        },
+        {
+          "id": "4b198ca0-7528-451c-a4b2-655bafc9a605",
+          "base_version": "cacfd52a-528f-4d17-aae8-ad2516bf402e",
+          "sha256": "a570578a259ee9218bfbf3df9607b0cbedef251d4c90bb8dc7fca30121baa773",
+          "cause": "web-edit",
+          "blob_matches_db_hash": true
+        }
+      ]
+    }
+  ],
+  "stages": {
+    "built_frontend_save_reopen": "passed with diagnostic core and nginx-equivalent headers (Vite preview)",
+    "hancom_open_cell_edit_save_reopen": "passed",
+    "hancom_output_web_import_reopen": "passed",
+    "heading_and_non_target_text": "passed: text/bold/alignment preserved",
+    "table_structure_and_border_values": "passed: 2x2, geometry and four border definitions preserved",
+    "hancom_editor_visual_border": "unresolved: outer border invisible at 125%; present in native-generated PNG",
+    "zoom_recheck": "not completed: failed to activate captured window",
+    "browser_csp_page_errors_external_requests": "zero in both table trials"
+  },
+  "ui_phases": [
+    {
+      "phase": "opened_product",
+      "at": "2026-09-27T12:20:06.779Z"
+    },
+    {
+      "phase": "edited_table_cell",
+      "at": "2026-09-27T12:20:31.532Z"
+    },
+    {
+      "phase": "saved_hancom",
+      "at": "2026-09-27T12:21:55.853Z"
+    },
+    {
+      "phase": "reopened_hancom",
+      "at": "2026-09-27T12:23:08.757Z"
+    }
+  ],
+  "original_actual_codex_document_preserved": "95270b84-65ab-459c-a806-33fbc758e892",
+  "historical_blobs_preserved": 25,
+  "ai_calls": 0,
+  "hancom_preview_sha256": "8f270ff63495e73ca90836dc97889b985f969988c55e2e9071ba8e656c8ab5e2",
+  "evidence_directories": [
+    ".cache/engine-release-2026-09-27",
+    ".cache/hancom-table-2026-09-27"
+  ],
+  "unverified": [
+    "Docker/Linux/Binaryen optimized build",
+    "nginx container runtime",
+    "PostgreSQL/Compose",
+    "general or repeated Hancom compatibility",
+    "other user actual Codex continuation",
+    "independent context restore"
+  ]
+}

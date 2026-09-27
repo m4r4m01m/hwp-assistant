@@ -1,0 +1,15 @@
+{
+  "version": "0.8.6",
+  "commit": "e8800c8def63449808a4092798442652ed460552",
+  "rust": "1.93.1",
+  "wasm_bindgen": "0.2.127",
+  "wasm_pack": "0.15.0",
+  "binaryen": "117",
+  "patch": "rhwp-0.8.6-empty-fill",
+  "patch_sha256": "377171f8996a35046203d2ceb358ef580b1091fd067ee0ae2e053c4294013656",
+  "source_sha256": {
+    "header.rs": "7ab5d7bd3dca464fab2b9bf65351f95547bf335835e7338e546e65d9e73ed754",
+    "shape.rs": "52053c287545bc14bab65df5cf311e277e15d3007870ff622a217faa9a9826cb",
+    "char_shapes.rs": "47ee45e9a0ef6c5b0c27a342ad1982030d10a9d965157fe4d01fb1fe22fd832a"
+  }
+}

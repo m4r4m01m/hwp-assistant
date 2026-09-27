@@ -1,0 +1,69 @@
+{
+  "verification": "Actual Codex invocation; awaiting explicit user choice before apply/save",
+  "document_id": "20a47965-0f42-4d69-926f-1f0fefb61684",
+  "conversation_id": "6b5001af-99c9-4cfc-8cb5-4f76096a5ad4",
+  "task_id": "44ed30fc-ac37-4590-96bd-0f472397b24a",
+  "requested_by": "alice",
+  "base_version": "dd75da78-f648-4ae7-aeae-0588513ae8b1",
+  "revision": 1,
+  "document_epoch": 1,
+  "change_seq": 1,
+  "selection_target": {
+    "charOffset": 0,
+    "kind": "body_paragraph",
+    "length": 48,
+    "paragraph": 1,
+    "section": 0
+  },
+  "as_is": "회의 자료는 금요일까지 준비합니다. 담당자는 준비가 끝나면 팀에 알려 주면 좋겠습니다.",
+  "original_text_sha256": "827bad7430c5424fe294d2c50b9f5a6b45b0470bfffd3346c99cef61bc139014",
+  "original_file_sha256": "238cb87dbdcdc18d7f8ed54bec256b6753dd756cbecf22bd6fcb82d65d8d9ccb",
+  "candidates": [
+    {
+      "id": "6d0df313-dbf6-55f9-bd45-7cf58cd7f4bb",
+      "ordinal": 1,
+      "replacement": "회의 자료는 금요일까지 준비합니다. 담당자는 자료 준비가 완료되면 팀에 알려 주시기 바랍니다.",
+      "reason": "준비 완료의 대상을 명확히 하고, 알림 요청을 정중한 업무 문체로 다듬었습니다."
+    },
+    {
+      "id": "d8097c05-3d99-5ba0-9277-494033941773",
+      "ordinal": 2,
+      "replacement": "회의 자료는 금요일까지 준비하며, 준비를 마친 담당자는 팀에 완료 사실을 알려 주시면 좋겠습니다.",
+      "reason": "두 문장을 자연스럽게 연결하고, 기존의 완곡한 요청 어조를 유지하면서 알릴 내용을 명확히 했습니다."
+    }
+  ],
+  "execution": {
+    "executor": "codex-cli",
+    "auth": "existing ChatGPT login",
+    "sandbox": "read-only",
+    "shell_tool": false,
+    "mcp_tools": [
+      {
+        "server": "hwp_document",
+        "tool": "read_rewrite_task",
+        "status": "completed"
+      },
+      {
+        "server": "hwp_document",
+        "tool": "submit_rewrite_candidates",
+        "status": "completed"
+      }
+    ],
+    "completed": true,
+    "codex_thread_id": "01a0e21c-4d8a-7710-8118-9e71dd71f118",
+    "usage": {
+      "input_tokens": 44228,
+      "cached_input_tokens": 31872,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 454,
+      "reasoning_output_tokens": 0
+    },
+    "exit_code": 0
+  },
+  "verified": {
+    "request_equals_unsaved_snapshot": true,
+    "editor_unchanged_before_approval": true,
+    "confirmed_versions_before_approval": 1
+  },
+  "approval_apply_save_reopen": "not executed: awaiting user choice"
+}

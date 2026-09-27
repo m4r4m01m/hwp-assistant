@@ -1,0 +1,218 @@
+{
+  "recorded_at_utc": "2026-09-27T10:28:06.039825+00:00",
+  "old_run": {
+    "id": "44ed30fc-ac37-4590-96bd-0f472397b24a",
+    "document_id": "20a47965-0f42-4d69-926f-1f0fefb61684",
+    "status": "ready",
+    "base_version": "dd75da78-f648-4ae7-aeae-0588513ae8b1",
+    "applications": [],
+    "versions": [
+      {
+        "id": "dd75da78-f648-4ae7-aeae-0588513ae8b1",
+        "base_version": null,
+        "sha256": "238cb87dbdcdc18d7f8ed54bec256b6753dd756cbecf22bd6fcb82d65d8d9ccb",
+        "blob_exists_and_hash_matches": true
+      }
+    ],
+    "current_version": "dd75da78-f648-4ae7-aeae-0588513ae8b1"
+  },
+  "current_run": {
+    "id": "ca00261c-b9f0-4d91-8263-4b3641b3ad65",
+    "document_id": "95270b84-65ab-459c-a806-33fbc758e892",
+    "status": "ready",
+    "base_version": "f8f04b7e-c2c5-4e09-bf61-e17973d49a32",
+    "applications": [
+      {
+        "id": "e235b863-c516-4e83-9db8-b6786033a326",
+        "candidate_id": "b1fb6743-d42e-5476-a2ad-a70200160ad0",
+        "approved_by": "alice",
+        "status": "approved",
+        "saved_version": null,
+        "export_sha256": null
+      }
+    ],
+    "versions": [
+      {
+        "id": "f8f04b7e-c2c5-4e09-bf61-e17973d49a32",
+        "base_version": null,
+        "sha256": "b5d507b0a4c195a3ddb4b778e894291eac92204134bb28263cb9d3c55c92d98d",
+        "blob_exists_and_hash_matches": true
+      }
+    ],
+    "current_version": "f8f04b7e-c2c5-4e09-bf61-e17973d49a32"
+  },
+  "real_model_calls_this_fix": 0,
+  "real_model_calls_current_run": 1,
+  "phase": "waiting_for_same_candidate_retry",
+  "ui_clicks": [
+    {
+      "task_id": "ca00261c-b9f0-4d91-8263-4b3641b3ad65",
+      "candidate_id": "b1fb6743-d42e-5476-a2ad-a70200160ad0",
+      "trusted": true,
+      "at": "2026-09-27T10:17:02.219Z"
+    },
+    {
+      "task_id": "ca00261c-b9f0-4d91-8263-4b3641b3ad65",
+      "candidate_id": "b1fb6743-d42e-5476-a2ad-a70200160ad0",
+      "trusted": true,
+      "at": "2026-09-27T10:17:07.731Z"
+    }
+  ],
+  "approved_candidate_id": "b1fb6743-d42e-5476-a2ad-a70200160ad0",
+  "application": {
+    "id": "e235b863-c516-4e83-9db8-b6786033a326",
+    "task_id": "ca00261c-b9f0-4d91-8263-4b3641b3ad65",
+    "candidate_id": "b1fb6743-d42e-5476-a2ad-a70200160ad0",
+    "document_id": "95270b84-65ab-459c-a806-33fbc758e892",
+    "base_version": "f8f04b7e-c2c5-4e09-bf61-e17973d49a32",
+    "requested_by": "alice",
+    "approved_by": "alice",
+    "status": "approved",
+    "saved_version": null,
+    "original": "회의 자료는 금요일까지 준비합니다. 담당자는 준비가 끝나면 팀에 알려 주면 좋겠습니다.",
+    "replacement": "회의 자료는 금요일까지 준비하며, 담당자는 자료 준비가 완료되면 팀에 그 사실을 알려 주시면 좋겠습니다.",
+    "created_at": 1790504222.2335558
+  },
+  "stages": {
+    "approval": "passed",
+    "apply": "not executed",
+    "save": "not executed",
+    "reopen": "not executed"
+  },
+  "network": [
+    {
+      "kind": "approval",
+      "requested": {
+        "id": "e235b863-c516-4e83-9db8-b6786033a326",
+        "candidate_id": "b1fb6743-d42e-5476-a2ad-a70200160ad0"
+      },
+      "status": 200,
+      "response": {
+        "id": "e235b863-c516-4e83-9db8-b6786033a326",
+        "candidate_id": "b1fb6743-d42e-5476-a2ad-a70200160ad0",
+        "approved_by": "alice"
+      }
+    },
+    {
+      "kind": "approval",
+      "requested": {
+        "id": "e235b863-c516-4e83-9db8-b6786033a326",
+        "candidate_id": "b1fb6743-d42e-5476-a2ad-a70200160ad0"
+      },
+      "status": 200,
+      "response": {
+        "id": "e235b863-c516-4e83-9db8-b6786033a326",
+        "candidate_id": "b1fb6743-d42e-5476-a2ad-a70200160ad0",
+        "approved_by": "alice"
+      }
+    }
+  ],
+  "product_diagnosis": {
+    "at": "2026-09-27T10:22:24.150Z",
+    "selection_json_equal": false,
+    "selection_structurally_equal": true,
+    "live_revision": 2,
+    "expected_revision": 2,
+    "document_sha_equal": true,
+    "text_equal": true,
+    "current_version": "f8f04b7e-c2c5-4e09-bf61-e17973d49a32",
+    "base_version": "f8f04b7e-c2c5-4e09-bf61-e17973d49a32",
+    "live_selection": {
+      "schemaVersion": 1,
+      "documentEpoch": 1,
+      "changeSeq": 2,
+      "page": 1,
+      "editable": true,
+      "collapsed": true,
+      "target": {
+        "kind": "body_paragraph",
+        "section": 0,
+        "paragraph": 2,
+        "charOffset": 0,
+        "length": 48
+      },
+      "selectedTextSha256": null
+    },
+    "expected_selection": {
+      "changeSeq": 2,
+      "collapsed": true,
+      "documentEpoch": 1,
+      "editable": true,
+      "page": 1,
+      "schemaVersion": 1,
+      "selectedTextSha256": null,
+      "target": {
+        "charOffset": 0,
+        "kind": "body_paragraph",
+        "length": 48,
+        "paragraph": 2,
+        "section": 0
+      }
+    },
+    "alerts": [
+      "Error: 문서 또는 선택 위치가 바뀌었습니다. 다시 검토하세요."
+    ]
+  },
+  "product_fix": {
+    "at": "2026-09-27T10:22:43.828Z",
+    "editor_module": "/src/editor.ts",
+    "reload_guard_installed": true,
+    "method": "Temporarily hold Vite full reload, load corrected product apply method into existing adapter; no browser reload or buffer reconstruction",
+    "held_reload_count": 1,
+    "method_loaded": true,
+    "buffer_unchanged": true,
+    "loaded_at": "2026-09-27T10:25:18.307Z"
+  },
+  "product_failures": [
+    {
+      "at": "2026-09-27T10:25:18.307Z",
+      "failure": "Error: 제품 적용/저장 오류: Error: 문서 또는 선택 위치가 바뀌었습니다. 다시 검토하세요.",
+      "application": {
+        "id": "e235b863-c516-4e83-9db8-b6786033a326",
+        "task_id": "ca00261c-b9f0-4d91-8263-4b3641b3ad65",
+        "candidate_id": "b1fb6743-d42e-5476-a2ad-a70200160ad0",
+        "document_id": "95270b84-65ab-459c-a806-33fbc758e892",
+        "base_version": "f8f04b7e-c2c5-4e09-bf61-e17973d49a32",
+        "requested_by": "alice",
+        "approved_by": "alice",
+        "status": "approved",
+        "saved_version": null,
+        "original": "회의 자료는 금요일까지 준비합니다. 담당자는 준비가 끝나면 팀에 알려 주면 좋겠습니다.",
+        "replacement": "회의 자료는 금요일까지 준비하며, 담당자는 자료 준비가 완료되면 팀에 그 사실을 알려 주시면 좋겠습니다.",
+        "created_at": 1790504222.2335558
+      }
+    }
+  ],
+  "live_buffer_check": {
+    "at": "2026-09-27T10:28:05.675Z",
+    "revision": 2,
+    "document_sha256": "3b77e1cf32188bdf1983e91f8828dee2cba93eef4aaa329ec83c7ed3ff6218f6",
+    "text_sha256": "827bad7430c5424fe294d2c50b9f5a6b45b0470bfffd3346c99cef61bc139014",
+    "base_version": "f8f04b7e-c2c5-4e09-bf61-e17973d49a32"
+  },
+  "receipt": null,
+  "saved_sha256": null,
+  "checks": {
+    "before_approval": {
+      "unsaved_input_matches": true,
+      "editor_unchanged": true,
+      "confirmed_version_count": 1,
+      "non_target_unsaved_edit_present": true,
+      "displayed_candidate_ids": [
+        "78c8ef0d-c714-5e4c-9200-47519caa7573",
+        "b1fb6743-d42e-5476-a2ad-a70200160ad0"
+      ]
+    }
+  },
+  "completed_at": null,
+  "failure": null,
+  "approved_candidate_text": "회의 자료는 금요일까지 준비하며, 담당자는 자료 준비가 완료되면 팀에 그 사실을 알려 주시면 좋겠습니다.",
+  "original_historical_blob_count": 25,
+  "original_historical_blobs_unchanged": 25,
+  "tests": {
+    "frontend_build": "passed",
+    "real_rhwp_fixed_text_regression": "1 passed; not an AI call or manual approval",
+    "initial_regression_failure": "SDK command replay also depended on target key order; corrected by stable outgoing target serialization"
+  },
+  "dynamic_evidence_file": ".cache/codex-human-2026-09-27-run2/proof.json"
+}

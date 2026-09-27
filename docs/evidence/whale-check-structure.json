@@ -1,0 +1,81 @@
+{
+  "file": "samples\\paragraph-and-table.hwpx",
+  "sha256": "98cf53fc1b906fe322ad575051d8c3abcbcce86d07cc61c7f5cb6acec689b813",
+  "zip_crc_error": null,
+  "tables": [
+    {
+      "rows": "2",
+      "columns": "2",
+      "size": {
+        "width": "41954",
+        "widthRelTo": "ABSOLUTE",
+        "height": "2564",
+        "heightRelTo": "ABSOLUTE",
+        "protect": "0"
+      },
+      "cells": [
+        {
+          "address": {
+            "colAddr": "0",
+            "rowAddr": "0"
+          },
+          "span": {
+            "colSpan": "1",
+            "rowSpan": "1"
+          },
+          "text": "표 셀 원문 수정",
+          "size": {
+            "width": "20977",
+            "height": "282"
+          }
+        },
+        {
+          "address": {
+            "colAddr": "1",
+            "rowAddr": "0"
+          },
+          "span": {
+            "colSpan": "1",
+            "rowSpan": "1"
+          },
+          "text": "두 번째 셀",
+          "size": {
+            "width": "20977",
+            "height": "282"
+          }
+        },
+        {
+          "address": {
+            "colAddr": "0",
+            "rowAddr": "1"
+          },
+          "span": {
+            "colSpan": "1",
+            "rowSpan": "1"
+          },
+          "text": "",
+          "size": {
+            "width": "20977",
+            "height": "282"
+          }
+        },
+        {
+          "address": {
+            "colAddr": "1",
+            "rowAddr": "1"
+          },
+          "span": {
+            "colSpan": "1",
+            "rowSpan": "1"
+          },
+          "text": "",
+          "size": {
+            "width": "20977",
+            "height": "282"
+          }
+        }
+      ]
+    }
+  ],
+  "visual_compatibility": "UNVERIFIED: Whale window control failed; Hancom desktop not installed"
+}

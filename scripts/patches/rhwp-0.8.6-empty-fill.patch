@@ -1,0 +1,45 @@
+diff --git a/src/serializer/hwpx/header.rs b/src/serializer/hwpx/header.rs
+--- a/src/serializer/hwpx/header.rs
++++ b/src/serializer/hwpx/header.rs
+@@ -573,9 +573,9 @@
+ 
+ fn color_hex(c: ColorRef) -> String {
+     // ColorRef = u32. HWP 내부 저장: 상위 바이트가 비투명 플래그(0이면 유효 색상).
+-    // 0xFFFFFFFF = 투명/없음 센티넬 → "none"
++    // 한컴 2018이 직접 저장하는 투명/없음 센티넬. "none"은 검정으로 읽힌다.
+     if c == 0xFFFFFFFF {
+-        return "none".to_string();
++        return "#FFFFFFFF".to_string();
+     }
+     // HWPX는 "#RRGGBB" 또는 "#AARRGGBB".
+     let a = ((c >> 24) & 0xFF) as u8;
+diff --git a/src/serializer/hwpx/shape.rs b/src/serializer/hwpx/shape.rs
+--- a/src/serializer/hwpx/shape.rs
++++ b/src/serializer/hwpx/shape.rs
+@@ -1226,11 +1226,11 @@
+     )
+ }
+ 
+-/// ColorRef (0xAABBGGRR) → "#RRGGBB" / "#AARRGGBB". 0xFFFFFFFF → "none".
++/// ColorRef (0xAABBGGRR) → "#RRGGBB" / "#AARRGGBB". 없음은 한컴의 "#FFFFFFFF".
+ /// `parse_color_str` 의 역매핑 (header.rs `color_hex` 와 동일 규칙).
+ pub(crate) fn color_to_hex(c: ColorRef) -> String {
+     if c == 0xFFFFFFFF {
+-        return "none".to_string();
++        return "#FFFFFFFF".to_string();
+     }
+     let a = ((c >> 24) & 0xFF) as u8;
+     let r = (c & 0xFF) as u8;
+diff --git a/src/serializer/hwpx/char_shapes.rs b/src/serializer/hwpx/char_shapes.rs
+--- a/src/serializer/hwpx/char_shapes.rs
++++ b/src/serializer/hwpx/char_shapes.rs
+@@ -75,7 +75,8 @@
+ 
+ fn color_hex(color: ColorRef) -> String {
+     if color == SHADE_NONE {
+-        return "none".to_string();
++        // Match Hancom 2018's native no-shading sentinel; "none" becomes black.
++        return "#FFFFFFFF".to_string();
+     }
+     let a = ((color >> 24) & 0xFF) as u8;
+     let r = (color & 0xFF) as u8;

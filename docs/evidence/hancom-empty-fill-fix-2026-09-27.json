@@ -1,0 +1,130 @@
+{
+  "recorded_at_utc": "2026-09-27T11:46:37.888061+00:00",
+  "scope": "One synthetic plain-paragraph document, actual Hancom 2018 10.0.0.5060 UI roundtrip; no AI",
+  "engine": {
+    "version": "0.8.6",
+    "commit": "e8800c8def63449808a4092798442652ed460552",
+    "externalWebFonts": false,
+    "coreBuild": {
+      "commit": "e8800c8def63449808a4092798442652ed460552",
+      "patch": "rhwp-0.8.6-empty-fill",
+      "rust": "1.93.1",
+      "wasm_bindgen": "0.2.127",
+      "profile": "release",
+      "wasm_opt": false,
+      "purpose": "native diagnostic build; deployment optimization not verified",
+      "patch_sha256": "377171f8996a35046203d2ceb358ef580b1091fd067ee0ae2e053c4294013656",
+      "source_sha256": {
+        "header.rs": "7ab5d7bd3dca464fab2b9bf65351f95547bf335835e7338e546e65d9e73ed754",
+        "shape.rs": "52053c287545bc14bab65df5cf311e277e15d3007870ff622a217faa9a9826cb",
+        "char_shapes.rs": "47ee45e9a0ef6c5b0c27a342ad1982030d10a9d965157fe4d01fb1fe22fd832a"
+      },
+      "lock_sha256": "9b981042e21ec5166d8a0d74e968d646805803659adaedeb8a56241c57f75440",
+      "wasm_sha256": "0e81cdeb4a61de8dd12be6d79d3bf06a8c1153525883e4112f4dcb1257d68195",
+      "binding_sha256": "e84c5b03cd32927a86e1a2c8acf2c43d60127fcff83f8896daf85b864c78968a"
+    }
+  },
+  "product_output": {
+    "sha256": "a570578a259ee9218bfbf3df9607b0cbedef251d4c90bb8dc7fca30121baa773",
+    "size": 7623,
+    "brushes": [
+      {
+        "faceColor": "#FFFFFFFF",
+        "hatchColor": "#999999",
+        "alpha": "0"
+      }
+    ],
+    "shades": [
+      "#FFFFFFFF"
+    ],
+    "paragraphs": [
+      "",
+      "보존 확인: 회의 장소는 제1회의실입니다. 담당 부서는 운영팀입니다.",
+      "배경 수정 확인: 채우기 없음인 문단은 흰 종이 위에 읽을 수 있어야 합니다. 추가 편집도 함께 보존합니다."
+    ]
+  },
+  "actual_hancom_output": {
+    "sha256": "b699579468f1a05e87d7f696ee7990ff368ae4918d3100b99b164d3189e3561b",
+    "size": 19430,
+    "brushes": [
+      {
+        "faceColor": "#FFFFFFFF",
+        "hatchColor": "#999999",
+        "alpha": "0"
+      }
+    ],
+    "shades": [
+      "#FFFFFFFF"
+    ],
+    "paragraphs": [
+      "",
+      "보존 확인: 회의 장소는 제1회의실입니다. 담당 부서는 운영팀입니다.",
+      "배경 수정 확인: 채우기 없음인 문단은 흰 종이 위에 읽을 수 있어야 합니다. 추가 편집도 함께 보존합니다.",
+      "한컴 수정 확인: 흰 배경에서 수정하고 저장했습니다."
+    ]
+  },
+  "document_id": "cbce189e-e15a-4624-a067-64fcf8bfd318",
+  "product_versions": [
+    {
+      "id": "7e480fe5-06ab-4831-8e2f-5d61bc163fc2",
+      "base_version": null,
+      "sha256": "94625e69b4b2443e0e2ad473fd6f29fa2ebed0a9b13ac255fe21e3458c82b34e",
+      "cause": "upload",
+      "blob_matches_db_hash": true
+    },
+    {
+      "id": "15af0383-3f4c-4b5a-bee5-9a3018f82bb6",
+      "base_version": "7e480fe5-06ab-4831-8e2f-5d61bc163fc2",
+      "sha256": "a570578a259ee9218bfbf3df9607b0cbedef251d4c90bb8dc7fca30121baa773",
+      "cause": "web-edit",
+      "blob_matches_db_hash": true
+    }
+  ],
+  "import_document_id": "52bf0f4d-6db7-44bb-aec8-87a6bd15791f",
+  "import_versions": [
+    {
+      "id": "652b44e1-3250-486a-9a77-3e2660e090d0",
+      "base_version": null,
+      "sha256": "b699579468f1a05e87d7f696ee7990ff368ae4918d3100b99b164d3189e3561b",
+      "cause": "upload",
+      "blob_matches_db_hash": true
+    }
+  ],
+  "stages": {
+    "product_save_and_web_reopen": "passed",
+    "hancom_open_edit_save_reopen": "passed",
+    "hancom_black_background_regression": "passed for this synthetic fixture",
+    "hancom_output_web_import_reopen": "passed",
+    "original_and_history_preservation": "passed"
+  },
+  "ui_phases": [
+    {
+      "phase": "opened_product",
+      "at": "2026-09-27T11:43:27.035Z"
+    },
+    {
+      "phase": "edited_hancom",
+      "at": "2026-09-27T11:44:04.772Z"
+    },
+    {
+      "phase": "saved_hancom",
+      "at": "2026-09-27T11:44:43.433Z"
+    },
+    {
+      "phase": "reopened_hancom",
+      "at": "2026-09-27T11:46:14.557Z"
+    }
+  ],
+  "prior_actual_codex_document_preserved": "95270b84-65ab-459c-a806-33fbc758e892",
+  "historical_blobs_preserved": 25,
+  "ai_calls": 0,
+  "unverified": [
+    "general Hancom compatibility",
+    "tables/pictures/complex formatting in Hancom",
+    "repeated three-cycle roundtrip",
+    "Docker/wasm-opt deployment build",
+    "other user actual Codex continuation",
+    "independent context restore"
+  ],
+  "evidence_directory": ".cache/hancom-empty-fill-v2-2026-09-27"
+}
