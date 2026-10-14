@@ -21,12 +21,30 @@ export type ExportSnapshot = {
   revision: number;
   epoch: number;
 };
+export type DocumentState = RhwpDocumentStateV1;
+export type LayoutHeading = {
+  id: string;
+  section: number;
+  paragraph: number;
+  length: number;
+  text_sha256: string;
+};
+export type LayoutEvidence = {
+  revision: number;
+  epoch: number;
+  page_count: number;
+  export_sha256: string;
+  headings: (LayoutHeading & { page: number })[];
+};
 type Bridge = {
   newDocument(): Promise<void>;
   revision(): number;
   subscribe(cb: () => void): () => void;
   snapshot(): Snapshot;
+  documentState(): DocumentState;
   exportSnapshot(): ExportSnapshot;
+  layoutEvidence(headings: LayoutHeading[]): LayoutEvidence;
+  paragraphPage(section: number, paragraph: number): number;
   warnings(): unknown;
   acknowledge(revision: number, epoch: number, name: string): Promise<boolean>;
 };

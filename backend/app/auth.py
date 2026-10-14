@@ -33,10 +33,12 @@ def authenticate(token, users):
     raise HTTPException(401, "로그인이 필요하거나 인증 토큰이 만료되었습니다.")
 
 
-def require_access(db, doc_id, user, role="reader", *, lock=False):
+def require_access(db, doc_id, user, role="reader", *, lock=False, fresh=False):
     query = select(Document).where(Document.id == doc_id)
+    if fresh:
+        query = query.execution_options(populate_existing=True)
     doc = db.scalar(query.with_for_update() if lock else query)
-    access = db.get(Access, (doc_id, user))
+    access = db.get(Access, (doc_id, user), populate_existing=fresh)
     if not doc or not access:
         raise HTTPException(404, "문서를 찾을 수 없습니다.")
     if ROLES[access.role] < ROLES[role]:
@@ -52,7 +54,7 @@ def bind_lease(db, doc, user):
         db.add(LeaseOwner(document_id=doc.id, user_id=user))
 
 
-def require_lease_owner(db, doc, user):
-    owner = db.get(LeaseOwner, doc.id)
+def require_lease_owner(db, doc, user, *, fresh=False):
+    owner = db.get(LeaseOwner, doc.id, populate_existing=fresh)
     if not owner or owner.user_id != user:
         raise HTTPException(409, "다른 사용자의 편집 세션입니다.")

@@ -8,9 +8,11 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 from .auth import require_access, require_lease_owner
-from .db import Access, ChangeSet, Context, Conversation, Document, Message, Proposal, Template, Version, transaction
+from .db import Access, ChangeSet, Context, Conversation, Document, LeaseOwner, Message, Proposal, Template, TemplateCatalog, Version, transaction
 from .hwpx import digest
 from .llm import OpenAICompatible
+from .rewrite_context import ConfirmedFactInput, confirmed_content
+from .template_market import Category, install_template_market, registration_hash, source_version, verified_bytes
 
 
 class Input(BaseModel):
@@ -66,12 +68,41 @@ class NewProposal(Input):
     reason: str = Field(min_length=1, max_length=2000)
 
 
+class ContextUpdate(NewContext):
+    request_id: uuid.UUID | None = None
+    writing_criteria: str = Field(default="", max_length=4000)
+    confirmed_facts: list[ConfirmedFactInput] = Field(default_factory=list, max_length=20)
+    confirm_for_rewrite: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def valid_encoding(cls, value):
+        try:
+            encoded = json.dumps(value, ensure_ascii=False, allow_nan=False).encode("utf-8")
+            if len(encoded) > 200000:
+                raise ValueError("too large")
+        except (UnicodeError, ValueError, TypeError) as exc:
+            raise HTTPException(422, "작성 정보는 200KB 이내의 유효한 UTF-8 JSON이어야 합니다.") from exc
+        return value
+
+
 class NewTemplate(Input):
+    id: uuid.UUID | None = None
+    category: Category = "기타"
     document_id: str
     version_id: str
     name: str = Field(min_length=1, max_length=120)
     description: str = Field(default="", max_length=1000)
     tags: list[str] = Field(default_factory=list, max_length=20)
+
+    @model_validator(mode="before")
+    @classmethod
+    def valid_encoding(cls, value):
+        try:
+            json.dumps(value, ensure_ascii=False).encode("utf-8")
+        except (UnicodeError, TypeError) as exc:
+            raise HTTPException(422, "템플릿 정보에 유효한 UTF-8 문자를 사용하세요.") from exc
+        return value
 
     @model_validator(mode="after")
     def tag_limits(self):
@@ -91,7 +122,9 @@ def fields(row, *keys):
 
 
 def install_collaboration(app, locked, check_lease, publish, doc_dict, version_dict):
+    from .rewrite_jobs import invalidate_running
     engine, folder = app.state.engine, app.state.folder
+    install_template_market(app, locked)
 
     def thread_access(db, thread_id, user, role="reader", lock=False):
         thread = db.get(Conversation, thread_id)
@@ -105,7 +138,9 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
         return {"revision": ctx.revision if ctx else 0,
                 "base_version": ctx.base_version if ctx else doc.current_version,
                 "stale": bool(ctx and ctx.base_version != doc.current_version),
-                **(json.loads(ctx.content) if ctx else {"purpose": "", "facts": "", "selection": None})}
+                "purpose": "", "facts": "", "selection": None, "writing_criteria": "",
+                "confirmed_facts": [], "confirmation": None,
+                **({k: v for k, v in json.loads(ctx.content).items() if not k.startswith("_")} if ctx else {})}
 
     def messages_value(db, thread_id, limit=100):
         rows = list(db.scalars(select(Message).where(Message.conversation_id == thread_id)
@@ -133,12 +168,16 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
             row = db.get(Access, (doc_id, value.user_id))
             if row and row.role == "owner":
                 raise HTTPException(409, "소유자 권한은 변경할 수 없습니다.")
+            lost_edit_access = row is not None and row.role == "editor" and value.role == "reader"
+            if lost_edit_access:
+                invalidate_running(db, doc.id, "편집 권한이 회수되어 실행 결과를 게시하지 않습니다.", user=value.user_id)
+                owner = db.get(LeaseOwner, doc.id)
+                if owner and owner.user_id == value.user_id:
+                    doc.lease_token, doc.lease_until = None, 0
             if row:
                 row.role = value.role
             else:
                 db.add(Access(document_id=doc_id, **value.model_dump()))
-            # Invalidate every outstanding edit token on an ACL change.
-            doc.lease_token, doc.lease_until = None, 0
         return {"ok": True}
 
     @app.delete("/api/documents/{doc_id}/access/{user_id}")
@@ -149,8 +188,12 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
             if row and row.role == "owner":
                 raise HTTPException(409, "소유자 권한은 삭제할 수 없습니다.")
             if row:
+                if row.role == "editor":
+                    invalidate_running(db, doc.id, "편집 권한이 회수되어 실행 결과를 게시하지 않습니다.", user=user_id)
+                owner = db.get(LeaseOwner, doc.id)
+                if owner and owner.user_id == user_id:
+                    doc.lease_token, doc.lease_until = None, 0
                 db.delete(row)
-            doc.lease_token, doc.lease_until = None, 0
         return {"ok": True}
 
     @app.get("/api/documents/{doc_id}/versions/{version_id}/changes")
@@ -223,16 +266,25 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
         return result
 
     @app.put("/api/threads/{thread_id}/context")
-    def put_context(thread_id: str, value: NewContext, request: Request):
+    def put_context(thread_id: str, value: ContextUpdate, request: Request):
         with transaction(engine) as db:
             thread, doc = thread_access(db, thread_id, request.state.user, "editor", lock=True)
+            row = db.get(Context, thread_id)
+            write_hash = digest(json.dumps(value.model_dump(mode="json"), ensure_ascii=False, sort_keys=True).encode())
+            previous_write = json.loads(row.content).get("_last_write") if row else None
+            if value.request_id and previous_write and previous_write["id"] == str(value.request_id):
+                if previous_write["by"] != request.state.user or previous_write["sha256"] != write_hash:
+                    raise HTTPException(409, "같은 작성 정보 저장 ID의 내용 또는 사용자가 다릅니다.")
+                return {"revision": row.revision, "base_version": row.base_version}
             if doc.current_version != value.base_version:
                 raise HTTPException(409, "컨텍스트 기준 버전이 변경되었습니다.")
-            row = db.get(Context, thread_id)
             revision = row.revision if row else 0
             if revision != value.expected_revision:
                 raise HTTPException(409, "다른 사용자가 컨텍스트를 변경했습니다. 다시 불러오세요.")
-            content = json.dumps(value.model_dump(exclude={"expected_revision", "base_version"}), ensure_ascii=False)
+            content_value = confirmed_content(db, doc, request.state.user, value)
+            if value.request_id:
+                content_value["_last_write"] = {"id": str(value.request_id), "by": request.state.user, "sha256": write_hash}
+            content = json.dumps(content_value, ensure_ascii=False)
             if row:
                 row.revision, row.base_version, row.content, row.updated_at = revision + 1, value.base_version, content, time.time()
             else:
@@ -315,14 +367,31 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
 
     @app.post("/api/templates")
     def register_template(value: NewTemplate, request: Request):
+        template_id = str(value.id or uuid.uuid4())
         with transaction(engine) as db:
             locked(db, value.document_id, request.state.user)
+            if engine.dialect.name == "postgresql":
+                db.execute(text("SELECT pg_advisory_xact_lock(:key)"),
+                           {"key": int(digest(("template:" + template_id).encode())[:15], 16)})
+            old = db.get(Template, template_id)
+            if old and old.document_id != value.document_id:
+                raise HTTPException(404, "템플릿 등록 ID를 사용할 수 없습니다.")
             version = db.get(Version, value.version_id)
             if not version or version.document_id != value.document_id:
                 raise HTTPException(404, "템플릿 기준 버전을 찾을 수 없습니다.")
-            row = Template(id=str(uuid.uuid4()), **value.model_dump(exclude={"tags"}),
+            verified_bytes(folder, version)
+            frozen_hash = registration_hash(value)
+            if old:
+                catalog = db.get(TemplateCatalog, old.id)
+                if not catalog or catalog.registration_sha256 != frozen_hash:
+                    raise HTTPException(409, "같은 템플릿 등록 ID의 입력이 다릅니다.")
+                return {"id": old.id, "version_id": old.version_id}
+            row = Template(id=template_id, **value.model_dump(exclude={"tags", "id", "category"}),
                            tags=json.dumps(value.tags, ensure_ascii=False), created_at=time.time())
             db.add(row)
+            db.flush()
+            db.add(TemplateCatalog(template_id=row.id, category=value.category, revision=1,
+                                   registration_sha256=frozen_hash))
             result = {"id": row.id, "version_id": row.version_id}
         return result
 
@@ -353,10 +422,8 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
                 raise HTTPException(404, "템플릿을 찾을 수 없습니다.")
             # The template always inherits current source-document read access.
             locked(db, template.document_id, request.state.user, "reader")
-            version = db.get(Version, template.version_id)
-            data = (folder / version.storage_key).read_bytes()
-            if digest(data) != version.sha256:
-                raise HTTPException(422, "템플릿 파일 해시 검증 실패")
+            version = source_version(db, template)
+            data = verified_bytes(folder, version)
             if engine.dialect.name == "postgresql":
                 db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": int(digest(destination.encode())[:15], 16)})
             doc = db.get(Document, destination)

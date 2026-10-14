@@ -101,7 +101,8 @@ def test_editor_lease_is_bound_to_identity_and_revocation_is_immediate(secured):
     assert c.get(f"/api/threads/{private}").status_code == 404
     assert save(c, doc, token).status_code == 404
     as_user(c, "alice")
-    assert save(c, doc, token).status_code == 409
+    # Revoking another user's access does not revoke the owner's active lease.
+    assert save(c, doc, token).status_code == 200
 
 
 def test_context_cas_message_idempotency_restart_and_stale_base(secured):

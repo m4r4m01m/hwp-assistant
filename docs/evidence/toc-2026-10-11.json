@@ -1,0 +1,297 @@
+{
+  "kind": "managed native TOC in the ordinary editor",
+  "head": "1e0538781e02ac85d095bb3c72bf844943c305b3",
+  "uncommitted": true,
+  "source_set_sha256": "dc20addeba04c978a4dcbcfdd5ab3fc651140a9c260b5646f8a068665acaaa2f",
+  "source_count": 145,
+  "changed_from_previous": [
+    "README.md",
+    "backend/app/main.py",
+    "backend/app/toc_contract.py",
+    "backend/app/toc_hwpx.py",
+    "backend/tests/test_document_toc.py",
+    "frontend/src/editor.ts",
+    "frontend/src/main.tsx",
+    "frontend/src/style.css",
+    "frontend/src/toc.tsx",
+    "frontend/tests/toc.spec.ts",
+    "scripts/assistant-bridge.ts.txt",
+    "scripts/build-engine.mjs",
+    "scripts/engine-build-lib.mjs",
+    "scripts/engine-build.test.mjs",
+    "scripts/rewrite-request.test.mjs"
+  ],
+  "final_manifest": "docs/evidence/toc-manifest-final-2026-10-11.json",
+  "source_tests": {
+    "command": ".venv/Scripts/python -m pytest -q --basetemp=.cache/toc-2026-10-11/pytest-final-v2",
+    "counts": {
+      "passed": 371,
+      "failed": 0,
+      "skipped": 0,
+      "collected": 371
+    },
+    "exit_code": 0,
+    "duration_seconds": 119.49,
+    "warnings": 1,
+    "native_access_violation_diagnostic": false
+  },
+  "typescript": {
+    "result": "passed",
+    "command": "node frontend/node_modules/typescript/bin/tsc --noEmit --project frontend/tsconfig.json",
+    "exit_code": 0
+  },
+  "engine_build_guards": {
+    "passed": 13,
+    "failed": 0,
+    "skipped": 0
+  },
+  "node_final": {
+    "command": "node --test scripts/engine-build.test.mjs scripts/rewrite-request.test.mjs scripts/context-save.test.mjs scripts/text-diff.test.mjs",
+    "passed": 37,
+    "failed": 0,
+    "skipped": 0,
+    "engine_guard_count": 13,
+    "callback_diff_count": 24
+  },
+  "deployment_build": {
+    "command": "npm run build (cwd frontend)",
+    "exit_code": 1,
+    "result": "blocked by unchanged pinned core/bundle provenance guard"
+  },
+  "e2e": [
+    {
+      "kind": "authenticated general source E2E",
+      "result": "passed",
+      "command": {
+        "built_app": false,
+        "command": "Playwright E2E",
+        "pattern": "",
+        "exit_code": 0
+      },
+      "counts": {
+        "passed": 46,
+        "failed": 0,
+        "skipped": 10,
+        "collected": 56
+      },
+      "actual_model_calls": 0,
+      "mock": true,
+      "remaining_listeners": [],
+      "started_at": "2026-10-11T14:36:35.1093169Z",
+      "finished_at": "2026-10-11T14:40:49.4715715Z",
+      "evidence_directory": ".cache/toc-source-final-2026-10-11"
+    },
+    {
+      "kind": "fresh diagnostic bundle TOC/blocks/market/mock-report E2E",
+      "result": "passed",
+      "command": {
+        "built_app": true,
+        "command": "Playwright E2E",
+        "pattern": "REAL .*TOC|block insert|template market|REAL HWPX template|MOCK report",
+        "exit_code": 0
+      },
+      "counts": {
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0,
+        "collected": 17
+      },
+      "actual_model_calls": 0,
+      "mock": true,
+      "remaining_listeners": [],
+      "started_at": "2026-10-11T14:41:13.8099991Z",
+      "finished_at": "2026-10-11T14:43:26.4128799Z",
+      "evidence_directory": ".cache/toc-built-final-2026-10-11"
+    }
+  ],
+  "engine": {
+    "old_bundle_preserved": true,
+    "old_engine_file_count": 83,
+    "new_diagnostic_engine_file_count": 82,
+    "new_bridge_sha256": "1c72afaab4cdeb936db935e87470bf0335b5c09f535b2f85db9c3d7579f9ce3b",
+    "wasm_sha256": "0e81cdeb4a61de8dd12be6d79d3bf06a8c1153525883e4112f4dcb1257d68195",
+    "core_rebuilt": false,
+    "installation_performed": false,
+    "directory": ".cache/toc-engine-final-2026-10-11/public/rhwp"
+  },
+  "preservation": {
+    "source_set_sha256": "dc20addeba04c978a4dcbcfdd5ab3fc651140a9c260b5646f8a068665acaaa2f",
+    "source_count": 145,
+    "new_engine_count": 82,
+    "previous_engine_count": 83,
+    "drift": {
+      "files": [],
+      "engine_files": [],
+      "native_core_files": [],
+      "previous_engine_files": []
+    },
+    "protected_existing_count": 69,
+    "protected_changed": [],
+    "db_changed": [],
+    "db_counts": {
+      "data/metadata.db": {
+        "conversation_contexts": 2,
+        "conversation_messages": 2,
+        "conversations": 2,
+        "document_access": 33,
+        "documents": 33,
+        "lease_owners": 16,
+        "rewrite_applications": 0,
+        "rewrite_candidates": 0,
+        "rewrite_tasks": 0,
+        "templates": 2,
+        "text_proposals": 4,
+        "version_changes": 12,
+        "versions": 55
+      },
+      ".cache/user-review/data/metadata.db": {
+        "conversation_contexts": 1,
+        "conversation_messages": 0,
+        "conversations": 1,
+        "document_access": 12,
+        "documents": 12,
+        "lease_owners": 8,
+        "report_tasks": 7,
+        "rewrite_applications": 0,
+        "rewrite_candidates": 0,
+        "rewrite_tasks": 0,
+        "template_catalog": 0,
+        "template_favorites": 0,
+        "templates": 1,
+        "text_proposals": 0,
+        "version_changes": 2,
+        "versions": 14
+      }
+    }
+  },
+  "actual_model_calls": 0,
+  "actual_human_approval_tests": 0,
+  "hancom_verified": false,
+  "scope": {
+    "max_headings": 30,
+    "levels": [
+      1,
+      2
+    ],
+    "max_layout_passes": 3,
+    "toc_page_numbering": "rendered physical 1-based",
+    "heading_id_carrier": "native PARA style names",
+    "leader": "native right tab DASH",
+    "refresh": "explicit; damaged/deleted/duplicate identities refused",
+    "automatic_report_preview_toc": false
+  },
+  "historical_long_duration_tests": "602-second and 1-hour evidence retained; not rerun or counted as this change",
+  "rendered_screenshot": {
+    "path": "docs/evidence/toc-2026-10-11.png",
+    "sha256": "0f47db01da37c0291d6228617e50dd89e82e0e3d7b823fb07286a0198770a1e2",
+    "run": ".cache/toc-source-final-2026-10-11",
+    "fixture": "synthetic 10-page HWPX",
+    "visual_review": "long lower-level label wraps to three lines; hierarchical indent, native leader and right-aligned physical pages 1/10 verified"
+  },
+  "pre_final": [
+    {
+      "run": ".cache/toc-source-first-r1-2026-10-11",
+      "result": "failed before collection: async default parameter test helper syntax; 0 executed"
+    },
+    {
+      "run": ".cache/toc-source-first-r2-2026-10-11",
+      "result": "failed closed at native re-export verification: inactive diagonal NONE on newly added TOC fills omitted by engine"
+    },
+    {
+      "run": ".cache/toc-source-first-r3-2026-10-11",
+      "result": "pipeline and save passed; final reopen helper expected wrong button label"
+    },
+    {
+      "run": ".cache/toc-source-first-r4-2026-10-11",
+      "result": "single real-engine pipeline/reopen passed; not combined with final full counts"
+    },
+    {
+      "run": ".cache/toc-source-targeted-r5-2026-10-11",
+      "result": "2 passed / 2 failed: save-loss test route missed query string; reader test expected editor-only save status. Test expectations corrected; not combined with final counts"
+    },
+    {
+      "log": ".cache/toc-2026-10-11/frontend-callbacks-final.log",
+      "result": "15 passed / 9 failed before final manifest: callback harness omitted existing blockHold guard ref; no runtime callback defect"
+    },
+    {
+      "log": ".cache/toc-2026-10-11/pytest-final.log",
+      "result": "pre-final manifest, 371 passed / 0 failed / 0 skipped,110.27s exit0 with initial Windows ctypes access violation diagnostic; not combined with final counts"
+    }
+  ],
+  "review_scope": {
+    "git_diff_paths": [
+      ".env.example",
+      ".gitignore",
+      "AGENTS.md",
+      "README.md",
+      "backend/app/auth.py",
+      "backend/app/codex_runner.py",
+      "backend/app/collaboration.py",
+      "backend/app/db.py",
+      "backend/app/llm.py",
+      "backend/app/main.py",
+      "backend/app/rewrite.py",
+      "backend/tests/test_collaboration.py",
+      "backend/tests/test_llm.py",
+      "backend/tests/test_mcp.py",
+      "backend/tests/test_rewrite.py",
+      "docs/collaboration-and-mcp.md",
+      "docs/compatibility.md",
+      "docs/manual-codex-verification.md",
+      "docs/remaining-work.md",
+      "frontend/src/api.ts",
+      "frontend/src/collaboration.tsx",
+      "frontend/src/editor.ts",
+      "frontend/src/main.tsx",
+      "frontend/src/rewrite.tsx",
+      "frontend/src/style.css",
+      "frontend/tests/collaboration.spec.ts",
+      "frontend/tests/rewrite-protection.spec.ts",
+      "scripts/assistant-bridge.ts.txt",
+      "scripts/build-engine.mjs",
+      "scripts/engine-build-lib.mjs",
+      "scripts/engine-build.test.mjs",
+      "scripts/serve-built-preview.mjs",
+      "scripts/verify-codex-human-continuation.mjs",
+      "scripts/verify-codex-human.mjs",
+      "scripts/verify-codex-human.test.mjs"
+    ],
+    "git_diff_sha256": "13d7a7c01fef7a9ffb8e9ebe63f2d5e4603c4ea62f250bf9b3975a99d770d028",
+    "binary_patch_count": 0,
+    "source_file_count": 144,
+    "excluded": "real documents, original HWPX binary, PDF, database, authentication/token files, entire .cache, engine binaries and traces"
+  },
+  "service": {
+    "url": "http://127.0.0.1:15180/",
+    "api_status": 200,
+    "web_status": 200,
+    "run_directory": ".cache/user-review/runs/20261011-234437-071f4812",
+    "provider": "codex",
+    "startup_generates_candidates": false,
+    "counts": {
+      "documents": 12,
+      "versions": 14,
+      "report_tasks": 7,
+      "rewrite_tasks": 0
+    },
+    "active_jobs": {
+      "report_tasks": 0,
+      "rewrite_tasks": 0
+    },
+    "assets": [
+      {
+        "path": "/assets/index-5xjMZoOj.js",
+        "status": 200,
+        "sha256": "7622111f25bcd68d62d18bb546deafd3080da822684bcbc431bc0dfd7309333b",
+        "matches_tested_bundle": true
+      },
+      {
+        "path": "/assets/index-DUJRO6_X.css",
+        "status": 200,
+        "sha256": "5f953af3dced06eeaa02aedda04be320a4432133c78584c791f16425159c1058",
+        "matches_tested_bundle": true
+      }
+    ],
+    "served_engine": "1c72afaab4cdeb936db935e87470bf0335b5c09f535b2f85db9c3d7579f9ce3b"
+  }
+}

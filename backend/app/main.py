@@ -16,6 +16,7 @@ from .llm import OpenAICompatible
 from .auth import COOKIE, authenticate, credentials, require_access, bind_lease, require_lease_owner
 from .schema import migrate
 from .changes import apply_delta, describe_changes
+from .rewrite_jobs import invalidate_running
 
 
 class Name(BaseModel):
@@ -315,6 +316,7 @@ def create_app(database_url=None, storage_dir=None):
                     409,
                     "다른 편집 세션이 사용 중입니다. 탭을 닫거나 최대 120초 후 다시 시도하세요.",
                 )
+            invalidate_running(db, doc.id, "기존 편집 임대가 끝났습니다. 새 스냅샷으로 요청하세요.")
             doc.lease_token = secrets.token_urlsafe(32)
             doc.lease_until = time.time() + lease_seconds
             bind_lease(db, doc, request.state.user)
@@ -339,6 +341,7 @@ def create_app(database_url=None, storage_dir=None):
             doc = locked(db, doc_id, request.state.user)
             require_lease_owner(db, doc, request.state.user)
             if secrets.compare_digest(doc.lease_token or "", x_edit_session):
+                invalidate_running(db, doc.id, "편집 임대가 반납되어 실행 결과를 게시하지 않습니다.")
                 doc.lease_token = None
                 doc.lease_until = 0
             return {"ok": True}
@@ -475,6 +478,14 @@ def create_app(database_url=None, storage_dir=None):
     install_collaboration(app, locked, check_lease, publish, doc_dict, version_dict)
     from .rewrite import install_rewrite
     install_rewrite(app, check_lease)
+    from .document_copy import install_document_copy
+    install_document_copy(app, locked, publish, doc_dict)
+    from .document_blocks import install_document_blocks
+    install_document_blocks(app, check_lease)
+    from .toc_contract import install_toc
+    install_toc(app, check_lease)
+    from .reports import install_reports
+    install_reports(app, publish, check_lease, doc_dict)
     return app
 
 

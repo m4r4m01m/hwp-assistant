@@ -14,13 +14,19 @@ export type Version = {
   cause: string;
   created_at: number;
 };
+export class ApiError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch("/api" + path, init);
   if (!response.ok) {
     const value = await response
       .json()
       .catch(() => ({ detail: response.statusText }));
-    throw new Error(
+    throw new ApiError(response.status,
       `${response.status === 409 ? "충돌: " : ""}${typeof value.detail === "string" ? value.detail : JSON.stringify(value.detail)}`,
     );
   }

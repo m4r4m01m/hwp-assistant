@@ -1,0 +1,56 @@
+{
+  "kind": "Public copies of historical evidence; not new verification",
+  "copied_on": "2026-10-14",
+  "records": [
+    {
+      "original": "docs/evidence/report-source-manifest-2026-10-06.json",
+      "original_sha256": "db8b01943c213d0365518376ea9e45362692023f4c2313d8d5ec22d3904f7270",
+      "public_copy": "docs/evidence/public/report-source-manifest-2026-10-06.json",
+      "public_sha256": "80e26634d837440bb8977d5ad23a58b3181154a5ace09fc6584b1b4010bea05b",
+      "redacted_fields": [
+        "$.engine_source"
+      ],
+      "original_preserved": true
+    },
+    {
+      "original": "docs/evidence/rewrite-boundaries-source-manifest-2026-10-06.json",
+      "original_sha256": "3a7ccc3171a55a0a82f7be5ec3e73e825b39786026f9577e782b3d4315350a9f",
+      "public_copy": "docs/evidence/public/rewrite-boundaries-source-manifest-2026-10-06.json",
+      "public_sha256": "9b293e562bec3f60f789f761bb5c5aa1aeb0580112728612d1073b48347a9b06",
+      "redacted_fields": [
+        "$.engine_source"
+      ],
+      "original_preserved": true
+    },
+    {
+      "original": "docs/evidence/rewrite-late-response-manifest-2026-10-06.json",
+      "original_sha256": "e1135bb019cba6d55fba808817a1695c840e47a16c62b452ba65413ad4a457cf",
+      "public_copy": "docs/evidence/public/rewrite-late-response-manifest-2026-10-06.json",
+      "public_sha256": "0b122a50adc3189b398c887c6264319bcf7f03bf934097cd8d3ab1273f7cec07",
+      "redacted_fields": [
+        "$.engine_source"
+      ],
+      "original_preserved": true
+    },
+    {
+      "original": "docs/gpt-handoff-2026-10-06.md",
+      "original_sha256": "a50f4e58737bf2b0871befb3f4d40e98879c76fd8c8ec1943be2ccfee8c005b1",
+      "public_copy": "docs/public/gpt-handoff-2026-10-06.md",
+      "public_sha256": "1a14cd3526909260284b2223c4152484beec8167ac1f2baeb73c0a3da96515a2",
+      "redacted_fields": [
+        "personal workstation paths in Markdown; 1 occurrence(s)"
+      ],
+      "original_preserved": true
+    },
+    {
+      "original": "docs/gpt-handoff-current-state-2026-10-06.md",
+      "original_sha256": "07fcf5a4d0c56453c7ebd3cc8a26a0bee02551848fdab39c2123a25f161f14f3",
+      "public_copy": "docs/public/gpt-handoff-current-state-2026-10-06.md",
+      "public_sha256": "550749d7b5a647c9a852f745501cb2c67579014450ca4d409e1aaa7e5bb4a9d1",
+      "redacted_fields": [
+        "personal workstation paths in Markdown; 1 occurrence(s)"
+      ],
+      "original_preserved": true
+    }
+  ]
+}

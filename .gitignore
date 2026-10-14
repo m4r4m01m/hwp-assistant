@@ -16,6 +16,15 @@ node_modules/
 frontend/public/rhwp/
 frontend/dist/
 data/
+# Locally generated reports and duplicate review archives remain on this PC.
+reports/
+docs/evidence/*-review-*.zip
+# Historical evidence with workstation paths is retained locally; publish redacted copies.
+docs/evidence/report-source-manifest-2026-10-06.json
+docs/evidence/rewrite-boundaries-source-manifest-2026-10-06.json
+docs/evidence/rewrite-late-response-manifest-2026-10-06.json
+docs/gpt-handoff-2026-10-06.md
+docs/gpt-handoff-current-state-2026-10-06.md
 # Do not publish live databases or uploaded documents from another directory.
 *.db
 *.db-shm
@@ -29,6 +38,8 @@ data/
 *.hwp
 *.hwpx
 !samples/paragraph-and-table.hwpx
+# User-designated, hash-pinned writing standard; other uploaded documents stay ignored.
+!backend/app/assets/document-standard/reference.hwpx
 __pycache__/
 .pytest_cache/
 .ruff_cache/

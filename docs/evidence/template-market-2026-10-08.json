@@ -1,0 +1,130 @@
+{
+  "date": "2026-10-08",
+  "head": "1e0538781e02ac85d095bb3c72bf844943c305b3",
+  "uncommitted": true,
+  "source_set_sha256": "f90bd96238b4b46f87c4f84c08f0dfcf201d85af0cc75c0480656efc93d0c3bb",
+  "source_file_count": 133,
+  "engine_file_count": 83,
+  "source_unchanged_during_checks": true,
+  "engine_unchanged": true,
+  "changed_files": [
+    "backend/app/collaboration.py",
+    "backend/app/db.py",
+    "backend/app/template_market.py",
+    "backend/tests/test_template_market.py",
+    "frontend/src/main.tsx",
+    "frontend/src/style.css",
+    "frontend/src/template-market.tsx",
+    "frontend/tests/collaboration.spec.ts",
+    "frontend/tests/template-market.spec.ts"
+  ],
+  "tests": {
+    "pytest": {
+      "passed": 287,
+      "failed": 0,
+      "skipped": 0,
+      "warnings": 1,
+      "seconds": 149.98
+    },
+    "typescript": "passed",
+    "engine_guard": {
+      "passed": 11,
+      "failed": 0
+    },
+    "normal_build": {
+      "exit_code": 1,
+      "result": "blocked",
+      "reason": "missing pinned core/bundle provenance"
+    },
+    "source_r1": {
+      "collected": 48,
+      "passed": 37,
+      "failed": 1,
+      "skipped": 10,
+      "failure": "auth thread request ECONNRESET; origin unresolved, no second thread commit"
+    },
+    "source_r2": {
+      "collected": 48,
+      "passed": 38,
+      "failed": 0,
+      "skipped": 10
+    },
+    "built_market": {
+      "passed": 4,
+      "failed": 0,
+      "seconds": 31.7
+    },
+    "isolated_remaining_listeners": {
+      "source_r1": [],
+      "source_r2": [],
+      "built_market": []
+    }
+  },
+  "test_kinds": {
+    "actual_rhwp": true,
+    "synthetic_documents": true,
+    "mock_provider_in_general_suite": true,
+    "actual_model_calls": 0,
+    "human_approval": false,
+    "hancom": false,
+    "long_duration_reverified": false
+  },
+  "preservation": {
+    "protected_blob_count": 69,
+    "changed_blob_count": 0,
+    "user_document_count": 12,
+    "user_document_metadata_unchanged": true,
+    "db_table_counts": {
+      "documents": 12,
+      "versions": 14,
+      "document_access": 12,
+      "report_tasks": 7
+    },
+    "db_raw_rows_unchanged": {
+      "documents": false,
+      "versions": true,
+      "document_access": true,
+      "report_tasks": true
+    },
+    "document_row_note": "API snapshots match every persistent document field (id,name,current_version,created_at) and role. Only ephemeral lease_token/lease_until fields are outside this comparison; raw documents row hash changed. No browser reload or buffer mutation was performed.",
+    "standard_sha256": "6c68b50656867f1fc724c50549e60e1109e2f7a00219f2928ef58de0a45711f1"
+  },
+  "manual_service": {
+    "url": "http://127.0.0.1:15180/",
+    "result": "ready",
+    "provider": "codex",
+    "startup_generates_candidates": false,
+    "diagnostic": true,
+    "run": ".cache/user-review/runs/20261008-122330-8f996c00",
+    "catalog_count": 1,
+    "app_assets": {
+      "index-DIvJ0o_O.css": "1d67f4faeff0d377b24c65298e00080f64dd87a79bc49acef5438381d1164c20",
+      "index-h6JeZTZj.js": "e1d26b30f14351a69215e0f29e4aac71f226423bc0422e1593e8441aa7f45cba"
+    },
+    "services": [
+      {
+        "port": 18180,
+        "launcher_pid": 6944,
+        "name": "api",
+        "listener_pid": 30908
+      },
+      {
+        "port": 15180,
+        "launcher_pid": 36600,
+        "name": "web",
+        "listener_pid": 36600
+      }
+    ],
+    "assets_match_tested_bundle": true
+  },
+  "wbs_document": "docs/wbs-progress-2026-10-08.md",
+  "deferred": [
+    "blocks in existing document",
+    "template variables",
+    "report template selection",
+    "general automatic TOC",
+    "production provenance and deployment",
+    "rich Hancom review"
+  ],
+  "generated_at": "2026-10-08T03:27:28.242899+00:00"
+}

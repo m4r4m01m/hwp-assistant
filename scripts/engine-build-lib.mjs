@@ -8,6 +8,42 @@ export const lock = JSON.parse(readFileSync(resolve(root, 'scripts/engine-lock.j
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 export const hashFile = file => sha256(readFileSync(file));
 export const normalizeNewlines = value => value.replaceAll('\r\n', '\n');
+// A bridge migration must match an exact, previously verified bridge, never an
+// arbitrary edited vendor main.ts. The default remains pinned source + current bridge.
+export function assertStudioBridge(current, original, bridge, previous = null) {
+  const normalized = normalizeNewlines(current);
+  const accepted = [original, original + bridge].map(normalizeNewlines);
+  if (previous) {
+    if (!/^[a-f0-9]{64}$/.test(previous.sha256 || '') || sha256(previous.bytes) !== previous.sha256)
+      throw Error('Previous bridge does not match the verified bundle receipt');
+    accepted.push(normalizeNewlines(original + previous.bytes.toString('utf8')));
+  }
+  if (!accepted.includes(normalized))
+    throw Error('Preserving local Studio main.ts changes; expected only a verified assistant bridge.');
+}
+
+// Offline diagnostic builds may reuse existing deps only when their installed
+// receipt and every nonoptional locked package match. Never fall back to npm exec.
+export function validateInstalledDependencies(studio) {
+  const lockPath = resolve(studio, 'package-lock.json');
+  const installedPath = resolve(studio, 'node_modules/.package-lock.json');
+  if (!existsSync(installedPath)) throw Error('Installed dependency receipt is missing; refusing offline build');
+  const expected = JSON.parse(readFileSync(lockPath, 'utf8'));
+  const installed = JSON.parse(readFileSync(installedPath, 'utf8'));
+  for (const [name, info] of Object.entries(expected.packages || {})) {
+    if (!name) continue;
+    const actual = installed.packages?.[name];
+    if (!actual && info.optional === true) continue;
+    if (!actual || ['version', 'resolved', 'integrity'].some(key => actual[key] !== info[key]))
+      throw Error('Installed dependency differs from pinned lock: ' + name);
+    const manifest = resolve(studio, name, 'package.json');
+    if (!existsSync(manifest) || JSON.parse(readFileSync(manifest, 'utf8')).version !== info.version)
+      throw Error('Installed package is missing or changed: ' + name);
+  }
+  const vite = resolve(studio, 'node_modules/vite/bin/vite.js');
+  if (!existsSync(vite)) throw Error('Installed Vite is missing; refusing offline build');
+  return { package_lock_sha256: hashFile(lockPath), installed_lock_sha256: hashFile(installedPath), vite };
+}
 // Binaryen appends its exact Git tag when a release was built from a checkout.
 export const isPinnedBinaryen = value => [
   `wasm-opt version ${lock.binaryen}`,

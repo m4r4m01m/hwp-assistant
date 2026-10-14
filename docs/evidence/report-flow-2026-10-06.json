@@ -1,0 +1,188 @@
+{
+  "recorded_at": "2026-10-06T13:08:26.691556+00:00",
+  "head": "1e0538781e02ac85d095bb3c72bf844943c305b3",
+  "source_set_sha256": "b8c20fdbfec41c67fcc2366302fe136740d63fbf73121998e60c1d9a8e3be86c",
+  "source_files": 111,
+  "changes": [
+    {
+      "path": "backend/app/db.py",
+      "sha256": "1e85eadfc45f28cbe35c8f60d5a46fd7f1310429f6d5359fc83d0195cc389cd0",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/app/main.py",
+      "sha256": "c747bb7e4c0a6699dee19105250c1ac384d6f64819285c9774f9a4e09daf32ad",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/app/report_contract.py",
+      "sha256": "39b63dde2e68562e558441828753ccb95aa074027620913df756e2788bdf05d8",
+      "git": "untracked"
+    },
+    {
+      "path": "backend/app/report_hwpx.py",
+      "sha256": "8eba33f7cfe0b82dab9a62930b6de6f8604760dcb0bf465912a5818b3743cb4f",
+      "git": "untracked"
+    },
+    {
+      "path": "backend/app/report_runner.py",
+      "sha256": "4043d0d56b5292328ddcd92d4df8023a27ab3e0dc95074b255e8ad6440c690b2",
+      "git": "untracked"
+    },
+    {
+      "path": "backend/app/reports.py",
+      "sha256": "74d869a343d954a7216a0165c311e3147925f0c43c1b646b99f0255bad2d74bf",
+      "git": "untracked"
+    },
+    {
+      "path": "backend/tests/report_mock_app.py",
+      "sha256": "cf3c5da82a3ce1711cc337033adf5cac41cac0ed1f59dff246ceac7d9966b931",
+      "git": "untracked"
+    },
+    {
+      "path": "backend/tests/test_reports.py",
+      "sha256": "3e6fea2258b45b65bf6939c92012c27af407019676480d48085978dc49f2e1ab",
+      "git": "untracked"
+    },
+    {
+      "path": "frontend/src/main.tsx",
+      "sha256": "03340c03b34f8acb7697b6afe787df2d5d6806da0c88e216efd11f22886d9aa5",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/src/reports.tsx",
+      "sha256": "997d87e949226383380ca0ce019772656f256e0058c2315a2f91fc1b8e6d364e",
+      "git": "untracked"
+    },
+    {
+      "path": "frontend/src/style.css",
+      "sha256": "47208da61d84499c5c24cec3b0805ca9e76e961f16114cc91169600b1aa25bcf",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/tests/reports.spec.ts",
+      "sha256": "fb0cbb403d2e11bbaf3a780d9c0e407e9ee2234bd6e0ce37b94e7172a8fbd8e9",
+      "git": "untracked"
+    },
+    {
+      "path": "scripts/test-isolated.ps1",
+      "sha256": "e81c5d4033b51edc29e758ea38b9deae907c714993cd0add5c9f4d39e9fae3cf",
+      "git": "untracked"
+    },
+    {
+      "path": "scripts/verify-report-live.mjs",
+      "sha256": "c206bf83279b37450e48e36a061379e072631fd2ac04b63663c475bb097bba80",
+      "git": "untracked"
+    }
+  ],
+  "tests": {
+    "pytest": {
+      "passed": 225,
+      "failed": 0,
+      "skipped": 0
+    },
+    "typescript": {
+      "exit_code": 0
+    },
+    "node": {
+      "passed": 35,
+      "failed": 0,
+      "skipped": 0
+    },
+    "source_e2e": {
+      "collected": 39,
+      "passed": 36,
+      "failed": 0,
+      "skipped": 3
+    },
+    "built_mock_report": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0
+    },
+    "built_recorded_reports": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0
+    },
+    "default_deployment_build": {
+      "exit_code": 1,
+      "expected_guard": "Missing pinned core/bundle provenance"
+    }
+  },
+  "generation": {
+    "actual_codex_calls": 4,
+    "web_search_calls": 20,
+    "configured_model": "gpt-6-astra",
+    "paid_api_fallback": false,
+    "model_downloads": 0,
+    "context_used": false,
+    "human_approval": false,
+    "automated_approval": true
+  },
+  "delivered": [
+    {
+      "name": "financial-cyber-executive",
+      "hwpx": "reports/2026-10-06/financial-cyber-executive.hwpx",
+      "sha256": "185c2496fd54e12e5ba8e49b9e2fae274fc9a5dadd7f29cdddb899d0a7a68abc",
+      "delivery": "live UI generation"
+    },
+    {
+      "name": "vendor-cloud-security",
+      "hwpx": "reports/2026-10-06/vendor-cloud-security.hwpx",
+      "sha256": "2f4e3c203cfa5f693ed400bc90d0429cee36541ca50df5cb955fcac405ab0f2a",
+      "delivery": "actual model output replay through UI and real engine"
+    },
+    {
+      "name": "customer-data-response",
+      "hwpx": "reports/2026-10-06/customer-data-response.hwpx",
+      "sha256": "f82075e2ecf76c8c8e2a3acea1b2daa40c59b4717d337fc5a5a7d029db7a9de7",
+      "delivery": "actual model output replay through UI and real engine"
+    }
+  ],
+  "protection": {
+    "checked": 265,
+    "changed": []
+  },
+  "original_storage_audit": {
+    "kind": "read-only SQLite/blob audit",
+    "result": "passed",
+    "started_at": 1791291973.494778,
+    "finished_at": 1791291973.6636982,
+    "documents": 33,
+    "versions": 55,
+    "verified_blobs": 55,
+    "verified_bytes": 419170,
+    "issues": [],
+    "unreferenced_files": 0,
+    "unreferenced_note": "Not deleted. May include quarantined, interrupted or concurrent writes.",
+    "limits": [
+      "SQLite metadata snapshot; blobs are read afterwards and expected immutable",
+      "No HWPX layout/content semantics, real model, PostgreSQL or backup/restore validation"
+    ]
+  },
+  "review_storage_audit": {
+    "kind": "read-only SQLite/blob audit",
+    "result": "passed",
+    "started_at": 1791291973.057342,
+    "finished_at": 1791291973.1769018,
+    "documents": 4,
+    "versions": 5,
+    "verified_blobs": 5,
+    "verified_bytes": 46584,
+    "issues": [],
+    "unreferenced_files": 0,
+    "unreferenced_note": "Not deleted. May include quarantined, interrupted or concurrent writes.",
+    "limits": [
+      "SQLite metadata snapshot; blobs are read afterwards and expected immutable",
+      "No HWPX layout/content semantics, real model, PostgreSQL or backup/restore validation"
+    ]
+  },
+  "limits": [
+    "Live Codex UI generation used the prior D5oTJBZz app bundle. Final recovery UI and draft-in-progress name changes are verified by final source and newly built mock/recorded-result E2E; no extra final-source Codex call was made.",
+    "Vendor and customer browser runs replay previously generated actual Codex output; they are not fresh model calls.",
+    "One recorded-result run lost the Vite preview listener (ECONNREFUSED); cause was not established. A fresh final-code run passed both reports.",
+    "No Hancom desktop roundtrip, human approval or production-engine provenance verification.",
+    "Prior cancelled one-hour run was not resumed."
+  ]
+}

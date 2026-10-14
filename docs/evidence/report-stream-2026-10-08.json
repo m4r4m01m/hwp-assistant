@@ -1,0 +1,189 @@
+{
+  "date": "2026-10-08",
+  "head": "1e0538781e02ac85d095bb3c72bf844943c305b3",
+  "uncommitted": true,
+  "source_set_sha256": "050da0960021e45f9358d8bba24aad41f485c58dc0b8d06a864160534bb6c394",
+  "source_files": 123,
+  "checks": [
+    {
+      "name": "pytest",
+      "command": [
+        ".venv/Scripts/python",
+        "-m",
+        "pytest",
+        "-q"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 96.76
+    },
+    {
+      "name": "typescript",
+      "command": [
+        "node",
+        "frontend/node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--project",
+        "frontend/tsconfig.json"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 2.56
+    },
+    {
+      "name": "engine-build",
+      "command": [
+        "node",
+        "--test",
+        "scripts/engine-build.test.mjs"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 1.08
+    },
+    {
+      "name": "production-guard",
+      "command": [
+        "cmd",
+        "/c",
+        "npm",
+        "--prefix",
+        "frontend",
+        "run",
+        "build"
+      ],
+      "exit_code": 1,
+      "elapsed_seconds": 6.06
+    }
+  ],
+  "pytest": {
+    "collected": 253,
+    "passed": 253,
+    "failed": 0,
+    "skipped": 0
+  },
+  "typescript": "passed",
+  "engine_build_guard": {
+    "passed": 11,
+    "failed": 0
+  },
+  "production_build": {
+    "exit_code": 1,
+    "reason": "Existing missing pinned core/bundle provenance; guard preserved"
+  },
+  "source_e2e": {
+    "collected": 43,
+    "passed": 35,
+    "failed": 0,
+    "skipped": 8,
+    "authenticated": true,
+    "path": ".cache/report-stream-source-final-2026-10-08",
+    "skips": "1 long review soak + 7 separate report fixture tests"
+  },
+  "built_report_e2e": {
+    "collected": 4,
+    "passed": 4,
+    "failed": 0,
+    "skipped": 0,
+    "real_engine": true,
+    "model": "synthetic stdio + mock report",
+    "actual_model_calls": 0,
+    "human_approval": false,
+    "path": ".cache/report-stream-built-final-2026-10-08"
+  },
+  "actual_codex_final": {
+    "passed": true,
+    "calls": 1,
+    "research": false,
+    "synthetic_topic": true,
+    "model": "gpt-6-astra",
+    "timings": {
+      "startup_ms": 1562,
+      "first_text_ms": 5071,
+      "generation_ms": 13694,
+      "text_ms": 8623,
+      "research_ms": 0
+    },
+    "total_ms": 13776,
+    "snapshots": 34,
+    "first_partial_before_completion": true,
+    "real_engine": false,
+    "human_approval": false,
+    "saved": false
+  },
+  "total_actual_codex_calls_this_turn": 2,
+  "previous_actual_probe": "A prior transport revision also passed; final measurement is separate, not combined.",
+  "earlier_attempts": [
+    "Initial new stream tests: 6 failures/4 passes; fixed first-content flush and synthetic Windows child UTF-8 encoding.",
+    "Next interim run: 4 failures/6 passes before the fixture encoding fix.",
+    "Then 10 stream tests passed; final stalled-input test raises the total to 11.",
+    "An initial full-pytest shell invocation was interrupted without a test result; it is not counted.",
+    "Earlier diagnostic report E2E: 4 passed, superseded by a newly built final run."
+  ],
+  "preservation": {
+    "old_blob_count": 68,
+    "all_hashes_unchanged": true,
+    "existing_report_count": 5,
+    "all_reports_unchanged_across_restart": true,
+    "original_reference_unchanged": true,
+    "commits": 0,
+    "pushes": 0,
+    "merges": 0,
+    "user_browser_reloaded": false
+  },
+  "deployment": {
+    "url": "http://127.0.0.1:15180/",
+    "run_directory": ".cache/user-review/runs/20261008-100022-8b2609e7",
+    "javascript": "index-BXdh-T3N.js",
+    "css": "index-B-petz8K.css",
+    "served_byte_verification": {
+      "mode": "fresh diagnostic app bundle",
+      "url": "http://127.0.0.1:15180",
+      "files": [
+        {
+          "path": "rhwp/build-info.json",
+          "sha256": "522434e96515a6f56c310a1f9d197f00d5e65852227b9ea747bfab71c6fed469"
+        },
+        {
+          "path": "rhwp/index.html",
+          "sha256": "21b7f25c5b62b0925a3c166e3a8cec9bd6ffbc7e8d64db5169d25bc09941e6c0"
+        },
+        {
+          "path": "rhwp/rhwp.js",
+          "sha256": "12029c04cb7f4af12dc6c1026a0499e49e3a01d1bce4b6e2f79f51da1aa59da7"
+        },
+        {
+          "path": "rhwp/assets/rhwp_bg-DdftfNrC.wasm",
+          "sha256": "0e81cdeb4a61de8dd12be6d79d3bf06a8c1153525883e4112f4dcb1257d68195"
+        },
+        {
+          "path": "rhwp/assets/canvaskit-renderer-G9QZqpU4.js",
+          "sha256": "3ad7c1e8fced26e22b8bc7d404bcf3c63cd79b4f9b4057ea1c2e5559dfd08172"
+        },
+        {
+          "path": "rhwp/assets/index-CKntJATf.js",
+          "sha256": "6c4ed8c27192da6b1c5e83159fea76f652da0237e9779ebbe931c64b941774a1"
+        },
+        {
+          "path": "rhwp/assets/studio-plugin-Cp8dJ3L_.js",
+          "sha256": "abdcbcab732aad8d91b551c97ff045bec6b140ae87d94c5fd44235d5515fb4e7"
+        },
+        {
+          "path": "index.html",
+          "sha256": "0e681de344c9c12fccd77e33607fce5590daebe6702370585ab1b76eae215c04"
+        },
+        {
+          "path": "assets/index-BXdh-T3N.js",
+          "sha256": "3475f5148844908791f396f95ef6dfbec7be7ee8a666a56508959fd7c52fb2f5"
+        },
+        {
+          "path": "assets/index-B-petz8K.css",
+          "sha256": "461a48bb0080933231afae5f2c82dba14648322cc788f7a457c1d04bfac95465"
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "Short synthetic actual-model probe has no web research; not a new latency claim for researched financial reports.",
+    "Browser streaming is validated with synthetic received deltas; actual model transport is independently validated.",
+    "Final HWPX uses the existing engine and template; remaining Hancom/layout inspection is manual.",
+    "602-second and 1-hour runs are historical, not rerun or attributed to this change."
+  ]
+}

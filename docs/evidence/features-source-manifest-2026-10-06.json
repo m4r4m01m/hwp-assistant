@@ -1,0 +1,624 @@
+{
+  "recorded_at": "2026-10-06T11:25:34.957044+00:00",
+  "head": "1e0538781e02ac85d095bb3c72bf844943c305b3",
+  "source_set_sha256": "44360c0793b4ae0c789755dd8d97eda28e26d1fdf21845309fe6ce69ec65d55d",
+  "source_files": [
+    {
+      "path": ".env.example",
+      "sha256": "2c9896808e10b68d473c5de4717b4f13b2317c17f52c0a66dc5e5c0a71687555",
+      "git": "tracked"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "14f9784086d34af4569a0c2c2e31d7a83f4a9d528a6b62383fa28c6528ae86cf",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/Dockerfile",
+      "sha256": "bfd919cff159b225e5bcfac3ffed39e8c5fb684486e339f26aee55173a97b6d1",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/app/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/app/auth.py",
+      "sha256": "37e7f84c3f8b102cfa079546c6fc9d042f9a8b1d6ffad3b93a15325bb21a6a81",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/app/changes.py",
+      "sha256": "688ee76c10840ce2fc9319f39613830ab0faaab4f55c4d44c8056f2a4bf43019",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/app/cli_process.py",
+      "sha256": "ce76ba5b657319a93870cb1d68a2e854dc3c3ec08e6a8fbfc781052a1c0163ac",
+      "git": "untracked"
+    },
+    {
+      "path": "backend/app/codex_runner.py",
+      "sha256": "a616d194cdfa5d748b8160dbe84c8022bd9bfd2bc4e839b352b0f916db9b4e65",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/app/collaboration.py",
+      "sha256": "18fea2f69d850df4e7d28157f7f3e2be6a5d0179226309c005ad422d82a93407",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/app/db.py",
+      "sha256": "d0c19c5d2cb122e955d18736f1c3ce94dbb399addb6683cd98a308c5edcfae6f",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/app/document_copy.py",
+      "sha256": "151812cce8efd901c79033d5fe97c5ff90f02ab77177840dced55df7568a56c5",
+      "git": "untracked"
+    },
+    {
+      "path": "backend/app/hwpx.py",
+      "sha256": "500862a6ce2e9f04da833b9398a9e3ba0591d6888cfca42584542ccd68bc9403",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/app/llm.py",
+      "sha256": "06639524962af9532aebee36256b252eb8df2913282f15b1bcc70f60288c3216",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/app/local_rewrite.py",
+      "sha256": "05665dbc293ff34a38992f55b19ca202ecdc13fa00827cab3b94b1e8bb4ef32c",
+      "git": "untracked"
+    },
+    {
+      "path": "backend/app/main.py",
+      "sha256": "15a0324ec78cf88f0df40703e451de55fb26a05208899786a53fdccfb190c9b1",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/app/mcp_server.py",
+      "sha256": "00ab26ecaa88b9ae3dcd244bc8cd19b1042120108f2fa34a179bc545de5e2afb",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/app/migrate.py",
+      "sha256": "b337625c9a70615dc980e51d93cd1093f50de44958e2dcca995bc7e6861c5662",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/app/rewrite.py",
+      "sha256": "9cc2260af923c9d9fe7567de13f57acdfbc1004136f73e07b5105e39b991d6f1",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/app/rewrite_capacity.py",
+      "sha256": "d00ad6052a5ae14ba33ec4c298308242107435f40be047ec6c24cd690ee3c161",
+      "git": "untracked"
+    },
+    {
+      "path": "backend/app/rewrite_context.py",
+      "sha256": "09018b8dc9cc243a52324ef254c9483ae84b11a96046bae8afdfcf47dabf75dc",
+      "git": "untracked"
+    },
+    {
+      "path": "backend/app/rewrite_contract.py",
+      "sha256": "e20314a6ce9efea1c2dd5714a2877079fbf9581b24d2c56adbad823712222364",
+      "git": "untracked"
+    },
+    {
+      "path": "backend/app/rewrite_jobs.py",
+      "sha256": "8d88fb4dca4a75686eb9bcd2added1218f82dbc82f93f65da0f70845bbfc4c33",
+      "git": "untracked"
+    },
+    {
+      "path": "backend/app/rewrite_mcp.py",
+      "sha256": "44af489bfe21e206c585f0ca6bcca1dce6278c2d2587ab125af7c774723f658a",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/app/schema.py",
+      "sha256": "d9a90ff52b3ba755ef06946c7954d06289c437f6095170e6f9deea24d74b9a08",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/migrations/001_initial.sql",
+      "sha256": "386ebd71da5ba57191b44873bd5d0612786930241647fa517a23af58f9debedf",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/migrations/002_collaboration.sql",
+      "sha256": "08ae4f61bb0d956f0c69a1c9bd7ebf8ecf08e841f75107462a1b9072f9acc480",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/migrations/003_rewrite.sql",
+      "sha256": "6e8d912b199563eab1401859da1cab3314afa1b8ad5cdb809a76a04724986a66",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/requirements-mcp.lock.txt",
+      "sha256": "ef5edb8702018f7e98f42290bc69fdf6f752fa5df19d34db2a934c010299f3fe",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/requirements.lock.txt",
+      "sha256": "c8f81db2e84fd52b906bad9cf89bd274b9183d5fb30c486571bb54c78811dc0f",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/requirements.txt",
+      "sha256": "57d63fba90b0575cee85158fe85c49fb97dd5ad0f8622e33c12ddfcf19b6a2e0",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/tests/mock_local_provider.py",
+      "sha256": "764a4138a2413a7b006be59aafb14d9d7cc094f8d08ca5a4a962f663b207c2be",
+      "git": "untracked"
+    },
+    {
+      "path": "backend/tests/test_cli_process.py",
+      "sha256": "075f51e0baf99ce548dc0f060a1d073fcf068109fa646e74ce74b1931540a503",
+      "git": "untracked"
+    },
+    {
+      "path": "backend/tests/test_codex_runner.py",
+      "sha256": "7289041d2e196d0bf7afae5ea9b990308d0c4f0a4ffc005aa279e8aa8febcb93",
+      "git": "untracked"
+    },
+    {
+      "path": "backend/tests/test_collaboration.py",
+      "sha256": "e3fec390197af67d06a2d374473e12811c32f4bd6683a3d3ff5124f847214ede",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/tests/test_document_copy.py",
+      "sha256": "f7049466c6af48e156f295547e97780fcc0bbae49d85a8beb85b9b8db8dd945a",
+      "git": "untracked"
+    },
+    {
+      "path": "backend/tests/test_llm.py",
+      "sha256": "37c97dd45909aa942f3804955af9b917c38e857394af2c5214f8b4285f7d8531",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/tests/test_local_rewrite.py",
+      "sha256": "806b23e6e05ed91715dbc535c06629b9cf5e9617827affe0ef61b194ce3c1508",
+      "git": "untracked"
+    },
+    {
+      "path": "backend/tests/test_mcp.py",
+      "sha256": "04cc2c53e6cbd3a78f13c7b4ba860d55f94b974d8f8dbdd251917860ae4a2a41",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/tests/test_process_restart.py",
+      "sha256": "e4bb69558f5ea1fccb6eaab037c3f53ffed265b88bc75f7161b225d289ddf985",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/tests/test_rewrite.py",
+      "sha256": "a5ffea659d8c32ec0d9099e18f342fc2a4bb3a4529d2c4c46a61c69d48209118",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/tests/test_rewrite_boundaries.py",
+      "sha256": "c698f1ff88f0fe987b5a9c8fb56854388f7fc49d358cb16d7bccad29adb98e97",
+      "git": "untracked"
+    },
+    {
+      "path": "backend/tests/test_rewrite_context.py",
+      "sha256": "98b534c1d135d25fcd1c8a3fd0a30826a35bcaceed054730d3d28959d7418ae1",
+      "git": "untracked"
+    },
+    {
+      "path": "backend/tests/test_storage.py",
+      "sha256": "cdd339ed2c3aa5686874ca623cb725ceda7716e561968f7c12a1a513a28051f0",
+      "git": "tracked"
+    },
+    {
+      "path": "backend/tests/test_storage_audit.py",
+      "sha256": "8339c4ecd797b22ac1605ff22ce6a80b11622ac81d5b585813642de2df62a2a4",
+      "git": "untracked"
+    },
+    {
+      "path": "compose.yaml",
+      "sha256": "ee6cc45652f48d5b64552cd1922a8368832cbe5c0b7a4da26a797fcdc9ae268a",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/Dockerfile",
+      "sha256": "e23b5510cedf91147949715bfdc5fdd4037d548e4a27f4027553d83b8ba62dde",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/index.html",
+      "sha256": "b282ca3aea521e7328f630e808003b474a7bc700c92442266cac32cdb2e59b81",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/nginx.conf",
+      "sha256": "e6527d1813635297309a9ccf0f218d823730c8a25f3e71041a1fc77fb5403bbb",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/package-lock.json",
+      "sha256": "54f1ce6039c3ab78cfcc2d9d69484c18b51af1482d514e7e0fdb867b8ff6b993",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/package.json",
+      "sha256": "030a43ffcc8d15c3bbbc6e15d36a21d921c9c9caf4a92f9ecdc0f5c6abf9f96c",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/playwright.config.ts",
+      "sha256": "c064c77c0c83209fa86364870a5da528fdeee3080b323b514141c13dce4bfc89",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/src/api.ts",
+      "sha256": "21cdf9be821c84e4a0926f9872a2339eb5ac8e5b0296b073a73a0f186ec699f9",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/src/candidate-text.tsx",
+      "sha256": "5e8e502e6c571bc8b2b875ccfb0b7e4256ddcab458b930df181fbc3499e5a7ad",
+      "git": "untracked"
+    },
+    {
+      "path": "frontend/src/collaboration.tsx",
+      "sha256": "bc8042e042b94778776a76c336f2e343ba58ae4cdfd855cabfe4cf1ed106dcac",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/src/context.tsx",
+      "sha256": "e03e03aecec45d6f30e00cc7a675a2d1815ae602604162abc9b6f03164a93a2f",
+      "git": "untracked"
+    },
+    {
+      "path": "frontend/src/editor.ts",
+      "sha256": "dccba3cad422081f3c8f1c9320fa485cb2cfbb8036f3dc77076b67de415b46d4",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/src/main.tsx",
+      "sha256": "7a18fcd0d2cc6bc48b94968e841abc41efa3b2e8f878522578a11e9bdbdf7604",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/src/rewrite.tsx",
+      "sha256": "301b39e04ee3dbb09bc345c4e4a1f6d25023d810f64f05b180aa3187f2c30779",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/src/style.css",
+      "sha256": "278ec4d0c6e102cae1fe0aa3baaad9f1c6fe31e5905416a3ca558a33e910e38f",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/src/text-diff.ts",
+      "sha256": "98a3ec9340fd181effdad5f4a0caf231b7c5f555a0533872f341c7767cb6380b",
+      "git": "untracked"
+    },
+    {
+      "path": "frontend/tests/collaboration.spec.ts",
+      "sha256": "db579993ca6c5af1db07b88d0d27da1bbb1ee1abe066c1f9e44815863a8aea36",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/tests/document-copy.spec.ts",
+      "sha256": "f52f4e083185ecd8e4f2a7347bdafb5f4aa8f37ef72b45b51192cd878f99fac1",
+      "git": "untracked"
+    },
+    {
+      "path": "frontend/tests/engine.spec.ts",
+      "sha256": "3502128b8cd6655272574762105f38870b2c8840902b0fc25767c75e46fdf627",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/tests/local-rewrite.spec.ts",
+      "sha256": "36aa5ae5583e85515f368d9aa51ef175c5f72e182b9010ad22d0d57df892118b",
+      "git": "untracked"
+    },
+    {
+      "path": "frontend/tests/permissions.spec.ts",
+      "sha256": "4800c4cb95b82846aafd7e3aa1534e98435b6f341d89761efe6eb22ddb6a483a",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/tests/rewrite-protection.spec.ts",
+      "sha256": "722157e808e7794605008a4794eaa6f66552ed64c4a02a682aa4b4c5a569bd28",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/tests/roundtrip.spec.ts",
+      "sha256": "db5dd6598f6d0b904e7ee55a7d561dc6095ed573c965122bfe0062fe6728fd1e",
+      "git": "untracked"
+    },
+    {
+      "path": "frontend/tsconfig.json",
+      "sha256": "d8d321435637d792a4470b0286fe194569c456a298e4f5854eee41e9652e2885",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/vite.config.ts",
+      "sha256": "923cd97792291e36c1e10b48312a0aa0b08c5e5799093a5a65c8f26251143b31",
+      "git": "tracked"
+    },
+    {
+      "path": "pytest.ini",
+      "sha256": "2478e3b063cf99013fdfaa4b39d7894a72b198b0914bc978e52be752ce4ee0c8",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/assistant-bridge.ts.txt",
+      "sha256": "4ad7f7906c3685848cdeb85acb533c2a4f6200aea560c2df378fa17bc79931be",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/audit-storage.py",
+      "sha256": "a14e843d8ae53682a54e098692d0a11b0939393d16acaba4ef634256c02c25b0",
+      "git": "untracked"
+    },
+    {
+      "path": "scripts/build-engine.mjs",
+      "sha256": "0941dddbea663588c541e330ebe86472f8e0ac45f5fadd85c6815086def5d913",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/build-frontend.mjs",
+      "sha256": "4343226b3d43ba2b719e64280cccd5b581136059252ca73b4b2afe2bc615c44a",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/build-patched-core.ps1",
+      "sha256": "0bf3ef19578215a34789b8be2c5e399de4ed82cdcd19044c48d6f5c5bf225475",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/build-release-core.mjs",
+      "sha256": "461d06eeca2ac97d8d272a8de34eb24f1ac65f62d864697e0bb22fcfa4696012",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/check-engine-bundle.mjs",
+      "sha256": "ee0e92f05ebc01f03ddb7da5d4db4404bfc8195a1d9fd63a6ddcb12a696c08d4",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/context-save.test.mjs",
+      "sha256": "5916d422f046bec830d94e5729a95628f0d96343d881df3dacd74d31dc049630",
+      "git": "untracked"
+    },
+    {
+      "path": "scripts/engine-build-lib.mjs",
+      "sha256": "7ba0fb6bebef38ae7d00087d11cba8edba7eb7fae2650df9bfc7d5f61e7d421c",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/engine-build.test.mjs",
+      "sha256": "8615935e93ad494efa4921f18f4316b1d09bd119fbfdb9082386b920234d174d",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/engine-lock.json",
+      "sha256": "6c621b460710997fa3d88142a472eb29d7b2ccdf94fcd66d51b2e9be66ef03c7",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/export-release-core.mjs",
+      "sha256": "b6c83141928e487ae50831c3da345e32708700235186b4951fbe02068d890d32",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/patches/rhwp-0.8.6-empty-fill.patch",
+      "sha256": "377171f8996a35046203d2ceb358ef580b1091fd067ee0ae2e053c4294013656",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/prepare-patched-core.py",
+      "sha256": "fbad2e959609d7190fb753b3fd4adc0a1bf4e27774f7489f44c0369f6e5ccfa1",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/record-engine-release-result.py",
+      "sha256": "2257cff024b3f22975f919696a4cf2eae2ae42096ef8098c012fe6c4bde31679",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/record-hancom-fill-result.py",
+      "sha256": "a731beaeb413050a737efe2b96d7221199f39f6f3f580256411d76c2fe9600ce",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/record-patched-core.mjs",
+      "sha256": "526953fddc49e9df1d83a8c8051b8aa0dfab7dbb6fe36c24cdde72d5c3f5a92d",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/rewrite-request.test.mjs",
+      "sha256": "5d17e7c49296c9f519ee4c0f14dbf2f59d81266ae03fde8b7fc4bd7e4e40ff69",
+      "git": "untracked"
+    },
+    {
+      "path": "scripts/serve-built-preview.mjs",
+      "sha256": "4c66e3528e0883040dacb443b6fb3ac13ad2bad7b481bc27ace49ff084b81d9b",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/serve-engine-preview.mjs",
+      "sha256": "0a8524eb5e7b11b9b8d82d4444443ad377bc1f3a21088cdd45c0362e65be98ff",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/start-user-review.ps1",
+      "sha256": "40b7027f1e58f4feab26776b6a440ac5a58e7b7efcf574c39d480eeec0e3b4cf",
+      "git": "untracked"
+    },
+    {
+      "path": "scripts/test-engine-fill.mjs",
+      "sha256": "80afc1b3908c9726dde710031d1b55f2a7ca5fb70da4f826da342d61652127b6",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/test-isolated.ps1",
+      "sha256": "630f71595c157497cfd3cd68768d2101f2ceb33d006ed3294265442616665085",
+      "git": "untracked"
+    },
+    {
+      "path": "scripts/text-diff.test.mjs",
+      "sha256": "e7b8b54bac765a2218dceb0bc07815be4d0f27c90f75a9b7bd7476bf9172da6e",
+      "git": "untracked"
+    },
+    {
+      "path": "scripts/verify-codex-human-continuation.mjs",
+      "sha256": "c17e8188010b97478b56002306806e6eb44d0d69401f51aacd5907ec98b87346",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/verify-codex-human-tools.mjs",
+      "sha256": "207e1df1e0b97a8e3c5351405025355035db3cfff4a75153d4ece1c6070c5e56",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/verify-codex-human.mjs",
+      "sha256": "774b7c1eabe7ad8eaf6efb743af7e3c679bd4742edfb1a5a0d40714638b997e5",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/verify-codex-human.test.mjs",
+      "sha256": "c5cbf172674391eeb54ae77c2f45bf776401d26ec3f2cc0090468623eed3eb36",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/verify-hancom-fill.mjs",
+      "sha256": "1a81cf4d7bb5701f5a35b7344940cd46e8e3f86c2feea88c4012b643fa7215db",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/verify-hancom-table.mjs",
+      "sha256": "dea2e0757b962071fd6b02ac2858c856d6956d361eba113fabbc5a5b69f53360",
+      "git": "tracked"
+    },
+    {
+      "path": "scripts/verify-rewrite-restart.py",
+      "sha256": "0613ae7afd6ab3a606cd9d587dfd44b08b1617341e7d502fea9c47de061e163e",
+      "git": "untracked"
+    },
+    {
+      "path": "scripts/verify-served-build.mjs",
+      "sha256": "f7b9d7e62a6e32fee00247eacf145b58fcd16ba536ee8b7d94a113a76314d654",
+      "git": "untracked"
+    }
+  ],
+  "engine": [
+    {
+      "path": "rhwp/build-info.json",
+      "sha256": "522434e96515a6f56c310a1f9d197f00d5e65852227b9ea747bfab71c6fed469"
+    },
+    {
+      "path": "rhwp/index.html",
+      "sha256": "21b7f25c5b62b0925a3c166e3a8cec9bd6ffbc7e8d64db5169d25bc09941e6c0"
+    },
+    {
+      "path": "rhwp/rhwp.js",
+      "sha256": "12029c04cb7f4af12dc6c1026a0499e49e3a01d1bce4b6e2f79f51da1aa59da7"
+    },
+    {
+      "path": "rhwp/assets/rhwp_bg-DdftfNrC.wasm",
+      "sha256": "0e81cdeb4a61de8dd12be6d79d3bf06a8c1153525883e4112f4dcb1257d68195"
+    },
+    {
+      "path": "rhwp/assets/canvaskit-renderer-G9QZqpU4.js",
+      "sha256": "3ad7c1e8fced26e22b8bc7d404bcf3c63cd79b4f9b4057ea1c2e5559dfd08172"
+    },
+    {
+      "path": "rhwp/assets/index-CKntJATf.js",
+      "sha256": "6c4ed8c27192da6b1c5e83159fea76f652da0237e9779ebbe931c64b941774a1"
+    },
+    {
+      "path": "rhwp/assets/studio-plugin-Cp8dJ3L_.js",
+      "sha256": "abdcbcab732aad8d91b551c97ff045bec6b140ae87d94c5fd44235d5515fb4e7"
+    }
+  ],
+  "engine_source": ".cache/engine-release-2026-09-27/public/rhwp",
+  "status": [
+    " M .env.example",
+    " M README.md",
+    " M backend/app/auth.py",
+    " M backend/app/codex_runner.py",
+    " M backend/app/collaboration.py",
+    " M backend/app/llm.py",
+    " M backend/app/main.py",
+    " M backend/app/rewrite.py",
+    " M backend/tests/test_collaboration.py",
+    " M backend/tests/test_llm.py",
+    " M backend/tests/test_mcp.py",
+    " M backend/tests/test_rewrite.py",
+    " M docs/collaboration-and-mcp.md",
+    " M docs/compatibility.md",
+    " M docs/manual-codex-verification.md",
+    " M docs/remaining-work.md",
+    " M frontend/src/api.ts",
+    " M frontend/src/collaboration.tsx",
+    " M frontend/src/main.tsx",
+    " M frontend/src/rewrite.tsx",
+    " M frontend/src/style.css",
+    " M frontend/tests/collaboration.spec.ts",
+    " M frontend/tests/rewrite-protection.spec.ts",
+    " M scripts/verify-codex-human-continuation.mjs",
+    " M scripts/verify-codex-human.mjs",
+    " M scripts/verify-codex-human.test.mjs",
+    "?? backend/app/cli_process.py",
+    "?? backend/app/document_copy.py",
+    "?? backend/app/local_rewrite.py",
+    "?? backend/app/rewrite_capacity.py",
+    "?? backend/app/rewrite_context.py",
+    "?? backend/app/rewrite_contract.py",
+    "?? backend/app/rewrite_jobs.py",
+    "?? backend/tests/mock_local_provider.py",
+    "?? backend/tests/test_cli_process.py",
+    "?? backend/tests/test_codex_runner.py",
+    "?? backend/tests/test_document_copy.py",
+    "?? backend/tests/test_local_rewrite.py",
+    "?? backend/tests/test_rewrite_boundaries.py",
+    "?? backend/tests/test_rewrite_context.py",
+    "?? backend/tests/test_storage_audit.py",
+    "?? docs/evidence/local-rewrite-2026-10-06.json",
+    "?? docs/evidence/local-rewrite-mock-2026-10-06.png",
+    "?? docs/evidence/rewrite-boundaries-handoff-2026-10-06.json",
+    "?? docs/evidence/rewrite-boundaries-source-manifest-2026-10-06.json",
+    "?? docs/evidence/rewrite-boundaries-verified-2026-10-06.json",
+    "?? docs/evidence/rewrite-late-response-2026-10-06.json",
+    "?? docs/evidence/rewrite-late-response-manifest-2026-10-06.json",
+    "?? docs/evidence/web-roundtrip-three-cycles-2026-10-06.png",
+    "?? docs/features-user-test-2026-10-06.md",
+    "?? docs/gpt-handoff-2026-10-06.md",
+    "?? docs/gpt-handoff-current-state-2026-10-06.md",
+    "?? docs/gpt-handoff-local-rewrite-2026-10-06.md",
+    "?? docs/local-model-rewrite.md",
+    "?? docs/rewrite-boundaries-verified-2026-10-06.md",
+    "?? docs/rewrite-context-design-2026-10-06.md",
+    "?? docs/rewrite-late-response-2026-10-06.md",
+    "?? docs/storage-audit.md",
+    "?? docs/verification-2026-10-06.md",
+    "?? frontend/src/candidate-text.tsx",
+    "?? frontend/src/context.tsx",
+    "?? frontend/src/text-diff.ts",
+    "?? frontend/tests/document-copy.spec.ts",
+    "?? frontend/tests/local-rewrite.spec.ts",
+    "?? frontend/tests/roundtrip.spec.ts",
+    "?? scripts/audit-storage.py",
+    "?? scripts/context-save.test.mjs",
+    "?? scripts/rewrite-request.test.mjs",
+    "?? scripts/start-user-review.ps1",
+    "?? scripts/test-isolated.ps1",
+    "?? scripts/text-diff.test.mjs",
+    "?? scripts/verify-rewrite-restart.py",
+    "?? scripts/verify-served-build.mjs"
+  ],
+  "scope": "Executable source/tests/locks/scripts and explicitly supplied diagnostic engine; documentation written later is excluded from this execution identity"
+}

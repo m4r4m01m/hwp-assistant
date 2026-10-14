@@ -1,0 +1,238 @@
+{
+  "date": "2026-10-11",
+  "head": "1e0538781e02ac85d095bb3c72bf844943c305b3",
+  "uncommitted": true,
+  "source_set_sha256": "f38b9066e7356a02e9be887fd51564ddd839e3f5483397b7eccdc538648283ba",
+  "source_file_count": 139,
+  "engine_file_count": 83,
+  "changed_files": [
+    "backend/app/block_contract.py",
+    "backend/app/block_hwpx.py",
+    "backend/app/document_blocks.py",
+    "backend/app/main.py",
+    "backend/tests/test_document_blocks.py",
+    "frontend/src/block-insert.tsx",
+    "frontend/src/main.tsx",
+    "frontend/src/style.css",
+    "frontend/tests/block-insert.spec.ts"
+  ],
+  "source_unchanged_during_final_checks": true,
+  "engine_unchanged": true,
+  "implemented": [
+    "manual standard title/summary/action-table insertion in an existing HWPX",
+    "declared variable inputs, bounded contract, frozen preparation retry",
+    "actual engine staging preview, owner/preimage/permission fences, explicit adoption and unchanged-output undo",
+    "ordinary immutable-version save, frozen commit-response-loss retry and later edits preserved"
+  ],
+  "tests": {
+    "pytest": {
+      "passed": 326,
+      "failed": 0,
+      "skipped": 0,
+      "warnings": 1,
+      "seconds": 152.12,
+      "exit_code": 0,
+      "fatal_thread_diagnostic": false
+    },
+    "typescript": {
+      "exit_code": 0
+    },
+    "engine_guard": {
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0
+    },
+    "normal_build": {
+      "result": "blocked",
+      "exit_code": 1,
+      "reason": "missing pinned core/bundle provenance; guard unchanged"
+    },
+    "source_r1": {
+      "result": "failed",
+      "collected": 52,
+      "passed": 41,
+      "failed": 1,
+      "skipped": 10,
+      "remaining_listeners": [],
+      "actual_model_calls": 0,
+      "commands": [
+        {
+          "built_app": false,
+          "command": "Playwright E2E",
+          "pattern": "",
+          "exit_code": 1
+        }
+      ],
+      "evidence": ".cache/template-blocks-source-final-2026-10-11"
+    },
+    "source_r2": {
+      "result": "passed",
+      "collected": 52,
+      "passed": 42,
+      "failed": 0,
+      "skipped": 10,
+      "remaining_listeners": [],
+      "actual_model_calls": 0,
+      "commands": [
+        {
+          "built_app": false,
+          "command": "Playwright E2E",
+          "pattern": "",
+          "exit_code": 0
+        }
+      ],
+      "evidence": ".cache/template-blocks-source-final-r2-2026-10-11"
+    },
+    "new_built_bundle": {
+      "result": "passed",
+      "collected": 13,
+      "passed": 13,
+      "failed": 0,
+      "skipped": 0,
+      "remaining_listeners": [],
+      "actual_model_calls": 0,
+      "commands": [
+        {
+          "built_app": true,
+          "command": "Playwright E2E",
+          "pattern": "block insert|template market|REAL HWPX template|MOCK report",
+          "exit_code": 0
+        }
+      ],
+      "evidence": ".cache/template-blocks-built-final-2026-10-11"
+    }
+  },
+  "source_r1_failure": {
+    "test": "json failure leaves buffer and versions unchanged",
+    "error": "worker process exited unexpectedly (code=3221226505, signal=null)",
+    "test_duration_ms": 0,
+    "cause": "unconfirmed; result preserved; full R2 ran without overlapping tests"
+  },
+  "skips": {
+    "source": "1 long soak + 9 report mock/recorded environment tests",
+    "separate_built": "includes 5 mock report cases; no actual model call"
+  },
+  "preliminary": {
+    "source_set_sha256": "baf34b47c9954a21a8ad556269c07e7517277ac7d13e613c23375876fec035fb",
+    "pytest": {
+      "passed": 324,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 98.59
+    },
+    "block_e2e": {
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 26.8
+    },
+    "status": "before final CR preservation fix; not added to final counts",
+    "targeted_pytest_thread_diagnostics": "Some preliminary and final-targeted processes printed Windows access violation traces at startup but exited 0; final full pytest was clean.",
+    "early_browser_failures": [
+      "test helper selected unsupported first paragraph",
+      "API startup timeout before tests",
+      "actual unbound XML namespace prefix",
+      "new char style disabled defaults",
+      "new transparent fill sentinel"
+    ]
+  },
+  "test_kinds": {
+    "actual_rhwp": true,
+    "synthetic_documents": true,
+    "mock_models": true,
+    "actual_model_calls": 0,
+    "actual_human_approval": false,
+    "hancom": "not verified"
+  },
+  "preservation": {
+    "existing_blob_files": 69,
+    "changed_blob_files": 0,
+    "database_rows_match_before": true,
+    "lease_token_until_excluded_from_document_row_hash": true,
+    "database_counts": {
+      "data/metadata.db": {
+        "conversation_contexts": 2,
+        "conversation_messages": 2,
+        "conversations": 2,
+        "document_access": 33,
+        "documents": 33,
+        "lease_owners": 16,
+        "rewrite_applications": 0,
+        "rewrite_candidates": 0,
+        "rewrite_tasks": 0,
+        "templates": 2,
+        "text_proposals": 4,
+        "version_changes": 12,
+        "versions": 55
+      },
+      ".cache/user-review/data/metadata.db": {
+        "conversation_contexts": 1,
+        "conversation_messages": 0,
+        "conversations": 1,
+        "document_access": 12,
+        "documents": 12,
+        "lease_owners": 8,
+        "report_tasks": 7,
+        "rewrite_applications": 0,
+        "rewrite_candidates": 0,
+        "rewrite_tasks": 0,
+        "template_catalog": 0,
+        "template_favorites": 0,
+        "templates": 1,
+        "text_proposals": 0,
+        "version_changes": 2,
+        "versions": 14
+      }
+    },
+    "reference_sha256": "6c68b50656867f1fc724c50549e60e1109e2f7a00219f2928ef58de0a45711f1",
+    "profile_sha256": "7b2a0cb0fd540a83fea952abd891b8fc3e535ed3ac92a5affa6898313d7e4271",
+    "no_commit_push_merge": true,
+    "user_browser_reload_or_input": false
+  },
+  "service": {
+    "web_url": "http://127.0.0.1:15180/",
+    "run_directory": ".cache/user-review/runs/20261011-214955-f4e5bc5f",
+    "health_status": 200,
+    "provider": "codex",
+    "startup_generates_candidates": false,
+    "catalog_block_ids": [
+      "title-frame",
+      "summary",
+      "action-table"
+    ],
+    "served_assets_match_tested_bundle": true,
+    "served_assets": {
+      "index-FMXyHtIx.css": "e69c84ba96cad5827247bee8f2cfc4c846f1a316d703c3c698602153dcaf4030",
+      "index-h_tkXhYw.js": "8fd5e01720682355d33e43ce4f91c3fb8304e408c51172c1263e01c89a65e6b1"
+    },
+    "persistent_document_fields_match_before": true,
+    "database_counts": {
+      "report_tasks": {
+        "failed": 1,
+        "ready": 6
+      },
+      "rewrite_tasks": {},
+      "documents": 12,
+      "versions": 14
+    },
+    "source_set_sha256": "f38b9066e7356a02e9be887fd51564ddd839e3f5483397b7eccdc538648283ba"
+  },
+  "remaining": [
+    "general release engine provenance",
+    "human/Hancom review",
+    "arbitrary registered HWPX fragment transplantation",
+    "mixed-format/field/multiple-section or column insertion",
+    "automatic TOC",
+    "automatic focus of inserted block"
+  ],
+  "long_runs": "Existing 602-second and one-hour evidence is historical; no new long-run claim.",
+  "review_package_excludes": [
+    "real documents including standard reference binary",
+    "databases",
+    "auth files and tokens",
+    "browser traces",
+    "entire .cache",
+    "engine binaries"
+  ]
+}

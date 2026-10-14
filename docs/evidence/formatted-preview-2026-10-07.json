@@ -1,0 +1,150 @@
+{
+  "verified_at": "2026-10-07T12:45:09.573991+00:00",
+  "head": "1e0538781e02ac85d095bb3c72bf844943c305b3",
+  "source_set_sha256": "aac2c17eac55106f100dd91bca6e6e80fb4f6ef837af7550babac920a7170155",
+  "source_files": 114,
+  "source_hashes_unchanged_after_final_regression": true,
+  "tests": [
+    {
+      "command": ".venv/Scripts/python -m pytest -q",
+      "passed": 237,
+      "failed": 0,
+      "skipped": 0,
+      "warnings": 1,
+      "exit_code": 0,
+      "log": ".cache/formatted-preview-2026-10-07/pytest-final.log"
+    },
+    {
+      "command": "cd frontend; npx tsc --noEmit",
+      "exit_code": 0
+    },
+    {
+      "command": "cd frontend; npm run test:engine-build",
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0
+    },
+    {
+      "command": "cd frontend; npm run build",
+      "exit_code": 1,
+      "expected_guard_rejection": "Missing pinned core/bundle provenance; diagnostic opt-in not weakened"
+    },
+    {
+      "command": "./scripts/test-isolated.ps1 -EnginePublic .cache/engine-release-2026-09-27/public -OutDir .cache/formatted-preview-source-retry-2026-10-07",
+      "collected": 40,
+      "passed": 35,
+      "failed": 0,
+      "skipped": 5,
+      "exit_code": 0,
+      "real_engine": true,
+      "auth_included": true,
+      "model": "mock HTTP provider only",
+      "evidence": ".cache/formatted-preview-source-retry-2026-10-07"
+    },
+    {
+      "command": "./scripts/test-isolated.ps1 -EnginePublic .cache/engine-release-2026-09-27/public -OutDir .cache/formatted-preview-final-mock-2026-10-07 -ReportMock -BuiltApp -TestPattern 'REAL rhwp \\+ MOCK report'",
+      "collected": 1,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0,
+      "real_engine": true,
+      "model": "mock report"
+    },
+    {
+      "command": "./scripts/test-isolated.ps1 -EnginePublic .cache/engine-release-2026-09-27/public -OutDir .cache/formatted-preview-recorded-e2e-2026-10-07 -ReportMock -BuiltApp -RecordedReports .cache/formatted-preview-2026-10-07/recorded-fixtures -TestPattern 'RECORDED report: long-title'",
+      "collected": 1,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0,
+      "real_engine": true,
+      "model": "recorded user-generated report; no fresh model call"
+    }
+  ],
+  "prior_failed_run": {
+    "evidence": ".cache/formatted-preview-source-e2e-2026-10-07",
+    "collected": 40,
+    "passed": 17,
+    "failed": 18,
+    "skipped": 5,
+    "reason_observed": "local test server connection lost/refused; root cause not established",
+    "source_changed_before_retry": false,
+    "merged_with_retry": false
+  },
+  "pre_final_issue": {
+    "issue": "Unnecessary focusTarget after ready caused an alert",
+    "fix": "Removed focusTarget and added no-alert E2E assertion",
+    "earlier_test_not_used_as_final_evidence": ".cache/formatted-preview-e2e-2026-10-07"
+  },
+  "preview_barriers": {
+    "before_explicit_save_documents": 0,
+    "render_commit_response_loss_recovered": true,
+    "render_post_count_in_recovery": 1,
+    "save_commit_response_loss_retried_same_key_and_bytes": true,
+    "manual_typing_in_actual_editor_preserved": true,
+    "saved_document_reopened": true
+  },
+  "report": {
+    "original_pages": 8,
+    "corrected_pages": 6,
+    "text_changed": false,
+    "content_loss_count": 0,
+    "layout_warnings": {
+      "LinesegArrayEmpty": 32
+    },
+    "pdf_pages_visually_checked": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "saved_editor_output_reopen_pages": 6,
+    "persistence": {
+      "document": {
+        "id": "6ba31d9f-b969-457a-9c52-da0dfdadaa6e",
+        "name": "금융권 해킹 동향 및 90일 대응계획 경영진 보고 (서식 개선본).hwpx",
+        "current_version": "0ed23582-cb84-4329-befb-6c1b01c238c8",
+        "created_at": 1791376526.1621861,
+        "role": "owner"
+      },
+      "download_matches": true,
+      "old_documents_unchanged": 9,
+      "old_blobs_unchanged": 66,
+      "original_sha256": "1149fa6f258d04c493d98e1270f55360c3616d1a2aef964c7117e60b66970533",
+      "corrected_sha256": "8220e80d622e7052567b1d78f3e3a21a95f60a2af82a3f24fdfca881112973ec"
+    }
+  },
+  "preservation_rechecked_after_restart": {
+    "existing_blob_hashes_unchanged": 66,
+    "existing_document_versions_unchanged": 9,
+    "corrected_download_matches": true,
+    "user_browser_refresh_performed": false
+  },
+  "live_review": {
+    "url": "http://127.0.0.1:15180/",
+    "run": ".cache/user-review/runs/20261007-214345-a3e807b4",
+    "js": "index-Bts-SpMi.js",
+    "css": "index-B0HKlSCi.css",
+    "served_byte_check": "10 files match",
+    "preview_routes_present": true
+  },
+  "evidence_boundaries": {
+    "actual_engine": "rhwp diagnostic",
+    "new_actual_model_calls": 0,
+    "human_approval_tested": false,
+    "hancom_verified": false,
+    "long_soak_rerun": false,
+    "production_build_completed": false,
+    "commit_push_merge": false
+  },
+  "limitations": [
+    "Preview manual edits are not autosaved before explicit confirmation",
+    "Forced browser termination may lose unconfirmed manual edits",
+    "Word-boundary soft line breaks do not automatically rebalance after direct editing",
+    "General automatic TOC/table/image/template selection remains follow-up work"
+  ]
+}
