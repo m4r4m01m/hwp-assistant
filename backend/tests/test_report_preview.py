@@ -76,6 +76,67 @@ def test_visible_user_edits_save_once_and_retry_is_bound_to_same_bytes(report_en
     as_user(c,'bob');assert c.post(url+'/save',json=payload).status_code == 404
 
 
+def test_saved_preview_retry_reports_frozen_version_after_later_document_save(report_env):
+    from test_storage import save
+    (client, app, _, folder), _ = report_env
+    url, _, plan = prepare(client)
+    _, rendered = render(client, url, plan)
+    output = base64.b64decode(rendered['layout_base64'])
+    payload = {'id': str(uuid.uuid4()), 'preview_id': plan['id'],
+               'layout_sha256': rendered['layout_sha256'], 'output_base64': rendered['layout_base64']}
+    first = client.post(url + '/save', json=payload)
+    assert first.status_code == 200, first.text
+    document = first.json()
+    token = client.post(f"/api/documents/{document['id']}/session").json()['token']
+    later = save(client, document, token, data=output)
+    assert later.status_code == 200, later.text
+    later_version = later.json()['id']
+    assert later_version != document['current_version']
+    before = {p.name: p.read_bytes() for p in folder.iterdir()}
+
+    retry = client.post(url + '/save', json=payload)
+    assert retry.status_code == 200, retry.text
+    assert retry.json()['id'] == document['id']
+    assert retry.json()['current_version'] == document['current_version']
+    assert client.get('/api/documents').json()[0]['current_version'] == later_version
+    assert {p.name: p.read_bytes() for p in folder.iterdir()} == before
+
+    # A previously committed receipt still requires current owner access.
+    from app.db import Access, transaction
+    with transaction(app.state.engine) as db:
+        db.get(Access, (document['id'], 'alice')).role = 'reader'
+    assert client.post(url + '/save', json=payload).status_code == 403
+    as_user(client, 'bob')
+    assert client.post(url + '/save', json=payload).status_code == 404
+
+
+def test_preview_save_commit_failure_preserves_unapproved_draft_and_same_retry(report_env):
+    from sqlalchemy import event
+    (client, app, _, _), _ = report_env
+    url, _, plan = prepare(client)
+    _, rendered = render(client, url, plan)
+    payload = {'id': str(uuid.uuid4()), 'preview_id': plan['id'],
+               'layout_sha256': rendered['layout_sha256'], 'output_base64': rendered['layout_base64']}
+
+    def fail_commit(_):
+        raise RuntimeError('injected preview save commit failure')
+
+    event.listen(app.state.engine, 'commit', fail_commit)
+    try:
+        assert client.post(url + '/save', json=payload).status_code == 500
+    finally:
+        event.remove(app.state.engine, 'commit', fail_commit)
+    assert client.get('/api/documents').json() == []
+    assert client.get(url.removesuffix('/preview')).json()['approval'] is None
+    assert client.get(url).json() == rendered
+    result = client.post(url + '/save', json=payload)
+    assert result.status_code == 200, result.text
+    assert client.post(url + '/save', json=payload).json() == result.json()
+    document = result.json()
+    assert len(client.get(f"/api/documents/{document['id']}/versions").json()) == 1
+    assert client.get(f"/api/documents/{document['id']}/versions/{document['current_version']}/file").content == base64.b64decode(rendered['layout_base64'])
+
+
 def test_balanced_title_and_word_wrapping_preserve_all_characters():
     title = '금융권 해킹 동향 및 90일 대응계획 경영진 보고'
     parts = lines(title, 21, title=True)

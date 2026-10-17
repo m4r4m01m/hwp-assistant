@@ -5,6 +5,7 @@ Keep this terminal open; Ctrl+C stops only the servers launched here. No install
 #>
 param(
   [string]$EnginePublic = '.cache/engine-release-2026-09-27/public',
+  [string]$DataDirectory = '',
   [ValidateRange(1024,65535)][int]$Port = 15180,
   [ValidateRange(1024,65535)][int]$ApiPort = 18180,
   [ValidateRange(0,60)][int]$SmokeSeconds = 0
@@ -24,7 +25,10 @@ if (-not (Test-Path -LiteralPath $python)) { throw 'The existing .venv runtime i
 & $node (Join-Path $PSScriptRoot 'check-engine-bundle.mjs') (Join-Path $engineSource 'rhwp') --diagnostic
 if ($LASTEXITCODE -ne 0) { throw 'The supplied diagnostic engine did not pass verification.' }
 $reviewRoot = Join-Path $projectRoot '.cache/user-review'
-$dataRoot = Join-Path $reviewRoot 'data'
+$dataRoot = if ($DataDirectory) {
+  if ([IO.Path]::IsPathRooted($DataDirectory)) { [IO.Path]::GetFullPath($DataDirectory) }
+  else { [IO.Path]::GetFullPath((Join-Path $projectRoot $DataDirectory)) }
+} else { Join-Path $reviewRoot 'data' }
 $runRoot = Join-Path $reviewRoot ('runs/' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0,8))
 New-Item -ItemType Directory -Path $dataRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $runRoot | Out-Null
@@ -38,7 +42,7 @@ $environmentNames = @('DATABASE_URL','STORAGE_DIR','HWP_AUTH_TOKENS','HWP_LEGACY
 $savedEnvironment = @{}
 foreach ($name in $environmentNames) { $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
 $children = [Collections.Generic.List[object]]::new()
-$proof = @{ kind='manual user review, diagnostic build'; started_at=[DateTime]::UtcNow.ToString('o'); web_url="http://127.0.0.1:$Port"; provider='codex'; startup_generates_candidates=$false; services=@(); result='starting' }
+$proof = @{ kind='manual user review, diagnostic build'; started_at=[DateTime]::UtcNow.ToString('o'); web_url="http://127.0.0.1:$Port"; data_directory=$dataRoot; provider='codex'; startup_generates_candidates=$false; services=@(); result='starting' }
 function Quote-ReviewArgument([string]$Value) {
   $escaped = [regex]::Replace($Value, '(\\*)"', '$1$1\"')
   $escaped = [regex]::Replace($escaped, '(\\+)$', '$1$1')

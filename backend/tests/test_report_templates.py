@@ -39,9 +39,10 @@ def test_catalog_retains_one_pinned_standard(report_env):
     assert client.get("/api/report-tasks").json() == []
 
 
-def test_selected_actual_values_reach_generation_and_retry_is_frozen(report_env, monkeypatch):
+@pytest.mark.parametrize('index', [0, 1, 2])
+def test_selected_actual_values_reach_generation_and_retry_is_frozen(report_env, monkeypatch, index):
     (client, _, _, _), calls = report_env
-    value = body(selection(client, 1))
+    value = body(selection(client, index))
     assert client.post("/api/report-tasks", json=value).status_code == 200
     job = ready(client, value)
     assert job["status"] == "ready"
@@ -50,6 +51,7 @@ def test_selected_actual_values_reach_generation_and_retry_is_frozen(report_env,
     assert calls == [value]
     assert not job["execution"]["context_used"]
     monkeypatch.setattr(reports, "validate_selection", lambda _: (_ for _ in ()).throw(HTTPException(503, "catalog changed")))
+    monkeypatch.setattr(reports, "capture_settings", lambda: (_ for _ in ()).throw(AssertionError("retry recaptured execution settings")))
     assert client.post("/api/report-tasks", json=value).status_code == 200
     assert calls == [value]
     changed = copy.deepcopy(value)

@@ -151,6 +151,7 @@ def install_preview(app, publish, doc_dict, lock_report, decode):
                 approval = json.loads(row.approval)
                 doc = require_access(db, approval["document_id"], request.state.user, "owner", lock=True, fresh=True)
                 if approval.get("save_binding") != binding: raise HTTPException(409, "확정한 파일과 같은 내용으로 재확인하세요.")
+                saved_version = approval["saved_version"]
             else:
                 # This explicit action approves the visible document, including user
                 # edits. A new document is published atomically; no existing buffer,
@@ -158,8 +159,12 @@ def install_preview(app, publish, doc_dict, lock_report, decode):
                 doc = Document(id=str(uuid.uuid4()), name=preview["name"], created_at=time.time(), lease_until=0)
                 db.add(doc); db.flush(); db.add(Access(document_id=doc.id, user_id=request.state.user, role="owner"))
                 version = publish(db, doc, data, None, None, str(value.id), "upload")
+                saved_version = version.id
                 row.approval = canonical({"id": str(value.id), "mode": "formatted-preview", "document_id": doc.id,
                     "base_version": version.id, "saved_version": version.id, "save_binding": binding,
                     "preview_id": preview["id"], "layout_sha256": value.layout_sha256, "output_sha256": digest(data),
                     "output_differs_from_layout": digest(data) != value.layout_sha256, "document_standard": preview["document_standard"]})
-            return {**doc_dict(doc), "role": "owner"}
+            # A response-loss retry acknowledges this frozen save even if another
+            # editor has since published a later version. It never moves the head.
+            result = {**doc_dict(doc), "current_version": saved_version, "role": "owner"}
+        return result

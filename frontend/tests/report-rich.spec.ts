@@ -29,18 +29,19 @@ test('REAL rhwp + RECORDED rich report: actual Codex visuals render and export w
       [...p.children].filter(c => c.localName === 'run').flatMap(r => [...r.children].filter(c => c.localName === 't')).map(t => t.textContent || '').join('')).filter(Boolean);
   }, section);
   expect(logicalText).toEqual(preview.plan.map((p: any) => p.text));
-  const canvases = frame.locator('#scroll-container canvas');
-  const count = await canvases.count();
+  // The native editor virtualizes page canvases. Capture the painted pool
+  // without scrolling/re-indexing it or treating its size as physical pages.
+  const canvases = await frame.locator('#scroll-container canvas').elementHandles();
+  const count = canvases.length;
   for (let i = 0; i < count; i++) {
-    await canvases.nth(i).scrollIntoViewIfNeeded();
-    const png = await canvases.nth(i).evaluate(c => (c as HTMLCanvasElement).toDataURL('image/png'));
+    const png = await canvases[i].evaluate(c => (c as HTMLCanvasElement).toDataURL('image/png'));
     await writeFile(info.outputPath(`actual-page-${i + 1}.png`), Buffer.from(png.split(',')[1], 'base64'));
   }
   await writeFile(info.outputPath('actual-rich-preview.hwpx'), bytes);
   expect(await (await request.get('/api/documents')).json()).toHaveLength(before);
   await writeFile(info.outputPath('actual-rich-proof.json'), JSON.stringify({ actual_model_calls_this_browser_run: 0,
     delivery: 'recorded-result-replay', real_engine: true, human_approval: false, document_saved: false,
-    pages: count, exact_commands: preview.plan.length, loss: exported.loss, logical_text_preserved: true }, null, 2));
+    painted_canvas_count: count, exact_commands: preview.plan.length, loss: exported.loss, logical_text_preserved: true }, null, 2));
 });
 
 test('REAL rhwp + MOCK report: streamed table diagram emphasis, edited save retry and reopen', async ({ page, request }, info) => {
@@ -75,13 +76,12 @@ test('REAL rhwp + MOCK report: streamed table diagram emphasis, edited save retr
     await writeFile(info.outputPath('rich-preview.hwpx'), Buffer.from(frozen.layout_base64, 'base64'));
     const frame = page.frames().find(f => f.url().includes('/rhwp/'))!;
     await page.screenshot({ path: info.outputPath('rich-hwpx.png'), fullPage: true });
-    const canvases = frame.locator('#scroll-container canvas');
-    for (let i = 0; i < await canvases.count(); i++) {
-      await canvases.nth(i).scrollIntoViewIfNeeded();
-      const png = await canvases.nth(i).evaluate(canvas => (canvas as HTMLCanvasElement).toDataURL('image/png'));
+    const canvases = await frame.locator('#scroll-container canvas').elementHandles();
+    for (let i = 0; i < canvases.length; i++) {
+      const png = await canvases[i].evaluate(canvas => (canvas as HTMLCanvasElement).toDataURL('image/png'));
       await writeFile(info.outputPath(`rich-page-${i + 1}.png`), Buffer.from(png.split(',')[1], 'base64'));
     }
-    await canvases.first().click({ position: { x: 160, y: 150 }, force: true });
+    await frame.getByRole('textbox', { name: '문서 편집 입력', exact: true }).focus();
     await page.keyboard.press('Control+End'); await page.keyboard.insertText(' 수동 편집 보존 확인');
     await expect.poll(() => frame.evaluate(() => (window as any).hwpAssistantBridge.snapshot().evidence.text)).toContain('수동 편집 보존 확인');
     await page.getByRole('button', { name: '초안 확정·서버 저장', exact: true }).click();

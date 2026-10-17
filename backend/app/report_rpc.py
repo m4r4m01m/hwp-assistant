@@ -89,12 +89,13 @@ class ReportRpc:
         if remaining <= 0: raise TimeoutError("Report stream timed out")
         return remaining
 
-    def receive(self):
+    def receive(self, *, on_idle=None):
         while True:
             remaining = self._check()
             try:
                 value = self.messages.get(timeout=min(.25, remaining))
             except queue.Empty:
+                if on_idle is not None: on_idle()
                 continue
             if isinstance(value, Exception): raise value
             if value is None: raise RuntimeError("Codex closed before report completion")

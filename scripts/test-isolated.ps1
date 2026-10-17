@@ -154,7 +154,7 @@ try {
   $env:HWP_E2E_REPORT_MOCK = if ($ReportMock) { '1' } else { '0' }
   $testArguments = @((Join-Path $projectRoot 'frontend/node_modules/@playwright/test/cli.js'),'test','--config',(Join-Path $projectRoot 'frontend/playwright.config.ts'),'--output',(Join-Path $runRoot 'results'))
   if ($TestPattern) { $testArguments += @('--grep',$TestPattern) }
-  if ($BuiltApp -and -not $TestPattern) { $testArguments += @('--grep','MOCK HTTP local provider|MOCK provider|MOCK delayed provider') }
+  if ($BuiltApp -and -not $TestPattern) { $testArguments += @('--grep','MOCK report|MOCK HTTP local provider|MOCK provider|MOCK delayed provider') }
   Push-Location $runRoot
   try {
     # Native stderr warnings are not PowerShell failures; judge the CLI exit code.

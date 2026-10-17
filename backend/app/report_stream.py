@@ -36,14 +36,21 @@ def generate_stream(value, settings, directory, prompt, contract, progress, acti
     pending, buffers, searches = [], {}, {}
     first_text = None
     last_emit = 0
+    pending_emit = False
     final = None
     thread_id = turn_id = None
     def emit(force=False):
-        nonlocal last_emit
+        nonlocal last_emit, pending_emit
+        pending_emit = True
         now = time.monotonic()
         if force or now - last_emit >= .2:
             state['elapsed_ms'] = round((now - started) * 1000)
-            progress(state); last_emit = now
+            progress(state); last_emit = now; pending_emit = False
+    def flush_pending():
+        # Flush only a received update suppressed by the write throttle. The
+        # same worker keeps owner/status checks and cancellation/cleanup intact;
+        # silence alone never creates a new progress snapshot.
+        if pending_emit: emit()
     def check_request(event):
         if 'method' in event and 'id' in event:
             # No approval/tool execution/user input/credential requests are accepted.
@@ -91,7 +98,7 @@ def generate_stream(value, settings, directory, prompt, contract, progress, acti
             'outputSchema': ReportDraft.generation_schema()})
         turn_id = result['turn']['id']
         while True:
-            event = pending.pop(0) if pending else rpc.receive()
+            event = pending.pop(0) if pending else rpc.receive(on_idle=flush_pending)
             check_request(event)
             method, params = event.get('method'), event.get('params', {})
             if params.get('threadId', thread_id) != thread_id or params.get('turnId', turn_id) != turn_id: continue

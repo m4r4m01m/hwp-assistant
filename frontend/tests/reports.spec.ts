@@ -156,22 +156,26 @@ test("REAL rhwp + MOCK report: live stages, short items and formatted preview af
     await page.screenshot({ path: info.outputPath('live-formatting.png'), fullPage: true });
     expect(await (await request.get('/api/documents')).json()).toHaveLength(before);
     releaseLayout();
-    await expect(page.getByRole('button', { name: '초안 확정·서버 저장', exact: true })).toBeVisible();
+    // Automatic TOC now performs native layout passes after rich formatting.
+    await expect(page.getByRole('button', { name: '초안 확정·서버 저장', exact: true })).toBeEnabled({ timeout: 90000 });
     await expect(page.getByRole('alert')).toHaveCount(0);
     await expect(page.locator('.formatted-report-surface')).toHaveAttribute('data-ready', 'true');
     const preview = await (await request.get(`/api/report-tasks/${taskId}/preview`)).json();
+    expect(preview.toc_policy).toBe('report-native-toc-v1');
+    expect(preview.toc_verified).toBe(true);
     page.on('dialog', dialog => dialog.accept()); // Test-owned unsaved preview; no user browser affected.
     await page.reload(); await page.getByRole('button', { name: '보고서 작성', exact: true }).click();
     await expect(page.getByRole('button', { name: '초안 확정·서버 저장', exact: true })).toBeVisible({ timeout: 60000 });
     await expect(page.getByRole('alert')).toHaveCount(0);
     expect(prepares).toBe(1);
     expect((await (await request.get(`/api/report-tasks/${taskId}/preview`)).json()).id).toBe(preview.id);
-    const rect = await page.locator('.formatted-report-editor iframe').boundingBox();
+    const rect = await page.locator('.report-editor-slot.active iframe').boundingBox();
     expect(rect!.x).toBeGreaterThanOrEqual(0); expect(rect!.width).toBeGreaterThan(300); expect(rect!.height).toBeGreaterThan(600);
     expect(await (await request.get('/api/documents')).json()).toHaveLength(before);
     await page.screenshot({ path: info.outputPath('restored-formatted-preview.png'), fullPage: true });
     await writeFile(info.outputPath('live-proof.json'), JSON.stringify({ actual_model_calls:0, real_engine:true, human_approval:false,
-      stages_observed:['writing','applying','formatting','ready'], restored_preview_id:preview.id, prepare_posts:prepares, premature_documents:0 }, null, 2));
+      stages_observed:['writing','applying','formatting','ready'], toc_verified:preview.toc_verified,
+      restored_preview_id:preview.id, prepare_posts:prepares, premature_documents:0 }, null, 2));
   } finally { releaseWriting(); releaseLayout(); await page.unrouteAll({ behavior:'wait' }); }
 });
 

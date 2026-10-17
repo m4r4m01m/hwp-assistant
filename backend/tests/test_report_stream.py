@@ -7,6 +7,7 @@ import subprocess
 import sys
 import time
 from threading import Event, Thread
+from types import SimpleNamespace
 import pytest
 from app import report_stream, reports
 from app.codex_runner import CodexSettings
@@ -98,6 +99,54 @@ def test_partial_snapshot_owner_refresh_retry_cancel_fences(report_env, monkeypa
         assert client.get(url).json() == cancelled
         assert client.get('/api/documents').json() == []
     finally: release.set(); exited.wait(5)
+
+
+def test_throttled_rich_delta_flushes_while_child_waits_for_completion(tmp_path, monkeypatch):
+    """A last delta inside the throttle window must reach the UI during silence."""
+    from report_rich_fixture import RICH_DRAFT
+    (tmp_path / 'draft.json').write_text(json.dumps(RICH_DRAFT), encoding='utf-8')
+    args = [sys.executable, str(Path(__file__).with_name('report_rpc_fixture.py')), str(tmp_path), 'e2e']
+    monkeypatch.setattr(report_stream, 'stream_command', lambda *args_: args)
+    second_parsed, suppressed, advance_clock, partial, rich, cancelled = (Event() for _ in range(6))
+    original_preview = report_stream.preview_blocks
+    def preview(raw):
+        blocks = original_preview(raw)
+        if any(block['kind'] == 'diagram' for block in blocks): second_parsed.set()
+        return blocks
+    def clock():
+        # The second emit captures zero before signaling the test, so it is
+        # deterministically throttled even when its worker immediately resumes.
+        if second_parsed.is_set() and not suppressed.is_set():
+            suppressed.set()
+            return 0.0
+        return .21 if advance_clock.is_set() else 0.0
+    monkeypatch.setattr(report_stream, 'preview_blocks', preview)
+    monkeypatch.setattr(report_stream, 'time', SimpleNamespace(monotonic=clock))
+    snapshots, outcome = [], []
+    def progress(value):
+        snapshots.append(copy.deepcopy(value))
+        if value['blocks']: partial.set()
+        if any(block['kind'] == 'diagram' for block in value['blocks']): rich.set()
+    def run():
+        try:
+            outcome.append(report_stream.generate_stream({'research': True, 'prompt': '합성 rich stream'},
+                CodexSettings(sys.executable, 'test-model', '', tuple(os.environ.items()), timeout=10),
+                str(tmp_path), 'report', 'test', progress, lambda: not cancelled.is_set()))
+        except Exception as exc: outcome.append(exc)
+    thread = Thread(target=run); thread.start()
+    try:
+        assert partial.wait(5)
+        (tmp_path / 'release').touch()
+        assert suppressed.wait(5)
+        assert not rich.is_set() and not outcome
+        advance_clock.set()
+        assert rich.wait(2), 'Received rich content stayed hidden while the stream was idle'
+        assert not outcome and not (tmp_path / 'finish').exists()
+        assert {'table', 'diagram'} <= {block['kind'] for block in snapshots[-1]['blocks']}
+        (tmp_path / 'finish').touch(); thread.join(5)
+        assert not thread.is_alive() and isinstance(outcome[0], tuple)
+    finally:
+        cancelled.set(); (tmp_path / 'release').touch(); (tmp_path / 'finish').touch(); thread.join(12)
 
 
 def test_rpc_timeout_reaps_owned_child(tmp_path):

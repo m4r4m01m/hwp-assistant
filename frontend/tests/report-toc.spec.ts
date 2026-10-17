@@ -63,7 +63,7 @@ async function begin(page: Page, prompt: string) {
     .click();
   return (await (await posted).json()).id as string;
 }
-async function ready(page: Page) {
+async function ready(page: Page, timeout = 90000) {
   await expect
     .poll(
       async () =>
@@ -75,7 +75,7 @@ async function ready(page: Page) {
           .getByRole("alert")
           .isVisible()
           .catch(() => false)),
-      { timeout: 90000 },
+      { timeout },
     )
     .toBeTruthy();
   expect(await page.getByRole("alert").allTextContents()).toEqual([]);
@@ -230,6 +230,155 @@ test("REAL rhwp + MOCK report TOC: automatic native pages, rich content, stale r
       refreshed_evidence: current.evidence,
       saved_sha256: sha(saved),
       versions: 1,
+    });
+  } finally {
+    await page.unrouteAll({ behavior: "wait" });
+  }
+});
+
+test("REAL rhwp + MOCK report TOC: long Korean titles and ten actual pages survive generation save and reopen", async ({
+  page,
+  request,
+}, info) => {
+  test.setTimeout(240000);
+  const before = (await (await request.get("/api/documents")).json()).length;
+  const phases: any[] = [];
+  let sourceEvidence: any;
+  await page.route("**/api/report-tasks/*/preview/toc-prepare", async (route) => {
+    const body = route.request().postDataJSON();
+    const response = await route.fetch();
+    const result = await response.json();
+    const engine = await frame(page);
+    sourceEvidence = await engine.evaluate((headings) => (window as any).hwpAssistantBridge.layoutEvidence(headings),
+      result.selected_headings.map((selected: any) => {
+        const heading = result.headings.find((item: any) => item.id === selected.heading_id);
+        return { id: selected.heading_id, section: 0, paragraph: selected.paragraph,
+          length: heading.length, text_sha256: selected.expected_text_sha256 };
+      }));
+    expect(sourceEvidence.export_sha256).toBe(body.source_sha256);
+    await route.fulfill({ response });
+  });
+  await page.route("**/api/report-tasks/*/preview/toc-verify", async (route) => {
+    const body = route.request().postDataJSON();
+    const response = await route.fetch();
+    const result = await response.json();
+    phases.push({
+      pass_index: body.pass_index,
+      engine_output_sha256: sha(Buffer.from(body.engine_output_base64, "base64")),
+      layout_evidence: body.layout_evidence,
+      status: response.status(),
+      result,
+    });
+    await proof(info, "long-toc-phases.json", phases);
+    // A successful verification response has not yet reached the UI. In
+    // particular the first editable state cannot precede native validation.
+    expect(await page.getByRole("button", {
+      name: "초안 확정·서버 저장", exact: true,
+    }).isEnabled().catch(() => false)).toBe(false);
+    await expect(page.getByLabel("한글 초안 편집기", { exact: true })).toHaveAttribute("data-ready", "false");
+    await expect(page.locator(".formatted-report-editor")).toHaveAttribute("inert", "");
+    await route.fulfill({ response });
+  });
+  try {
+    const id = await begin(page, "[LONG-TOC] 긴 한글 제목과 표·흐름도·강조를 포함한 합성 훈련 보고서");
+    await ready(page, 180000);
+    const frozen = await preview(request, id);
+    const current = await checkNative(page, frozen);
+    await writeFile(info.outputPath("long-toc-preview.hwpx"), current.bytes);
+    const canvases = current.engine.locator("#scroll-container canvas");
+    const count = await canvases.count();
+    // rhwp virtualizes canvases; physical page count comes exclusively from
+    // layoutEvidence above. Preserve the currently painted TOC views for QA.
+    expect(count).toBeGreaterThan(0);
+    for (let index = 0; index < count; index++) {
+      const canvas = canvases.nth(index);
+      await canvas.scrollIntoViewIfNeeded();
+      const png = await canvas.evaluate((element) => (element as HTMLCanvasElement).toDataURL("image/png"));
+      await writeFile(info.outputPath(`long-toc-visible-canvas-${String(index + 1).padStart(2, "0")}.png`), Buffer.from(png.split(",")[1], "base64"));
+    }
+    expect(frozen.toc_policy).toBe("report-native-toc-v1");
+    expect(frozen.toc_verified).toBe(true);
+    expect(current.evidence.page_count).toBeGreaterThanOrEqual(10);
+    expect(current.evidence.page_count).toBeGreaterThan(sourceEvidence.page_count);
+    expect(current.evidence.headings.some((heading: any) => heading.page > sourceEvidence.headings.find((source: any) => source.id === heading.id).page)).toBe(true);
+    expect(current.evidence.headings.some((heading: any) => heading.page >= 10)).toBe(true);
+    expect(frozen.toc.headings.filter((heading: any) => heading.text.length >= 90)).toHaveLength(6);
+    expect(phases.length).toBeGreaterThanOrEqual(2);
+    expect(phases.length).toBeLessThanOrEqual(3);
+    expect(phases.map((phase) => phase.pass_index)).toEqual(phases.map((_, index) => index + 1));
+    expect(phases.at(-1).result.converged).toBe(true);
+    expect(phases.at(-1).result.output_sha256).toBe(frozen.layout_sha256);
+    expect(phases.at(-1).layout_evidence).toEqual(current.evidence);
+    for (const phase of phases) {
+      expect(phase.status).toBe(200);
+      expect(phase.engine_output_sha256).toBe(phase.layout_evidence.export_sha256);
+      expect(Number.isSafeInteger(phase.layout_evidence.epoch)).toBe(true);
+      expect(Number.isSafeInteger(phase.layout_evidence.revision)).toBe(true);
+    }
+    const evidence = await page.evaluate(({ section, header, headings, pages }) => {
+      const parser = new DOMParser();
+      const root = parser.parseFromString(section, "application/xml");
+      const head = parser.parseFromString(header, "application/xml");
+      const HP = "http://www.hancom.co.kr/hwpml/2011/paragraph";
+      const HH = "http://www.hancom.co.kr/hwpml/2011/head";
+      const styles = [...head.getElementsByTagNameNS(HH, "style")];
+      const chars = [...head.getElementsByTagNameNS(HH, "charPr")];
+      const paragraphs = [...root.getElementsByTagNameNS(HP, "p")];
+      const entries = headings.map((heading: any) => {
+        const style = styles.find((item) => item.getAttribute("name")?.endsWith(":" + heading.id) && item.getAttribute("name")?.startsWith("HWP Assistant TOC entry:"))!;
+        const p = paragraphs.find((item) => item.getAttribute("styleIDRef") === style.getAttribute("id"))!;
+        const tab = p.getElementsByTagNameNS(HP, "tab")[0];
+        const text = p.getElementsByTagNameNS(HP, "t")[0];
+        return { id: heading.id, label: text.firstChild?.textContent,
+          page: tab.nextSibling?.textContent, tabs: p.getElementsByTagNameNS(HP, "tab").length,
+          expected_label: heading.text, expected_page: String(pages[heading.id]) };
+      });
+      const runs = [...root.getElementsByTagNameNS(HP, "run")].flatMap((run) => {
+        const text = [...run.children].filter((item) => item.localName === "t").map((item) => item.textContent || "").join("");
+        const char = chars.find((item) => item.getAttribute("id") === run.getAttribute("charPrIDRef"))!;
+        return text ? [{ text, bold: !!char.getElementsByTagNameNS(HH, "bold").length,
+          color: char.getAttribute("textColor"), height: char.getAttribute("height") }] : [];
+      });
+      return { entries, runs, cells: [...root.getElementsByTagNameNS(HP, "tc")].map((cell) => [...cell.getElementsByTagNameNS(HP, "t")].map((text) => text.textContent || "").join("")),
+        tables: root.getElementsByTagNameNS(HP, "tbl").length };
+    }, { section: xml(current.bytes), header: strFromU8(unzipSync(current.bytes)["Contents/header.xml"]),
+      headings: frozen.toc.headings, pages: frozen.toc.pages });
+    for (const entry of evidence.entries) {
+      expect(entry.tabs).toBe(1);
+      expect(entry.label).toBe(entry.expected_label);
+      expect(entry.page).toBe(entry.expected_page);
+    }
+    expect(evidence.tables).toBe(5); // Managed TOC, two tables and two editable flow diagrams.
+    expect(evidence.runs).toContainEqual({ text: "핵심 서비스 보호", bold: true, color: "#000000", height: "1500" });
+    expect(evidence.runs).toContainEqual({ text: "단계별 검증", bold: false, color: "#245F9E", height: "1500" });
+    expect(evidence.runs.some((run) => run.text === "접근 권한 점검" && run.bold && run.color === "#245F9E")).toBe(true);
+    expect(evidence.runs.some((run) => run.text === "(요약)" && run.bold)).toBe(true);
+    expect(evidence.cells).toContain("복구 및 검증");
+    expect(evidence.cells).toContain("다음 점검에 반영");
+    expect(xml(current.bytes)).not.toContain("REPORT_SLOT_");
+    expect((await (await request.get("/api/documents")).json()).length).toBe(before);
+    await page.getByRole("button", { name: "초안 확정·서버 저장", exact: true }).click();
+    await expect(page.getByRole("status")).toHaveText("HWPX 서버 저장 완료");
+    const href = (await page.getByRole("link", { name: "완성 보고서 다운로드", exact: true }).getAttribute("href"))!;
+    const saved = await (await request.get(href)).body();
+    expect(saved).toEqual(current.bytes);
+    expect(await (await request.get(href.split("/versions/")[0] + "/versions")).json()).toHaveLength(1);
+    await writeFile(info.outputPath("long-toc-ten-pages.hwpx"), saved);
+    await page.getByRole("button", { name: "보고서 편집하기", exact: true }).click();
+    await expect(page.getByRole("status")).toHaveText("저장 완료");
+    const reopened = await (await page.locator(".block-editor-slot.active iframe").elementHandle())!.contentFrame();
+    expect(reopened).toBeTruthy();
+    expect(await output(reopened!)).toEqual(saved);
+    const reopenedEvidence = await reopened!.evaluate((headings) => (window as any).hwpAssistantBridge.layoutEvidence(headings),
+      frozen.toc.headings.map(({ id, section, paragraph, length, text_sha256 }: any) => ({ id, section, paragraph, length, text_sha256 })));
+    expect(reopenedEvidence.export_sha256).toBe(sha(saved));
+    expect(reopenedEvidence.page_count).toBe(current.evidence.page_count);
+    expect(reopenedEvidence.headings).toEqual(current.evidence.headings);
+    await proof(info, "long-toc-proof.json", {
+      real_engine: true, actual_model_calls: 0, human_approval: false,
+      automated_approval: true, source_evidence: sourceEvidence, initial_evidence: current.evidence,
+      reopened_evidence: reopenedEvidence, saved_sha256: sha(saved),
+      convergence_passes: phases.length, painted_canvas_count: count, saved_versions: 1, ...evidence,
     });
   } finally {
     await page.unrouteAll({ behavior: "wait" });
