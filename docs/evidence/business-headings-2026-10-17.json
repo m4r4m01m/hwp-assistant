@@ -1,0 +1,896 @@
+{
+  "schema": "business-heading-readability-v1",
+  "date": "2026-10-17",
+  "created_at": "2026-10-17T23:48:36.419941+09:00",
+  "source": {
+    "base_head": "82388691c821df38138e288be27f129c1c578301",
+    "branch": "codex/hwp-assistant-progress-2026-10-14",
+    "files_sha256": {
+      "backend/app/report_runner.py": "ed08c078f12325bf50b9430582cdb7d2a662c7c8d5000d95bd68988c9802c609",
+      "backend/tests/test_report_templates.py": "904dfc5fdd6c7b715ae704e48b5ba217f5d40e5f70d248c4d3f0aa72ceacda5e",
+      "docs/document-writing-standard.md": "1e3beeef5ab6d64d02bcb4b3dcc03266f399f2514d0641568f91f221d61138fe"
+    },
+    "prompt_utf8_sha256": "12c5a06963e22e8f7ceaa8236cde3ab6ea7b132d1bf7015b69da61eb38c2abb5",
+    "contract": "korean-report-v4-visual-emphasis",
+    "new_heading_or_toc_limits": false,
+    "profile_definitions_changed": false,
+    "toc_engine_or_frontend_changed": false
+  },
+  "diagnosis": {
+    "long_sample_is_fixed_boundary_fixture": true,
+    "long_sample_section_headings": 6,
+    "raw_heading_characters": [
+      97,
+      94,
+      93,
+      95,
+      93,
+      94
+    ],
+    "toc_items_including_common_entries": 8,
+    "toc_pages_observed_in_preserved_image": 1,
+    "long_entries_native_lines_observed": 3,
+    "primary_cause": "Long per-entry heading text, rather than excessive entry count. Prior small real Codex report used short user-specified headings; repeated long headings in normal generation were not established.",
+    "preserved_image": {
+      "path": "docs/evidence/report-toc-long-2026-10-17.png",
+      "sha256": "98014145792804414eb64841d74b8135676d66896af095bd851dd4c28c6900c8"
+    }
+  },
+  "targeted_unit_test": {
+    "module": "backend/tests/test_report_templates.py",
+    "passed": 14,
+    "failed": 0,
+    "skipped": 0,
+    "exit_code": 0,
+    "duration_seconds": 3.19,
+    "warning": "One existing Starlette anyio deprecation",
+    "log": {
+      "path": ".cache/heading-input-tests-final-2026-10-17.log",
+      "sha256": "b0dc34fc3cc78e6d0caee8b89d30f6f308a23c80b3ed547f9d40cfc3fefa5005"
+    },
+    "scope": "Three profiles send the new common instruction file/thread baseInstructions and frozen selected values through the actual stdio protocol fixture; no real model calls in this unit test."
+  },
+  "actual_model": {
+    "total_report_requests": 4,
+    "valid_completed_reports": 3,
+    "rejected_completed_report_requests": 1,
+    "provider": "codex-app-server",
+    "model": "gpt-6.1-sol",
+    "research": false,
+    "initial_rejection": {
+      "status": "failed",
+      "stage": "validating",
+      "draft": null,
+      "preview_id": null,
+      "exact_validation_cause": "not retained by existing ephemeral runner",
+      "partial_output_used_as_draft": false
+    },
+    "diagnostic_followup": {
+      "same_scenario": true,
+      "same_product_prompt": true,
+      "new_request_id": true,
+      "completed_agent_message_captured": true,
+      "offline_ReportDraft_validation_passed": true
+    },
+    "first_three_request_run_all_passed": false,
+    "technical_draft_validation_distinct_from_wording_review": true,
+    "human_review": false,
+    "automated_test_approval": true
+  },
+  "reports": [
+    {
+      "profile": "standard-business",
+      "section_headings": [
+        "회의자료 정비 필요성",
+        "회의자료 수집 현황",
+        "원본 보존 조건과 정비 방안",
+        "담당 역할과 추진 일정"
+      ],
+      "actual_task": {
+        "path": ".cache/business-headings-2026-10-17/proof/standard-business-actual-task.json",
+        "sha256": "39ba0783129c6420d9cc39d7a8e0c3bc9f64709343d9e1ee2843245c4d8f82bf"
+      },
+      "execution": {
+        "executor": "codex-app-server",
+        "model": "gpt-6.1-sol",
+        "completed": true,
+        "web_search_calls": 0,
+        "contract": "korean-report-v4-visual-emphasis"
+      },
+      "native": {
+        "revision": 0,
+        "epoch": 1,
+        "page_count": 4,
+        "export_sha256": "fbe014bb8fe5a970cefe92f26630292a07bc686fd61a9b05d3cb10e6b03628bd",
+        "headings": [
+          {
+            "id": "37f299f6-1451-5641-943f-1a217b86436d",
+            "section": 0,
+            "paragraph": 3,
+            "length": 5,
+            "text_sha256": "8d08dd2ec7fd263317d30f5fca99a955e4864667b09d8148e9ee55ef896899f2",
+            "page": 1
+          },
+          {
+            "id": "9128a25c-633e-5e55-b6d5-863f02b59b8c",
+            "section": 0,
+            "paragraph": 5,
+            "length": 14,
+            "text_sha256": "0b9e26608fcce59a110f935c293e717568d24a635c76d81f8ab6178f56da03c3",
+            "page": 1
+          },
+          {
+            "id": "b26a7462-9573-50b3-8463-8c3790500c93",
+            "section": 0,
+            "paragraph": 8,
+            "length": 13,
+            "text_sha256": "92ba349eb67960f4b279aa11b270d2b0cf608c70dbdd729cabf8f6f4ae35c878",
+            "page": 1
+          },
+          {
+            "id": "c48a4fa0-f91e-5d95-862d-e9973a076f02",
+            "section": 0,
+            "paragraph": 12,
+            "length": 18,
+            "text_sha256": "872cb3c9c7afc631e44f8257567fbee442f01b3e2f69042f671232168a0d16ff",
+            "page": 3
+          },
+          {
+            "id": "46e961be-827c-53f3-b2aa-f951ae800747",
+            "section": 0,
+            "paragraph": 17,
+            "length": 15,
+            "text_sha256": "b6a68cf546961f0d2bb0a7317683e73ff1f51a53a484ec2983ec7ce597807971",
+            "page": 3
+          },
+          {
+            "id": "de3d9463-6dd5-5476-8107-d1ae66d741bc",
+            "section": 0,
+            "paragraph": 22,
+            "length": 10,
+            "text_sha256": "c5d7ed9af84c8d22995616d3f028d6e70465fa15a49e40c2f5d6fbc690614dbd",
+            "page": 4
+          }
+        ]
+      },
+      "toc": {
+        "entry_count": 6,
+        "physical_pages": [
+          1
+        ],
+        "page_count": 1,
+        "max_entry_lines": 1,
+        "longest_entry": {
+          "label": "3. 원본 보존 조건과 정비 방안",
+          "characters": 18,
+          "lines": 1
+        },
+        "entries": [
+          {
+            "id": "37f299f6-1451-5641-943f-1a217b86436d",
+            "label": "핵심 요약",
+            "printed_page": 1,
+            "actual_heading_page": 1,
+            "native_line_count": 1,
+            "native_cell_width": [
+              642.5
+            ]
+          },
+          {
+            "id": "9128a25c-633e-5e55-b6d5-863f02b59b8c",
+            "label": "1. 회의자료 정비 필요성",
+            "printed_page": 1,
+            "actual_heading_page": 1,
+            "native_line_count": 1,
+            "native_cell_width": [
+              642.5
+            ]
+          },
+          {
+            "id": "b26a7462-9573-50b3-8463-8c3790500c93",
+            "label": "2. 회의자료 수집 현황",
+            "printed_page": 1,
+            "actual_heading_page": 1,
+            "native_line_count": 1,
+            "native_cell_width": [
+              642.5
+            ]
+          },
+          {
+            "id": "c48a4fa0-f91e-5d95-862d-e9973a076f02",
+            "label": "3. 원본 보존 조건과 정비 방안",
+            "printed_page": 3,
+            "actual_heading_page": 3,
+            "native_line_count": 1,
+            "native_cell_width": [
+              642.5
+            ]
+          },
+          {
+            "id": "46e961be-827c-53f3-b2aa-f951ae800747",
+            "label": "4. 담당 역할과 추진 일정",
+            "printed_page": 3,
+            "actual_heading_page": 3,
+            "native_line_count": 1,
+            "native_cell_width": [
+              642.5
+            ]
+          },
+          {
+            "id": "de3d9463-6dd5-5476-8107-d1ae66d741bc",
+            "label": "출처 및 확인 사항",
+            "printed_page": 4,
+            "actual_heading_page": 4,
+            "native_line_count": 1,
+            "native_cell_width": [
+              642.5
+            ]
+          }
+        ],
+        "font_size_pt": 16,
+        "body_font_size_pt": 15,
+        "xml_width": {
+          "table_width_hwpunit": 48190,
+          "first_cell_width_hwpunit": 48190
+        },
+        "width_matches_preserved_long_sample": true
+      },
+      "convergence_phases": [
+        {
+          "pass_index": 1,
+          "converged": false,
+          "status": 200,
+          "revision": 0,
+          "epoch": 1,
+          "page_count": 4,
+          "export_sha256": "4a1fcd20dbc91d70f09136d2219b261a36fedbe1abfc7df38a3b406908f8d015"
+        },
+        {
+          "pass_index": 2,
+          "converged": true,
+          "status": 200,
+          "revision": 0,
+          "epoch": 1,
+          "page_count": 4,
+          "export_sha256": "4b7f6072f749dc42998d14e9682bf432589430631bfcafccdd9e32239ba32754"
+        },
+        {
+          "pass_index": 1,
+          "converged": false,
+          "status": 200,
+          "revision": 0,
+          "epoch": 1,
+          "page_count": 4,
+          "export_sha256": "c60b5f1c9b35301e9436e33016fd6a5cd1d9e5d3c51411af198a1ed9c3111f21"
+        },
+        {
+          "pass_index": 2,
+          "converged": true,
+          "status": 200,
+          "revision": 0,
+          "epoch": 1,
+          "page_count": 4,
+          "export_sha256": "fbe014bb8fe5a970cefe92f26630292a07bc686fd61a9b05d3cb10e6b03628bd"
+        }
+      ],
+      "saved_copy": {
+        "path": "reports/business-headings-2026-10-17/standard-business.hwpx",
+        "sha256": "fbe014bb8fe5a970cefe92f26630292a07bc686fd61a9b05d3cb10e6b03628bd"
+      },
+      "saved_version_count": 1,
+      "reopened": {
+        "content_loss": 0,
+        "logical_text_preserved": true,
+        "export_sha256": "fbe014bb8fe5a970cefe92f26630292a07bc686fd61a9b05d3cb10e6b03628bd"
+      },
+      "plain_api_reopen": {
+        "content_loss": 0,
+        "export_sha256": "fbe014bb8fe5a970cefe92f26630292a07bc686fd61a9b05d3cb10e6b03628bd",
+        "versions_unchanged": true,
+        "engine_export_unchanged": true
+      },
+      "wording_review": {
+        "facts_and_conditions": "2026-10-16 기준, 120/18/7건, 두 집합 중복 여부 미확인, 운영팀·3개 부서, 2026-10-30 15시까지의 미완료 공유 목표, 승인본 원본 보존과 사본 확인 후 중복 표시가 모두 보존됨. 두 집합을 25건으로 합산하지 않음.",
+        "first_body_item": "현황의 기준일·수치, 정비 방안의 원본 보존·사본 확인 조건, 일정의 미완료 목표는 관련 절 첫 항목에 있음. 집합 중복 여부 미확인은 현황 첫 네모 바로 뒤의 보조 동그라미에 있어 모든 조건이 첫 네모 안에 담긴 것은 아님.",
+        "fact_proposal_boundary": "확인된 운영팀 취합 역할과 추가 정비·공유 역할 제안을 본문·표에서 구분함. 새 인물·수치·일정을 사실로 추가한 부분은 관찰되지 않음.",
+        "heading_quality": "필요성→현황→보존 조건·정비 방안→역할·일정으로 구별되며 같은 수준의 명사형 표제를 사용함.",
+        "important_meaning_preserved": true,
+        "headings_distinct_and_parallel": true,
+        "separate_toc_label_needed": false,
+        "observed_fact_invention": false
+      },
+      "screen": {
+        "path": "docs/evidence/business-heading-standard-2026-10-17.png",
+        "sha256": "386308431b20ca64b81e08b65d3836ef53904d6c18b69b24ced0814b94e30a1f"
+      },
+      "human_approval": false,
+      "automated_test_approval": true,
+      "representative_edit_refresh_save_reopen": {
+        "stale_after_body_edit": true,
+        "explicit_refresh_preserved_edit": true,
+        "toc_id": "8546e681-1daa-57fb-9474-bccec5fdf0cf",
+        "ordered_heading_ids_unchanged": true,
+        "heading_text_hashes_unchanged": true,
+        "initial_export_sha256": "4b7f6072f749dc42998d14e9682bf432589430631bfcafccdd9e32239ba32754",
+        "refreshed_export_sha256": "fbe014bb8fe5a970cefe92f26630292a07bc686fd61a9b05d3cb10e6b03628bd",
+        "saved_sha256": "fbe014bb8fe5a970cefe92f26630292a07bc686fd61a9b05d3cb10e6b03628bd",
+        "reopened_sha256": "fbe014bb8fe5a970cefe92f26630292a07bc686fd61a9b05d3cb10e6b03628bd",
+        "initial_actual_pages": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          4
+        ],
+        "refreshed_actual_pages": [
+          1,
+          1,
+          1,
+          3,
+          3,
+          4
+        ]
+      }
+    },
+    {
+      "profile": "executive-decision",
+      "section_headings": [
+        "자료 식별·책임 관리 쟁점",
+        "정비 방식 대안 비교",
+        "공통 제출 양식 시범 권고",
+        "시범 승인 및 추진 일정"
+      ],
+      "actual_task": {
+        "path": ".cache/business-headings-2026-10-17/proof/executive-decision-actual-task.json",
+        "sha256": "e3982f4f58a1d9f178606de387af2d5917b3002e9cff5d617d2005e074da0497"
+      },
+      "execution": {
+        "executor": "codex-app-server",
+        "model": "gpt-6.1-sol",
+        "completed": true,
+        "web_search_calls": 0,
+        "contract": "korean-report-v4-visual-emphasis"
+      },
+      "native": {
+        "revision": 0,
+        "epoch": 1,
+        "page_count": 5,
+        "export_sha256": "8332604eaa921fa6ac4653548ac0116492df37658048379587e3b98140581014",
+        "headings": [
+          {
+            "id": "28277211-3b21-593f-819c-6846b25f6b90",
+            "section": 0,
+            "paragraph": 3,
+            "length": 5,
+            "text_sha256": "8d08dd2ec7fd263317d30f5fca99a955e4864667b09d8148e9ee55ef896899f2",
+            "page": 1
+          },
+          {
+            "id": "0956ba70-b938-5e0a-87bb-febc5e5a36d8",
+            "section": 0,
+            "paragraph": 5,
+            "length": 17,
+            "text_sha256": "9547a7992308af73a177d57b630ba2099894bbe5abff7f1cf4a46bb9df8b7de1",
+            "page": 1
+          },
+          {
+            "id": "139f14f9-5a8f-576a-b5b2-9fbb7de7610e",
+            "section": 0,
+            "paragraph": 11,
+            "length": 14,
+            "text_sha256": "c5fa9dcbf7c294defe9299364a37560183c051a691ee8f2ea0ef1ff2c3c12852",
+            "page": 3
+          },
+          {
+            "id": "91d3ab40-7490-5353-8fdc-c80e45ee1ad9",
+            "section": 0,
+            "paragraph": 16,
+            "length": 17,
+            "text_sha256": "5ea9e2c82558e21ad5b3a588c34f9394a2b5d7f20b1daedfb7012359fcdf8c6b",
+            "page": 3
+          },
+          {
+            "id": "400a26a9-f937-5f22-8080-7bb17c6af3fb",
+            "section": 0,
+            "paragraph": 22,
+            "length": 16,
+            "text_sha256": "b9186bf7bf51f3937aeb9d84c129980b61b3903dbba33c4951509088efc99704",
+            "page": 4
+          },
+          {
+            "id": "215991cb-6348-5717-8490-cf7b6ec7fb94",
+            "section": 0,
+            "paragraph": 29,
+            "length": 10,
+            "text_sha256": "c5d7ed9af84c8d22995616d3f028d6e70465fa15a49e40c2f5d6fbc690614dbd",
+            "page": 5
+          }
+        ]
+      },
+      "toc": {
+        "entry_count": 6,
+        "physical_pages": [
+          1
+        ],
+        "page_count": 1,
+        "max_entry_lines": 1,
+        "longest_entry": {
+          "label": "1. 자료 식별·책임 관리 쟁점",
+          "characters": 17,
+          "lines": 1
+        },
+        "entries": [
+          {
+            "id": "28277211-3b21-593f-819c-6846b25f6b90",
+            "label": "핵심 요약",
+            "printed_page": 1,
+            "actual_heading_page": 1,
+            "native_line_count": 1,
+            "native_cell_width": [
+              642.5
+            ]
+          },
+          {
+            "id": "0956ba70-b938-5e0a-87bb-febc5e5a36d8",
+            "label": "1. 자료 식별·책임 관리 쟁점",
+            "printed_page": 1,
+            "actual_heading_page": 1,
+            "native_line_count": 1,
+            "native_cell_width": [
+              642.5
+            ]
+          },
+          {
+            "id": "139f14f9-5a8f-576a-b5b2-9fbb7de7610e",
+            "label": "2. 정비 방식 대안 비교",
+            "printed_page": 3,
+            "actual_heading_page": 3,
+            "native_line_count": 1,
+            "native_cell_width": [
+              642.5
+            ]
+          },
+          {
+            "id": "91d3ab40-7490-5353-8fdc-c80e45ee1ad9",
+            "label": "3. 공통 제출 양식 시범 권고",
+            "printed_page": 3,
+            "actual_heading_page": 3,
+            "native_line_count": 1,
+            "native_cell_width": [
+              642.5
+            ]
+          },
+          {
+            "id": "400a26a9-f937-5f22-8080-7bb17c6af3fb",
+            "label": "4. 시범 승인 및 추진 일정",
+            "printed_page": 4,
+            "actual_heading_page": 4,
+            "native_line_count": 1,
+            "native_cell_width": [
+              642.5
+            ]
+          },
+          {
+            "id": "215991cb-6348-5717-8490-cf7b6ec7fb94",
+            "label": "출처 및 확인 사항",
+            "printed_page": 5,
+            "actual_heading_page": 5,
+            "native_line_count": 1,
+            "native_cell_width": [
+              642.5
+            ]
+          }
+        ],
+        "font_size_pt": 16,
+        "body_font_size_pt": 15,
+        "xml_width": {
+          "table_width_hwpunit": 48190,
+          "first_cell_width_hwpunit": 48190
+        },
+        "width_matches_preserved_long_sample": true
+      },
+      "convergence_phases": [
+        {
+          "pass_index": 1,
+          "converged": false,
+          "status": 200,
+          "revision": 0,
+          "epoch": 1,
+          "page_count": 5,
+          "export_sha256": "c1e6c5dbbb6848c90b14f2595c07b422543748d20c457bc8b67a2f38429793bd"
+        },
+        {
+          "pass_index": 2,
+          "converged": true,
+          "status": 200,
+          "revision": 0,
+          "epoch": 1,
+          "page_count": 5,
+          "export_sha256": "8332604eaa921fa6ac4653548ac0116492df37658048379587e3b98140581014"
+        }
+      ],
+      "saved_copy": {
+        "path": "reports/business-headings-2026-10-17/executive-decision.hwpx",
+        "sha256": "8332604eaa921fa6ac4653548ac0116492df37658048379587e3b98140581014"
+      },
+      "saved_version_count": 1,
+      "reopened": {
+        "content_loss": 0,
+        "logical_text_preserved": true,
+        "export_sha256": "8332604eaa921fa6ac4653548ac0116492df37658048379587e3b98140581014"
+      },
+      "plain_api_reopen": {
+        "content_loss": 0,
+        "export_sha256": "8332604eaa921fa6ac4653548ac0116492df37658048379587e3b98140581014",
+        "versions_unchanged": true,
+        "engine_export_unchanged": true
+      },
+      "wording_review": {
+        "facts_and_conditions": "2026-10-16 기준, 120/18/7건과 중복 미확인, 운영팀·3개 부서, 비용·소요시간 실측 없음, 원본 보존·사본 확인 조건을 보존함. 10월 23일까지 승인 요청, 승인될 경우에만 10월 26일부터 2주간 시범이라는 제안이 명시됨.",
+        "first_body_item": "현황의 수치·중복 미확인·취합 역할, 대안 비교의 비용·시간 실측 없음, 권고의 원본 보존 조건, 승인 절의 날짜·조건·시범 기간이 각각 관련 절의 첫 모델 본문 항목에 있음. 렌더링의 기존 outline 분할과는 구분함.",
+        "fact_proposal_boundary": "확정 시행·전면 도입으로 쓰지 않고 기대 효과, 시범 권고, 역할 제안, 별도 후속 판단을 구분함. 새 비용·기간 수치를 만들지 않음.",
+        "heading_quality": "쟁점→대안 비교→시범 권고→승인·일정의 의사결정 흐름이 짧고 구별됨.",
+        "important_meaning_preserved": true,
+        "headings_distinct_and_parallel": true,
+        "separate_toc_label_needed": false,
+        "observed_fact_invention": false
+      },
+      "screen": {
+        "path": "docs/evidence/business-heading-executive-2026-10-17.png",
+        "sha256": "5a49d5dc5161f7ce53a72c17e3d7d01859aca487e8eab53741692ef8aee15f02"
+      },
+      "human_approval": false,
+      "automated_test_approval": true
+    },
+    {
+      "profile": "response-plan",
+      "section_headings": [
+        "대응 목표",
+        "우선 조치",
+        "역할과 일정",
+        "완료 기준"
+      ],
+      "actual_task": {
+        "path": ".cache/business-headings-2026-10-17/diagnostic-proof/response-plan-actual-task.json",
+        "sha256": "9b03ae3fb319e1dda71c1202e7d96c957d9cc1b4d9cd0da5310036f452797761"
+      },
+      "execution": {
+        "executor": "codex-app-server",
+        "model": "gpt-6.1-sol",
+        "completed": true,
+        "web_search_calls": 0,
+        "contract": "korean-report-v4-visual-emphasis"
+      },
+      "native": {
+        "revision": 0,
+        "epoch": 1,
+        "page_count": 5,
+        "export_sha256": "8b2025ddcec1ba46e6b196a1464d99bbe0aba0a383e2ead6ca1b2c3bb88b0bfb",
+        "headings": [
+          {
+            "id": "094310a7-e17e-5d23-b1b9-ab38dd0e9eb4",
+            "section": 0,
+            "paragraph": 3,
+            "length": 5,
+            "text_sha256": "8d08dd2ec7fd263317d30f5fca99a955e4864667b09d8148e9ee55ef896899f2",
+            "page": 1
+          },
+          {
+            "id": "b40c4360-c1e8-59a0-a111-1114b25085fa",
+            "section": 0,
+            "paragraph": 5,
+            "length": 8,
+            "text_sha256": "51293437e66b2ae8fc79b7fd73928e6a38036e068e27be859e9aa1ba95a9456c",
+            "page": 1
+          },
+          {
+            "id": "9028a3a3-9a77-5b65-b12b-2739b6c8a350",
+            "section": 0,
+            "paragraph": 9,
+            "length": 8,
+            "text_sha256": "2bc4efcfa9fa4b7f15c6ded42942c8f5da33a9cb9b956f3ee702e05d0460a726",
+            "page": 2
+          },
+          {
+            "id": "042e4847-27fe-5c49-b4fb-a7a21fcb8149",
+            "section": 0,
+            "paragraph": 15,
+            "length": 9,
+            "text_sha256": "bcbb29b405efe9494cc1ea57066f89afc10e3e9c12c165ed1a1209bd3f106342",
+            "page": 3
+          },
+          {
+            "id": "3764579b-1533-5b61-bd5e-cef92e5a963a",
+            "section": 0,
+            "paragraph": 21,
+            "length": 8,
+            "text_sha256": "086a702a679e32b75b2e00171b4827cc86e44a61ee63766fb5fd58b954d35e84",
+            "page": 4
+          },
+          {
+            "id": "f0b9e796-f21b-585e-89e5-65f9f8c9d743",
+            "section": 0,
+            "paragraph": 26,
+            "length": 10,
+            "text_sha256": "c5d7ed9af84c8d22995616d3f028d6e70465fa15a49e40c2f5d6fbc690614dbd",
+            "page": 4
+          }
+        ]
+      },
+      "toc": {
+        "entry_count": 6,
+        "physical_pages": [
+          1
+        ],
+        "page_count": 1,
+        "max_entry_lines": 1,
+        "longest_entry": {
+          "label": "출처 및 확인 사항",
+          "characters": 10,
+          "lines": 1
+        },
+        "entries": [
+          {
+            "id": "094310a7-e17e-5d23-b1b9-ab38dd0e9eb4",
+            "label": "핵심 요약",
+            "printed_page": 1,
+            "actual_heading_page": 1,
+            "native_line_count": 1,
+            "native_cell_width": [
+              642.5
+            ]
+          },
+          {
+            "id": "b40c4360-c1e8-59a0-a111-1114b25085fa",
+            "label": "1. 대응 목표",
+            "printed_page": 1,
+            "actual_heading_page": 1,
+            "native_line_count": 1,
+            "native_cell_width": [
+              642.5
+            ]
+          },
+          {
+            "id": "9028a3a3-9a77-5b65-b12b-2739b6c8a350",
+            "label": "2. 우선 조치",
+            "printed_page": 2,
+            "actual_heading_page": 2,
+            "native_line_count": 1,
+            "native_cell_width": [
+              642.5
+            ]
+          },
+          {
+            "id": "042e4847-27fe-5c49-b4fb-a7a21fcb8149",
+            "label": "3. 역할과 일정",
+            "printed_page": 3,
+            "actual_heading_page": 3,
+            "native_line_count": 1,
+            "native_cell_width": [
+              642.5
+            ]
+          },
+          {
+            "id": "3764579b-1533-5b61-bd5e-cef92e5a963a",
+            "label": "4. 완료 기준",
+            "printed_page": 4,
+            "actual_heading_page": 4,
+            "native_line_count": 1,
+            "native_cell_width": [
+              642.5
+            ]
+          },
+          {
+            "id": "f0b9e796-f21b-585e-89e5-65f9f8c9d743",
+            "label": "출처 및 확인 사항",
+            "printed_page": 4,
+            "actual_heading_page": 4,
+            "native_line_count": 1,
+            "native_cell_width": [
+              642.5
+            ]
+          }
+        ],
+        "font_size_pt": 16,
+        "body_font_size_pt": 15,
+        "xml_width": {
+          "table_width_hwpunit": 48190,
+          "first_cell_width_hwpunit": 48190
+        },
+        "width_matches_preserved_long_sample": true
+      },
+      "convergence_phases": [
+        {
+          "pass_index": 1,
+          "converged": false,
+          "status": 200,
+          "revision": 0,
+          "epoch": 1,
+          "page_count": 5,
+          "export_sha256": "a12058c41f0a2bc15eab82e92f8cb9e2eb4dec404ac1192adf8f8ec0621e3808"
+        },
+        {
+          "pass_index": 2,
+          "converged": true,
+          "status": 200,
+          "revision": 0,
+          "epoch": 1,
+          "page_count": 5,
+          "export_sha256": "8b2025ddcec1ba46e6b196a1464d99bbe0aba0a383e2ead6ca1b2c3bb88b0bfb"
+        }
+      ],
+      "saved_copy": {
+        "path": "reports/business-headings-2026-10-17/response-plan.hwpx",
+        "sha256": "8b2025ddcec1ba46e6b196a1464d99bbe0aba0a383e2ead6ca1b2c3bb88b0bfb"
+      },
+      "saved_version_count": 1,
+      "reopened": {
+        "content_loss": 0,
+        "logical_text_preserved": true,
+        "export_sha256": "8b2025ddcec1ba46e6b196a1464d99bbe0aba0a383e2ead6ca1b2c3bb88b0bfb"
+      },
+      "plain_api_reopen": {
+        "content_loss": 0,
+        "export_sha256": "8b2025ddcec1ba46e6b196a1464d99bbe0aba0a383e2ead6ca1b2c3bb88b0bfb",
+        "versions_unchanged": true,
+        "engine_export_unchanged": true
+      },
+      "wording_review": {
+        "facts_and_conditions": "2026-10-16 기준, 120/18/7건과 중복 여부 미확인, 운영팀·3개 부서와 각 부서 담당자 표기 확인, 2026-10-30 15시 미완료 목표, 승인본 보존·사본 확인 후 표시를 보존함. 요청한 목록 확인→부서 담당자 확인→운영팀 취합 순서를 유지함.",
+        "first_body_item": "현황의 시점·수치·중복 미확인, 우선 조치의 원본 보존·사본 확인, 역할과 일정의 미완료 목표, 완료 기준의 미확인 완료 상태가 첫 항목에 있음. 3개 부서·역할 설명은 일정 절 첫 네모 뒤의 보조 동그라미에 있어 모든 역할 사실을 첫 네모 안에 모은 것은 아님.",
+        "fact_proposal_boundary": "단계별 검증 기준·완료 증거를 제안으로 표시하고 목표를 이미 완료한 사실로 쓰지 않음. 표의 역할별 기한은 동일 제공 목표를 사용하며 새 날짜·담당자·수치를 만들지 않음.",
+        "heading_quality": "대응 목표→우선 조치→역할과 일정→완료 기준으로 네 절의 기능이 분명함. 짧은 표제를 그대로 목차에 사용할 수 있음.",
+        "important_meaning_preserved": true,
+        "headings_distinct_and_parallel": true,
+        "separate_toc_label_needed": false,
+        "observed_fact_invention": false
+      },
+      "screen": {
+        "path": "docs/evidence/business-heading-response-2026-10-17.png",
+        "sha256": "be841201593778c65b52d98467e3fceec1180a15ef47bb4ebc6e774dc990d01c"
+      },
+      "human_approval": false,
+      "automated_test_approval": true
+    }
+  ],
+  "format_comparison": {
+    "proof": {
+      "path": ".cache/business-headings-2026-10-17/format-evidence.json",
+      "sha256": "95afac78943e2464f675302ddeb22ccbd81d9a23ab346c28dbb4814e0e162e26"
+    },
+    "preserved_long_copy": {
+      "path": "reports/final-review-2026-10-17/long-toc-20-pages.hwpx",
+      "sha256": "4bbbe9586ba68def2df90115bd6e280e3122eb7ec56c8e814b67d8448caef518"
+    },
+    "toc_font_pt": 16,
+    "body_font_pt": 15,
+    "toc_xml_width": {
+      "table_width_hwpunit": 48190,
+      "first_cell_width_hwpunit": 48190
+    },
+    "normal_native_cell_width": 642.5,
+    "normal_native_cell_width_unit": "native SDK coordinates, rounded by engine",
+    "font_or_width_reduction_used": false,
+    "new_size_limits_added": false
+  },
+  "preservation": {
+    "proof": {
+      "path": ".cache/business-headings-2026-10-17/preservation-after.json",
+      "sha256": "6c32a56621c0e86a188797f4803dcb6e27f3f92ddb23c53eb1237d26c363e587"
+    },
+    "protected_files": 91,
+    "old_databases": 2,
+    "changed": {
+      "protected": [],
+      "databases": []
+    },
+    "passed": true,
+    "database_access": "read-only SQLite and in-memory snapshots",
+    "long_fixture_and_historical_proofs_not_rewritten": true,
+    "long_boundary_full_render_rerun": false,
+    "reason": "Generation instruction/docs and targeted tests changed; heading/TOC/layout implementation and preserved fixture stayed unchanged."
+  },
+  "review_app": {
+    "url": "http://127.0.0.1:15183/",
+    "mode": "Plain production API with already verified diagnostic frontend/engine bundle",
+    "diagnostic_report_wrapper_removed": true,
+    "three_saved_reports_reopened": true,
+    "reopen_model_calls": 0,
+    "reopen_document_writes": 0,
+    "saved_versions_and_blobs_preserved_across_restart": true,
+    "served_critical_files_checked": 10,
+    "served_files": [
+      {
+        "path": "rhwp/build-info.json",
+        "sha256": "632c400725da2bc40723b54686f0968d2ccfe91d6ebd1e6ce26a1f97b4a4aa9b"
+      },
+      {
+        "path": "rhwp/index.html",
+        "sha256": "209160711f4c135914d5e6878f31c71ee75d6a103aa0455b5e479d8bcfd20bbf"
+      },
+      {
+        "path": "rhwp/rhwp.js",
+        "sha256": "12029c04cb7f4af12dc6c1026a0499e49e3a01d1bce4b6e2f79f51da1aa59da7"
+      },
+      {
+        "path": "rhwp/assets/rhwp_bg-DdftfNrC.wasm",
+        "sha256": "0e81cdeb4a61de8dd12be6d79d3bf06a8c1153525883e4112f4dcb1257d68195"
+      },
+      {
+        "path": "rhwp/assets/canvaskit-renderer-BVCInnEn.js",
+        "sha256": "634181406ebbbbf3f380b0f3ae419cb587c0935864593708547c4c1920220400"
+      },
+      {
+        "path": "rhwp/assets/index-jXDCkapd.js",
+        "sha256": "28ea65af6e238ab0606360bf92f6c12a663c9543ce7d1c7a92249e558c861b36"
+      },
+      {
+        "path": "rhwp/assets/studio-plugin-Cp8dJ3L_.js",
+        "sha256": "abdcbcab732aad8d91b551c97ff045bec6b140ae87d94c5fd44235d5515fb4e7"
+      },
+      {
+        "path": "index.html",
+        "sha256": "b9e545e395a6491637c97070b199acd2deb5c49b358557af4e1c1609baf4d485"
+      },
+      {
+        "path": "assets/index-BAVdrmCl.js",
+        "sha256": "ec15411b8ba37562182562cd97e69f9910b0f9f97987db7c2ded60c7063977db"
+      },
+      {
+        "path": "assets/index-DCf6izPF.css",
+        "sha256": "ed63a0e3b3eff4e335118606dde92711e2aac399135e798ba6517a334070fd6d"
+      }
+    ],
+    "receipts": [
+      {
+        "path": ".cache/business-headings-2026-10-17/plain-review-web-proof.json",
+        "sha256": "0b34c605df1c51e6cb3a11ef47ced79608fa54f912025464ff2f74e1ecade2e0"
+      },
+      {
+        "path": ".cache/business-headings-2026-10-17/plain-review-preservation.json",
+        "sha256": "bade385339b0518ce1c4d947a6cce772bd32df61ca1ad734b6623d48f277a42a"
+      },
+      {
+        "path": ".cache/business-headings-2026-10-17/final-review-run.json",
+        "sha256": "ad974bcd4bef1a974d17ec0ebfa431b89a6a02cea5b5f71255818b7038b9f242"
+      },
+      {
+        "path": ".cache/business-headings-2026-10-17/final-review-served.json",
+        "sha256": "f388d3208e91a1e703bfc66b268869cc869e2a78d76c9e236566429a36e2a6d5"
+      }
+    ]
+  },
+  "quality_review": {
+    "reviewer": "Codex root team / heading_contract_review (AI review)",
+    "human_review": false,
+    "proof": {
+      "path": ".cache/business-headings-2026-10-17/quality-review.json",
+      "sha256": "a8adeff2fda39f0967ce7da00c6285712e4c62128e54e81beb2356bac65ee09c"
+    },
+    "separate_toc_label_needed_in_these_samples": false,
+    "body_outline_followup": {
+      "image": {
+        "path": ".cache/business-headings-2026-10-17/proof/executive-decision-initial-canvas-1.png",
+        "sha256": "5a49d5dc5161f7ce53a72c17e3d7d01859aca487e8eab53741692ef8aee15f02"
+      },
+      "observation": "본문 쟁점 항목의 마지막 필요함.이 별도 네모로 분리되어 외톨이 항목으로 보임.",
+      "confirmed_path": "Unchanged backend/app/report_outline.py split_bullet applied to the saved original model paragraph yields the same two blocks, the second exactly □ 필요함.; joined payload preserves every original character.",
+      "scope": "Existing body-outline splitting quality case; title/TOC implementation is uninvolved. No source edit or model regeneration was performed for this observation."
+    }
+  },
+  "test_scope": {
+    "full_pytest_rerun": false,
+    "full_e2e_rerun": false,
+    "new_frontend_or_engine_build": false,
+    "reason": "Change is confined to fresh report generation instructions and examples; targeted input/frozen-retry tests plus three actual Codex drafts and native layout/edit/save/reopen evidence address the concrete risks."
+  },
+  "limitations": [
+    "Three synthetic samples do not guarantee all future model writing.",
+    "First rejected response-plan validation cause was not retained; the failure is not counted as success or repaired from partial JSON.",
+    "Existing body-outline splitter can leave a short standalone tail such as 필요함. (and another observed 아님.); left as a separate body quality follow-up.",
+    "AI wording review and automated approvals are distinct from human business review.",
+    "Docker/WSL deployment environment and Hancom 2018 title-line color differences remain outside this change."
+  ],
+  "privacy": "Only selected synthetic headings, counts, status, relative evidence paths, file hashes and native heading identities/pages are published; no full raw model payload, credentials, base64, database or trace content."
+}

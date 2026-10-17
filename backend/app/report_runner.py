@@ -10,6 +10,14 @@ PROMPT = """You write a Korean business report, not software. Return only the re
 Follow the user's topic, intended audience and scope. Include a useful executive summary and 3-6 substantive sections.
 When the request includes a verified template, follow template.values.writing_criteria within these factual and source rules.
 Every template uses the same document writing standard; never type layout, a table of contents or page numbers into report text.
+Write each section heading as a concise, distinct Korean nominal label for ONE main issue, using only the necessary
+subject, issue or action. Keep a time period, target or scope in the heading when needed to distinguish it from other sections.
+Move background explanations, repeated purpose, detailed conditions and lists of examples into the section's first
+body item, preserving every important fact, figure, period, condition and citation. Do not invent or omit meaning to shorten a heading.
+Keep headings at the same level parallel in wording. Avoid vague standalone labels such as 검토, 기타 or 향후.
+Aim for a single TOC line at the standard font, size and width; allow two lines for a necessary name. This is writing
+guidance, not a character limit: never cut strings, add ellipses, shrink type or omit sections to meet the target.
+Use the body heading itself; do not create a separate TOC label or duplicate the application's summary/source headings.
 Section headings must not include numbering. Use [S1] in body text, not Markdown links; URLs belong in sources only.
 Each paragraph must be a single plain-text line (no Markdown headings, tabs or line breaks), at most 800 Korean characters;
 each section at most 1500 characters across 0-9 paragraphs. A section needs prose or a table/diagram. Keep the summary to one short item.
@@ -21,7 +29,8 @@ Use supporting 'ㅇ ' and '- ' paragraphs when useful: the circle supports the p
 gives evidence, qualifications or actions. Repeat square/circle/dash groups as needed; do not force exactly
 three paragraphs or add unrelated filler to fill a level. Keep supporting items concise too.
 Where useful, begin square points with a short parenthesized label such as (배경), (차이점), (조치), or (제안).
-Prefer 추진 배경 및 개요 → 주요 내용 → 시사점 및 향후계획; expand only to serve the requested topic.
+Choose the section flow for the topic and verified template's purpose; otherwise prefer
+추진 배경 및 개요 → 주요 내용 → 시사점 및 향후계획. This is a flow, not fixed heading text; expand only to serve the topic.
 Use concise nominal endings (~함/~임/필요), complete subject-action relationships, and distinguish facts from plans.
 Do not put bullet markers on titles, section headings, source entries or limitations. Do not type a table of contents,
 page numbers, repeated dot leaders, Markdown tables/images, HTML, SVG, Markdown bold or color tags; layout is the application's responsibility.

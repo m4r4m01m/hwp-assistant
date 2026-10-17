@@ -3,6 +3,7 @@ import copy
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 import uuid
 import pytest
@@ -86,19 +87,59 @@ def test_legacy_input_hash_and_retry_remain_three_fields(report_env, monkeypatch
     assert calls == [value]
 
 
-def test_frozen_profile_reaches_actual_stdio_turn_payload(report_env, monkeypatch, tmp_path):
-    from app import report_stream
+@pytest.mark.parametrize("index", [0, 1, 2])
+def test_heading_guidance_and_frozen_profile_reach_actual_stdio_payload(report_env, monkeypatch, tmp_path, index):
+    from app import report_runner, report_stream
     from app.codex_runner import CodexSettings
+    from app.report_rpc import ReportRpc
     from test_reports import DRAFT
     (client, _, _, _), _ = report_env
-    value = body(selection(client, 2))
+    value = body(selection(client, index))
+    value["prompt"] = (
+        "합성 업무자료: 2026년 11월 새봄팀 문서 120건을 정비한다. "
+        "개인정보 포함 자료는 담당자 확인 후 이관하며, 11월 30일까지 완료한다. "
+        "위 사실·기간·조건을 보존한 보고서를 작성해주세요."
+    )
     value["research"] = True
-    (tmp_path / "draft.json").write_text(json.dumps(DRAFT), encoding="utf-8")
+    draft = copy.deepcopy(DRAFT)
+    # The guidance is for new writing, not a rewrite/truncation of valid model output.
+    draft["sections"][0]["heading"] = "2026년 11월 새봄팀 문서 120건의 정비와 개인정보 포함 자료의 담당자 확인 후 이관 조건"
+    (tmp_path / "draft.json").write_text(json.dumps(draft), encoding="utf-8")
     (tmp_path / "release").touch()
     args = [sys.executable, str(Path(__file__).with_name("report_rpc_fixture.py")), str(tmp_path), "complete"]
-    monkeypatch.setattr(report_stream, "stream_command", lambda *unused: args)
+    captured = {}
+    def command(settings, instructions, research):
+        captured["instructions"] = instructions.read_text(encoding="utf-8")
+        return args
+    send = ReportRpc.send
+    def capture_send(rpc, request):
+        if request.get("method") == "thread/start":
+            captured["thread"] = copy.deepcopy(request["params"])
+        return send(rpc, request)
+    def login(command, **unused):
+        assert command == [sys.executable, "login", "status"]
+        return subprocess.CompletedProcess(command, 0, "Logged in using ChatGPT", "")
+    monkeypatch.setattr(report_runner, "run_process", login)
+    monkeypatch.setattr(report_stream, "stream_command", command)
+    monkeypatch.setattr(ReportRpc, "send", capture_send)
     settings = CodexSettings(sys.executable, "test-model", "", tuple(os.environ.items()), timeout=10)
-    _, evidence = report_stream.generate_stream(value, settings, str(tmp_path), "synthetic", "test", lambda _: None, lambda: True)
+    generated, evidence = report_runner.generate_report(value, settings)
+    instructions = " ".join(captured["instructions"].split())
+    for required in (
+        "concise, distinct Korean nominal label for ONE main issue",
+        "Move background explanations, repeated purpose, detailed conditions and lists of examples into the section's first body item",
+        "preserving every important fact, figure, period, condition and citation",
+        "Keep a time period, target or scope in the heading when needed",
+        "Aim for a single TOC line at the standard font, size and width; allow two lines for a necessary name",
+        "never cut strings, add ellipses, shrink type or omit sections",
+        "Use the body heading itself; do not create a separate TOC label",
+        "Choose the section flow for the topic and verified template's purpose; otherwise prefer",
+        "This is a flow, not fixed heading text",
+    ):
+        assert required in instructions
+    assert captured["thread"]["baseInstructions"] == captured["instructions"] == report_runner.PROMPT
     request = json.loads((tmp_path / "turn-request.json").read_text(encoding="utf-8"))
     assert json.loads(request["params"]["input"][0]["text"].split("\n", 1)[1]) == value
+    assert generated["sections"][0]["heading"] == draft["sections"][0]["heading"]
+    assert evidence["contract"] == report_runner.CONTRACT
     assert evidence["completed"]
