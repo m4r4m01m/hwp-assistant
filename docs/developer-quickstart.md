@@ -14,7 +14,7 @@ AI 설정 전에도 파일 열기·수동 편집·서버 저장을 사용할 수
 git clone https://github.com/m4r4m01m/hwp-assistant.git
 cd hwp-assistant
 # 또는 탐색기에서 Start HWP Assistant.cmd 더블클릭
-.\"Start HWP Assistant.cmd"
+& ".\Start HWP Assistant.cmd"
 ```
 
 ## 실행 중인 화면과 데이터

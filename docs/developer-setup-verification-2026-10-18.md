@@ -25,3 +25,19 @@
 이 기록 시점의 원격 release 게시와 실제 비공개 release 다운로드·fresh clone 재검증은 통합 담당자의 후속 검증 단계다. 로컬 kit의 실제 설치·기동과 구분한다. Docker/native 엔진을 새 도구 환경에서 처음부터 다시 컴파일하지 않았다. 개발 도구가 아예 없는 새 PC의 시스템 설치, 폐쇄망 전체 설치, 실제 모델 생성·사람 승인·한컴 검수도 이 setup 시험으로 대체하지 않는다.
 
 Codex 의존성은 현재 backend의 실행 파일 탐색·`app-server`·`exec` 경로와 [공식 Codex CLI 문서](https://developers.openai.com/codex/cli/), [App Server 문서](https://developers.openai.com/codex/app-server/)를 대조했다. 데스크톱 앱의 화면 자체를 요구하는 구조는 아니다. 각 개발자의 본인 CLI 로그인과 계정 사용 권한은 필요하다.
+
+## 후속 통합 확인: 실제 원격 clone과 release 다운로드
+
+위 단계 이후 구현을 `2feee80da98b2d045f01683c878a88e32b8fafeb`로 커밋·푸시하고 [비공개 개발 엔진 release](https://github.com/m4r4m01m/hwp-assistant/releases/tag/developer-engine-2026-10-18)를 게시했다. 그 커밋을 GitHub에서 **새로 clone**한 폴더에서 다음 명령을 실행해 exit 0 / `smoke-passed`를 확인했다.
+
+```powershell
+& ".\Start HWP Assistant.cmd" -NoBrowser -SmokeSeconds 3
+```
+
+- 프로젝트 `.venv`·`node_modules`·엔진 ZIP·문서·인증 파일을 복사하지 않았다. Git·Node·Python 및 본인 GitHub 인증은 설치돼 있었고 사용자 수준 다운로드 캐시는 재사용했다.
+- 잠금 Python/MCP·npm 의존성을 새로 설치했다. `source-map-js`는 1.2.2이며 `npm audit` 결과 취약점 0건이었다. 원래 checkout에서 잠긴 native 모듈을 삭제·종료하지 않고 별도 설치본과 해시를 비교해 의존성을 복구했으며, TypeScript·빌드와 관련 시험도 통과했다.
+- 비공개 release에서 37,244,030-byte ZIP를 실제 다운로드했다. 위 고정 SHA-256, 내부 82개 파일과 라이선스·패치·브리지·WASM 검증이 통과했다. Windows clone 후 기준 HWPX·profile·브리지·두 패치 해시도 원본과 같았다.
+- TypeScript·Vite 빌드, API 18190 / 웹 15190 실행, HTTP 10개 파일의 실제 바이트 해시 검증을 통과했다. 시험 종료 후 이번 listener는 0개였고 기존 8개 서비스의 PID·시작 시각은 모두 같았다. 새 clone의 Git 작업 트리는 깨끗했다.
+- 실제 모델 호출은 0회다. `diagnostic=true`, 새 PC의 시스템 도구 설치·폐쇄망·Docker 운영 배포·Hancom 검수를 대신하지 않는 범위는 그대로다.
+
+[후속 기계 판독 증거](evidence/developer-fresh-clone-2026-10-18.json)에 release ID·검증한 커밋·해시·실행 영수증을 보관했다. 앞의 로컬 kit 시험과 원격 검증 전 상태 기록은 이력으로 유지한다.
