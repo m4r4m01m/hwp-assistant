@@ -1,0 +1,391 @@
+{
+  "kind": "Visual standard revision 2 controls and scoped verification",
+  "basis_head": "44450151cf9cdf6c2899d23420e0c23aaa2da882",
+  "recorded_at": "2026-10-18T09:12:33.1864943Z",
+  "settings_fields": 35,
+  "legacy_fields": 23,
+  "actual_model_calls": 0,
+  "real_engine": true,
+  "human_acceptance": false,
+  "review_url": "http://127.0.0.1:15186/",
+  "preserved_apps": [
+    15183,
+    15184,
+    15185
+  ],
+  "browser_observation": {
+    "synthetic_only": true,
+    "table_vertical_align": "BOTTOM",
+    "citation_style": "NOTE",
+    "show_core_summary": false,
+    "registered_name": "확장 표준 검수 · 요약 숨김 · 로마자",
+    "page_number_style": "ROMAN",
+    "table_cell_padding_mm": 2.5,
+    "body_parenthetical_labels": false,
+    "page_number_position": "BOTTOM_RIGHT",
+    "table_border_width_mm": 0.3,
+    "new_report_generated": false,
+    "table_horizontal_align": "CENTER"
+  },
+  "title_native_coordinates": {
+    "method": "Pinned actual WASM, actual engine empty seed, rendered SVG and getPageTextLayout",
+    "private_artifacts": ".cache/standard-controls-native-2026-10-18-r2",
+    "offset_zero_pt": {
+      "bottom_rule_y": 166.5066666667,
+      "text_top": 114.7,
+      "top_rule_y": 109.84,
+      "text_height": 29.3
+    },
+    "offset_twelve_pt": {
+      "bottom_rule_y": 182.5066666667,
+      "text_top": 130.7,
+      "top_rule_y": 109.84,
+      "text_height": 29.3
+    }
+  },
+  "backend": {
+    "initial_full_affected_passed": 122,
+    "collection_scope": [
+      "test_visual_standard_controls.py",
+      "test_visual_standards.py",
+      "test_visual_standard_rendering.py",
+      "test_visual_report_integration.py",
+      "test_report_rich.py",
+      "test_report_preview.py",
+      "test_document_standard.py"
+    ],
+    "storage_audit_tests": 17,
+    "logs": [
+      ".cache/standard-controls-backend-2026-10-18/pytest-final-r2.log",
+      ".cache/standard-controls-backend-2026-10-18/pytest-page-fences-r3.log",
+      ".cache/standard-controls-backend-2026-10-18/pytest-roman-native-r4.log",
+      ".cache/standard-controls-backend-2026-10-18/pytest-page-field-missing-r5.log",
+      ".cache/standard-controls-backend-2026-10-18/pytest-label-visibility-r6.log"
+    ],
+    "distinct_cases_collected": 136,
+    "counts_overlap": true,
+    "final_affected_passes": {
+      "title_page_signature": 76,
+      "missing_format": 14,
+      "roman_field": 25,
+      "label_visibility": 65
+    }
+  },
+  "e2e": {
+    "mock_ai": true,
+    "final_case1_and_report_flow": "r4: 2 passed",
+    "actual_model_calls": 0,
+    "actual_roman_svg": {
+      "actual_engine_svg": true,
+      "actual_model_calls": 0,
+      "style": "ROMAN",
+      "page_count": 2,
+      "pages": [
+        {
+          "page": 1,
+          "height": 1122.5066666666667,
+          "footer": [
+            {
+              "y": 1083.6044444444444,
+              "text": "-"
+            },
+            {
+              "y": 1083.6044444444444,
+              "text": "I"
+            },
+            {
+              "y": 1083.6044444444444,
+              "text": "-"
+            }
+          ],
+          "text": "-I-"
+        },
+        {
+          "page": 2,
+          "height": 1122.5066666666667,
+          "footer": [
+            {
+              "y": 1083.6044444444444,
+              "text": "-"
+            },
+            {
+              "y": 1083.6044444444444,
+              "text": "I"
+            },
+            {
+              "y": 1083.6044444444444,
+              "text": "I"
+            },
+            {
+              "y": 1083.6044444444444,
+              "text": "-"
+            }
+          ],
+          "text": "-II-"
+        }
+      ]
+    },
+    "r3_failure": "New test tried fetch(blob:) under the unchanged CSP. Test-only SVG Blob references replaced fetch; r4 passed.",
+    "runs": [
+      {
+        "path": ".cache/standard-controls-e2e-2026-10-18-r1",
+        "result": "passed",
+        "actual_model_calls": 0,
+        "commands": [
+          {
+            "command": "Playwright E2E",
+            "exit_code": 0,
+            "built_app": true,
+            "pattern": "standard designer:|report TOC: automatic native pages|report TOC: long Korean titles|frozen legacy preview"
+          }
+        ],
+        "remaining_listeners": []
+      },
+      {
+        "path": ".cache/standard-controls-e2e-2026-10-18-r2",
+        "result": "passed",
+        "actual_model_calls": 0,
+        "commands": [
+          {
+            "built_app": true,
+            "exit_code": 0,
+            "command": "Playwright E2E",
+            "pattern": "standard designer:|report TOC: automatic native pages"
+          }
+        ],
+        "remaining_listeners": []
+      },
+      {
+        "path": ".cache/standard-controls-e2e-2026-10-18-r3",
+        "result": "failed",
+        "actual_model_calls": 0,
+        "commands": [
+          {
+            "built_app": true,
+            "command": "Playwright E2E",
+            "exit_code": 1,
+            "pattern": "standard designer: settings change the sample|standard designer: registered settings survive"
+          }
+        ],
+        "remaining_listeners": []
+      },
+      {
+        "path": ".cache/standard-controls-e2e-2026-10-18-r4",
+        "result": "passed",
+        "actual_model_calls": 0,
+        "commands": [
+          {
+            "command": "Playwright E2E",
+            "built_app": true,
+            "exit_code": 0,
+            "pattern": "standard designer: settings change the sample|standard designer: registered settings survive"
+          }
+        ],
+        "remaining_listeners": []
+      }
+    ],
+    "distinct_cases_passed": 8,
+    "custom_report": {
+      "initial_evidence": {
+        "revision": 0,
+        "epoch": 1,
+        "page_count": 2,
+        "export_sha256": "39f3baf36c829b6a4bd1badd3fd385aacfe08737cbe1a55a4d4a54e338b53b7a",
+        "headings": [
+          {
+            "id": "4f455fd6-513d-592a-b0bf-8e91c1c65ab8",
+            "section": 0,
+            "paragraph": 3,
+            "length": 11,
+            "text_sha256": "5a6983c83b03f9f50bbe0bd16a4ddc9fc118369042174c87b57313301cd9bf19",
+            "page": 1
+          },
+          {
+            "id": "6093ef9c-754e-5015-906b-518060a2d126",
+            "section": 0,
+            "paragraph": 7,
+            "length": 8,
+            "text_sha256": "d7f3140b13abe407ce32dde9077eed0639f01e6f3d2845d82ca5409014058fc8",
+            "page": 1
+          },
+          {
+            "id": "abad4b62-3e28-5bfb-b42c-30d3d6e25114",
+            "section": 0,
+            "paragraph": 11,
+            "length": 8,
+            "text_sha256": "b30f613f6f0c20aa37ad22ac6138d37c7331045a30707dae247d8b9bfaca4fe0",
+            "page": 1
+          },
+          {
+            "id": "e66d837a-7380-585f-b48a-41630a3cabd6",
+            "section": 0,
+            "paragraph": 13,
+            "length": 10,
+            "text_sha256": "c5d7ed9af84c8d22995616d3f028d6e70465fa15a49e40c2f5d6fbc690614dbd",
+            "page": 1
+          }
+        ]
+      },
+      "versions": 1,
+      "refreshed_evidence": {
+        "revision": 0,
+        "epoch": 1,
+        "page_count": 2,
+        "export_sha256": "363187951988785cec651ddc5c6d775c7354b2659a2a0d03dc31c2ceeb79a7cd",
+        "headings": [
+          {
+            "id": "4f455fd6-513d-592a-b0bf-8e91c1c65ab8",
+            "section": 0,
+            "paragraph": 3,
+            "length": 11,
+            "text_sha256": "5a6983c83b03f9f50bbe0bd16a4ddc9fc118369042174c87b57313301cd9bf19",
+            "page": 1
+          },
+          {
+            "id": "6093ef9c-754e-5015-906b-518060a2d126",
+            "section": 0,
+            "paragraph": 7,
+            "length": 8,
+            "text_sha256": "d7f3140b13abe407ce32dde9077eed0639f01e6f3d2845d82ca5409014058fc8",
+            "page": 1
+          },
+          {
+            "id": "abad4b62-3e28-5bfb-b42c-30d3d6e25114",
+            "section": 0,
+            "paragraph": 11,
+            "length": 8,
+            "text_sha256": "b30f613f6f0c20aa37ad22ac6138d37c7331045a30707dae247d8b9bfaca4fe0",
+            "page": 1
+          },
+          {
+            "id": "e66d837a-7380-585f-b48a-41630a3cabd6",
+            "section": 0,
+            "paragraph": 13,
+            "length": 10,
+            "text_sha256": "c5d7ed9af84c8d22995616d3f028d6e70465fa15a49e40c2f5d6fbc690614dbd",
+            "page": 1
+          }
+        ]
+      },
+      "saved_sha256": "363187951988785cec651ddc5c6d775c7354b2659a2a0d03dc31c2ceeb79a7cd",
+      "reopened_evidence": {
+        "revision": 0,
+        "epoch": 1,
+        "page_count": 2,
+        "export_sha256": "363187951988785cec651ddc5c6d775c7354b2659a2a0d03dc31c2ceeb79a7cd",
+        "headings": [
+          {
+            "id": "4f455fd6-513d-592a-b0bf-8e91c1c65ab8",
+            "section": 0,
+            "paragraph": 3,
+            "length": 11,
+            "text_sha256": "5a6983c83b03f9f50bbe0bd16a4ddc9fc118369042174c87b57313301cd9bf19",
+            "page": 1
+          },
+          {
+            "id": "6093ef9c-754e-5015-906b-518060a2d126",
+            "section": 0,
+            "paragraph": 7,
+            "length": 8,
+            "text_sha256": "d7f3140b13abe407ce32dde9077eed0639f01e6f3d2845d82ca5409014058fc8",
+            "page": 1
+          },
+          {
+            "id": "abad4b62-3e28-5bfb-b42c-30d3d6e25114",
+            "section": 0,
+            "paragraph": 11,
+            "length": 8,
+            "text_sha256": "b30f613f6f0c20aa37ad22ac6138d37c7331045a30707dae247d8b9bfaca4fe0",
+            "page": 1
+          },
+          {
+            "id": "e66d837a-7380-585f-b48a-41630a3cabd6",
+            "section": 0,
+            "paragraph": 13,
+            "length": 10,
+            "text_sha256": "c5d7ed9af84c8d22995616d3f028d6e70465fa15a49e40c2f5d6fbc690614dbd",
+            "page": 1
+          }
+        ]
+      }
+    }
+  },
+  "legacy_bytes": {
+    "baseline_commit": "44450151cf9cdf6c2899d23420e0c23aaa2da882",
+    "comparison": "Git baseline modules versus current modules",
+    "all_bytes_equal": true,
+    "outputs_compared": 9,
+    "actual_model_calls": 0,
+    "engine_execution": false,
+    "samples": [
+      {
+        "sample": "plain",
+        "blocks": 11,
+        "outputs": {
+          "scaffold": "ec21b64492fef70942015042fd7b13bdbf3a2564465a0a0880b247e0bcb6c010",
+          "plain_layout": "982075b9f1fd611fc24b8fa335bd95527107022440d5f674225c84d52ddaba96",
+          "rich_layout": "71a1ee461af6e9be7ad6d22ab8a0b298e7bb8e3144d9902f56cfca2af8720a43"
+        }
+      },
+      {
+        "sample": "rich",
+        "blocks": 32,
+        "outputs": {
+          "scaffold": "25e62cfbe69187f173497539b7d81902fdbdb7dda4b15d526c13f172e413d2a1",
+          "plain_layout": "ca26f9e105b195b7ae0ba5a59f5dec22f859b9988162b0e7208e4762859fe0f0",
+          "rich_layout": "efcc052a5583db90458065555e3738bb722ebce1b9f096abc356d02415a84e22"
+        }
+      },
+      {
+        "sample": "long-boundary",
+        "blocks": 159,
+        "outputs": {
+          "scaffold": "279725437a7836541eeda5f6c19e2af257d9d35cac2470c6898df7d2203afbd9",
+          "plain_layout": "42b7fa572c1437556af312811baf92b176c4803bf8241274f25e08c522098911",
+          "rich_layout": "616df465b17d67821afab472f780cbee436dc1c03ac1deb57de250c339c720ca"
+        }
+      }
+    ]
+  },
+  "review_storage_audit": {
+    "kind": "read-only SQLite/blob audit",
+    "result": "passed",
+    "started_at": 1792314638.379831,
+    "finished_at": 1792314638.4208791,
+    "documents": 4,
+    "versions": 7,
+    "verified_blobs": 9,
+    "verified_bytes": 150423,
+    "visual_standards": 2,
+    "verified_visual_standard_blobs": 2,
+    "issues": [],
+    "unreferenced_files": 0,
+    "unreferenced_note": "Not deleted. May include quarantined, interrupted or concurrent writes.",
+    "limits": [
+      "SQLite metadata snapshot; blobs are read afterwards and expected immutable",
+      "No HWPX layout/content semantics, real model, PostgreSQL or backup/restore validation"
+    ]
+  },
+  "source_sha256": {
+    "backend/app/visual_standards.py": "c52fb7bb8b7d42c877e2c59ae12fdef103d4da5c5a15f74bcf44e1670dddc543",
+    "backend/app/document_standard.py": "bf223323826404a6edc77e5f9507687065a9db3531b015ca3e37f77f4953205a",
+    "backend/app/report_contract.py": "dbba6ea659aea3a186fdd0c67226b71a36acccb0fc6ea6812addf08ba8f7a1be",
+    "backend/app/report_hwpx.py": "a3ad326ed42e50fc2c3ea3ece99cfc4853759c5c7cdfb1c4e93abd97dd0188ea",
+    "backend/app/report_layout.py": "617d1695020232186993c5193e60f3ac57583abb2db2ccd4af0dd5bdf7d51063",
+    "backend/app/report_rich.py": "77e90a2d9b6a55f5596cca1aab6b1e69e6bab6d5f2b50bf8d71fd82d6c68b2bc",
+    "backend/app/report_preview.py": "4202aae4065dfd6cedce7353481264959b97a85edebfa07852a254ba4014eae2",
+    "backend/app/reports.py": "ec1be4751f758d91c4c3ebed876df934322ecd524249e39009dfd3a3941b9d80",
+    "frontend/src/standard-designer.tsx": "001bf5e101a571e1e6fc6067f1c73a469f75ccb211334019e09de01eafca01ef",
+    "frontend/src/standard-designer.css": "1f0f094594a0f096ceeeb2cfb138821c4701b8e7a4e996a603a5f85b390582f6",
+    "frontend/tests/standard-designer.spec.ts": "124c3b50bf7f42a83a7b36addcdc26c23da79a62a261410cb1052a55bfa13c04",
+    "scripts/audit-storage.py": "9c93937d95ed58410e3440fd515e230a639d9028a47a655dbb47a05c9a547dd4",
+    "backend/tests/test_storage_audit.py": "516f8d68a5a52744073393f88b30352ebf814b65a7c6470cc3fbc9f3ded4c072",
+    "frontend/package-lock.json": "5a223eab5fb3cee214ef35ff03aa0d3e570e645aecaa1031f42020344f467f66"
+  },
+  "limitations": [
+    "Source markers are inline references and a source list, not converted footnotes",
+    "Roman format intentionally uses native decorated - I -; footer PAGE roman rendering was found to emit decimal values",
+    "No new Hancom, isolated-network or Docker deployment claim",
+    "Unregistered settings remain in current tab memory"
+  ]
+}

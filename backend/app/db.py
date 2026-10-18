@@ -120,6 +120,17 @@ class TemplateFavorite(Base):
     user_id: Mapped[str] = mapped_column(String(80), primary_key=True)
 
 
+class VisualStandard(Base):
+    __tablename__ = "visual_standards"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(String(80), index=True)
+    snapshot: Mapped[str] = mapped_column(Text)
+    registration_sha256: Mapped[str] = mapped_column(String(64))
+    storage_key: Mapped[str] = mapped_column(String(100), unique=True)
+    size: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[float] = mapped_column(Float)
+
+
 class Proposal(Base):
     __tablename__ = "text_proposals"
     id: Mapped[str] = mapped_column(String(36), primary_key=True)

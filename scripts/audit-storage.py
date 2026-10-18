@@ -8,6 +8,7 @@ from contextlib import closing
 import hashlib
 import json
 from pathlib import Path
+import re
 import sqlite3
 import stat
 import sys
@@ -115,6 +116,59 @@ def audit(database, storage):
             if valid:
                 verified += 1
                 total_bytes += size
+        visual_count = visual_verified = 0
+        if "visual_standards" in tables:
+            for row in snapshot.execute("SELECT id, snapshot, storage_key, size FROM visual_standards"):
+                visual_count += 1
+                identifier, key = row["id"], row["storage_key"]
+                expected_hash = None
+                try:
+                    frozen = json.loads(row["snapshot"])
+                    settings_hash = hashlib.sha256(json.dumps(frozen["settings"], ensure_ascii=False, sort_keys=True,
+                        allow_nan=False).encode()).hexdigest()
+                    if (frozen["id"] != identifier or type(frozen["revision"]) is not int or frozen["revision"] not in (1, 2)
+                        or settings_hash != frozen["settings_sha256"]
+                        or not re.fullmatch(r"[a-f0-9]{64}", frozen["preview_sha256"])):
+                        raise ValueError("invalid frozen standard")
+                    expected_hash = frozen["preview_sha256"]
+                except (KeyError, TypeError, ValueError, UnicodeError):
+                    issue("visual_standard_snapshot_invalid", identifier)
+                try:
+                    if (not isinstance(key, str) or not key.startswith("visual-") or not key.endswith(".hwpx")
+                        or str(uuid.UUID(key[7:-5])) != key[7:-5].lower()):
+                        raise ValueError("unsafe key")
+                    path = storage / key
+                    if path.is_symlink() or path.resolve().parent != storage:
+                        raise ValueError("unsafe path")
+                    attributes = getattr(path.lstat(), "st_file_attributes", 0)
+                    if attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0):
+                        raise ValueError("reparse point")
+                except FileNotFoundError:
+                    issue("visual_standard_missing_blob", identifier)
+                    referenced.add(key)
+                    continue
+                except (ValueError, TypeError, OSError):
+                    issue("visual_standard_unsafe_storage_key", identifier)
+                    continue
+                referenced.add(key)
+                if not path.is_file():
+                    issue("visual_standard_blob_not_file", identifier)
+                    continue
+                try:
+                    size, digest, stable = checksum(path)
+                except OSError:
+                    issue("visual_standard_unreadable_blob", identifier)
+                    continue
+                valid = expected_hash is not None
+                for condition, code in ((stable, "blob_changed_during_read"), (size == row["size"], "size_mismatch"),
+                                        (expected_hash is None or digest == expected_hash, "hash_mismatch")):
+                    if not condition:
+                        issue("visual_standard_" + code, identifier)
+                        valid = False
+                if valid:
+                    verified += 1
+                    visual_verified += 1
+                    total_bytes += size
         # FK constraints do not enforce that related objects belong to the same document.
         checks = [
             ("templates", "SELECT t.id FROM templates t JOIN versions v ON v.id=t.version_id WHERE t.document_id<>v.document_id", "template_document_mismatch"),
@@ -131,6 +185,7 @@ def audit(database, storage):
         return {"kind": "read-only SQLite/blob audit", "result": "failed" if issues else "passed",
                 "started_at": started, "finished_at": time.time(), "documents": len(documents),
                 "versions": len(versions), "verified_blobs": verified, "verified_bytes": total_bytes,
+                "visual_standards": visual_count, "verified_visual_standard_blobs": visual_verified,
                 "issues": issues, "unreferenced_files": unreferenced,
                 "unreferenced_note": "Not deleted. May include quarantined, interrupted or concurrent writes.",
                 "limits": ["SQLite metadata snapshot; blobs are read afterwards and expected immutable",

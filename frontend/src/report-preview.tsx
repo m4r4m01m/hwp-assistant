@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   api,
   ApiError,
@@ -82,6 +83,9 @@ export function ReportPreview({
   onSaved,
   onExit,
   sourceBlocks,
+  toolbarHost,
+  workspacePanelOpen,
+  onShowDetails,
 }: {
   taskId: string;
   draftHash: string;
@@ -89,6 +93,9 @@ export function ReportPreview({
   onSaved: (doc: Document, options?: { unsavedChanges: boolean }) => void;
   onExit: () => void;
   sourceBlocks?: LiveReport["blocks"];
+  toolbarHost?: HTMLElement | null;
+  workspacePanelOpen?: boolean;
+  onShowDetails?: () => void;
 }) {
   const hosts = useRef<(HTMLDivElement | null)[]>([null, null]),
     editor = useRef<EditorAdapter | null>(null),
@@ -126,6 +133,20 @@ export function ReportPreview({
   const processPace = useRef(false),
     livePaper = useRef<HTMLDivElement>(null),
     off = useRef<(() => void) | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(true);
+  useEffect(() => { if (ready) setDetailsOpen(false); }, [ready]);
+  useEffect(() => {
+    if (workspacePanelOpen) setDetailsOpen(false);
+    else if (!ready) setDetailsOpen(true);
+  }, [workspacePanelOpen]);
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setDetailsOpen(false); };
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, []);
+  useEffect(() => {
+    if (error) { setDetailsOpen(true); onShowDetails?.(); }
+  }, [error]);
   function owner(value: Owner) {
     if (!value.alive || ownerRef.current !== value || value.taskId !== taskId)
       throw new BlockFenceError("다른 보고서 초안의 늦은 응답입니다.");
@@ -756,72 +777,67 @@ export function ReportPreview({
       setError(String(e));
     }
   }
-  return (
-    <div className="formatted-report">
-      <ReportProgress stage={stage} count={applied.length} total={total} />
-      <div className="formatted-report-toolbar">
-        <span>
-          {pages ? `${pages}쪽 · ` : ""}
-          {saved
-            ? dirty
-              ? "서버 저장 확인 · 후속 편집 미저장"
-              : "저장된 보고서"
-            : dirty
-              ? "편집한 초안 · 미저장"
-              : "한글 서식 미리보기"}
-        </span>
-        {!ready && (
-          <label className="check-label">
-            <input
-              type="checkbox"
-              checked={showProcess}
-              onChange={(e) => {
-                setShowProcess(e.target.checked);
-                processPace.current = e.target.checked;
-              }}
-            />
-            작성 과정 천천히 보기
-          </label>
-        )}
+  const previewStatus = `${pages ? `${pages}쪽 · ` : ""}${saved
+    ? dirty ? "서버 저장 확인 · 후속 편집 미저장" : "저장된 보고서"
+    : dirty ? "편집한 초안 · 미저장" : "한글 서식 미리보기"}`;
+  const toolbar = (
+      <div className="formatted-report-toolbar" aria-label="한글 초안 작업 도구">
         {ready && !saved && (
           <button
             className="primary"
+            aria-label={pendingSave ? "같은 보고서 저장 재확인" : "초안 확정·서버 저장"}
+            title={pendingSave ? "같은 보고서 저장 재확인" : "초안 확정·서버 저장"}
             disabled={busy || tocBusy || Boolean(tocTask.current)}
             onClick={() => void save()}
           >
-            {pendingSave ? "같은 보고서 저장 재확인" : "초안 확정·서버 저장"}
+            {pendingSave ? <><span>저장</span><span>재확인</span></> : <><span>초안 확정</span><span>서버 저장</span></>}
           </button>
         )}
         {ready &&
           prepared.current?.toc_policy === REPORT_TOC_POLICY &&
           !saved && (
             <button
+              aria-label={tocRetry ? "같은 목차 준비 재확인" : "목차 쪽수 갱신"}
+              title={tocRetry ? "같은 목차 준비 재확인" : "목차 쪽수 갱신"}
               disabled={busy || tocBusy || pendingSave || cancelRetry}
               onClick={() => void refreshToc()}
             >
-              {tocRetry ? "같은 목차 준비 재확인" : "목차 쪽수 갱신"}
+              {tocRetry ? <><span>목차 준비</span><span>재확인</span></> : <span>목차 갱신</span>}
             </button>
           )}
         {(((tocBusy || tocRetry) && ready) || cancelRetry) && (
           <button
+            aria-label={cancelRetry ? "같은 목차 취소 재확인" : "목차 갱신 취소"}
+            title={cancelRetry ? "같은 목차 취소 재확인" : "목차 갱신 취소"}
             disabled={Boolean(tocTask.current?.cancelling && operation.current)}
             onClick={() => void cancelToc()}
           >
-            {cancelRetry ? "같은 목차 취소 재확인" : "목차 갱신 취소"}
+            {cancelRetry ? <><span>목차 취소</span><span>재확인</span></> : <><span>목차 갱신</span><span>취소</span></>}
           </button>
         )}
         {ready && (
-          <button disabled={busy} onClick={download}>
+          <button disabled={busy} onClick={download}
+            aria-label={saved && dirty ? "후속 편집 복구용 다운로드" : "현재 초안 다운로드"}
+            title={saved && dirty ? "후속 편집 복구용 다운로드" : "현재 초안 다운로드"}>
             {saved && dirty
-              ? "후속 편집 복구용 다운로드"
-              : "현재 초안 다운로드"}
+              ? <><span>후속 편집</span><span>복구 출력</span></>
+              : <span>다운로드</span>}
           </button>
         )}
+        <button className={error || tocStatus === "stale" ? "report-status-attention" : ""}
+          aria-label="초안 상태와 진행 정보" aria-expanded={detailsOpen} aria-controls="report-preview-status-panel"
+          title={previewStatus} onClick={() => {
+            if (!detailsOpen) onShowDetails?.();
+            setDetailsOpen(value => !value);
+          }}>
+          <span>{pages ? `${pages}쪽` : "진행"}</span><span>{error ? "상태 !" : tocStatus === "stale" ? "갱신 필요" : "상태"}</span>
+        </button>
         {!ready && !busy && !cancelRetry && (
-          <button onClick={() => void prepare()}>한글 초안 준비 재시도</button>
+          <button aria-label="한글 초안 준비 재시도" title="한글 초안 준비 재시도" onClick={() => void prepare()}><span>초안 준비</span><span>재시도</span></button>
         )}
         {!busy && !tocBusy && !pendingSave && (!saved || dirty) && (
           <button
+            aria-label="초안 편집 종료" title="초안 편집 종료"
             onClick={() => {
               if (
                 !dirty ||
@@ -832,11 +848,23 @@ export function ReportPreview({
                 onExit();
             }}
           >
-            초안 편집 종료
+            <span>편집 종료</span>
           </button>
         )}
       </div>
-      {tocStatus !== "legacy" && (
+  );
+  return (
+    <div className="formatted-report">
+      {toolbarHost ? createPortal(toolbar, toolbarHost) : toolbar}
+      <p role="status" className="report-accessible-status">{status}</p>
+      <aside id="report-preview-status-panel" className="report-workspace-drawer report-status-drawer" hidden={!detailsOpen} aria-label="초안 상태와 진행 정보">
+        <div className="report-drawer-heading"><h2>초안 상태</h2><button aria-label="초안 상태 닫기" onClick={() => setDetailsOpen(false)}>×</button></div>
+        <p>{previewStatus}</p>
+        <ReportProgress stage={stage} count={applied.length} total={total} />
+        {!ready && <label className="check-label"><input type="checkbox" checked={showProcess} onChange={e => {
+          setShowProcess(e.target.checked); processPace.current = e.target.checked;
+        }} />작성 과정 천천히 보기</label>}
+        {tocStatus !== "legacy" && (
         <p className="notice" aria-label="초안 목차 상태">
           {tocStatus === "current"
             ? "목차 쪽수 검증 완료 · 현재 한글 엔진의 실제 쪽수입니다."
@@ -846,13 +874,14 @@ export function ReportPreview({
           {pendingSave && " 저장 재확인이 남아 있어 목차 변경을 보류합니다."}
         </p>
       )}
-      <p role="status">{status}</p>
+      <p>{status}</p>
       <ReportTiming timings={prepared.current?.timings} />
       {error && (
         <p className="error" role="alert">
           {error}
         </p>
       )}
+      </aside>
       <div
         className="formatted-report-surface"
         aria-label="한글 초안 편집기"

@@ -120,18 +120,157 @@ td .button {
 }
 .workspace {
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
-.workspace header {
-  padding: 12px;
+.workspace .editor-header {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 8px;
+  min-height: 60px;
+  padding: 8px 16px;
   background: white;
-  border-bottom: 1px solid #ced8e2;
+  border-bottom: 1px solid #dde5ed;
 }
-.workspace header strong {
-  max-width: 220px;
+.editor-header > button,
+.editor-header > .button,
+.editor-menu > summary {
+  padding: 8px 12px;
+  flex-shrink: 0;
+}
+.editor-header .editor-back {
+  border-color: transparent;
+  padding-left: 0;
+  color: #526b7e;
+}
+.editor-header .editor-document {
+  flex: 1;
+  min-width: 0;
+  padding: 0 12px;
+  border-left: 1px solid #e0e7ef;
+  line-height: 1.45;
+}
+.editor-document strong {
+  display: block;
+  font-size: 15px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.editor-save-state {
+  display: block;
+  font-size: 11px;
+  color: #62788b;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.editor-save-state.unsaved { color: #996212; }
+.editor-save-state.bad { color: #a33824; }
+.editor-header .editor-save { min-width: 68px; }
+.editor-menu { position: relative; flex-shrink: 0; }
+.editor-menu > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 6px;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.editor-menu > summary::-webkit-details-marker { display: none; }
+.editor-menu > summary:hover,
+.editor-menu[open] > summary { background: #edf3f9; }
+.editor-menu-content {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(300px, calc(100vw - 24px));
+  max-height: min(580px, calc(100dvh - 120px));
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid #d1dce7;
+  border-radius: 10px;
+  background: white;
+  box-shadow: 0 10px 30px #17324e26;
+}
+.editor-menu-content > button {
+  display: block;
+  width: 100%;
+  border-color: transparent;
+  text-align: left;
+  margin: 0;
+}
+.editor-menu-content > p { margin: 8px; font-size: 12px; color: #62788b; line-height: 1.6; }
+.editor-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+  gap: 8px;
+  min-height: 43px;
+  padding: 4px 16px;
+  background: #fbfcfe;
+  border-bottom: 1px solid #d5dfe9;
+}
+.editor-tool-group { display: flex; align-items: center; gap: 3px; }
+.editor-tool-group + .editor-tool-group { border-left: 1px solid #dce5ed; padding-left: 8px; }
+.editor-tools button,
+.editor-tools .editor-menu > summary { padding: 6px 9px; font-size: 12px; }
+.editor-tool-group button,
+.editor-undo { border-color: transparent; background: transparent; }
+.editor-tool-group button[aria-pressed="true"] { background: #e5effa; border-color: #c0d5ed; color: #174f83; font-weight: 600; }
+.editor-tool-status { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.editor-tools .editor-toc-state { color: #61778c; background: transparent; border-color: transparent; }
+.editor-tools .editor-toc-state[data-state="stale"],
+.editor-tools .editor-toc-state[data-state="damaged"] { color: #98630f; background: #fff4da; }
+.editor-tools .editor-toc-state[data-state="current"] { color: #26724a; }
+.editor-help-content { width: min(360px, calc(100vw - 24px)); padding: 16px; }
+.editor-help-content > p { margin: 10px 0; }
+.editor-diagnostics { font-size: 12px; border-top: 1px solid #e0e7ef; padding-top: 12px; }
+.editor-diagnostics summary { cursor: pointer; color: #98630f; }
+.editor-diagnostics pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 160px; overflow: auto; line-height: 1.5; }
+.workspace .error { flex: 0 0 auto; max-height: 150px; overflow: auto; }
+.workspace .notice { flex: 0 0 auto; }
+.workspace .panel-close { float: right; margin-top: 0; padding: 4px 9px; font-size: 12px; }
+.workspace aside h2 { margin-top: 4px; }
+.workspace .review-panel,
+.workspace .conversation-panel { flex: 0 0 370px; width: 370px; }
+.workspace aside .hint { color: #62788b; font-size: 12px; }
+@media (max-width: 1100px) {
+  .workspace .editor-row > aside {
+    position: absolute;
+    z-index: 10;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(400px, 100%);
+    max-width: 100%;
+    box-shadow: -8px 0 28px #17324e24;
+  }
+}
+@media (max-width: 700px) {
+  .workspace .editor-header { padding: 8px 10px; gap: 5px; }
+  .editor-header .editor-back { font-size: 12px; }
+  .editor-header .editor-document { padding: 0 8px; }
+  .editor-document strong { font-size: 13px; }
+  .editor-header > button,
+  .editor-header > .button,
+  .editor-menu > summary { padding: 7px 8px; }
+  .editor-header .editor-save { min-width: 48px; }
+  .editor-tools { padding: 4px 8px; gap: 4px; }
+  .editor-tool-status { gap: 3px; }
+  .editor-tool-group + .editor-tool-group { padding-left: 4px; }
+}
+@media (max-width: 480px) {
+  .editor-header .editor-back { font-size: 0; }
+  .editor-header .editor-back::before { content: "←"; font-size: 18px; }
+  .editor-header .editor-download { padding: 7px; font-size: 12px; }
+  .editor-tools .editor-toc-state { max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
 }
 .workspace .notice {
   margin: 0;
@@ -141,6 +280,8 @@ td .button {
   display: flex;
   flex: 1;
   min-height: 0;
+  position: relative;
+  overflow: hidden;
 }
 .editor {
   flex: 1;
@@ -209,7 +350,8 @@ article small {
   white-space: pre-wrap;
 }
 button:focus-visible,
-a:focus-visible {
+a:focus-visible,
+summary:focus-visible {
   outline: 3px solid #4c91c9;
   outline-offset: 2px;
 }

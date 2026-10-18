@@ -6,6 +6,7 @@ import re
 import zipfile
 from xml.etree import ElementTree as E
 from .report_hwpx import HP, HH, paragraphs
+from .document_standard import layout_metrics, paragraph_line_factor
 
 
 def width(text):
@@ -30,10 +31,11 @@ def lines(text, limit, title=False):
     return result or [text]
 
 
-def layout_report(data, plan):
+def layout_report(data, plan, *, visual_settings=None):
     section, before = paragraphs(data)
     if before != [""] + [p["text"] for p in plan]:
         raise ValueError("Report text changed before layout")
+    page_width, page_budget = layout_metrics(section, visual_settings)
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         header = E.fromstring(z.read("Contents/header.xml"))
         chars = {e.get("id"): e for e in header.iter(f"{{{HH}}}charPr")}
@@ -48,7 +50,7 @@ def layout_report(data, plan):
             margin = {e.tag.split("}")[-1]: int(e.get("value")) / 100 for e in margins}
             # Conservative word boundaries also work around this pinned engine's
             # incomplete KEEP_WORD rendering. These are soft breaks inside one paragraph.
-            available = 481.9 - margin["left"] - max(0, -margin["intent"]) - 10
+            available = page_width - margin["left"] - max(0, -margin["intent"]) - 10
             limit = available / size
             parts = lines(item["text"], limit, item["kind"] == "title")
             for child in list(p): p.remove(child)
@@ -57,15 +59,15 @@ def layout_report(data, plan):
                 t = E.SubElement(r, f"{{{HP}}}t"); t.text = part
                 if n < len(parts) - 1: E.SubElement(t, f"{{{HP}}}lineBreak")
             line_count = sum(max(1, math.ceil(width(part.rstrip()) / limit)) for part in parts)
-            spacing = 1.3 if item["kind"] == "source" else 1.6
-            cost = line_count * size * spacing + margin["next"]
+            spacing = paragraph_line_factor(pr) if visual_settings is not None else 1.3 if item["kind"] == "source" else 1.6
+            cost = line_count * size * spacing + margin["next"] + (margin["prev"] if visual_settings is not None and "title_vertical_offset_pt" in visual_settings else 0)
             prepared.append((p, item, cost))
         used = 0
         for index, (p, item, cost) in enumerate(prepared):
             # Keep a heading and its first paragraph together where they fit.
             following = prepared[index + 1][2] if item["kind"] == "heading" and index + 1 < len(prepared) else 0
-            needed = cost + following if cost + following <= 625 else cost
-            new_page = used > 0 and used + needed > 625
+            needed = cost + following if cost + following <= page_budget else cost
+            new_page = used > 0 and used + needed > page_budget
             p.set("pageBreak", "1" if new_page else "0")
             used = cost if new_page else used + cost
         output = io.BytesIO()

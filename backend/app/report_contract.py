@@ -193,14 +193,38 @@ def report_hash(value):
     return digest(canonical(value).encode("utf-8"))
 
 
-def report_blocks(draft, *, concise=False, rich=False):
+def citation_marker(identifier, style):
+    """Presentation only: canonical source IDs in the stored draft never change."""
+    number = identifier[1:]
+    return f"주{number})" if style == "NOTE" else f"*{number}" if style == "ASTERISK" else f"[{identifier}]"
+
+
+def presentation_text(value, settings, source_ids, *, body=False):
+    if body and settings.get("body_parenthetical_labels") is False:
+        # Only the bounded lead-label grammar used by the existing emphasis
+        # contract is eligible. Conditions and parentheses later in prose stay.
+        value = re.sub(r"^(\s*(?:[□ㅇ○-]\s*)?)\(([^()]{1,24})\)(\s*)",
+                       lambda match: match[1] if match[3] else match[0], value, count=1)
+    style = settings.get("citation_style", "BRACKET_S")
+    return re.sub(r"\[(S\d+)\]", lambda match: citation_marker(match[1], style)
+                  if match[1] in source_ids else match[0], value)
+
+
+def report_blocks(draft, *, concise=False, rich=False, visual_settings=None):
     """Budget pages before fenced application, retaining bullet continuation styles."""
     draft = ReportDraft.model_validate(draft)
-    blocks = [(draft.title, "title", False, {}), ("핵심 요약", "heading", False, {}), (draft.summary, "body", False, {})]
+    settings = visual_settings or {}
+    source_ids = {source.id for source in draft.sources}
+    def present(value, *, body=False):
+        return presentation_text(value, settings, source_ids, body=body)
+    emphasis = [{**item.model_dump(), "text": present(item.text, body=True)} for item in draft.emphasis]
+    blocks = [(draft.title, "title", False, {})]
+    if settings.get("show_core_summary", True):
+        blocks.extend([("핵심 요약", "heading", False, {}), (present(draft.summary, body=True), "body", False, {})])
     table_number = diagram_number = 0
     for i, section in enumerate(draft.sections, 1):
         blocks.append((f"{i}. {section.heading}", "heading", True, {}))
-        blocks.extend((p, "body", False, {}) for p in section.paragraphs)
+        blocks.extend((present(p, body=True), "body", False, {}) for p in section.paragraphs)
         for visual in [*section.tables, *section.diagrams]:
             is_table = isinstance(visual, ReportTable)
             if is_table: table_number += 1
@@ -208,30 +232,30 @@ def report_blocks(draft, *, concise=False, rich=False):
             number = table_number if is_table else diagram_number
             kind = "table" if is_table else "diagram"
             # All cell/label/connector text is staged through the same fenced commands.
-            blocks.append((f"{'표' if is_table else '그림'} {number}. {visual.caption}", "source", False,
+            blocks.append((f"{'표' if is_table else '그림'} {number}. {present(visual.caption)}", "source", False,
                            {"visual_caption": kind} if rich else {}))
             rows = [visual.columns, *visual.rows] if is_table else [[part for j, step in enumerate(visual.steps) for part in (["→", step] if j else [step])]]
             for y, row in enumerate(rows):
                 for x, cell in enumerate(row):
-                    blocks.append((cell, "source", False, {"visual_id": f"{kind}-{number}", "visual_kind": kind,
+                    blocks.append((present(cell), "source", False, {"visual_id": f"{kind}-{number}", "visual_kind": kind,
                         "visual_row": y, "visual_column": x, "visual_columns": len(row)} if rich else {}))
     if draft.sources or draft.limitations:
         blocks.append(("출처 및 확인 사항", "heading", True, {}))
         page_chars = 0
         for s in draft.sources:
-            value = f"[{s.id}] {s.title} ({s.published or '발행일 미확인'}) · {s.url}"
+            value = f"{citation_marker(s.id, settings.get('citation_style', 'BRACKET_S'))} {s.title} ({s.published or '발행일 미확인'}) · {s.url}"
             new_page = page_chars + len(value) > 1100
             page_chars = len(value) if new_page else page_chars + len(value)
             blocks.append((value, "source", new_page, {}))
         for p in draft.limitations:
-            value = "확인 사항: " + p
+            value = "확인 사항: " + present(p)
             new_page = page_chars + len(value) > 1100
             page_chars = len(value) if new_page else page_chars + len(value)
             blocks.append((value, "body", new_page, {}))
     if concise:
         from .report_outline import split_bullet
         blocks = [(part, kind, forced and i == 0, meta) for text, kind, forced, meta in blocks
-                  for i, part in enumerate(split_bullet(text, [e.text for e in draft.emphasis] if rich else ()) if kind == "body" else [text])]
+                  for i, part in enumerate(split_bullet(text, [e["text"] for e in emphasis] if rich else ()) if kind == "body" else [text])]
     result, used = [], 0
     for text, kind, forced, meta in blocks:
         style_kind = role(text, kind)
@@ -254,7 +278,7 @@ def report_blocks(draft, *, concise=False, rich=False):
             used = cost if new_page else used + cost
             result.append({"text": chunk, "kind": kind, "page_break": new_page, **meta})
             if rich:
-                result[-1]["emphasis"] = [e.model_dump() for e in draft.emphasis if e.text in chunk]
+                result[-1]["emphasis"] = [item for item in emphasis if item["text"] in chunk]
             if style_kind in ("square", "circle", "dash"):
                 result[-1]["style_kind"] = style_kind + ("_continuation" if index else "")
     return result

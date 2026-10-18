@@ -4,6 +4,8 @@ import { EditorAdapter } from "./editor";
 import { ReportPreview } from "./report-preview";
 import { ReportWriting, ReportTiming, type LiveReport } from "./report-progress";
 import { ReportContent, ReportText, type Emphasis } from "./report-content";
+import type { VisualSelection } from "./standard-designer";
+import "./report-editor-workspace.css";
 
 type Draft = { title: string; summary: string; emphasis?: Emphasis[]; sections: { heading: string; paragraphs: string[];
   tables?: { caption: string; columns: string[]; rows: string[][] }[]; diagrams?: { caption: string; steps: string[] }[] }[];
@@ -11,8 +13,8 @@ type Draft = { title: string; summary: string; emphasis?: Emphasis[]; sections: 
 type Template = { id: string; revision: number; standard_id: string; reference_sha256: string;
   standard_profile_sha256: string; profile_sha256: string;
   values: { name: string; description: string; writing_criteria: string[] } };
-type ReportInput = { id: string; prompt: string; research: boolean; template?: Template };
-type Job = { id: string; input: { prompt: string; research: boolean; template?: Template }; status: string; draft: Draft | null;
+type ReportInput = { id: string; prompt: string; research: boolean; template?: Template; visual_standard?: VisualSelection };
+type Job = { id: string; input: { prompt: string; research: boolean; template?: Template; visual_standard?: VisualSelection }; status: string; draft: Draft | null;
   draft_sha256: string | null; error: string; created_at?: number; execution?: { progress?: LiveReport; timings?: Record<string, number | null> };
   approval: { id: string; document_id: string; saved_version?: string } | null };
 type Approved = { id: string; document_id: string; base_version: string; saved_version?: string; document: Document;
@@ -28,11 +30,21 @@ function encode(bytes: Uint8Array) {
 }
 function decode(value: string) { return Uint8Array.from(atob(value), c => c.charCodeAt(0)); }
 
-export function Reports({ onClose, onOpen }: { onClose: () => void; onOpen: (doc: Document) => void }) {
+export function Reports({ onClose, onOpen, initialVisualStandard }: { onClose: () => void; onOpen: (doc: Document) => void; initialVisualStandard?: VisualSelection }) {
+  const [workspacePanel, setWorkspacePanel] = useState<"request" | "content" | null>("request");
+  const [previewTools, setPreviewTools] = useState<HTMLDivElement | null>(null);
+  const [writingTools, setWritingTools] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setWorkspacePanel(null); };
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, []);
   const [previewLocked, setPreviewLocked] = useState(false);
   const [templates, setTemplates] = useState<Template[]>([]), [templateId, setTemplateId] = useState("standard-business"),
     [savedWithUnsaved, setSavedWithUnsaved] = useState(false);
   const [standard, setStandard] = useState<{ name: string; id: string; reference_url: string } | null>(null);
+  const [visualStandards, setVisualStandards] = useState<VisualSelection[]>([]),
+    [visualId, setVisualId] = useState(initialVisualStandard?.id || "");
   const [prompt, setPrompt] = useState(""), [research, setResearch] = useState(true), [job, setJob] = useState<Job | null>(null),
     [jobs, setJobs] = useState<Job[]>([]), [busy, setBusy] = useState(false), [saving, setSaving] = useState(false),
     [error, setError] = useState(""), [progress, setProgress] = useState(""), [saved, setSaved] = useState<Document | null>(null),
@@ -48,6 +60,9 @@ export function Reports({ onClose, onOpen }: { onClose: () => void; onOpen: (doc
   }; }, []);
   useEffect(() => {
     let stopped = false;
+    // An explicit registered standard starts a new report; the previous frozen
+    // task remains available in recent requests rather than replacing this choice.
+    if (initialVisualStandard) return;
     const id = sessionStorage.getItem("hwp-report-task");
     if (id) void api<Job>(`/report-tasks/${id}`).then(value => {
       if (stopped || active.current !== null) return;
@@ -58,6 +73,12 @@ export function Reports({ onClose, onOpen }: { onClose: () => void; onOpen: (doc
     return () => { stopped = true; };
   }, []);
   useEffect(() => { void api<{ name: string; id: string; reference_url: string }>("/document-standard").then(setStandard).catch(e => setError(String(e))); }, []);
+  useEffect(() => {
+    let stopped = false;
+    void api<{ items: VisualSelection[] }>("/visual-standards").then(value => { if (!stopped) setVisualStandards(value.items); })
+      .catch(e => { if (!stopped) setError(String(e)); });
+    return () => { stopped = true; };
+  }, []);
   useEffect(() => {
     let stopped = false;
     const generation = ++templateFetch.current;
@@ -98,13 +119,16 @@ export function Reports({ onClose, onOpen }: { onClose: () => void; onOpen: (doc
     sessionStorage.setItem("hwp-report-task", value.id);
     setJobs(values => values.map(item => item.id === value.id ? value : item));
     active.current = value.id; setJob(value); setPrompt(value.input.prompt); setResearch(value.input.research);
+    setVisualId(value.input.visual_standard?.id || "");
     setTemplateId(value.input.template?.id || "standard-business"); setSavedWithUnsaved(false);
     setSaved(null); setError(""); setProgress(""); approval.current = null; approvalBody.current = null; output.current = null;
   }
   async function requestReport() {
     const template = templates.find(item => item.id === templateId);
+    const visual = visualStandards.find(item => item.id === visualId);
     if (!pending && !template) { setError("보고서 템플릿을 확인한 뒤 요청하세요."); return; }
-    const frozen = pending || { id: crypto.randomUUID(), prompt, research, template };
+    if (!pending && visualId && !visual) { setError("선택한 문서 표준을 다시 확인하세요."); return; }
+    const frozen = pending || { id: crypto.randomUUID(), prompt, research, template, ...(visual ? { visual_standard: visual } : {}) };
     setPending(frozen); active.current = frozen.id; setBusy(true); setError("");
     sessionStorage.setItem("hwp-report-task", frozen.id);
     try { const result = await api<Job>("/report-tasks", jsonRequest("POST", frozen));
@@ -172,20 +196,47 @@ export function Reports({ onClose, onOpen }: { onClose: () => void; onOpen: (doc
     finally { setSaving(false); }
   }
   const locked = busy || saving || !!lease.current || !!pending || previewLocked;
-  return <main className="report-workspace">
-    <header><button disabled={busy || saving || !!lease.current || previewLocked} onClick={onClose}>← 문서 목록</button><div><small>Codex 보고서 작성</small><h1>주제에서 보고서까지</h1>
-      <p>내용 작성 → 문서 입력 → 서식 적용 → 바로 편집. 초안 확정 시 새 HWPX 문서로 저장합니다.</p></div></header>
-    <div className="report-layout"><section className="report-input">
+  const hasPreview = !!job?.draft && !job.approval;
+  useEffect(() => {
+    if (hasPreview) setWorkspacePanel(null);
+  }, [job?.id, hasPreview]);
+  useEffect(() => {
+    if (saved) setWorkspacePanel("content");
+  }, [saved?.id]);
+  useEffect(() => {
+    if (job?.status === "running") setWorkspacePanel("content");
+  }, [job?.id, job?.status]);
+  const selectedVisual = visualStandards.find(item => item.id === visualId)
+    || (initialVisualStandard?.id === visualId ? initialVisualStandard : undefined);
+  return <main className="report-workspace report-editor-workspace">
+    <nav className="report-workspace-rail" aria-label="보고서 작업 도구">
+      <button aria-label="← 문서 목록" disabled={busy || saving || !!lease.current || previewLocked} onClick={onClose} title="문서 목록으로 돌아가기">←<span>목록</span></button>
+      <button aria-label="작성 요청" title="보고서 작성 요청과 최근 요청" aria-expanded={workspacePanel === "request"} aria-controls="report-request-panel" onClick={() => setWorkspacePanel(value => value === "request" ? null : "request")}>☷<span>작성</span></button>
+      <button aria-label={job?.status === "running" ? "작성 진행" : "결과·출처"} title={job?.status === "running" ? "보고서 작성 진행 정보" : "보고서 결과와 출처"} aria-expanded={workspacePanel === "content"} aria-controls="report-content-panel" onClick={() => setWorkspacePanel(value => value === "content" ? null : "content")}>▤<span>{job?.status === "running" ? "진행" : "내용"}</span></button>
+      <div className="report-preview-tool-host" ref={setPreviewTools} />
+    </nav>
+    <aside id="report-request-panel" className="report-workspace-drawer report-request-drawer" hidden={workspacePanel !== "request"} aria-label="보고서 작성 요청 도구">
+      <div className="report-drawer-heading"><div><small>Codex 보고서 작성</small><h1>주제에서 보고서까지</h1></div><button aria-label="작성 요청 도구 닫기" onClick={() => setWorkspacePanel(null)}>×</button></div>
+      <p className="hint">내용 작성 → 문서 입력 → 서식 적용 → 바로 편집. 초안 확정 시 새 HWPX 문서로 저장합니다.</p>
+      <section className="report-input">
       <h2>어떤 보고서가 필요한가요?</h2>
-      <p className="notice">기본 서식 자동 적용: {standard?.name || "문서작성 표준 확인 중"}<br />
+      <p className="notice">{selectedVisual ? `등록 서식 적용: ${selectedVisual.name}` : `기본 서식 자동 적용: ${standard?.name || "문서작성 표준 확인 중"}`}<br />
         제목의 파란 가로선과 □·ㅇ·- 항목의 들여쓰기를 적용합니다. □ 항목은 2~3줄 내외로 정리하고 비교·계획은 표, 절차는 흐름도로 표현합니다. 괄호 요약은 굵게, 핵심 문구는 굵기·파란색으로 강조합니다.
-        {standard && <> <a href={standard.reference_url} download>기준서 원본 보기</a></>}</p>
+        {standard && <> <a href={standard.reference_url} download>기준서 원본 보기</a></>}
+        {selectedVisual && <> · <a href={`/api/visual-standards/${selectedVisual.id}/file`} download>등록 표준 예시 보기</a></>}</p>
       <label htmlFor="report-template">보고서 템플릿</label>
       <select id="report-template" value={templateId} disabled={locked || !templates.length} onChange={e => setTemplateId(e.target.value)}>
         {templates.map(item => <option key={item.id} value={item.id}>{item.values.name}</option>)}
       </select>
-      <p className="hint">{templates.find(item => item.id === templateId)?.values.description || "보고서 템플릿 확인 중"} · 모든 템플릿에 문서작성 표준을 적용합니다.</p>
+      <p className="hint">{templates.find(item => item.id === templateId)?.values.description || "보고서 템플릿 확인 중"} · 작성 목적과 내용 구성을 정합니다.</p>
       <button disabled={locked} onClick={() => void refreshTemplates()}>템플릿 목록 다시 확인</button>
+      <label htmlFor="report-visual-standard">문서 서식 표준</label>
+      <select id="report-visual-standard" value={visualId} disabled={locked || job?.status === "running"} onChange={e => setVisualId(e.target.value)}>
+        <option value="">기본 문서작성 표준</option>
+        {visualStandards.map(item => <option key={item.id} value={item.id}>{item.name} · 등록 서식</option>)}
+      </select>
+      <p className="hint">등록한 제목·본문·표 서식은 새 요청에 적용됩니다. 이전 초안과 저장 문서는 그대로 유지됩니다.</p>
+      <button disabled={locked} onClick={() => void api<{ items: VisualSelection[] }>("/visual-standards").then(value => { setVisualStandards(value.items); setError(""); }).catch(e => setError(String(e)))}>문서 표준 목록 다시 확인</button>
       <label htmlFor="report-prompt">보고서 작성 요청</label><textarea id="report-prompt" rows={9} maxLength={6000} value={prompt} disabled={locked}
         onChange={e => setPrompt(e.target.value)} placeholder="금융권 해킹 문제에 대한 경영진 보고서를 만들어줘. 주요 사례와 대응 계획, 출처를 포함해줘." />
       <div className="report-examples">{["금융권 해킹 대응", "외부 업체·클라우드 보안", "고객정보 유출 대응"].map((name, i) => <button key={name} disabled={locked} onClick={() => setPrompt(examples[i])}>{name}</button>)}</div>
@@ -197,7 +248,6 @@ export function Reports({ onClose, onOpen }: { onClose: () => void; onOpen: (doc
         const id = job.id; setBusy(true); try { const result = await api<Job>(`/report-tasks/${id}/cancel`, { method: "POST" }); if (active.current === id) setJob(result); }
         catch (e) { setError(String(e)); } finally { setBusy(false); }
       }}>결과 수신 중단</button><small>수신 중단 후 이 요청의 로컬 실행을 정리합니다.</small></>}
-      {job?.status === "failed" && <p role="alert">{job.error}</p>}
       {job?.status === "cancelled" && <p>결과 수신을 중단했습니다. 새 지시로 다시 시작할 수 있습니다.</p>}
       <h3>최근 보고서 요청</h3><button disabled={locked} onClick={() => void refresh()}>목록 새로고침</button>
       <ul className="report-history">{jobs.map(value => <li key={value.id}><button disabled={locked || job?.status === "running"} onClick={async () => {
@@ -207,14 +257,25 @@ export function Reports({ onClose, onOpen }: { onClose: () => void; onOpen: (doc
         } catch (e) { setError(String(e)); } finally { setBusy(false); }
       }}>{value.draft?.title || value.input.prompt.slice(0, 55)}</button>
         <small>{({ ready: "초안 준비", running: "작성 중", failed: "생성 실패", cancelled: "중단" } as Record<string, string>)[value.status]}{value.approval?.saved_version ? " · 저장됨" : ""}</small></li>)}</ul>
-    </section><section className="report-preview" aria-label="보고서 초안">
-      {error && <p className="error" role="alert">{error}</p>}
-      {job?.status === "running" || (!job?.draft && !!job?.execution?.progress?.blocks.length) ? <ReportWriting key={job.id} startedAt={job.created_at} progress={job.execution?.progress} stopped={job.status !== "running"} /> : job?.draft ? <><h1>{job.draft.title}</h1>
-        {job.input.template && <p className="hint">작성 기준: {job.input.template.values.name}</p>}
-        <ReportTiming timings={job.execution?.timings} />
-        {!job.approval && <ReportPreview key={job.id} taskId={job.id} draftHash={job.draft_sha256!} onLock={setPreviewLocked}
+    </section></aside>
+    <section className="report-preview report-workspace-canvas" aria-label="보고서 초안">
+      {error && <p className="report-workspace-error error" role="alert">{error}</p>}
+      {!error && job?.status === "failed" && <p className="report-workspace-error error" role="alert">{job.error}</p>}
+      {job?.status === "running" || (!job?.draft && !!job?.execution?.progress?.blocks.length) ? <ReportWriting key={job.id} startedAt={job.created_at} progress={job.execution?.progress} stopped={job.status !== "running"} controlsHost={writingTools} /> : job?.draft ? <>
+        {!job.approval && <ReportPreview key={job.id} taskId={job.id} draftHash={job.draft_sha256!} onLock={setPreviewLocked} toolbarHost={previewTools}
+          workspacePanelOpen={workspacePanel !== null} onShowDetails={() => setWorkspacePanel(null)}
           onSaved={(doc, options) => { setSaved(doc); setSavedWithUnsaved(!!options?.unsavedChanges); }} sourceBlocks={job.execution?.progress?.blocks}
-          onExit={() => { setPreviewLocked(false); setJob(null); setSaved(null); setSavedWithUnsaved(false); active.current = null; sessionStorage.removeItem("hwp-report-task"); }} />}
+          onExit={() => { setPreviewLocked(false); setJob(null); setSaved(null); setSavedWithUnsaved(false); active.current = null; sessionStorage.removeItem("hwp-report-task"); setWorkspacePanel("request"); }} />}
+        {job.approval && <div className="report-empty"><h2>{job.draft.title}</h2><p>결과·출처에서 저장 상태를 확인하고 보고서를 열 수 있습니다.</p><button onClick={() => setWorkspacePanel("content")}>보고서 결과 보기</button></div>}
+      </> : <div className="report-empty"><h2>요청을 입력하면 이곳에 초안이 표시됩니다.</h2><p>핵심 요약, 본문, 출처를 함께 검토할 수 있습니다.</p><button onClick={() => setWorkspacePanel("request")}>작성 요청 열기</button></div>}
+    </section>
+    <aside id="report-content-panel" className="report-workspace-drawer report-content-drawer" hidden={workspacePanel !== "content"} aria-label="보고서 결과와 출처">
+      <div className="report-drawer-heading"><h2>결과·출처</h2><button aria-label="보고서 결과와 출처 닫기" onClick={() => setWorkspacePanel(null)}>×</button></div>
+      <div ref={setWritingTools} />
+      {job?.draft ? <><h1>{job.draft.title}</h1>
+        {job.input.template && <p className="hint">작성 기준: {job.input.template.values.name}</p>}
+        {job.input.visual_standard && <p className="hint">고정 서식: {job.input.visual_standard.name}</p>}
+        <ReportTiming timings={job.execution?.timings} />
         {job.approval?.saved_version && !saved && <button className="primary" onClick={async () => {
           try { const value = await api<Approved>(`/report-tasks/${job.id}/approved`); onOpen(value.document); } catch (e) { setError(String(e)); }
         }}>저장된 보고서 편집하기</button>}
@@ -228,7 +289,7 @@ export function Reports({ onClose, onOpen }: { onClose: () => void; onOpen: (doc
         {job.draft.limitations.map((p, i) => <p key={i} className="hint">{p}</p>)}
         </details>
         {job.approval && !job.approval.saved_version && !saved && <button className="primary" disabled={busy || saving} onClick={() => void makeDocument()}>{saving ? "HWPX 만드는 중…" : output.current ? "같은 보고서 저장 재확인" : "기존 승인 저장 계속하기"}</button>}
-      </> : <div className="report-empty"><h2>요청을 입력하면 이곳에 초안이 표시됩니다.</h2><p>핵심 요약, 본문, 출처를 함께 검토할 수 있습니다.</p></div>}
+      </> : <p className="hint">초안이 완성되면 생성 원문과 출처를 확인할 수 있습니다.</p>}
       {progress && <p role="status">{progress}</p>}
       {!saving && !saved && lease.current && !output.current && <button onClick={async () => {
         const current = lease.current!; setBusy(true);
@@ -240,6 +301,6 @@ export function Reports({ onClose, onOpen }: { onClose: () => void; onOpen: (doc
       {saved && <div className="notice"><a className="button" href={fileUrl(saved)}>완성 보고서 다운로드</a><button onClick={() => {
         if (!savedWithUnsaved || window.confirm("저장한 출력 이후의 편집은 아직 서버에 저장되지 않았습니다. 현재 초안을 다운로드한 뒤 저장된 문서를 열까요?")) onOpen(saved);
       }}>보고서 편집하기</button></div>}
-    </section></div><div ref={host} className="report-engine" aria-hidden="true" />
+    </aside><div ref={host} className="report-engine" aria-hidden="true" />
   </main>;
 }

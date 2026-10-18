@@ -10,6 +10,9 @@
   "source_sha256": {
     "header.rs": "7ab5d7bd3dca464fab2b9bf65351f95547bf335835e7338e546e65d9e73ed754",
     "shape.rs": "52053c287545bc14bab65df5cf311e277e15d3007870ff622a217faa9a9826cb",
-    "char_shapes.rs": "47ee45e9a0ef6c5b0c27a342ad1982030d10a9d965157fe4d01fb1fe22fd832a"
-  }
+    "char_shapes.rs": "47ee45e9a0ef6c5b0c27a342ad1982030d10a9d965157fe4d01fb1fe22fd832a",
+    "cursor_nav.rs": "80bd8bff0db56d1c348c10c24b5cb6151032ebd91539097f15b5484c30cd35d0"
+  },
+  "selection_patch": "rhwp-0.8.6-body-selection",
+  "selection_patch_sha256": "b2e25c437b29e8a478bd29d503d383aee138d7b1c3f84301d854ed9b99281b5f"
 }

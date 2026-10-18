@@ -14,7 +14,7 @@ if ((& $bindgen --version) -ne 'wasm-bindgen 0.2.127') { throw 'Unexpected wasm-
 if ((& rustc +1.93.1 --version) -notmatch '^rustc 1\.93\.1 ') { throw 'Unexpected Rust version' }
 Push-Location .cache/rhwp-core-fix
 try {
-    & rustfmt --check --edition 2021 src/serializer/hwpx/header.rs src/serializer/hwpx/shape.rs src/serializer/hwpx/char_shapes.rs
+    & rustfmt --check --edition 2021 src/serializer/hwpx/header.rs src/serializer/hwpx/shape.rs src/serializer/hwpx/char_shapes.rs src/document_core/queries/cursor_nav.rs
     if ($LASTEXITCODE -ne 0) { throw 'Patched Rust format check failed' }
     & cargo build --locked -p rhwp --lib --release --target wasm32-unknown-unknown
     if ($LASTEXITCODE -ne 0) { throw 'WASM compilation failed' }
@@ -25,3 +25,5 @@ try {
 if ($LASTEXITCODE -ne 0) { throw 'Core provenance recording failed' }
 & node scripts/test-engine-fill.mjs .cache/rhwp-core-fix/pkg
 if ($LASTEXITCODE -ne 0) { throw 'Real WASM fill regression failed' }
+& node scripts/test-engine-selection.mjs .cache/rhwp-core-fix/pkg
+if ($LASTEXITCODE -ne 0) { throw 'Real WASM body selection regression failed' }

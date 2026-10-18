@@ -20,7 +20,7 @@ def paragraphs(data):
     return root, ["".join(t.text or "" for t in p.iter(f"{{{HP}}}t")) for p in root]
 
 
-def scaffold(seed, blocks):
+def scaffold(seed, blocks, *, visual_settings=None):
     root, texts = paragraphs(seed)
     if len(texts) != 1 or any(texts) or len(list(root)) != 1:
         raise HTTPException(422, "새 빈 문서만 보고서 틀로 사용할 수 있습니다.")
@@ -33,7 +33,7 @@ def scaffold(seed, blocks):
         raise HTTPException(422, "빈 문서의 문단 서식이 없습니다.")
     # The caller's seed only proves this is a new blank document. Formatting
     # always comes from the verified bundled standard, never an arbitrary seed.
-    _, header, properties, formats = report_styles()
+    _, header, properties, formats = report_styles(visual_settings=visual_settings)
     original.attrib.update(id="0", paraPrIDRef=formats["empty"][1], styleIDRef="0", pageBreak="0", columnBreak="0", merged="0")
     for child in list(original): original.remove(child)
     run = ET.SubElement(original, f"{{{HP}}}run", {"charPrIDRef": formats["empty"][0]})
@@ -41,7 +41,27 @@ def scaffold(seed, blocks):
     ctrl = ET.SubElement(run, f"{{{HP}}}ctrl")
     ET.SubElement(ctrl, f"{{{HP}}}colPr", {"id": "0", "type": "NEWSPAPER", "layout": "LEFT", "colCount": "1", "sameSz": "1", "sameGap": "0"})
     ctrl = ET.SubElement(run, f"{{{HP}}}ctrl")
-    ET.SubElement(ctrl, f"{{{HP}}}pageNum", {"pos": "BOTTOM_CENTER", "formatType": "DIGIT", "sideChar": "-"})
+    style = visual_settings.get("page_number_style", "DASH") if visual_settings else "DASH"
+    position = visual_settings.get("page_number_position", "BOTTOM_CENTER") if visual_settings else "BOTTOM_CENTER"
+    ET.SubElement(ctrl, f"{{{HP}}}pageNum", {"pos": position if style in ("DASH", "ROMAN") else "NONE",
+        "formatType": "ROMAN_CAPITAL" if style == "ROMAN" else "DIGIT", "sideChar": "-"})
+    if style == "PLAIN":
+        # The pinned pageNum sideChar parser/exporter substitutes '-' for an
+        # empty decoration. Native footer PAGE auto-number fields round-trip
+        # plain numbers without that fallback or literal page strings. Roman
+        # uses pageNum because footer PAGE substitution renders decimal only.
+        ctrl = ET.SubElement(run, f"{{{HP}}}ctrl")
+        footer = ET.SubElement(ctrl, f"{{{HP}}}footer", dict(id="910001", applyPageType="BOTH"))
+        sub = ET.SubElement(footer, f"{{{HP}}}subList", dict(id="", textDirection="HORIZONTAL", lineWrap="BREAK", vertAlign="TOP",
+            linkListIDRef="0", linkListNextIDRef="0", textWidth="0", textHeight="0", hasTextRef="0", hasNumRef="0"))
+        cid, pid = formats["page_number"]
+        fp = ET.SubElement(sub, f"{{{HP}}}p", dict(id="910002", paraPrIDRef=pid, styleIDRef="0", pageBreak="0", columnBreak="0", merged="0"))
+        fr = ET.SubElement(fp, f"{{{HP}}}run", dict(charPrIDRef=cid))
+        fc = ET.SubElement(fr, f"{{{HP}}}ctrl")
+        number = ET.SubElement(fc, f"{{{HP}}}autoNum", dict(num="1", numType="PAGE"))
+        ET.SubElement(number, f"{{{HP}}}autoNumFormat", dict(type="DIGIT",
+            userChar="", prefixChar="", suffixChar="", supscript="0"))
+        ET.SubElement(fr, f"{{{HP}}}t")
     ET.SubElement(run, f"{{{HP}}}t")
     plan = []
     for index, block in enumerate(blocks, 1):

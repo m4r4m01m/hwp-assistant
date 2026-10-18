@@ -13,11 +13,14 @@ import {
   type Version,
 } from "./api";
 import "./style.css";
+import "./viewport.css";
 import { AccessPanel, CollaborationPanel } from "./collaboration";
 import { Reports } from "./reports";
 import { TemplateMarket } from "./template-market";
+import { StandardDesigner, type VisualSelection } from "./standard-designer";
 import { BlockInsert, BlockFenceError, blockJson, type BlockCapture, type PreparedBlock } from "./block-insert";
 import { TocPanel, type TocCapture, type PreparedToc } from "./toc";
+import "./editor-workspace.css";
 
 function App({
   account,
@@ -37,6 +40,8 @@ function App({
     [history, setHistory] = useState<Document | null>(null),
     [sharing, setSharing] = useState<Document | null>(null),
     [templates, setTemplates] = useState(false),
+    [standardDesigner, setStandardDesigner] = useState(false),
+    [reportStandard, setReportStandard] = useState<VisualSelection | undefined>(),
     [registerTemplate, setRegisterTemplate] = useState<Document | undefined>(),
     [reports, setReports] = useState(false);
   const listGeneration = useRef(0);
@@ -82,10 +87,13 @@ function App({
       setError(String(e));
     }
   }
-  if (reports) return <Reports onClose={() => { setReports(false); refresh(); }} onOpen={doc => { setReports(false); setActive(doc); }} />;
+  if (standardDesigner) return <StandardDesigner onClose={() => { setStandardDesigner(false); refresh(); }}
+    onReport={standard => { setReportStandard(standard); setStandardDesigner(false); setReports(true); }} />;
+  if (reports) return <Reports initialVisualStandard={reportStandard} onClose={() => { setReports(false); setReportStandard(undefined); refresh(); }} onOpen={doc => { setReports(false); setReportStandard(undefined); setActive(doc); }} />;
   if (templates) return <TemplateMarket registerDocument={registerTemplate}
     onClose={() => { setTemplates(false); setRegisterTemplate(undefined); refresh(); }}
     onApply={doc => { setTemplates(false); setRegisterTemplate(undefined); setActive(doc); }}
+    onDesignStandard={() => { setTemplates(false); setRegisterTemplate(undefined); setStandardDesigner(true); }}
     onReport={() => { setTemplates(false); setRegisterTemplate(undefined); setReports(true); }} />;
   if (active?.role === "reader")
     return (
@@ -136,6 +144,7 @@ function App({
         <button onClick={() => setCreating(true)}>+ 새 문서</button>
         <button className="primary" onClick={() => setReports(true)}>보고서 작성</button>
         <button onClick={() => { setRegisterTemplate(undefined); setTemplates(true); }}>템플릿 마켓</button>
+        <button onClick={() => setStandardDesigner(true)}>문서 표준 편집</button>
         {account.authentication_required && (
           <button
             onClick={async () => {
@@ -339,6 +348,23 @@ function App({
   );
 }
 
+function EditorRailIcon({ name }: { name: "back" | "document" | "save" | "download" | "file" | "block" | "toc" | "conversation" | "review" | "help" | "undo" }) {
+  const paths = {
+    back: "M15 5 8 12l7 7M8 12h12",
+    document: "M7 3h7l4 4v14H7zM14 3v5h4M10 12h5M10 16h5",
+    save: "M5 3h13l3 3v15H3V3zM7 3v6h10V3M7 21v-8h10v8",
+    download: "M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4",
+    file: "M3 6h7l2 2h9v12H3zM3 6V4h7l2 2h7v2",
+    block: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM17.5 14v7M14 17.5h7",
+    toc: "M8 5h13M8 12h13M8 19h13M3 5h.01M3 12h.01M3 19h.01",
+    conversation: "M4 4h16v12H9l-5 4zM8 8h8M8 12h5",
+    review: "M4 3h12v8M4 3v18h8M8 7h4M8 11h3M15 15l2 2 4-5",
+    help: "M9.1 8a3 3 0 0 1 5.8 1c0 2-3 2-3 4M12 17h.01M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20",
+    undo: "M9 4 4 9l5 5M4 9h10a6 6 0 0 1 0 12h-3",
+  };
+  return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]} /></svg>;
+}
+
 function Editor({
   initial,
   onClose,
@@ -382,6 +408,7 @@ function Editor({
     [dirty, setDirty] = useState(false),
     [panel, setPanel] = useState(false),
     [conversationPanel, setConversationPanel] = useState(false),
+    [conversationMounted, setConversationMounted] = useState(false),
     [aiBusy, setAiBusy] = useState(false),
     [aiError, setAiError] = useState(""),
     [proposal, setProposal] = useState<{
@@ -401,6 +428,64 @@ function Editor({
     [blockUndoAvailable, setBlockUndoAvailable] = useState(false), [activeBlockHost, setActiveBlockHost] = useState(0);
   const [tocPanel, setTocPanel] = useState(false), [tocStatus, setTocStatus] = useState<"unknown" | "none" | "recorded" | "current" | "stale" | "damaged">("unknown");
   const tocKnown = useRef(false);
+  const fileMenu = useRef<HTMLDetailsElement>(null), helpMenu = useRef<HTMLDetailsElement>(null), documentMenu = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const menus = [fileMenu, helpMenu, documentMenu];
+    let frameFocusTimer: ReturnType<typeof setTimeout> | undefined;
+    const dismiss = (event: PointerEvent) => menus.forEach(menu => {
+      if (menu.current && !menu.current.contains(event.target as Node)) menu.current.open = false;
+    });
+    // Pointer events inside the editor iframe do not reach the outer document.
+    const frameFocus = () => {
+      clearTimeout(frameFocusTimer);
+      frameFocusTimer = setTimeout(() => {
+        if (document.activeElement instanceof HTMLIFrameElement)
+          menus.forEach(menu => { if (menu.current) menu.current.open = false; });
+      }, 0);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      menus.forEach(menu => {
+        if (!menu.current?.open) return;
+        menu.current.open = false;
+        menu.current.querySelector("summary")?.focus();
+      });
+    };
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("keydown", escape);
+    window.addEventListener("blur", frameFocus);
+    return () => {
+      clearTimeout(frameFocusTimer);
+      document.removeEventListener("pointerdown", dismiss); document.removeEventListener("keydown", escape);
+      window.removeEventListener("blur", frameFocus);
+    };
+  }, []);
+  function showPanel(next: "block" | "toc" | "review" | "conversation" | null) {
+    // A prepared preview belongs to its panel until it is explicitly applied or cancelled.
+    if (blockHold.current && next !== null && ((blockPanel && next !== "block") || (tocPanel && next !== "toc"))) {
+      setError("준비한 블록·목차를 반영하거나 해당 패널에서 취소한 뒤 다른 도구를 여세요.");
+      return;
+    }
+    if (conversationPanel && next === null && contextDraftDirty.current) {
+      if (!confirm("저장하지 않은 작성 정보가 있습니다. 패널을 닫으면 입력이 사라집니다. 계속할까요?")) return;
+      contextDraftDirty.current = false;
+    }
+    // Switching tools hides this panel without losing unsent messages or writing inputs.
+    // Its explicit close action retains the existing discard/reopen behavior.
+    if (next === "conversation") setConversationMounted(true);
+    else if (next === null && conversationPanel) setConversationMounted(false);
+    setBlockPanel(next === "block"); setTocPanel(next === "toc");
+    setPanel(next === "review"); setConversationPanel(next === "conversation");
+  }
+  const tocLabel = {
+    unknown: "목차 확인 필요", none: "목차 없음", recorded: "목차 기록 일치",
+    current: "목차 쪽수 검증 완료", stale: "목차 갱신 필요", damaged: "목차 손상 · 자동 갱신 불가",
+  }[tocStatus];
+  const tocDescription = {
+    unknown: "목차 관리에서 제목과 현재 쪽수를 확인하세요.", none: "목차 관리에서 본문 제목을 선택해 목차를 만들 수 있습니다.",
+    recorded: "실제 쪽수는 목차 관리에서 다시 검증할 수 있습니다.", current: "현재 편집 내용에서 목차 제목과 실제 쪽수를 검증했습니다.",
+    stale: "본문 수정 후 목차 관리에서 쪽수를 다시 확인하세요.", damaged: "목차 연결을 확인할 수 없습니다. 목차 관리에서 상태를 확인하세요.",
+  }[tocStatus];
   function activateBlockHost(index: number) {
     blockHosts.current.forEach((host, candidate) => {
       if (!host) return;
@@ -751,9 +836,12 @@ function Editor({
     }
   }
   return (
-    <div className="workspace">
-      <header>
+    <div className="workspace editor-workspace">
+      <nav className="editor-rail" aria-label="문서 작업">
         <button
+          className="editor-rail-action editor-back"
+          title="문서 목록"
+          aria-label="← 문서 목록"
           onClick={() => {
             if (blockHold.current) { setError("블록 준비를 삽입하거나 취소한 뒤 문서 목록으로 돌아가세요."); return; }
             if (
@@ -766,18 +854,40 @@ function Editor({
               onClose();
           }}
         >
-          ← 문서 목록
+          <EditorRailIcon name="back" /><span>목록</span>
         </button>
-        <strong>{name}</strong>
-        <span role="status" className={status.includes("실패") ? "bad" : ""}>
-          {status}
-        </span>
+        <details className="editor-menu editor-document-menu" name="editor-overflow" ref={documentMenu}>
+          <summary className="editor-rail-action" aria-label="문서 정보" title={`${name} · ${status}`}>
+            <EditorRailIcon name="document" /><span>문서</span>
+            <span role="status" className={`editor-save-state${status.includes("실패") ? " bad" : ""}${dirty ? " unsaved" : ""}`}>
+              <span className="editor-visually-hidden">{status}</span>
+            </span>
+          </summary>
+          <div className="editor-menu-content editor-document" role="group" aria-label="현재 문서 정보">
+            <strong title={name}>{name}</strong>
+            <p>{status}</p>
+            {doc.current && <p>{tocLabel} · {tocDescription}</p>}
+          </div>
+        </details>
         <button
+          className="primary editor-rail-action editor-save"
+          title="서버 저장"
+          aria-label="저장"
           disabled={!ready || status === "저장 중" || blockHolding}
           onClick={() => void save(true)}
         >
-          저장
+          <EditorRailIcon name="save" /><span>저장</span>
         </button>
+        {doc.current && (
+          <a className="button editor-rail-action editor-download" aria-label="저장본 다운로드" title="서버에 저장된 버전 다운로드" href={fileUrl(doc.current)}>
+            <EditorRailIcon name="download" /><span>받기</span>
+          </a>
+        )}
+        <details className="editor-menu" name="editor-overflow" ref={fileMenu}>
+          <summary className="editor-rail-action" aria-label="파일 작업" title="파일 작업"><EditorRailIcon name="file" /><span>파일</span></summary>
+          <div className="editor-menu-content" role="group" aria-label="파일 작업 메뉴" onClick={event => {
+            if ((event.target as Element).closest("button, a") && fileMenu.current) fileMenu.current.open = false;
+          }}>
         <button
           disabled={!ready || blockHolding}
           onClick={async () => {
@@ -797,11 +907,6 @@ function Editor({
         >
           다른 이름으로 저장
         </button>
-        {doc.current && (
-          <a className="button" href={fileUrl(doc.current)}>
-            저장본 다운로드
-          </a>
-        )}
         <button
           disabled={!ready}
           onClick={() => {
@@ -820,45 +925,44 @@ function Editor({
         <button disabled={!doc.current} onClick={() => onHistory(doc.current!)}>
           버전 기록
         </button>
-        <button disabled={!ready} onClick={() => { setTocPanel(false); setBlockPanel(value => !value); }}>블록 삽입 {blockPanel ? "닫기" : "열기"}</button>
-        {doc.current?.role !== "reader" && <button disabled={!ready} onClick={() => { setBlockPanel(false); setTocPanel(value => !value); }}>목차 {tocPanel ? "닫기" : "관리"}</button>}
-        {blockUndoAvailable && <button disabled={blockHolding || status === "저장 중"} onClick={undoBlock}>방금 삽입 취소</button>}
-        <button onClick={() => setPanel(!panel)}>
-          AI 검토 {panel ? "닫기" : "열기"}
-        </button>
-        <button
-          disabled={!doc.current}
-          onClick={() => {
-            if (conversationPanel && contextDraftDirty.current && !confirm("저장하지 않은 작성 정보가 있습니다. 패널을 닫으면 입력이 사라집니다. 계속할까요?")) return;
-            contextDraftDirty.current = false;
-            setConversationPanel(!conversationPanel);
-          }}
-        >
-          대화 · AI {conversationPanel ? "닫기" : "열기"}
-        </button>
-      </header>
+          <p>다운로드는 서버 저장과 별개입니다. 미저장 내용은 복구용 다운로드에 포함됩니다.</p>
+          </div>
+        </details>
+        <div className="editor-rail-group" role="group" aria-label="문서 구성">
+          <button className="editor-rail-action" disabled={!ready} title="블록 삽입" aria-label={`블록 삽입 ${blockPanel ? "닫기" : "열기"}`} aria-pressed={blockPanel}
+            onClick={() => showPanel(blockPanel ? null : "block")}><EditorRailIcon name="block" /><span>블록</span></button>
+          {doc.current?.role !== "reader" && <button className="editor-rail-action editor-toc-state" disabled={!ready} data-state={tocStatus} title={`목차 관리 · ${tocLabel} · ${tocDescription}`} aria-label={`목차 ${tocPanel ? "닫기" : "관리"}`} aria-pressed={tocPanel}
+            onClick={() => showPanel(tocPanel ? null : "toc")}><EditorRailIcon name="toc" /><span>목차</span><i className="editor-toc-dot" aria-hidden="true" /><span className="editor-visually-hidden" aria-label="목차 상태">{tocLabel}</span></button>}
+        </div>
+        <div className="editor-rail-group" role="group" aria-label="AI 및 대화">
+          <button className="editor-rail-action" disabled={!doc.current} title="대화 · AI" aria-label={`대화 · AI ${conversationPanel ? "닫기" : "열기"}`} aria-pressed={conversationPanel}
+            onClick={() => showPanel(conversationPanel ? null : "conversation")}><EditorRailIcon name="conversation" /><span>대화</span></button>
+          <button className="editor-rail-action" title="사내 AI 검토" aria-label={`AI 검토 ${panel ? "닫기" : "열기"}`} aria-pressed={panel}
+            onClick={() => showPanel(panel ? null : "review")}><EditorRailIcon name="review" /><span>검토</span></button>
+        </div>
+        {blockUndoAvailable && <button className="editor-rail-action editor-undo" title="방금 삽입 취소" aria-label="방금 삽입 취소" disabled={blockHolding || status === "저장 중"} onClick={undoBlock}><EditorRailIcon name="undo" /><span>취소</span></button>}
+          <details className="editor-menu editor-help" name="editor-overflow" ref={helpMenu}>
+            <summary className="editor-rail-action" aria-label="편집 안내 및 진단" title={`편집 안내${warnings ? " · 엔진 진단 있음" : ""}`}><EditorRailIcon name="help" /><span>안내</span></summary>
+            <div className="editor-menu-content editor-help-content">
+              <strong>편집 및 저장 안내</strong>
+              <p>왼쪽 저장 버튼과 20초 간격 자동 저장이 서버에 새 버전을 만듭니다.</p>
+              <p>AI 적용은 단일 서식의 본문 문단 전체만 지원합니다.</p>
+              {doc.current && <p>{tocLabel} · {tocDescription}</p>}
+              {warnings && <details className="editor-diagnostics"><summary>엔진 열기 진단 / 호환성 안내</summary><pre>{warnings}</pre></details>}
+            </div>
+          </details>
+      </nav>
+      <div className="editor-notifications" aria-label="편집 알림">
       {error && (
         <div role="alert" className="error">
           {error}
         </div>
       )}
-      <div className="notice">
-        상단의 저장 버튼과 20초 간격 자동 저장이 서버에 새 버전을 만듭니다. AI
-        적용은 단일 서식의 본문 문단 전체만 지원합니다.
-      </div>
       {holdingReview && <div className="notice">후보 비교를 위해 자동 저장을 보류 중입니다. 수동 저장하면 기존 후보의 기준 버전이 오래될 수 있습니다.
         <button onClick={() => { reviewHold.current = false; setHoldingReview(false); }}>비교 종료 · 자동 저장 재개</button>
       </div>}
       {blockHolding && <div className="notice">블록·목차를 준비하는 동안 자동 저장을 보류합니다. 기존 문서에서 계속 편집할 수 있으며, 변경 후에는 다시 준비해야 합니다.</div>}
-      {(tocStatus === "current" || tocStatus === "stale" || tocStatus === "damaged") && <div className="notice" aria-label="목차 상태">{tocStatus === "current" ? "목차 쪽수 검증 완료" : tocStatus === "damaged" ? "목차 손상 · 자동 갱신 불가" : "목차 갱신 필요 · 본문 수정 후 쪽수를 다시 확인하세요"}</div>}
-      {tocStatus === "unknown" && doc.current && <div className="notice" aria-label="목차 상태">목차 확인 필요 · 목차 관리에서 제목과 현재 쪽수를 확인하세요.</div>}
-      {tocStatus === "recorded" && <div className="notice" aria-label="목차 상태">목차 기록 일치 · 실제 쪽수는 목차 관리에서 다시 검증할 수 있습니다.</div>}
-      {warnings && (
-        <details className="warnings">
-          <summary>엔진 열기 진단 / 호환성 안내</summary>
-          <pre>{warnings}</pre>
-        </details>
-      )}
+      </div>
       <div className="editor-row">
         <div className="editor block-editor-wrapper" ref={mount}>
           {[0, 1, 2].map(index => <div key={index} ref={node => { blockHosts.current[index] = node; }}
@@ -883,8 +987,9 @@ function Editor({
             const current = captured.adapter.exportHwpx();
             setTocStatus(value === "current" ? ((current.epoch !== captured.source.epoch || current.revision !== captured.source.revision || !equalBytes(current.bytes, captured.source.bytes)) ? "stale" : "recorded") : value);
           }} onClose={() => setTocPanel(false)} />}
-        {conversationPanel && doc.current && (
-          <aside className="conversation-panel">
+        {conversationMounted && doc.current && (
+          <aside className="conversation-panel" aria-label="대화 및 AI 패널" hidden={!conversationPanel}>
+            <button className="panel-close" aria-label="대화 패널 닫기" onClick={() => showPanel(null)}>닫기</button>
             <CollaborationPanel
               document={doc.current}
               capture={() => adapter.current!.selection()}
@@ -992,10 +1097,11 @@ function Editor({
           </aside>
         )}
         {panel && (
-          <aside>
+          <aside className="review-panel" aria-label="문단 AI 검토 패널">
+            <button className="panel-close" aria-label="검토 패널 닫기" onClick={() => showPanel(null)}>닫기</button>
             <h2>문단 AI 검토</h2>
             <p className="hint">이 패널은 별도 로컬·사내 모델 연결용입니다. 기본 Codex 후보 생성은 대화 · AI에서 사용할 수 있습니다.</p>
-            <button disabled={!doc.current} onClick={() => { setConversationPanel(true); setPanel(false); }}>대화의 후보 생성으로 이동</button>
+            <button disabled={!doc.current} onClick={() => showPanel("conversation")}>대화의 후보 생성으로 이동</button>
             <p>
               검토할 본문 문단에 커서를 놓으세요. 승인 전에는 문서를 변경하지
               않습니다.

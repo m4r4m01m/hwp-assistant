@@ -1,0 +1,136 @@
+--- a/src/document_core/queries/cursor_nav.rs
++++ b/src/document_core/queries/cursor_nav.rs
+@@ -2075,6 +2075,43 @@
+             visit(node, sec, para, line_idx, page)
+         }
+ 
++        // Body paragraphs can be reflowed without rewriting their saved line_segs.
++        // Selection must follow the same physical TextLines that the page paints.
++        fn collect_body_line_starts(
++            node: &RenderNode,
++            sec: usize,
++            para: usize,
++            page: u32,
++            out: &mut Vec<(usize, usize, Option<u32>)>,
++        ) {
++            if let RenderNodeType::TextLine(ref line) = node.node_type {
++                if line.section_index == Some(sec) && line.para_index == Some(para) {
++                    let start = node
++                        .children
++                        .iter()
++                        .filter_map(|child| {
++                            if let RenderNodeType::TextRun(ref run) = child.node_type {
++                                if run.section_index == Some(sec)
++                                    && run.para_index == Some(para)
++                                    && run.cell_context.is_none()
++                                    && !run.text.is_empty()
++                                {
++                                    return run.char_start;
++                                }
++                            }
++                            None
++                        })
++                        .min();
++                    if let Some(start) = start {
++                        out.push((line.line_index.unwrap_or(0) as usize, start, Some(page)));
++                    }
++                }
++            }
++            for child in &node.children {
++                collect_body_line_starts(child, sec, para, page, out);
++            }
++        }
++
+         // ── 후보 페이지별 렌더 트리 캐시 ──
+         let mut tree_cache: Vec<(u32, crate::renderer::render_tree::PageRenderTree)> = Vec::new();
+ 
+@@ -2208,7 +2245,6 @@
+             };
+ 
+             let char_count = navigable_text_len(para);
+-            let line_count = Self::build_line_char_starts(para).len().max(1);
+ 
+             let sel_start = if para_idx == start_para_idx {
+                 start_char_offset
+@@ -2240,8 +2276,49 @@
+                 }
+             }
+ 
+-            for line_idx in 0..line_count {
+-                let (line_char_start, line_char_end) = Self::get_line_char_range(para, line_idx);
++            let mut physical_lines = Vec::new();
++            // Keep the established inline-object/equation path: its logical
++            // control positions are not necessarily represented by TextRuns.
++            if cell_target.is_none() && !para.controls.iter().any(is_caret_logical_inline_control) {
++                for (page, tree) in &tree_cache {
++                    collect_body_line_starts(
++                        &tree.root,
++                        section_idx,
++                        para_idx,
++                        *page,
++                        &mut physical_lines,
++                    );
++                }
++                // The same logical line can be painted in two page fragments.
++                // Keep each physical occurrence, in page reading order.
++                physical_lines.sort_by_key(|(line, start, page)| (*page, *start, *line));
++                physical_lines.dedup_by_key(|(line, start, page)| (*page, *line, *start));
++            }
++            // Preserve the existing cell and control-only fallback. Body text uses
++            // physical starts even when line_segs describes a single stale line.
++            if physical_lines.is_empty() {
++                physical_lines = (0..Self::build_line_char_starts(para).len().max(1))
++                    .map(|line| (line, Self::get_line_char_range(para, line).0, None))
++                    .collect();
++            }
++            let line_count = physical_lines.len();
++            for (physical_index, &(line_idx, line_char_start, physical_page)) in
++                physical_lines.iter().enumerate()
++            {
++                let line_char_end = if physical_page.is_some() {
++                    // A duplicate offset on another page is another painted
++                    // occurrence, not an empty logical range.
++                    physical_lines
++                        .iter()
++                        .filter_map(|(_, start, _)| (*start > line_char_start).then_some(*start))
++                        .min()
++                        .unwrap_or(char_count)
++                } else {
++                    physical_lines
++                        .get(physical_index + 1)
++                        .map(|(_, start, _)| *start)
++                        .unwrap_or(char_count)
++                };
+                 let range_start = sel_start.max(line_char_start);
+                 let range_end = sel_end.min(line_char_end);
+                 if range_start >= range_end {
+@@ -2250,6 +2327,9 @@
+                 expected_segments += 1;
+ 
+                 let cursor_pair = tree_cache.iter().find_map(|(pn, tree)| {
++                    if physical_page.is_some_and(|page| page != *pn) {
++                        return None;
++                    }
+                     if last_segment_page.is_some_and(|last| *pn < last) {
+                         return None;
+                     }
+@@ -2293,11 +2373,18 @@
+                     last_segment_page = Some(lh.page);
+                     let partial_start = range_start > line_char_start;
+ 
++                    let has_later_logical_line = if physical_page.is_some() {
++                        physical_lines
++                            .iter()
++                            .any(|(_, start, _)| *start > line_char_start)
++                    } else {
++                        physical_index + 1 < line_count
++                    };
+                     let selection_continues = cell_target.is_none()
+                         && ((range_end < sel_end) ||
+                         (para_idx < end_para_idx && range_end == sel_end) ||
+                         // 같은 문단 내 강제 줄바꿈: 줄 끝까지 선택되고 다음 줄 시작이 sel_end이면 확장
+-                        (range_end == sel_end && range_end >= line_char_end && line_idx + 1 < line_count));
++                        (range_end == sel_end && range_end >= line_char_end && has_later_logical_line));
+ 
+                     let (area_left, area_right) = if cell_target.is_none() {
+                         find_column_area(rh.page, rh.x)

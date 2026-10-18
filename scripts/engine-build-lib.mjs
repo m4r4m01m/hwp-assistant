@@ -86,10 +86,12 @@ export function validateCore(coreDir, { diagnostic = false } = {}) {
 }
 
 export function validateProvenance(info, { diagnostic = false } = {}) {
-  for (const key of ['commit', 'patch', 'patch_sha256', 'rust', 'wasm_bindgen'])
+  for (const key of ['commit', 'patch', 'patch_sha256', 'selection_patch', 'selection_patch_sha256', 'rust', 'wasm_bindgen'])
     if (info[key] !== lock[key]) throw Error('Core provenance mismatch: ' + key);
   if (hashFile(resolve(root, `scripts/patches/${lock.patch}.patch`)) !== lock.patch_sha256)
     throw Error('Checked-in patch differs from engine-lock.json');
+  if (hashFile(resolve(root, `scripts/patches/${lock.selection_patch}.patch`)) !== lock.selection_patch_sha256)
+    throw Error('Checked-in selection patch differs from engine-lock.json');
   for (const [name, hash] of Object.entries(lock.source_sha256))
     if (info.source_sha256?.[name] !== hash) throw Error('Core source mismatch: ' + name);
   if (info.profile !== 'release') throw Error('Cargo release profile is required');

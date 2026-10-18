@@ -32,12 +32,14 @@ test('missing metadata cannot fall back to unpatched npm core', () => {
   assert.throws(() => validateCore(directory()), /No npm-core fallback/);
 });
 test('different source, patch, or toolchain is refused', () => {
-  for (const key of ['commit', 'patch_sha256', 'rust', 'wasm_bindgen']) {
+  for (const key of ['commit', 'patch_sha256', 'selection_patch', 'selection_patch_sha256', 'rust', 'wasm_bindgen']) {
     const path = fixture(info => { info[key] = 'different'; });
     assert.throws(() => validateCore(path, { diagnostic: true }), /provenance mismatch/);
   }
   const path = fixture(info => { info.source_sha256 = { ...lock.source_sha256, 'char_shapes.rs': 'different' }; });
   assert.throws(() => validateCore(path, { diagnostic: true }), /source mismatch/);
+  const selectionPath = fixture(info => { info.source_sha256 = { ...lock.source_sha256, 'cursor_nav.rs': 'different' }; });
+  assert.throws(() => validateCore(selectionPath, { diagnostic: true }), /source mismatch/);
 });
 test('changed WASM and changed binding are independently refused', () => {
   for (const name of ['rhwp_bg.wasm', 'rhwp.js']) {

@@ -1,0 +1,219 @@
+{
+  "kind": "Editor viewport and local scroll verification",
+  "recorded_at": "2026-10-18T08:24:53.2520377Z",
+  "branch": "codex/hwp-assistant-progress-2026-10-14",
+  "head": "5d75900eb71671be696b9201f871c2c310f3878f",
+  "working_tree": "Uncommitted prior selection/visual-standard work and current frontend layout changes",
+  "scope": "Frontend layout only in this follow-up; no new backend, engine, model prompt or HWPX processing changes",
+  "review_url": "http://127.0.0.1:15185/",
+  "real_engine": true,
+  "mock_report_generation": true,
+  "actual_model_calls": 0,
+  "human_review": false,
+  "hancom_review": false,
+  "deployment_validation": false,
+  "ui_observations": {
+    "previous_general_editor": {
+      "viewport": "877x704",
+      "iframe": {
+        "height": 601,
+        "width": 877,
+        "y": 103,
+        "x": 0
+      },
+      "outer_height": 704,
+      "outer_scroll_y": 0
+    },
+    "revised_general_editor": {
+      "documentHeight": 704,
+      "iframe": {
+        "height": 704,
+        "width": 813,
+        "x": 64,
+        "y": 0
+      },
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "viewport": {
+        "height": 704,
+        "width": 877
+      }
+    },
+    "scrolled_to_last_page": {
+      "synthetic_report_pages": 4,
+      "outer_height": 704,
+      "screenshot": ".cache\\editor-viewport-review-2026-10-18\\editor-last-page.jpg",
+      "outer_scroll_y": 0
+    },
+    "final_visible_document": "Synthetic business implementation plan, 5 pages",
+    "final_screenshot": "docs/evidence/editor-full-height-2026-10-18.jpg",
+    "report_screenshot": "docs/evidence/report-full-height-2026-10-18.png"
+  },
+  "tests": {
+    "distinct_cases_passed": 7,
+    "runs": [
+      {
+        "path": ".cache/editor-viewport-e2e-2026-10-18-r1",
+        "result": "failed",
+        "commands": [
+          {
+            "pattern": "REAL rhwp workspace:|report workspace:|received text before completion|standard designer: settings change the sample|report TOC: automatic native pages",
+            "built_app": true,
+            "command": "Playwright E2E",
+            "exit_code": 1
+          }
+        ],
+        "actual_model_calls": 0,
+        "remaining_listeners": []
+      },
+      {
+        "path": ".cache/editor-viewport-e2e-2026-10-18-r2",
+        "result": "passed",
+        "commands": [
+          {
+            "pattern": "one visible panel preserves|cancel keeps partial text",
+            "exit_code": 0,
+            "command": "Playwright E2E",
+            "built_app": true
+          }
+        ],
+        "actual_model_calls": 0,
+        "remaining_listeners": []
+      },
+      {
+        "path": ".cache/editor-viewport-e2e-2026-10-18-r3",
+        "result": "passed",
+        "commands": [
+          {
+            "exit_code": 0,
+            "command": "Playwright E2E",
+            "built_app": true,
+            "pattern": "report workspace:|report TOC: automatic native pages|cancel keeps partial text"
+          }
+        ],
+        "actual_model_calls": 0,
+        "remaining_listeners": []
+      }
+    ],
+    "r1_failed_expectation": "The new test expected cancellation to remove a context form. Existing behavior retains the form and restores server values. Only its expectation changed to the empty server value; r2 passed.",
+    "r1_passed": 5,
+    "r2_passed": 2,
+    "r3_passed": 3,
+    "r3_reason": "Final report side-rail labels were shortened without changing accessible names or action guards; reran report viewport, existing automatic TOC and cancellation cases.",
+    "typescript": "passed",
+    "diff_check": "passed",
+    "general_workspace": {
+      "engine": "real rhwp",
+      "actual_model_calls": 0,
+      "panels_visible": 1,
+      "unsent_message_preserved_across_tools": true,
+      "unsaved_context_preserved_when_cancelled": true,
+      "document_unchanged": true,
+      "editor_top": 0,
+      "editor_height": 692,
+      "rail_width": 64,
+      "outer_scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "sha256": "c15a801f14a368cb375ab0b27b83991b0a9a8d8568cf94d56d5323dd8d22c0ff",
+      "viewport": {
+        "width": 862,
+        "height": 692
+      }
+    },
+    "report_workspace": {
+      "real_engine": true,
+      "actual_model_calls": 0,
+      "synthetic_generation": true,
+      "human_review": false,
+      "full_height_viewports": [
+        "862x692",
+        "400x760"
+      ],
+      "outer_scroll": 0,
+      "iframe_preserved_across_tools": true,
+      "prompt_preserved": true,
+      "saved_sha256": "88f1595d3d5b0d116d61ed264c979c4a19314722d11a6944fe7e7123b7e540ef",
+      "report_task_created": true
+    },
+    "additional_r1_cases": [
+      "Full-height editor and file actions at 400/862/1366 widths",
+      "Streaming received text before completion, reload and formatted handoff",
+      "Standard designer independent settings/preview scrolling, mobile viewport and immutable registration"
+    ]
+  },
+  "preservation": {
+    "document_bytes_preserved": true,
+    "report_edit_toc_refresh_save_reopen": true,
+    "iframe_identity_preserved_across_panels": true,
+    "original_15183_and_prior_15184_services_preserved": true,
+    "original_blobs_sha256_verified": 7,
+    "actual_browser_document_mutations": 0,
+    "canonical_asset_fixture_historical_evidence_diff_count": 0,
+    "note": "Final build reload briefly encountered the existing 120-second lease fence on the previously opened sample; no lease bypass or data mutation was used. A different synthetic sample opened successfully."
+  },
+  "source_sha256": {
+    "frontend/src/main.tsx": "28a250f37dc7677a959e49aa6f1c38c3e68ad5bc351e50d7ae5154fb9ea1b4b3",
+    "frontend/src/viewport.css": "ba684b7057d506b617e8d19a87cb5b7d8fa357a7f146db952c580372f8314219",
+    "frontend/src/editor-workspace.css": "c3a00b9966cafc84deaced5227ecd6f57971627b95f8d8e1280290bbd468a8ff",
+    "frontend/src/reports.tsx": "c06b701195fa4207821d9fc04c7bbce6736b429816a7e7711402b32a7f323c0f",
+    "frontend/src/report-preview.tsx": "b33aea2065b8ddecb611b35b3585250bedcbf29f67461811f0775a71bda5fced",
+    "frontend/src/report-progress.tsx": "1e37006e432c7150069e2aceb6e67f34cff418c4d23b182885c62611f8cf0108",
+    "frontend/src/report-editor-workspace.css": "6b7b6fe7d73c0cbfa95a76da1abbcb77467cd783b87fa9ad291e987725a69b75",
+    "frontend/src/standard-designer.tsx": "99747608e66bf4931ecbd9efd6e15032348693c9c6e3ea0c1e906f21e13ad957",
+    "frontend/src/standard-designer.css": "3336591dc2d6603ab62450a689c05954bb159b047aeb3be1d61261bd63bbeb6b",
+    "frontend/tests/editor-workspace.spec.ts": "3f96800657f227f308ab1fdf5fd04fcfc255d9e970cf21af35b41c7740625042",
+    "frontend/tests/report-workspace.spec.ts": "91a90682b8695f8934d7727ad6f9d0633968af0bc4c76767ce3f2eb2e73f8fe1",
+    "frontend/tests/report-stream.spec.ts": "39ceb30f27ebbdcdd077c1e9f240a2af9df0de13f9295098e80036aa95295b8a",
+    "frontend/tests/standard-designer.spec.ts": "fc0d2fc5cdf5c25baa1ff919826a917a352fe127700438e08b0efbd0749b0420"
+  },
+  "served_bundle": {
+    "mode": "fresh diagnostic app bundle",
+    "url": "http://127.0.0.1:15185",
+    "files": [
+      {
+        "path": "rhwp/build-info.json",
+        "sha256": "7a033219811049469c7011981742f280e48384988a6f598c4984cce5e890b7cf"
+      },
+      {
+        "path": "rhwp/index.html",
+        "sha256": "b734f5756ff4e0aa2c15f48ae136a2c4f604468e3ff8bd0c9d270a96bc497814"
+      },
+      {
+        "path": "rhwp/rhwp.js",
+        "sha256": "12029c04cb7f4af12dc6c1026a0499e49e3a01d1bce4b6e2f79f51da1aa59da7"
+      },
+      {
+        "path": "rhwp/assets/rhwp_bg-jdZ2ww4q.wasm",
+        "sha256": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0"
+      },
+      {
+        "path": "rhwp/assets/canvaskit-renderer-DTebcGR5.js",
+        "sha256": "b8998967b6f4f8d13855777db5454418a111eb82205af83cf2ef2d67dc8e81e4"
+      },
+      {
+        "path": "rhwp/assets/index-ldC5SY6P.js",
+        "sha256": "f5ef9b7becb3448f7900a8ace1d7f51e39c64de5140f26d695db28b8b689fe29"
+      },
+      {
+        "path": "rhwp/assets/studio-plugin-Cp8dJ3L_.js",
+        "sha256": "abdcbcab732aad8d91b551c97ff045bec6b140ae87d94c5fd44235d5515fb4e7"
+      },
+      {
+        "path": "index.html",
+        "sha256": "fcedcdd8dc199763177b89211c46cb273ed16841bcbb40c115928b0d96afb7df"
+      },
+      {
+        "path": "assets/index-D4ZJi_hX.js",
+        "sha256": "bc58118a3dec8adbf1bcdee198086a0f9ba98e643cac77601f3e05b4131b495f"
+      },
+      {
+        "path": "assets/index-CcVcP9n_.css",
+        "sha256": "b76f2bc2a594f73df1cec1f52172adb57f2b25d570074231a1c7289920166352"
+      }
+    ]
+  }
+}

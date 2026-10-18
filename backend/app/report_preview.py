@@ -50,6 +50,16 @@ def public_preview(preview):
     return result
 
 
+def verify_standard_binding(preview):
+    standard = metadata()
+    selection = preview.get("template")
+    if selection and (selection["standard_id"] != standard["id"] or selection["reference_sha256"] != standard["reference_sha256"] or selection["standard_profile_sha256"] != standard["profile_sha256"]):
+        raise HTTPException(409, "보고서 요청에서 고정한 기본 서식이 변경되었습니다.")
+    visual = preview.get("visual_standard")
+    if visual and visual["base_standard"] != {k: standard[k] for k in ("id", "reference_sha256", "profile_sha256")}:
+        raise HTTPException(409, "등록 표준의 원본 기준이 달라졌습니다. 기존 초안은 보존되어 있습니다.")
+
+
 def install_preview(app, publish, doc_dict, lock_report, decode):
     engine = app.state.engine
     install_report_toc(app, lock_report, public_preview)
@@ -77,25 +87,33 @@ def install_preview(app, publish, doc_dict, lock_report, decode):
                     raise HTTPException(409, "기존 한글 초안을 다시 열어 주세요.")
             else:
                 selection=json.loads(row.input).get("template")
+                visual=json.loads(row.input).get("visual_standard")
                 standard=metadata()
                 if selection and (selection["standard_id"]!=standard["id"] or selection["reference_sha256"]!=standard["reference_sha256"] or selection["standard_profile_sha256"]!=standard["profile_sha256"]):
                     raise HTTPException(409,"보고서 요청에서 고정한 기본 서식이 변경되었습니다.")
-                blocks = report_blocks(json.loads(row.draft), concise=True, rich=True)
+                if visual and visual["base_standard"] != {k:standard[k] for k in ("id", "reference_sha256", "profile_sha256")}:
+                    raise HTTPException(409,"등록 표준의 원본 기준이 달라졌습니다. 기존 초안은 보존되어 있습니다.")
+                blocks = report_blocks(json.loads(row.draft), concise=True, rich=True,
+                                       visual_settings=visual["settings"] if visual else None)
                 if len(blocks) > 180: raise HTTPException(422, "보고서가 너무 큽니다. 본문이나 표를 줄여 다시 요청하세요.")
                 # Each exact command runs in its own staging page. Final pagination
                 # is a later layout operation, without lowering the engine fence.
                 for block in blocks: block["page_break"] = True
-                data, plan = scaffold(seed, blocks)
-                if selection:
+                data, plan = scaffold(seed, blocks, visual_settings=visual["settings"]) if visual else scaffold(seed, blocks)
+                if selection or visual:
                     observed=metadata()
-                    if selection["standard_id"]!=observed["id"] or selection["reference_sha256"]!=observed["reference_sha256"] or selection["standard_profile_sha256"]!=observed["profile_sha256"]:
+                    if selection and (selection["standard_id"]!=observed["id"] or selection["reference_sha256"]!=observed["reference_sha256"] or selection["standard_profile_sha256"]!=observed["profile_sha256"]):
                         raise HTTPException(409,"보고서 틀 준비 중 고정한 기본 서식이 변경되었습니다.")
+                    if visual and visual["base_standard"] != {k:observed[k] for k in ("id", "reference_sha256", "profile_sha256")}:
+                        raise HTTPException(409,"등록 표준의 원본 기준이 준비 중 변경되었습니다.")
                 preview = {"id": str(value.id), "draft_sha256": row.draft_sha256, "seed_sha256": digest(seed),
                            "name": json.loads(row.draft)["title"].replace("/", " ").replace("\\", " ") + ".hwpx",
                            "document_standard": standard, "outline_policy": "short-items-v1", "presentation_policy": POLICY, "scaffold_base64": base64.b64encode(data).decode(),
                            "plan": [{**p, "command_id": str(uuid.uuid5(value.id, str(i)))} for i, p in enumerate(plan)]}
                 if selection:
                     preview.update(toc_policy=TOC_POLICY,toc_verified=False,template=selection)
+                if visual:
+                    preview["visual_standard"] = visual
                 execution["preview"] = preview; row.execution = canonical(execution)
             return public_preview(preview)
 
@@ -108,28 +126,27 @@ def install_preview(app, publish, doc_dict, lock_report, decode):
             if not preview or preview["id"] != str(value.preview_id):
                 raise HTTPException(409, "한글 초안 준비 상태가 다릅니다.")
             if row.approval: raise HTTPException(409, "확정한 초안을 다시 배치할 수 없습니다.")
-            if preview.get("toc_policy")==TOC_POLICY and (row.status!="ready" or row.draft_sha256!=preview["draft_sha256"]):
+            strict_preview = preview.get("toc_policy")==TOC_POLICY or bool(preview.get("visual_standard"))
+            if strict_preview and (row.status!="ready" or row.draft_sha256!=preview["draft_sha256"]):
                 raise HTTPException(409,"보고서 초안 상태가 변경되었습니다.")
             binding = report_hash({"output": digest(data), "receipts": value.receipts, "document_sha256": value.document_sha256})
             if preview.get("render_binding"):
                 if preview["render_binding"] != binding: raise HTTPException(409, "기존 미리보기와 같은 출력으로 재확인하세요.")
             else:
                 frozen_execution=row.execution
-                if preview.get("toc_policy")==TOC_POLICY:
-                    standard=metadata();selection=preview["template"]
-                    if selection["standard_id"]!=standard["id"] or selection["reference_sha256"]!=standard["reference_sha256"] or selection["standard_profile_sha256"]!=standard["profile_sha256"]:
-                        raise HTTPException(409,"보고서 요청에서 고정한 기본 서식이 변경되었습니다.")
+                if strict_preview:
+                    verify_standard_binding(preview)
                 layout_started = time.monotonic()
                 verify_output(data, value, preview, decode(preview["scaffold_base64"]))
-                laid_out = (layout_rich_report if preview.get("presentation_policy") == POLICY else layout_report)(data, preview["plan"])
+                layout = layout_rich_report if preview.get("presentation_policy") == POLICY else layout_report
+                visual = preview.get("visual_standard")
+                laid_out = layout(data, preview["plan"], visual_settings=visual["settings"]) if visual else layout(data, preview["plan"])
                 if preview.get("toc_policy")==TOC_POLICY:laid_out=normalize_generated_layout(laid_out)
                 preview.update(layout_base64=base64.b64encode(laid_out).decode(), layout_sha256=digest(laid_out),
                                render_binding=binding, render_receipts=value.receipts,
                                timings={"layout_ms": round((time.monotonic() - layout_started) * 1000), "client_apply_ms": value.client_apply_ms})
-                if preview.get("toc_policy")==TOC_POLICY:
-                    observed=metadata();selection=preview["template"]
-                    if selection["standard_id"]!=observed["id"] or selection["reference_sha256"]!=observed["reference_sha256"] or selection["standard_profile_sha256"]!=observed["profile_sha256"]:
-                        raise HTTPException(409,"보고서 배치 중 고정한 기본 서식이 변경되었습니다.")
+                if strict_preview:
+                    verify_standard_binding(preview)
                     fresh=lock_report(db,task_id,request.state.user)
                     if fresh.status!="ready" or fresh.approval or fresh.draft_sha256!=preview["draft_sha256"] or fresh.execution!=frozen_execution:
                         raise HTTPException(409,"보고서 배치 중 초안 상태가 변경되었습니다.")
@@ -146,6 +163,8 @@ def install_preview(app, publish, doc_dict, lock_report, decode):
                 raise HTTPException(409, "확인한 한글 초안의 기준이 다릅니다.")
             if preview.get("toc_policy")==TOC_POLICY and not row.approval and (row.status!="ready" or not preview.get("toc_verified") or preview.get("_toc_pending")):
                 raise HTTPException(409,"실제 페이지 목차 검증이 끝난 초안을 확인한 뒤 저장하세요.")
+            if preview.get("visual_standard") and not row.approval and (row.status != "ready" or row.draft_sha256 != preview["draft_sha256"]):
+                raise HTTPException(409, "보고서 초안 상태가 변경되었습니다. 확인한 출력은 보존되어 있습니다.")
             binding = report_hash({"id": str(value.id), "preview_id": str(value.preview_id), "output": digest(data), "layout": value.layout_sha256})
             if row.approval:
                 approval = json.loads(row.approval)
@@ -160,10 +179,13 @@ def install_preview(app, publish, doc_dict, lock_report, decode):
                 db.add(doc); db.flush(); db.add(Access(document_id=doc.id, user_id=request.state.user, role="owner"))
                 version = publish(db, doc, data, None, None, str(value.id), "upload")
                 saved_version = version.id
-                row.approval = canonical({"id": str(value.id), "mode": "formatted-preview", "document_id": doc.id,
+                approved = {"id": str(value.id), "mode": "formatted-preview", "document_id": doc.id,
                     "base_version": version.id, "saved_version": version.id, "save_binding": binding,
                     "preview_id": preview["id"], "layout_sha256": value.layout_sha256, "output_sha256": digest(data),
-                    "output_differs_from_layout": digest(data) != value.layout_sha256, "document_standard": preview["document_standard"]})
+                    "output_differs_from_layout": digest(data) != value.layout_sha256, "document_standard": preview["document_standard"]}
+                if preview.get("visual_standard"):
+                    approved["visual_standard"] = preview["visual_standard"]
+                row.approval = canonical(approved)
             # A response-loss retry acknowledges this frozen save even if another
             # editor has since published a later version. It never moves the head.
             result = {**doc_dict(doc), "current_version": saved_version, "role": "owner"}

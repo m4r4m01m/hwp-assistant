@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-18",
+  "kind": "Hancom2018 color interpretation diagnosis",
+  "verification_scope": {
+    "native_application_observed": "Hancom2018",
+    "observation_method": "AI agent computer-use screenshot observation and independent AI image review",
+    "human_acceptance_review_performed": false,
+    "layout_or_full_compatibility_claimed": false,
+    "user_source_contents_published": false,
+    "user_source_data_classification": "Not assessed; no claim that the user source is synthetic or company-safe."
+  },
+  "source_preservation": {
+    "download_byte_identical_to_initial_upload_blob": true,
+    "existing_saved_blob_count": 4,
+    "table_and_paragraph_color_xml_identical_across_download_and_all_saved_blobs": true,
+    "protected_file_count": 8,
+    "all_protected_file_sha256_unchanged_after_observation": true,
+    "original_or_historical_blob_mutations": 0
+  },
+  "diagnostic_artifacts": {
+    "synthetic_rgb_probe": {
+      "sha256": "5886b35ce908274ec1511cf4d1f5ccc4102547d05d1d984e5ee13d5b0c74a3de",
+      "bytes": 13292,
+      "generation": "Fixed diagnostic labels using the existing pinned standard scaffold and rich layout; no model call or application publication."
+    },
+    "native_rgb_screenshot": {
+      "sha256": "268cc72347b2e59f999f11292de9927e9d3bf789ea530d9d4f591524ec1675c2",
+      "published_inline": false
+    }
+  },
+  "native_color_observations": [
+    {"xml_label": "RED #FF0000", "xml_text_and_fill": "#FF0000", "observed_text_and_fill": "blue"},
+    {"xml_label": "GREEN #00FF00", "xml_text_and_fill": "#00FF00", "observed_text_and_fill": "green"}
+  ],
+  "finding": "The installed native path displays pure-red XML text/fill as blue while green remains green. This establishes a red/blue interpretation mismatch in the observed path; the download did not change source bytes or stored color values.",
+  "official_color_contract": {
+    "checked_on": "2026-10-18",
+    "finding": "The current official model converts hash-prefixed XML RGB hexadecimal values to internal COLORREF BGR and applies the inverse on output. Ordinary font and brush colors use this converter. The existing rhwp mapping agrees with it.",
+    "ordinary_color_prefix_or_nullable_exception_found": false,
+    "sources": [
+      "https://raw.githubusercontent.com/hancom-io/hwpx-owpml-model/main/OWPML/Base/Type.h",
+      "https://raw.githubusercontent.com/hancom-io/hwpx-owpml-model/main/OWPML/Base/Util.cpp",
+      "https://raw.githubusercontent.com/hancom-io/hwpx-owpml-model/main/OWPML/Class/Head/CharShapeType.cpp",
+      "https://raw.githubusercontent.com/hancom-io/hwpx-owpml-model/main/OWPML/Class/Core/winBrush.cpp"
+    ],
+    "limit": "Current official model behavior does not establish the installed Hancom2018 import implementation."
+  },
+  "diagnostic_limits": [
+    "The synthetic probe has a large black explanatory area and overlapping or repeated lower rows. It is used only for the visible RED/GREEN color observation, not layout, pagination, text-order or roundtrip quality.",
+    "The direct probe retained an empty-brush faceColor literal none, whereas the user download uses the existing #FFFFFFFF compatibility sentinel after rhwp serialization. This is consistent with the known Hancom2018 no-fill issue; exact painted bounds were not proven.",
+    "An earlier temporary native buffer for a separate source copy accidentally received 13 search characters and was not saved. That buffer is excluded from save-roundtrip evidence; its source file hash remained unchanged.",
+    "No numerical screenshot pixel measurement was collected."
+  ],
+  "product_action": {
+    "standard_profile_or_canonical_reference_changed": false,
+    "product_color_compensation_applied": false,
+    "source_or_historical_document_rewrite_applied": false
+  },
+  "remaining_followup": "Create a separate known-color sample through native Hancom UI, save it as a new HWPX, and compare its authored color XML and rendering with the existing engine. Determine the affected native versions before selecting any compatibility change."
+}

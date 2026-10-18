@@ -53,10 +53,13 @@ test('MOCK report stream: cancel keeps partial text and new request is independe
     const posted = page.waitForResponse(r => r.url().endsWith('/api/report-tasks') && r.request().method() === 'POST');
     await page.getByRole('button', { name:'Codex로 보고서 초안 만들기', exact:true }).click(); id=(await (await posted).json()).id;
     await expect(page.getByTestId('stream-report-paragraph').first()).toBeVisible();
+    await page.getByRole('button', { name:'작성 요청', exact:true }).click();
     await page.getByRole('button', { name:'결과 수신 중단', exact:true }).click();
+    await page.getByRole('button', { name:'결과·출처', exact:true }).click();
     await expect(page.getByText('작성 중인 내용 보존', { exact:true })).toBeVisible();
     await expect(page.getByTestId('stream-report-paragraph').first()).toBeVisible();
     expect((await (await request.get(`/api/report-tasks/${id}`)).json()).status).toBe('cancelled');
+    await page.getByRole('button', { name:'작성 요청', exact:true }).click();
     await page.getByLabel('보고서 작성 요청', { exact:true }).fill('새 독립 보고서 요청 합성 시험');
     await page.getByRole('button', { name:'Codex로 보고서 초안 만들기', exact:true }).click();
     await expect(page.getByRole('button', { name:'초안 확정·서버 저장', exact:true })).toBeVisible({timeout:60000});

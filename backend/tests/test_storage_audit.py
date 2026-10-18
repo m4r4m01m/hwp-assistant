@@ -1,6 +1,7 @@
 """Read-only operational audit against synthetic SQLite/files; no engine or actual model."""
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 import sqlite3
 import subprocess
@@ -9,6 +10,7 @@ import uuid
 
 import pytest
 from test_storage import env, create, save, package
+from test_visual_standards import registration
 
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts/audit-storage.py"
 spec = importlib.util.spec_from_file_location("storage_audit", SCRIPT)
@@ -95,3 +97,68 @@ def test_cli_refuses_existing_report_and_storage_destination(env, tmp_path):
         assert result.returncode == 2
     assert report.read_text(encoding="utf-8") == "keep prior evidence"
     assert not (folder / "report.json").exists()
+
+
+@pytest.mark.parametrize("revision", [1, 2])
+def test_audit_counts_registered_visual_blob_as_referenced_and_preserves_data(env, revision):
+    client, _, _, folder = env
+    body, _ = registration(client)
+    if revision == 1:
+        from app.visual_standards import LEGACY_DEFAULTS
+        body["settings"] = LEGACY_DEFAULTS
+        rendered = client.post("/api/visual-standards/preview", json={
+            "settings": body["settings"], "seed_base64": body["seed_base64"]})
+        assert rendered.status_code == 200
+        body.update({key: rendered.json()[key] for key in ("settings_sha256", "preview_sha256", "base_standard")})
+    assert client.post("/api/visual-standards", json=body).status_code == 200
+    before = state(folder.parent)
+    result = module.audit(database_path(folder), folder)
+    assert result["result"] == "passed" and result["unreferenced_files"] == 0
+    assert result["visual_standards"] == result["verified_visual_standard_blobs"] == result["verified_blobs"] == 1
+    assert result["issues"] == []
+    assert state(folder.parent) == before
+    assert "합성 표준" not in str(result)
+
+
+@pytest.mark.parametrize("fault,code", [
+    ("missing", "visual_standard_missing_blob"), ("bytes", "visual_standard_hash_mismatch"),
+    ("path", "visual_standard_unsafe_storage_key"), ("snapshot", "visual_standard_snapshot_invalid"),
+    ("revision", "visual_standard_snapshot_invalid"),
+])
+def test_audit_detects_visual_standard_corruption_without_repair(env, fault, code):
+    client, _, _, folder = env
+    body, _ = registration(client)
+    assert client.post("/api/visual-standards", json=body).status_code == 200
+    with sqlite3.connect(database_path(folder)) as connection:
+        key, snapshot = connection.execute("SELECT storage_key,snapshot FROM visual_standards").fetchone()
+        if fault == "missing":
+            (folder / key).rename(folder.parent / "removed-synthetic-standard.hwpx")
+        elif fault == "bytes":
+            raw = (folder / key).read_bytes()
+            (folder / key).write_bytes(bytes([raw[0] ^ 1]) + raw[1:])
+        elif fault == "path":
+            connection.execute("UPDATE visual_standards SET storage_key='../outside.hwpx'")
+        else:
+            frozen = json.loads(snapshot)
+            if fault == "revision":
+                frozen["revision"] = 3
+            else:
+                frozen["settings"]["body_size_pt"] = 99
+            connection.execute("UPDATE visual_standards SET snapshot=?", (json.dumps(frozen),))
+    before = state(folder.parent)
+    result = module.audit(database_path(folder), folder)
+    assert result["result"] == "failed" and result["verified_visual_standard_blobs"] == 0
+    assert code in {issue["code"] for issue in result["issues"]}
+    assert state(folder.parent) == before
+
+
+def test_audit_supports_database_from_before_visual_standard_schema(env):
+    client, _, _, folder = env
+    create(client)
+    with sqlite3.connect(database_path(folder)) as connection:
+        connection.execute("DROP TABLE visual_standards")
+    before = state(folder.parent)
+    result = module.audit(database_path(folder), folder)
+    assert result["result"] == "passed" and result["visual_standards"] == 0
+    assert result["verified_visual_standard_blobs"] == 0 and result["verified_blobs"] == 1
+    assert state(folder.parent) == before

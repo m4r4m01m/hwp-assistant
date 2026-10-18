@@ -12,6 +12,9 @@ credentials.json
 .venv/
 .research/
 .cache/
+# Optional offline developer engine kit; download/build receipts stay local.
+developer-engine.zip
+developer-engine.zip.sha256
 node_modules/
 frontend/public/rhwp/
 frontend/dist/

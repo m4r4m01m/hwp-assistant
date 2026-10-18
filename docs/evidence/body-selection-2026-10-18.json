@@ -1,0 +1,276 @@
+{
+  "evidence_date": "2026-10-18",
+  "scope": "Body text selection overlay; app UI evidence is recorded separately.",
+  "privacy": "No document prose, application document IDs, credentials or absolute personal paths are included. The user-supplied report is an anonymous read-only copy.",
+  "diagnosis": {
+    "source": "Pinned core get_selection_rects_for_target_native in cursor_nav.rs used saved paragraph line_segs. Imported/generated scaffolds may retain one saved line while the page reflows the paragraph into multiple TextLines.",
+    "baseline_examples": [
+      {
+        "label": "standard-business",
+        "section": 0,
+        "paragraph": 4,
+        "rendered_physical_lines": 3,
+        "baseline_selection_rectangles": 1,
+        "fixed_selection_rectangles": 3
+      },
+      {
+        "label": "anonymous-user-report-copy",
+        "section": 0,
+        "paragraph": 4,
+        "rendered_physical_lines": 3,
+        "baseline_selection_rectangles": 1,
+        "fixed_selection_rectangles": 3
+      }
+    ],
+    "fixed_behavior": "Use the physical body TextLine starts from the same native page trees. Keep page-specific duplicate occurrences and use the next strictly greater logical start for each range end. End-of-selection width depends on a later logical line, not a duplicate physical occurrence.",
+    "existing_duplicate_rendering": "The standard sample contains an existing final logical line painted in two page fragments. Both occurrences are selected; the page rendering itself remains unchanged."
+  },
+  "provenance": {
+    "upstream_version": "0.8.6",
+    "upstream_commit": "e8800c8def63449808a4092798442652ed460552",
+    "existing_fill_patch": "rhwp-0.8.6-empty-fill",
+    "existing_fill_patch_sha256": "377171f8996a35046203d2ceb358ef580b1091fd067ee0ae2e053c4294013656",
+    "selection_patch": "rhwp-0.8.6-body-selection",
+    "selection_patch_sha256": "b2e25c437b29e8a478bd29d503d383aee138d7b1c3f84301d854ed9b99281b5f",
+    "patched_cursor_nav_rs_sha256": "80bd8bff0db56d1c348c10c24b5cb6151032ebd91539097f15b5484c30cd35d0",
+    "wasm_sha256": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0",
+    "binding_sha256": "e84c5b03cd32927a86e1a2c8acf2c43d60127fcff83f8896daf85b864c78968a",
+    "unchanged_bridge_sha256": "1c72afaab4cdeb936db935e87470bf0335b5c09f535b2f85db9c3d7579f9ce3b",
+    "unchanged_serializer_source_sha256": {
+      "header.rs": "7ab5d7bd3dca464fab2b9bf65351f95547bf335835e7338e546e65d9e73ed754",
+      "shape.rs": "52053c287545bc14bab65df5cf311e277e15d3007870ff622a217faa9a9826cb",
+      "char_shapes.rs": "47ee45e9a0ef6c5b0c27a342ad1982030d10a9d965157fe4d01fb1fe22fd832a"
+    },
+    "canonical_reference_hwpx_sha256": "6c68b50656867f1fc724c50549e60e1109e2f7a00219f2928ef58de0a45711f1"
+  },
+  "build": {
+    "kind": "Windows native diagnostic build",
+    "cargo_profile": "release",
+    "rust_lto": true,
+    "rust_codegen_units": 1,
+    "rust": "1.93.1",
+    "wasm_bindgen": "0.2.127",
+    "wasm_opt": false,
+    "docker_or_wsl_deployment_verified": false,
+    "source_directory": ".cache/selection-fix-2026-10-18/core",
+    "package_directory": ".cache/selection-fix-2026-10-18/core/pkg",
+    "public_directory": ".cache/selection-fix-2026-10-18/public/rhwp",
+    "dependency_installation_performed": false,
+    "dependency_reuse": {
+      "package_lock_sha256": "1c6e56bad40343730c2776abc4fdfcd967bddce1ba8de5d89d19e69ebde2ef37",
+      "installed_lock_sha256": "efd4578d6d740e06993236ff4119e58836e8db720696605f189c682a83f83d17",
+      "installation_performed": false
+    },
+    "public_bundle_verified_files": 6,
+    "public_bundle_file_sha256": {
+      "index.html": "b734f5756ff4e0aa2c15f48ae136a2c4f604468e3ff8bd0c9d270a96bc497814",
+      "rhwp.js": "12029c04cb7f4af12dc6c1026a0499e49e3a01d1bce4b6e2f79f51da1aa59da7",
+      "assets/rhwp_bg-jdZ2ww4q.wasm": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0",
+      "assets/canvaskit-renderer-DTebcGR5.js": "b8998967b6f4f8d13855777db5454418a111eb82205af83cf2ef2d67dc8e81e4",
+      "assets/index-ldC5SY6P.js": "f5ef9b7becb3448f7900a8ace1d7f51e39c64de5140f26d695db28b8b689fe29",
+      "assets/studio-plugin-Cp8dJ3L_.js": "abdcbcab732aad8d91b551c97ff045bec6b140ae87d94c5fd44235d5515fb4e7"
+    },
+    "final_cargo_build_duration": "8m 26s",
+    "actual_native_build_script": ".cache/selection-fix-2026-10-18/build-core.ps1",
+    "actual_native_build_script_sha256": "8bb582e3666f808a2e702c20cb8405995b2c882df8289fa4dd23c3393cf8d079",
+    "default_reproduction_entrypoint": "scripts/build-patched-core.ps1",
+    "studio_command": "node scripts/build-engine.mjs --diagnostic --reuse-installed --core-dir .cache/selection-fix-2026-10-18/core/pkg --out .cache/selection-fix-2026-10-18/public/rhwp"
+  },
+  "validation": {
+    "unit_build_provenance_tests": {
+      "command": "node --test scripts/engine-build.test.mjs",
+      "passed": 13,
+      "failed": 0,
+      "scope": "Source/patch/toolchain/artifact/dependency/build-gate unit fixtures; not native body selection or a Docker deployment.",
+      "log": ".cache/selection-fix-2026-10-18/final-engine-build-tests.log",
+      "log_sha256": "f44d93aa4629a50a80009e0b4aace1dedd67c37c95a0b3f136019583a0be8570"
+    },
+    "real_wasm_selection": {
+      "exit_code": 0,
+      "test_script": "scripts/test-engine-selection.mjs",
+      "test_script_sha256": "9b22a116f3fbe8f6a25028ecb853a3a208f763f40c16cf6650cd3ac20682178e",
+      "baseline_package": ".cache/rhwp-core-fix/pkg",
+      "final_package": ".cache/selection-fix-2026-10-18/core/pkg",
+      "log": ".cache/selection-fix-2026-10-18/final-native-selection.log",
+      "log_sha256": "d6aab6783acd54620ab83749c4827d06154acd2282701460d55a88d29e33b73f",
+      "synthetic_cases": [
+        {
+          "label": "wrapped-mixed-format",
+          "physical_lines": 16
+        },
+        {
+          "label": "imported-stale-one-saved-line",
+          "physical_lines": 16,
+          "baseline_expected_failure": "1 selection rectangle for 16 physical lines",
+          "fixed_result": "16 selection rectangles"
+        },
+        {
+          "label": "imported-single-paragraph-across-pages",
+          "physical_lines": 77,
+          "page_count": 3
+        }
+      ],
+      "representative_reports": [
+        {
+          "label": "standard-business",
+          "input_sha256": "fbe014bb8fe5a970cefe92f26630292a07bc686fd61a9b05d3cb10e6b03628bd",
+          "before_page_count": 4,
+          "after_page_count": 4,
+          "body_paragraphs": 21,
+          "wrapped_body_paragraphs": 12,
+          "physical_body_lines_covered": 44,
+          "partial_boundary_checks": 24,
+          "cross_paragraph_range_passed": true,
+          "normalized_reverse_range_passed": true,
+          "old_new_page_text_layout_equal": true,
+          "identical_layout_page_hashes_sha256": "88ee5b59a9ab971fd64dc1f82d7da50e3d57f8e49757ed85763e870d34f71f71",
+          "selection_queries_preserve_export_sha256": "fbe014bb8fe5a970cefe92f26630292a07bc686fd61a9b05d3cb10e6b03628bd",
+          "old_new_native_export_equal_to_input": true,
+          "unchanged_flat_cell_queries": 12
+        },
+        {
+          "label": "executive-decision",
+          "input_sha256": "8332604eaa921fa6ac4653548ac0116492df37658048379587e3b98140581014",
+          "before_page_count": 5,
+          "after_page_count": 5,
+          "body_paragraphs": 29,
+          "wrapped_body_paragraphs": 19,
+          "physical_body_lines_covered": 59,
+          "partial_boundary_checks": 38,
+          "cross_paragraph_range_passed": true,
+          "normalized_reverse_range_passed": true,
+          "old_new_page_text_layout_equal": true,
+          "identical_layout_page_hashes_sha256": "bdb83aad30a586551299d0c324297fd085fa74eee25dd48cfef492f2f027a76b",
+          "selection_queries_preserve_export_sha256": "8332604eaa921fa6ac4653548ac0116492df37658048379587e3b98140581014",
+          "old_new_native_export_equal_to_input": true,
+          "unchanged_flat_cell_queries": 12
+        },
+        {
+          "label": "response-plan",
+          "input_sha256": "8b2025ddcec1ba46e6b196a1464d99bbe0aba0a383e2ead6ca1b2c3bb88b0bfb",
+          "before_page_count": 5,
+          "after_page_count": 5,
+          "body_paragraphs": 26,
+          "wrapped_body_paragraphs": 17,
+          "physical_body_lines_covered": 56,
+          "partial_boundary_checks": 34,
+          "cross_paragraph_range_passed": true,
+          "normalized_reverse_range_passed": true,
+          "old_new_page_text_layout_equal": true,
+          "identical_layout_page_hashes_sha256": "ace0ab7075f02b8ae283cf92f4de75c3b80466060bddf29ec1140b231f3f41e0",
+          "selection_queries_preserve_export_sha256": "8b2025ddcec1ba46e6b196a1464d99bbe0aba0a383e2ead6ca1b2c3bb88b0bfb",
+          "old_new_native_export_equal_to_input": true,
+          "unchanged_flat_cell_queries": 12
+        },
+        {
+          "label": "anonymous-user-report-copy",
+          "input_sha256": "84f8eb8adfd06fbb6dcabaaf49ecbd3a75eb3de2361424609a8531b54f32621c",
+          "before_page_count": 8,
+          "after_page_count": 8,
+          "body_paragraphs": 48,
+          "wrapped_body_paragraphs": 38,
+          "physical_body_lines_covered": 116,
+          "partial_boundary_checks": 76,
+          "cross_paragraph_range_passed": true,
+          "normalized_reverse_range_passed": true,
+          "old_new_page_text_layout_equal": true,
+          "identical_layout_page_hashes_sha256": "8f718b9d9616bce97b00a63d52b1aa82f0733564d52e5f3d41e5bb0c3581043c",
+          "selection_queries_preserve_export_sha256": "84f8eb8adfd06fbb6dcabaaf49ecbd3a75eb3de2361424609a8531b54f32621c",
+          "old_new_native_export_equal_to_input": true,
+          "unchanged_flat_cell_queries": 12
+        },
+        {
+          "label": "historical-long-title-boundary",
+          "input_sha256": "4bbbe9586ba68def2df90115bd6e280e3122eb7ec56c8e814b67d8448caef518",
+          "before_page_count": 20,
+          "after_page_count": 20,
+          "body_paragraphs": 124,
+          "wrapped_body_paragraphs": 118,
+          "physical_body_lines_covered": 359,
+          "partial_boundary_checks": 236,
+          "cross_paragraph_range_passed": true,
+          "normalized_reverse_range_passed": true,
+          "old_new_page_text_layout_equal": true,
+          "identical_layout_page_hashes_sha256": "bd514f4c840cd03dccfc4262bb48438b54331d5012b2c5f046b517379419bed5",
+          "selection_queries_preserve_export_sha256": "4bbbe9586ba68def2df90115bd6e280e3122eb7ec56c8e814b67d8448caef518",
+          "old_new_native_export_equal_to_input": true,
+          "unchanged_flat_cell_queries": 12
+        }
+      ],
+      "total_representative_report_pages_compared": 42,
+      "total_representative_physical_body_lines_covered": 634,
+      "total_partial_boundary_checks": 408,
+      "total_flat_cell_queries_unchanged": 60,
+      "inline_equation_selection_identical_to_baseline": true,
+      "duplicate_final_line_width_checked": true,
+      "reverse_scope": "The native API receives ordered positions from Studio. The test orders both anchor/focus directions and confirms identical full ranges. Pointer-drag UI checks are separate."
+    },
+    "studio_build_gates": [
+      "Existing real-WASM empty-fill/solid/character-shading/hatch roundtrips",
+      "Real-WASM body-selection regression suite",
+      "Pinned installed dependency validation; no installation",
+      "check-engine-bundle diagnostic verification: six actual bundle files"
+    ],
+    "preserved_paths_static_review": {
+      "cell_selection": "Physical-line collection is body-only. Cell ranges retain saved line metadata and the original next-index/end logic. Twelve representative flat-cell queries per real report were also byte-equivalent to baseline.",
+      "inline_controls": "is_caret_logical_inline_control guard retains the existing equation/inline-object path. A synthetic inline equation selection is identical to baseline.",
+      "header_footer": "layout.rs assigns normal header/footer paragraphs para_index=usize::MAX-i; TAC shapes use section=usize::MAX; header/footer tables/textboxes carry cell_context. propagate_header_footer_ref normalizes Image nodes only. Automatic page-number runs have no body paragraph indices. This is source-contract review, not a claim of every possible header/footer fixture being executed.",
+      "footnotes": "The separate footnote selection query is unchanged; body inline footnote markers retain the logical-control fallback."
+    }
+  },
+  "changed_files": [
+    {
+      "path": "scripts/patches/rhwp-0.8.6-body-selection.patch",
+      "sha256": "b2e25c437b29e8a478bd29d503d383aee138d7b1c3f84301d854ed9b99281b5f"
+    },
+    {
+      "path": "scripts/engine-lock.json",
+      "sha256": "923be8da48da379b36ab7f36855f64497c92ecf28218149e165b7da06c459fa3"
+    },
+    {
+      "path": "scripts/prepare-patched-core.py",
+      "sha256": "c192b475ddd9a07e661fc95d95f0385cd23103a788a6b1baa886a5a0b10c2850"
+    },
+    {
+      "path": "scripts/record-patched-core.mjs",
+      "sha256": "2fbedc66a3c684fd4d4900e321bdd91f31827a13e2aecca2b02423175b2b9ef2"
+    },
+    {
+      "path": "scripts/engine-build-lib.mjs",
+      "sha256": "48f45c1250805c509ac2e973e979a51ab44f2ca48a396b492904087d764bac80"
+    },
+    {
+      "path": "scripts/engine-build.test.mjs",
+      "sha256": "00b9b7bd93cc71de95c3178334f260639bf5d4c2496f504cfb0c7b72b348109d"
+    },
+    {
+      "path": "scripts/test-engine-selection.mjs",
+      "sha256": "9b22a116f3fbe8f6a25028ecb853a3a208f763f40c16cf6650cd3ac20682178e"
+    },
+    {
+      "path": "scripts/build-patched-core.ps1",
+      "sha256": "bba9794835c3cdf0256b57a851fd9465a0a6389eace7f4db1b3d72f6fb2abc22"
+    },
+    {
+      "path": "scripts/build-release-core.mjs",
+      "sha256": "f40cb5a5eb619a371ce5a8e9ca837e4c404cdd938ab8454055939b21ca2794ed"
+    },
+    {
+      "path": "scripts/build-engine.mjs",
+      "sha256": "5fc339362bdd0d952379399ab939906874c9b4f03ff01df904030d86d44ceeff"
+    }
+  ],
+  "preservation_and_limits": {
+    "source_and_historical_hwpx_mutated": false,
+    "reference_or_profile_mutated": false,
+    "application_database_or_versions_mutated_by_native_queries": false,
+    "serialization_or_layout_algorithm_changed": false,
+    "toc_uuid_hash_page_or_refresh_contract_changed": false,
+    "existing_saved_line_metadata_rewritten": false,
+    "new_ai_calls_for_this_engine_work": 0,
+    "new_hancom_confirmation_for_this_selection_patch": false,
+    "existing_fragment_duplicate_rendering_fixed": false,
+    "actual_pointer_drag_or_human_review_claimed_here": false,
+    "historical_evidence_files_modified": false
+  }
+}

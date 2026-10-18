@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ReportContent, type ReportBlock } from "./report-content";
 
 export type LiveReport = { stage: string; revision: number; activity: string; research_calls: number; elapsed_ms?: number;
@@ -20,7 +21,7 @@ export function ReportProgress({ stage, count, total }: { stage: ReportStage; co
       {i === 1 && stage === "applying" && total ? <small>{count || 0}/{total} 문단</small> : null}</li>)}
   </ol>;
 }
-export function ReportWriting({ startedAt, progress, stopped }: { startedAt?: number; progress?: LiveReport; stopped?: boolean }) {
+export function ReportWriting({ startedAt, progress, stopped, controlsHost }: { startedAt?: number; progress?: LiveReport; stopped?: boolean; controlsHost?: HTMLElement | null }) {
   const [seconds, setSeconds] = useState(0);
   const paper = useRef<HTMLDivElement>(null), follow = useRef(true);
   useEffect(() => { if (follow.current && paper.current) paper.current.scrollTop = paper.current.scrollHeight; }, [progress?.revision]);
@@ -31,12 +32,13 @@ export function ReportWriting({ startedAt, progress, stopped }: { startedAt?: nu
     tick(); const timer = setInterval(tick, 1000); return () => clearInterval(timer);
   }, [startedAt, stopped]);
   const label = stopped ? "작성 중인 내용 보존" : progress?.stage === "researching" ? "공개자료 확인 중…" : progress?.stage === "writing" ? "본문 작성 중…" : progress?.stage === "validating" ? "내용 검증 중…" : "Codex 응답 준비 중…";
-  return <div className="report-writing"><ReportProgress stage="writing" />
+  const controls = <><ReportProgress stage="writing" />
     <div className="report-stream-status" role="status">{!stopped && <span className="report-pulse" />}<b>{label}</b>
       <small>{Math.floor(seconds / 60)}분 {seconds % 60}초 경과{progress?.research_calls ? ` · 자료 조회 ${progress.research_calls}회 완료` : ""}</small>
       {!stopped && progress?.stage === "researching" && progress.activity && <p>{progress.activity}</p>}
       <ReportTiming timings={progress?.timings} />
-    </div>
+    </div></>;
+  return <div className="report-writing">{controlsHost ? createPortal(controls, controlsHost) : controls}
     <div ref={paper} className="report-live-scroll" aria-label="생성 중인 보고서" onScroll={e => {
       const el = e.currentTarget; follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     }}><div className="report-live-paper">

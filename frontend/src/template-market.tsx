@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, jsonRequest, type Document, type Version } from "./api";
 import { EditorAdapter } from "./editor";
+import { previewSvg } from "./preview-svg";
 
 type Template = {
   id: string;
@@ -66,60 +67,6 @@ const payload = (fields: Fields) => ({
   category: fields.category.trim() || "기타",
 });
 const categories = ["보고서", "회의록", "계획서", "점검표", "기타"];
-const safeResource = (value: string) =>
-  /^(#|data:(image\/(png|jpeg|gif|webp)|font\/(woff|woff2)|application\/(font-woff|x-font-woff));base64,)/i.test(
-    value,
-  );
-const remoteCss = (value: string) =>
-  /@import/i.test(value) ||
-  Array.from(value.matchAll(/url\s*\(([^)]*)\)/gi)).some(
-    (match) => !safeResource(match[1].trim().replace(/^['"]|['"]$/g, "")),
-  );
-
-// An SVG is displayed only in an image context. Reject active content and remote
-// resources as well, so a template cannot turn its preview into a network request.
-function previewSvg(value: string) {
-  if (value.length > 8_000_000 || /<!DOCTYPE|<!ENTITY/i.test(value))
-    throw new Error("안전하게 표시할 수 없는 미리보기입니다.");
-  const doc = new DOMParser().parseFromString(value, "image/svg+xml");
-  if (
-    doc.querySelector("parsererror") ||
-    doc.documentElement.localName !== "svg"
-  )
-    throw new Error("미리보기 SVG를 읽을 수 없습니다.");
-  for (const node of Array.from(doc.querySelectorAll("*"))) {
-    if (
-      [
-        "script",
-        "foreignObject",
-        "iframe",
-        "object",
-        "embed",
-        "animate",
-        "set",
-        "animateMotion",
-        "animateTransform",
-      ].includes(node.localName)
-    )
-      throw new Error("활성 요소가 있는 미리보기는 표시할 수 없습니다.");
-    for (const attr of Array.from(node.attributes)) {
-      if (/^on/i.test(attr.name))
-        throw new Error("활성 요소가 있는 미리보기는 표시할 수 없습니다.");
-      if (attr.localName === "href" && !safeResource(attr.value))
-        throw new Error(
-          "외부 이미지를 참조하는 미리보기는 표시할 수 없습니다.",
-        );
-      if (remoteCss(attr.value))
-        throw new Error(
-          "외부 리소스를 참조하는 미리보기는 표시할 수 없습니다.",
-        );
-    }
-    if (node.localName === "style" && remoteCss(node.textContent || ""))
-      throw new Error("외부 서식을 참조하는 미리보기는 표시할 수 없습니다.");
-  }
-  return new XMLSerializer().serializeToString(doc);
-}
-
 function PinnedPreview({
   item,
   standard,
@@ -230,11 +177,13 @@ export function TemplateMarket({
   onClose,
   onApply,
   onReport,
+  onDesignStandard,
   registerDocument,
 }: {
   onClose: () => void;
   onApply: (d: Document) => void;
   onReport: () => void;
+  onDesignStandard?: () => void;
   registerDocument?: Document;
 }) {
   const [catalog, setCatalog] = useState<Catalog>({
@@ -597,6 +546,7 @@ export function TemplateMarket({
             <p>파란 제목선 · □ ㅇ - 문단 · 표와 흐름도 · 핵심 강조</p>
             <small>새 AI 보고서는 항상 이 기준을 사용합니다.</small>
             <div className="market-actions">
+              {onDesignStandard && <button disabled={locked || registering || editing || !!selected} onClick={onDesignStandard}>문서 표준 편집</button>}
               <button
                 disabled={locked || !standard}
                 onClick={() => {

@@ -33,6 +33,7 @@ const coreDir = resolve(root, values["core-dir"] || ".cache/rhwp-core-release/pk
 const coreBuild = validateCore(coreDir, { diagnostic: values.diagnostic });
 // Run the real engine before touching the vendor tree or publishing output.
 execFileSync(process.execPath, [resolve(root, "scripts/test-engine-fill.mjs"), coreDir], { stdio: "inherit" });
+execFileSync(process.execPath, [resolve(root, "scripts/test-engine-selection.mjs"), coreDir], { stdio: "inherit" });
 const repo = ensureSource();
 const commit = lock.commit;
 const run = (cmd, args, cwd = repo, env = {}) =>

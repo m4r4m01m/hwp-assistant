@@ -78,6 +78,8 @@ flowchart LR
 
 ## Windows에서 API·웹 개발 실행
 
+**빠른 시작:** clone 후 루트의 **`Start HWP Assistant.cmd`를 더블클릭**하면 잠금 의존성 설치 → 해시로 고정한 개발 엔진 준비 → 분리된 로컬 문서함/API/웹 실행을 진행합니다. Git·Node·Python이 필요하며, AI에는 각 개발자의 Codex CLI와 본인 ChatGPT 로그인을 사용합니다. 기존 문서·다른 실행 서버·인증 파일을 복사하거나 변경하지 않습니다. [첫 실행·도구 검사·엔진 kit·소스 빌드 안내](docs/developer-quickstart.md)
+
 검증 환경은 Windows, Node **24.15.0**, Python **3.14.4**, Chrome입니다. React **19.2.0**, TypeScript **5.9.3**, FastAPI **0.121.0**, SQLAlchemy **2.0.44**를 사용합니다. 로컬 DB는 SQLite이며 PostgreSQL 실행 결과로 대체해 표현하지 않습니다.
 
 ### 1. 의존성 준비

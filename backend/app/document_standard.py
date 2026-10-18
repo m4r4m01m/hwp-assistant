@@ -53,7 +53,7 @@ def source_parts():
         return profile, ET.fromstring(z.read("Contents/header.xml")), ET.fromstring(z.read("Contents/section0.xml"))
 
 
-def report_styles():
+def report_styles(*, visual_settings=None):
     profile, header, section = source_parts()
     chars = header.find(f".//{{{HH}}}charProperties")
     paras = header.find(f".//{{{HH}}}paraProperties")
@@ -73,6 +73,25 @@ def report_styles():
                              bullet["marker_left"], 1000)
         definitions[kind + "_continuation"] = (1500, False, "LEFT", 160,
                                                 bullet["marker_left"] + bullet["hanging"], 1000)
+    if visual_settings is not None and visual_settings.get("page_number_style") == "PLAIN":
+        align = visual_settings.get("page_number_position", "BOTTOM_CENTER").removeprefix("BOTTOM_")
+        definitions["page_number"] = (1000, False, align, 100, 0, 0)
+    if visual_settings is not None:
+        for kind, definition in list(definitions.items()):
+            group = "body" if kind == "body" or kind in profile["bullets"] or kind.endswith("_continuation") else kind
+            if group not in ("title", "heading", "body", "source"):
+                continue
+            height, headline, align, line, left, after = definition
+            height = round(visual_settings.get(group + "_size_pt", height / 100) * 100)
+            line = visual_settings.get(group + "_line_percent", line)
+            after = round(visual_settings.get(group + "_after_pt", after / 100) * 100)
+            bullet_kind = kind.removesuffix("_continuation")
+            if bullet_kind in profile["bullets"]:
+                bullet = profile["bullets"][bullet_kind]
+                left = round(visual_settings.get(bullet_kind + "_indent_pt", bullet["marker_left"] / 100) * 100)
+                if kind.endswith("_continuation"):
+                    left += bullet["hanging"]
+            definitions[kind] = (height, headline, align, line, left, after)
     for kind, (height, headline, align, line, left, after) in definitions.items():
         original = profile["headline_char_id" if headline else "body_char_id"]
         char = copy.deepcopy(next(c for c in chars if c.get("id") == original))
@@ -92,6 +111,15 @@ def report_styles():
         if kind == "title":
             border = para.find(f"{{{HH}}}border")
             border.attrib.update(borderFillIDRef=profile["compact_title_border_id"], offsetTop="365", offsetBottom="365", ignoreMargin="1")
+            if visual_settings is not None and "title_vertical_offset_pt" in visual_settings:
+                offset = round(visual_settings["title_vertical_offset_pt"] * 100)
+                # Extra space is INSIDE the two blue rules. Pair the paragraph
+                # margin with the rule offset so surrounding prose cannot overlap.
+                top, bottom = max(0, offset), max(0, -offset)
+                set_margins(para, left=left, before=top, after=after + bottom)
+                # rhwp's frame starts BEFORE paragraph prev spacing. Keeping
+                # offsetTop fixed makes the top rule stay while text moves down.
+                border.attrib.update(offsetTop="365", offsetBottom=str(365 + bottom))
         chars.append(char); paras.append(para); formats[kind] = (cid, pid)
     chars.set("itemCnt", str(len(chars))); paras.set("itemCnt", str(len(paras)))
     for element in header.iter():
@@ -100,7 +128,32 @@ def report_styles():
     for child in list(properties):
         if child.tag.split("}")[-1] in ("parameterset", "presentation"):
             properties.remove(child)
+    if visual_settings is not None:
+        margin = properties.find(f"{{{HP}}}pagePr/{{{HP}}}margin")
+        for side in ("top", "bottom", "left", "right"):
+            key = "margin_" + side + "_mm"
+            if key in visual_settings:
+                margin.set(side, str(int(visual_settings[key] * 7200 / 25.4)))
     return profile, header, properties, formats
+
+
+def layout_metrics(section, visual_settings=None):
+    """Keep the historical conservative page budget for unchanged previews."""
+    if visual_settings is None:
+        return 481.9, 625
+    page = section.find(f".//{{{HP}}}pagePr")
+    margin = page.find(f"{{{HP}}}margin")
+    available = (int(page.get("width")) - int(margin.get("left")) - int(margin.get("right"))) / 100
+    # Preserve the existing safety allowance while respecting custom top/bottom
+    # margins. The bundled reference uses 5669 + 2834 HWP units here.
+    budget = 625 + (8503 - int(margin.get("top")) - int(margin.get("bottom"))) / 100
+    return available, budget
+
+
+def paragraph_line_factor(para):
+    branch = para.find(f"{{{HP}}}switch/{{{HP}}}case")
+    branch = branch if branch is not None else para
+    return int(branch.find(f"{{{HH}}}lineSpacing").get("value")) / 100
 
 
 def role(text, kind):
@@ -139,7 +192,33 @@ def format_signature(data, plan):
                        "alignment": para.find(f"{{{HH}}}align").get("horizontal"),
                        "margins": [(e.tag.split("}")[-1], e.get("value")) for e in margin],
                        "line": branch.find(f"{{{HH}}}lineSpacing").get("value"),
+                       "border_offsets": {key: border.get(key, "0") for key in ("offsetLeft", "offsetRight", "offsetTop", "offsetBottom")},
                        "borders": [(e.tag.split("}")[-1], e.get("type"), e.get("width"), e.get("color")) for e in fill if e.tag.split("}")[-1].endswith("Border")],
                        "page_break": p.get("pageBreak", "0")})
     page = section.find(f".//{{{HP}}}pagePr")
-    return {"paragraphs": result, "page": dict(page.attrib), "page_margins": dict(page.find(f"{{{HP}}}margin").attrib)}
+    # Native page fields live outside the fenced text paragraphs. Their semantic
+    # values must also survive application: style IDs may be renumbered by rhwp,
+    # while deleting/changing a footer field is never a harmless normalization.
+    page_numbers = [{key: number.get(key, default) for key, default in (
+        ("pos", "BOTTOM_CENTER"), ("formatType", "DIGIT"), ("sideChar", "-"))}
+        for number in section.iter(f"{{{HP}}}pageNum")]
+    footer_numbers = []
+    for footer in section.iter(f"{{{HP}}}footer"):
+        entries = []
+        for p in footer.findall(f"{{{HP}}}subList/{{{HP}}}p"):
+            pr = paras[p.get("paraPrIDRef")]
+            numbers = []
+            for run in p.findall(f"{{{HP}}}run"):
+                char = chars[run.get("charPrIDRef")]
+                for number in run.iter(f"{{{HP}}}autoNum"):
+                    fmt = number.find(f"{{{HP}}}autoNumFormat")
+                    if fmt is None:
+                        raise ValueError("Native page-number field has no frozen format")
+                    numbers.append({"kind": number.get("numType", "PAGE"), "height": char.get("height"),
+                        "color": char.get("textColor"), "format": {key: fmt.get(key, default) for key, default in (
+                            ("type", "DIGIT"), ("userChar", ""), ("prefixChar", ""), ("suffixChar", ""), ("supscript", "0"))}})
+            entries.append({"alignment": pr.find(f"{{{HH}}}align").get("horizontal"), "numbers": numbers,
+                            "text": "".join(t.text or "" for t in p.iter(f"{{{HP}}}t"))})
+        footer_numbers.append({"apply": footer.get("applyPageType", "BOTH"), "paragraphs": entries})
+    return {"paragraphs": result, "page": dict(page.attrib), "page_margins": dict(page.find(f"{{{HP}}}margin").attrib),
+            "page_numbers": page_numbers, "footer_numbers": footer_numbers}

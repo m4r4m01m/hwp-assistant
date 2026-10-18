@@ -21,11 +21,15 @@ if (optimization && (process.platform !== 'linux' || process.env.HWP_CORE_BUILD_
   throw Error('Optimized release recording belongs to the Docker Linux build');
 const metadata = {
   commit, patch: lock.patch, rust: lock.rust, wasm_bindgen: lock.wasm_bindgen,
+  selection_patch: lock.selection_patch, selection_patch_sha256: lock.selection_patch_sha256,
   profile: 'release', wasm_opt: !!optimization,
   purpose: optimization ? 'Docker optimized core; container/runtime validation is recorded separately' : 'native diagnostic build; deployment optimization not verified',
   ...(optimization ? { build_environment: 'docker-linux', wasm_pack: lock.wasm_pack, optimization } : {}),
   patch_sha256: hash(resolve(root, `scripts/patches/${lock.patch}.patch`)),
-  source_sha256: Object.fromEntries(['header.rs', 'shape.rs', 'char_shapes.rs'].map(name => [name, hash(resolve(source, 'src/serializer/hwpx', name))])),
+  source_sha256: {
+    ...Object.fromEntries(['header.rs', 'shape.rs', 'char_shapes.rs'].map(name => [name, hash(resolve(source, 'src/serializer/hwpx', name))])),
+    'cursor_nav.rs': hash(resolve(source, 'src/document_core/queries/cursor_nav.rs')),
+  },
   lock_sha256: hash(resolve(source, 'Cargo.lock')),
   wasm_sha256: hash(resolve(source, 'pkg/rhwp_bg.wasm')),
   binding_sha256: hash(resolve(source, 'pkg/rhwp.js')),

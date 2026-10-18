@@ -18,6 +18,7 @@ from .report_runner import generate_report, CONTRACT
 from .rewrite_capacity import ExecutionSlot
 from .document_standard import load_standard, metadata as standard_metadata, format_signature
 from .report_templates import ReportTemplate, catalog as template_catalog, validate_selection
+from .visual_standards import VisualSelection, validate_visual_selection, install_visual_standards, matches_base
 
 
 class CreateReport(ReportValue):
@@ -25,6 +26,7 @@ class CreateReport(ReportValue):
     prompt: str = Field(min_length=5, max_length=6000)
     research: bool = True
     template: ReportTemplate | None = None
+    visual_standard: VisualSelection | None = None
 
 
 class ApproveReport(ReportValue):
@@ -107,6 +109,7 @@ def run_report(engine, task_id, user, value, settings):
 
 def install_reports(app, publish, check_lease, doc_dict):
     engine, folder = app.state.engine, app.state.folder
+    install_visual_standards(app)
     from .report_preview import install_preview
     install_preview(app, publish, doc_dict, lock_report, decode)
 
@@ -147,6 +150,8 @@ def install_reports(app, publish, check_lease, doc_dict):
                 settings = capture_settings()
                 if value.template is not None:
                     validate_selection(value.template)
+                if value.visual_standard is not None:
+                    validate_visual_selection(db, user, value.visual_standard, folder=folder)
                 slot.reserve()
                 row = ReportTask(id=task_id, owner_id=user, input=canonical(body), input_sha256=report_hash(body),
                     status="running", created_at=time.time(), execution=canonical({"executor": "codex-app-server", "model": settings.model,
@@ -184,7 +189,13 @@ def install_reports(app, publish, check_lease, doc_dict):
                     raise HTTPException(409, "기존 승인과 동일한 입력으로 재확인하세요.")
                 doc = require_access(db, approval["document_id"], request.state.user, "owner", lock=True, fresh=True)
             else:
-                data, plan = scaffold(seed, report_blocks(json.loads(row.draft)))
+                visual = json.loads(row.input).get("visual_standard")
+                if visual:
+                    matches_base(visual["base_standard"])
+                data, plan = (scaffold(seed, report_blocks(json.loads(row.draft), visual_settings=visual["settings"]), visual_settings=visual["settings"])
+                              if visual else scaffold(seed, report_blocks(json.loads(row.draft))))
+                if visual:
+                    matches_base(visual["base_standard"])
                 doc = Document(id=str(uuid.uuid4()), name="작성 중 - " + json.loads(row.draft)["title"].replace("/", " ").replace("\\", " ") + ".hwpx", created_at=time.time(), lease_until=0)
                 db.add(doc); db.flush(); db.add(Access(document_id=doc.id, user_id=request.state.user, role="owner"))
                 base = publish(db, doc, data, None, None, str(value.id), "upload")
@@ -192,6 +203,8 @@ def install_reports(app, publish, check_lease, doc_dict):
                     "base_version": base.id, "seed_sha256": digest(seed), "scaffold_sha256": digest(data),
                     "document_standard": standard_metadata(),
                     "plan": [{**p, "command_id": str(uuid.uuid5(value.id, str(i)))} for i, p in enumerate(plan)]}
+                if visual:
+                    approval["visual_standard"] = visual
                 row.approval = canonical(approval)
             base = db.get(Version, approval["base_version"])
             return {**approval, "document": {**doc_dict(doc), "role": "owner"}, "scaffold_base64": base64.b64encode((folder / base.storage_key).read_bytes()).decode()}
