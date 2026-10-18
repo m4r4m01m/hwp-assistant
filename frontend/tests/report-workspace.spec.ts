@@ -1,0 +1,99 @@
+import { test, expect, type Page } from "@playwright/test";
+import { createHash } from "node:crypto";
+import { writeFile } from "node:fs/promises";
+import { unzipSync, strFromU8 } from "fflate";
+
+const sha = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+async function engine(page: Page) {
+  const handle = await page.locator(".report-editor-slot.active iframe").elementHandle();
+  const frame = await handle?.contentFrame();
+  if (!frame) throw new Error("활성 보고서 편집기를 찾지 못했습니다.");
+  return { handle: handle!, frame };
+}
+async function expectViewport(page: Page, withEditor: boolean) {
+  const viewport = page.viewportSize()!;
+  await page.evaluate(() => window.scrollTo(100000, 100000));
+  expect(await page.evaluate(() => ({
+    x: window.scrollX, y: window.scrollY,
+    width: document.documentElement.scrollWidth,
+    height: document.documentElement.scrollHeight,
+    bodyHeight: document.body.scrollHeight,
+  }))).toEqual({ x: 0, y: 0, width: viewport.width, height: viewport.height, bodyHeight: viewport.height });
+  if (withEditor) {
+    expect(await page.locator(".report-editor-slot.active iframe").boundingBox()).toEqual({
+      x: 64, y: 0, width: viewport.width - 64, height: viewport.height,
+    });
+  }
+}
+
+test("REAL rhwp + MOCK report workspace: full height editor, local drawers and preserved save/reopen", async ({ page, request }, info) => {
+  test.skip(process.env.HWP_E2E_REPORT_MOCK !== "1" || !!process.env.HWP_REPORT_FIXTURES,
+    "Synthetic report generation; actual rhwp layout and save, no model call.");
+  await page.setViewportSize({ width: 862, height: 692 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "보고서 작성", exact: true }).click();
+  const prompt = "[RICH] 전체 높이 보고서 편집 화면과 도구 전환 보존 확인";
+  await page.getByLabel("보고서 작성 요청", { exact: true }).fill(prompt);
+  await page.getByLabel("공개 웹 자료를 검색하고 출처 포함").uncheck();
+  await expectViewport(page, false);
+  await page.getByRole("button", { name: "작성 요청 도구 닫기", exact: true }).click();
+  await page.getByRole("button", { name: "작성 요청", exact: true }).click();
+  await expect(page.getByLabel("보고서 작성 요청", { exact: true })).toHaveValue(prompt);
+  await expect(page.getByLabel("공개 웹 자료를 검색하고 출처 포함")).not.toBeChecked();
+  const posted = page.waitForResponse(response => response.url().endsWith("/api/report-tasks") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "Codex로 보고서 초안 만들기", exact: true }).click();
+  const id = (await (await posted).json()).id as string;
+  await expect(page.locator(".formatted-report-surface")).toHaveAttribute("data-ready", "true", { timeout: 90000 });
+  await expect(page.getByRole("button", { name: "초안 확정·서버 저장", exact: true })).toBeEnabled();
+  await expectViewport(page, true);
+  const initial = await engine(page);
+  const output = async () => Uint8Array.from(await initial.frame.evaluate(() => Array.from((window as any).hwpAssistantBridge.exportSnapshot().bytes) as number[]));
+  const before = await output();
+  await page.getByRole("button", { name: "작성 요청", exact: true }).click();
+  await expect(page.getByLabel("보고서 작성 요청", { exact: true })).toHaveValue(prompt);
+  await page.getByRole("button", { name: "결과·출처", exact: true }).click();
+  await expect(page.getByRole("complementary", { name: "보고서 결과와 출처", exact: true })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "보고서 작성 요청 도구", exact: true })).toBeHidden();
+  await page.getByRole("button", { name: "초안 상태와 진행 정보", exact: true }).click();
+  await expect(page.getByRole("complementary", { name: "초안 상태와 진행 정보", exact: true })).toBeVisible();
+  await expect(page.getByLabel("초안 목차 상태", { exact: true })).toContainText("검증 완료");
+  await expect(page.getByRole("complementary", { name: "보고서 결과와 출처", exact: true })).toBeHidden();
+  await page.getByRole("button", { name: "초안 상태 닫기", exact: true }).click();
+  expect(await page.locator(".report-editor-slot.active iframe").evaluate((current, original) => current === original, initial.handle)).toBe(true);
+  expect(sha(await output())).toBe(sha(before));
+  await page.screenshot({ path: info.outputPath("report-editor-full-height.png"), fullPage: true });
+  await page.setViewportSize({ width: 400, height: 760 });
+  await expectViewport(page, true);
+  await page.getByRole("button", { name: "작성 요청", exact: true }).click();
+  const drawer = page.getByRole("complementary", { name: "보고서 작성 요청 도구", exact: true });
+  await drawer.evaluate(node => { node.scrollTop = node.scrollHeight; });
+  expect(await drawer.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
+  await expectViewport(page, true);
+  await page.getByRole("button", { name: "작성 요청 도구 닫기", exact: true }).click();
+  await page.setViewportSize({ width: 862, height: 692 });
+  await initial.frame.getByRole("textbox", { name: "문서 편집 입력", exact: true }).focus();
+  await page.keyboard.press("Control+End");
+  const edited = " 화면 도구 전환 뒤에도 보존하는 편집 내용";
+  await page.keyboard.insertText(edited);
+  await expect.poll(async () => strFromU8(unzipSync(await output())["Contents/section0.xml"])).toContain(edited);
+  await page.getByRole("button", { name: "목차 쪽수 갱신", exact: true }).click();
+  await expect(page.getByRole("button", { name: "초안 확정·서버 저장", exact: true })).toBeEnabled({ timeout: 90000 });
+  await expect(page.getByLabel("초안 목차 상태", { exact: true })).toContainText("검증 완료");
+  await expectViewport(page, true);
+  const current = await engine(page);
+  const bytes = Uint8Array.from(await current.frame.evaluate(() => Array.from((window as any).hwpAssistantBridge.exportSnapshot().bytes) as number[]));
+  await page.getByRole("button", { name: "초안 확정·서버 저장", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("HWPX 서버 저장 완료");
+  const href = (await page.getByRole("link", { name: "완성 보고서 다운로드", exact: true }).getAttribute("href"))!;
+  expect(sha(await (await request.get(href)).body())).toBe(sha(bytes));
+  await page.getByRole("button", { name: "보고서 편집하기", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("저장 완료");
+  const reopened = page.frames().find(candidate => candidate.url().includes("/rhwp/"))!;
+  expect(sha(Uint8Array.from(await reopened.evaluate(() => Array.from((window as any).hwpAssistantBridge.exportSnapshot().bytes) as number[])))).toBe(sha(bytes));
+  await writeFile(info.outputPath("report-workspace-proof.json"), JSON.stringify({
+    real_engine: true, actual_model_calls: 0, synthetic_generation: true, human_review: false,
+    full_height_viewports: ["862x692", "400x760"], outer_scroll: 0,
+    iframe_preserved_across_tools: true, prompt_preserved: true,
+    saved_sha256: sha(bytes), report_task_created: !!id,
+  }, null, 2));
+});

@@ -8,6 +8,8 @@ export function sameSelectionFence(live, expected, currentVersion, baseVersion) 
   return live.revision === expected.revision && live.state.documentSha256 === expected.state.documentSha256
     && live.state.documentEpoch === expected.state.documentEpoch && live.state.changeSeq === expected.state.changeSeq
     && live.evidence.textSha256 === expected.evidence.textSha256
+    && live.evidence.formatSha256 === expected.evidence.formatSha256
+    && live.evidence.adjacentContextSha256 === expected.evidence.adjacentContextSha256
     && isDeepStrictEqual(live.selection.target, expected.selection.target) && currentVersion === baseVersion;
 }
 

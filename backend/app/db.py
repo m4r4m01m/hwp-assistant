@@ -105,6 +105,32 @@ class Template(Base):
     created_at: Mapped[float] = mapped_column(Float)
 
 
+class TemplateCatalog(Base):
+    __tablename__ = "template_catalog"
+    template_id: Mapped[str] = mapped_column(ForeignKey("templates.id"), primary_key=True)
+    category: Mapped[str] = mapped_column(String(20))
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    # Registration retries remain bound to the initial input after metadata edits.
+    registration_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class TemplateFavorite(Base):
+    __tablename__ = "template_favorites"
+    template_id: Mapped[str] = mapped_column(ForeignKey("templates.id"), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+
+
+class VisualStandard(Base):
+    __tablename__ = "visual_standards"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(String(80), index=True)
+    snapshot: Mapped[str] = mapped_column(Text)
+    registration_sha256: Mapped[str] = mapped_column(String(64))
+    storage_key: Mapped[str] = mapped_column(String(100), unique=True)
+    size: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[float] = mapped_column(Float)
+
+
 class Proposal(Base):
     __tablename__ = "text_proposals"
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -142,6 +168,21 @@ class RewriteCandidate(Base):
     ordinal: Mapped[int] = mapped_column(Integer)
     replacement: Mapped[str] = mapped_column(Text)
     reason: Mapped[str] = mapped_column(Text)
+
+
+class ReportTask(Base):
+    __tablename__ = "report_tasks"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(String(80), index=True)
+    input: Mapped[str] = mapped_column(Text)
+    input_sha256: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(16))
+    draft: Mapped[str | None] = mapped_column(Text, nullable=True)
+    draft_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    execution: Mapped[str] = mapped_column(Text)
+    approval: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[float] = mapped_column(Float)
 
 
 class Application(Base):

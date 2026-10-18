@@ -1,0 +1,27 @@
+{
+  "id": "document-writing-standard-2026-10-07-r3",
+  "name": "문서작성 표준-게시용(최종)",
+  "reference_file": "reference.hwpx",
+  "reference_sha256": "6c68b50656867f1fc724c50549e60e1109e2f7a00219f2928ef58de0a45711f1",
+  "source_document_id": "445bbe5f-3df9-4c4f-b557-d9d6142c305b",
+  "source_version_id": "0d3f2d76-a503-450e-83b4-6bd8ab9d3f99",
+  "compact_title_border_id": "7",
+  "cover_title_border_id": "25",
+  "body_char_id": "11",
+  "headline_char_id": "78",
+  "paragraph_id": "2",
+  "body_indent_hwpunit": 1400,
+  "subheading_indent_hwpunit": 750,
+  "minor_heading_indent_hwpunit": 1400,
+  "note_indent_hwpunit": 1400,
+  "toc_indent_hwpunit": 2000,
+  "cover_title_height_hwpunit": 6519,
+  "compact_title_height_hwpunit": 4251,
+  "guide_sha256": "62bc0bf9a08398b01b2bd71a3c4904e71866fe2651e5140fa8c459dee9637176",
+  "guide_pages": [6, 7, 9, 10, 12],
+  "bullets": {
+    "square": {"marker": "□", "marker_left": 0, "hanging": 2250},
+    "circle": {"marker": "ㅇ", "marker_left": 1000, "hanging": 2250},
+    "dash": {"marker": "-", "marker_left": 2000, "hanging": 1250}
+  }
+}

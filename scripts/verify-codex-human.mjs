@@ -14,26 +14,34 @@ import path from 'node:path';
 const { values } = parseArgs({ options: {
   url: { type: 'string', default: 'http://127.0.0.1:15174' },
   out: { type: 'string', default: '.cache/codex-human-2026-09-27' },
+  provider: { type: 'string', default: 'codex' },
+  user: { type: 'string', default: 'alice' },
   help: { type: 'boolean', default: false },
 } });
 if (values.help) {
-  console.log('node scripts/verify-codex-human.mjs [--url http://127.0.0.1:15174] [--out .cache/codex-human-2026-09-27]');
-  console.log('Visible Windows Chrome; one actual Codex request; human clicks the product candidate button.');
-  console.log('Uses the isolated synthetic alice test account; HWP_TEST_APP_TOKEN can supply its configured token.');
+  console.log('node scripts/verify-codex-human.mjs [--provider codex|llm] [--user alice|local] --url <loopback app> --out <new directory>');
+  console.log('Visible Windows Chrome; one configured provider request; human clicks the product candidate button.');
+  console.log('Default: isolated alice account and Codex. HWP_TEST_APP_TOKEN supplies an authenticated account token.');
   console.log('Keep this terminal and browser open. Enter/Resume/files are never approval. Output directories cannot be reused.');
   process.exit(0);
 }
+if (!['codex', 'llm'].includes(values.provider)) throw Error('provider must be codex or llm');
+if (values.provider === 'llm' && values.out === '.cache/codex-human-2026-09-27') throw Error('Choose a new --out for the local model verification.');
+const providerLabel = values.provider === 'llm' ? '로컬·사내 모델' : '실제 Codex';
+const requestButton = values.provider === 'llm' ? '로컬·사내 모델로 후보 2개 요청' : '실제 Codex로 후보 2개 요청';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const out = path.resolve(root, values.out);
 const baseURL = new URL(values.url).origin;
 if (!['127.0.0.1', 'localhost'].includes(new URL(baseURL).hostname)) throw Error('This synthetic test requires a loopback server.');
-await mkdir(out, { recursive: true });
+await mkdir(path.dirname(out), { recursive: true });
+// Reserve a new directory before opening a browser or requesting a model.
+// A folder whose proof.json was moved must not overwrite its remaining evidence.
+await mkdir(out);
 const proofPath = path.join(out, 'proof.json');
 const proof = {
-  kind: 'headed Windows browser, real Codex, HUMAN candidate approval only',
+  kind: 'headed Windows browser, configured provider, HUMAN candidate approval only',
+  provider: values.provider, expected_user: values.user,
   started_at: new Date().toISOString(), harness_pid: process.pid, url: baseURL,
-  previous_task_id: '44ed30fc-ac37-4590-96bd-0f472397b24a',
-  previous_run: 'preserved; candidate generation succeeded; browser connection prevents continuation',
   phase: 'starting', model_request_count: 0, ui_clicks: [], network: [], checks: {},
   stages: { approval: 'not executed', apply: 'not executed', save: 'not executed', reopen: 'not executed' },
 };
@@ -136,7 +144,19 @@ try {
     await page.getByRole('button', { name: '로그인', exact: true }).click();
     expect((await loginResponse).status()).toBe(200);
   }
-  expect((await get('/api/auth/me')).user_id).toBe('alice');
+  expect((await get('/api/auth/me')).user_id).toBe(values.user);
+  const configured = await get('/api/rewrite-provider');
+  expect(configured.provider).toBe(values.provider);
+  expect(configured.configured && configured.allowed).toBe(true);
+  proof.provider_configuration = configured;
+  if (values.provider === 'llm') {
+    const models = await get('/api/ai/models');
+    expect(models.configured_model).toBe(configured.model);
+    expect(models.model_available).toBe(true);
+    if (models.configured_model === 'hwp-synthetic-fixture') throw Error('This human acceptance harness requires an actual configured model, not the automated fixture.');
+    proof.model_verification = models;
+    await record();
+  }
   // Observe only specific synthetic task traffic. No headers, tokens, or whole delta bodies are logged.
   page.on('response', response => { void (async () => {
     const request = response.request(), pathname = new URL(response.url()).pathname;
@@ -170,7 +190,7 @@ try {
   await context.route('**/api/threads/*/rewrite-tasks', async route => {
     if (route.request().method() !== 'POST') return route.continue();
     if (proof.model_request_count >= 1) {
-      console.error('실제 Codex 재호출 차단: 이 시험은 1회만 허용합니다.');
+      console.error('모델 재호출 차단: 이 시험은 1회만 허용합니다.');
       return route.abort('blockedbyclient');
     }
     proof.model_request_count++; await record(); await route.continue();
@@ -180,8 +200,8 @@ try {
   frame = page.frames().find(f => f.url().includes('/rhwp/'));
   const nonTarget = '보존 확인: 회의 장소는 제1회의실입니다.';
   const extraNonTarget = ' 담당 부서는 운영팀입니다.';
-  const original = '회의 자료는 금요일까지 준비합니다.';
-  const extra = ' 담당자는 준비가 끝나면 팀에 알려 주면 좋겠습니다.';
+  const original = values.provider === 'llm' ? '김민수는 10월 9일까지 30만원을 쓰지 않는다.' : '회의 자료는 금요일까지 준비합니다.';
+  const extra = values.provider === 'llm' ? ' 지급 승인은 하지 않았다.' : ' 담당자는 준비가 끝나면 팀에 알려 주면 좋겠습니다.';
   await focusEnd(); await page.keyboard.press('Enter'); await page.keyboard.insertText(nonTarget);
   await page.keyboard.press('Enter'); await page.keyboard.insertText(original);
   await page.getByRole('button', { name: '저장', exact: true }).click();
@@ -196,10 +216,10 @@ try {
   await page.getByRole('row').filter({ has: page.locator(`a[href="${originalUrl}"]`) }).locator('td').first().getByRole('button').click();
   await expect(page.getByRole('status')).toHaveText('저장 완료');
   frame = page.frames().find(f => f.url().includes('/rhwp/'));
-  await page.getByRole('button', { name: '대화 · Codex 열기', exact: true }).click();
+  await page.getByRole('button', { name: '대화 · AI 열기', exact: true }).click();
   page.once('dialog', dialog => dialog.accept('사용자 직접 승인 시험 ' + new Date().toISOString()));
   await page.getByRole('button', { name: '공유 대화 만들기', exact: true }).click();
-  await expect(page.getByRole('button', { name: '실제 Codex로 후보 2개 요청', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: requestButton, exact: true })).toBeVisible();
   // Test-only layout makes both choices readable. Product code and editor state are unchanged.
   await page.addStyleTag({ content: '.conversation-panel{width:min(650px,48vw)}.rewrite article h3{margin:8px 0}.rewrite article p{margin:6px 0;line-height:1.45}.rewrite article .text{padding:9px}' });
   await focusEnd(); await page.keyboard.press('Control+Home'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('End');
@@ -211,12 +231,12 @@ try {
   proof.unsaved_manifest = await inspect(await exported());
   expect(proof.unsaved_manifest.paragraphs.some(p => p.text === nonTarget + extraNonTarget)).toBe(true);
   const responsePromise = page.waitForResponse(r => r.request().method() === 'POST' && /\/rewrite-tasks$/.test(r.url()));
-  await page.getByRole('button', { name: '실제 Codex로 후보 2개 요청', exact: true }).click();
+  await page.getByRole('button', { name: requestButton, exact: true }).click();
   const response = await responsePromise;
-  if (!response.ok()) throw Error(`Codex task request: ${response.status()} ${await response.text()}`);
+  if (!response.ok()) throw Error(`Rewrite task request: ${response.status()} ${await response.text()}`);
   proof.task_id = (await response.json()).id;
   proof.conversation_id = (await get(docPath + '/threads'))[0].id;
-  await announce('actual_codex_running', '실제 Codex 실행 중입니다. AI 요청은 1회만 수행합니다.');
+  await announce('model_running', `${providerLabel} 실행 중입니다. AI 요청은 1회만 수행합니다.`);
   let task;
   const deadline = Date.now() + 280000;
   do {
@@ -225,7 +245,16 @@ try {
     await sleep(1500);
   } while (Date.now() < deadline);
   proof.task = task; await record();
-  if (task.status !== 'ready') throw Error(`Codex ${task.status}: ${task.error}`);
+  if (task.status !== 'ready') throw Error(`Rewrite ${task.status}: ${task.error}`);
+  expect(task.execution.provider).toBe(values.provider);
+  if (values.provider === 'llm') {
+    expect(task.execution.model).toBe(configured.model);
+    // A review aid, not a semantic truth validator. Human comparison remains mandatory.
+    proof.literal_fact_check = task.candidates.map(candidate => ({ candidate_id: candidate.id,
+      name: candidate.replacement.includes('김민수'), date: candidate.replacement.includes('10월 9일'),
+      amount: /30\s*만\s*원/u.test(candidate.replacement),
+      negation_requires_human_review: true, replacement: candidate.replacement }));
+  }
   expect(task.snapshot).toEqual(proof.unsaved_snapshot);
   expect(await snapshot()).toEqual(proof.unsaved_snapshot);
   const beforeVersions = await get(docPath + '/versions'); expect(beforeVersions).toHaveLength(1);

@@ -7,12 +7,14 @@ import socket
 import subprocess
 import sys
 import time
+import uuid
 import pytest
 import httpx
 pytest.importorskip("mcp", reason="Install backend/requirements-mcp.lock.txt for MCP process tests")
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
-from test_collaboration import TOKENS, document, thread, share, context
+from test_collaboration import TOKENS, document, thread, share, context, secured
+from test_rewrite import job
 
 
 def test_real_stdio_mcp_tools_and_permission_revalidation(tmp_path):
@@ -77,3 +79,68 @@ def test_real_stdio_mcp_tools_and_permission_revalidation(tmp_path):
         finally:
             process.terminate()
             process.wait(timeout=10)
+
+
+def test_real_task_scoped_stdio_contract_and_cancellation(job):
+    """Real SDK process/HTTP; fixed Codex executor and candidates, no model invocation."""
+    import threading
+    import uvicorn
+    client, app, doc, conversation, _, body, token = job
+    root = Path(__file__).resolve().parents[2]
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=0, log_level="error", loop="asyncio"))
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        base = f"http://127.0.0.1:{listener.getsockname()[1]}"
+        worker = threading.Thread(target=server.run, kwargs={"sockets": [listener]}, daemon=True)
+        worker.start()
+        try:
+            deadline = time.monotonic() + 10
+            while not server.started and worker.is_alive() and time.monotonic() < deadline:
+                time.sleep(0.05)
+            assert server.started
+
+            async def run():
+                params = StdioServerParameters(command=sys.executable, args=["-m", "app.rewrite_mcp"], cwd=str(root),
+                    env={**os.environ, "PYTHONPATH": str(root / "backend"), "HWP_API_URL": base, "HWP_API_TOKEN": token})
+                async with stdio_client(params) as (read, write):
+                    async with ClientSession(read, write) as session:
+                        initialized = await session.initialize()
+                        assert initialized.serverInfo.name == "hwp-document-rewrite"
+                        tools = (await session.list_tools()).tools
+                        assert {tool.name for tool in tools} == {"read_rewrite_task", "submit_rewrite_candidates"}
+                        schema = next(tool.inputSchema for tool in tools if tool.name == "submit_rewrite_candidates")
+                        item = schema["properties"]["candidates"]["items"]
+                        if "$ref" in item:
+                            item = schema["$defs"][item["$ref"].split("/")[-1]]
+                        assert item["properties"]["replacement"]["maxLength"] == 4000
+                        assert item["additionalProperties"] is False
+                        result = await session.call_tool("read_rewrite_task", {"task_id": body["id"]})
+                        assert not result.isError
+                        assert json.loads(result.content[0].text)["snapshot"] == body["selection"]
+                        assert (await session.call_tool("read_rewrite_task", {"task_id": str(uuid.uuid4())})).isError
+                        assert (await session.call_tool("list_documents", {})).isError
+                        candidate = {"replacement": "고정 MCP 후보 하나", "reason": "실제 모델이 아닌 전송 시험"}
+                        arguments = {"task_id": body["id"], "original_sha256": body["selection"]["evidence"]["textSha256"],
+                                     "candidates": [candidate]}
+                        assert (await session.call_tool("submit_rewrite_candidates", arguments)).isError
+                        arguments["candidates"].append({"replacement": "고정 MCP 후보 둘", "reason": "전송 시험"})
+                        result = await session.call_tool("submit_rewrite_candidates", arguments)
+                        assert not result.isError
+                        expected = json.loads(result.content[0].text)
+                        assert len(expected["candidate_ids"]) == 2 and expected["document_changed"] is False
+                        replay = await session.call_tool("submit_rewrite_candidates", arguments)
+                        assert not replay.isError and json.loads(replay.content[0].text) == expected
+                        before = client.get(f"/api/threads/{conversation}/rewrite-tasks").json()[0]
+                        assert before["status"] == "running" and len(before["candidates"]) == 2
+                        assert client.post(f"/api/rewrite-tasks/{body['id']}/cancel").status_code == 200
+                        assert (await session.call_tool("read_rewrite_task", {"task_id": body["id"]})).isError
+                        assert (await session.call_tool("submit_rewrite_candidates", arguments)).isError
+                        after = client.get(f"/api/threads/{conversation}/rewrite-tasks").json()[0]
+                        assert after["status"] == "cancelled" and after["candidates"] == before["candidates"]
+            asyncio.run(run())
+            assert len(client.get(f"/api/documents/{doc['id']}/versions").json()) == 1
+            assert client.get(f"/api/documents/{doc['id']}/applications").json() == []
+        finally:
+            server.should_exit = True
+            worker.join(timeout=10)
+            assert not worker.is_alive(), "test HTTP server must stop"

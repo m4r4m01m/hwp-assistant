@@ -1,0 +1,37 @@
+/* Editor routes own the viewport. Library/market pages keep normal scrolling. */
+html:has(#root > :is(.workspace, .report-workspace, .standard-designer)),
+body:has(#root > :is(.workspace, .report-workspace, .standard-designer)) {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+#root:has(> :is(.workspace, .report-workspace, .standard-designer)) {
+  height: 100dvh;
+  min-height: 0;
+  overflow: clip;
+}
+#root > :is(.workspace, .report-workspace, .standard-designer) {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  max-width: none;
+  margin: 0;
+  overflow: hidden;
+}
+:is(.workspace, .report-workspace, .standard-designer) iframe { display: block; }
+.block-editor-wrapper,
+.formatted-report-surface,
+.formatted-report-editor {
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.formatted-report-editor:not(.report-staging-editor) { position: relative; }
+/* Retain measurable staging dimensions while containing off-screen painters. */
+.report-engine, .market-renderer, .standard-renderer,
+.block-editor-slot:not(.active), .report-editor-slot:not(.active) {
+  contain: layout paint;
+  overflow: hidden;
+}

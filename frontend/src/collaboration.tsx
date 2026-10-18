@@ -1,17 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, jsonRequest, type Document } from "./api";
 import type { Snapshot } from "./editor";
-import { RewritePanel } from "./rewrite";
+import { RewritePanel, type PendingRewrite } from "./rewrite";
+import { WritingContextEditor, type WritingContext } from "./context";
 
 type Thread = { id: string; title: string; visibility: "document" | "private" };
-type Context = {
-  revision: number;
-  base_version: string;
-  stale: boolean;
-  purpose: string;
-  facts: string;
-  selection: Snapshot | null;
-};
 type Message = {
   id: string;
   author_id: string;
@@ -26,7 +19,7 @@ type Proposal = {
   stale: boolean;
   snapshot: Snapshot;
 };
-type Detail = Thread & { context: Context; messages: Message[] };
+type Detail = Thread & { context: WritingContext; messages: Message[] };
 
 export function CollaborationPanel({
   document: doc,
@@ -34,23 +27,29 @@ export function CollaborationPanel({
   approve,
   requestRewrite,
   approveRewrite,
+  cancelRewrite,
+  onContextDirty,
+  getPendingRewrite,
 }: {
   document: Document;
   capture?: () => Snapshot;
   approve?: (thread: string, proposal: string) => Promise<void>;
-  requestRewrite?: (thread: string, instruction: string) => Promise<void>;
+  requestRewrite?: (thread: string, instruction: string, contextRevision?: number) => Promise<void>;
   approveRewrite?: (task: string, candidate: string, application: string) => Promise<void>;
+  cancelRewrite?: (task: string) => Promise<void>;
+  onContextDirty?: (dirty: boolean) => void;
+  getPendingRewrite?: () => PendingRewrite | null;
 }) {
   const [threads, setThreads] = useState<Thread[]>([]),
     [selected, setSelected] = useState(""),
     [detail, setDetail] = useState<Detail | null>(null),
     [proposals, setProposals] = useState<Proposal[]>([]),
-    [purpose, setPurpose] = useState(""),
-    [facts, setFacts] = useState(""),
+    [contextDirty, setContextDirty] = useState(false),
     [message, setMessage] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const generation = useRef(0);
+  const dirtyChanged = useCallback((dirty: boolean) => { setContextDirty(dirty); onContextDirty?.(dirty); }, [onContextDirty]);
   const writable = doc.role !== "reader";
   async function list() {
     const rows = await api<Thread[]>(`/documents/${doc.id}/threads`);
@@ -67,8 +66,7 @@ export function CollaborationPanel({
     if (generation.current !== epoch) return;
     setDetail(d);
     setProposals(p);
-    setPurpose(d.context.purpose);
-    setFacts(d.context.facts);
+
   }
   useEffect(() => {
     void list().catch((e) => setError(e.message));
@@ -93,20 +91,6 @@ export function CollaborationPanel({
       setBusy(false);
     }
   }
-  async function saveContext(selection: Snapshot | null) {
-    if (!detail) return;
-    await api(
-      `/threads/${selected}/context`,
-      jsonRequest("PUT", {
-        expected_revision: detail.context.revision,
-        base_version: doc.current_version,
-        purpose,
-        facts,
-        selection,
-      }),
-    );
-    await load();
-  }
   return (
     <section className="collaboration">
       <h2>문서 대화 · 컨텍스트</h2>
@@ -116,7 +100,10 @@ export function CollaborationPanel({
       <select
         aria-label="대화 선택"
         value={selected}
-        onChange={(e) => setSelected(e.target.value)}
+        onChange={(e) => {
+          if (contextDirty && !confirm("저장하지 않은 작성 정보가 있습니다. 대화를 바꾸면 입력이 사라집니다. 계속할까요?")) return;
+          dirtyChanged(false); setSelected(e.target.value);
+        }}
         disabled={busy}
       >
         <option value="">대화를 선택하세요</option>
@@ -133,6 +120,7 @@ export function CollaborationPanel({
             disabled={busy}
             onClick={() =>
               void run(async () => {
+                if (contextDirty && !confirm("저장하지 않은 작성 정보가 있습니다. 새 대화를 열까요?")) return;
                 const title = prompt(
                   "대화 제목",
                   "문서 검토",
@@ -147,7 +135,7 @@ export function CollaborationPanel({
                   }),
                 );
                 await list();
-                setSelected(row.id);
+                dirtyChanged(false); setSelected(row.id);
               })
             }
           >
@@ -175,61 +163,11 @@ export function CollaborationPanel({
           <small>
             대화 ID: <code>{detail.id}</code>
           </small>
-          <RewritePanel key={detail.id} thread={detail.id} document={doc} requestRewrite={requestRewrite} approveRewrite={approveRewrite} />
-          <p>
-            컨텍스트 {detail.context.revision} ·{" "}
-            {detail.context.stale ||
-            detail.context.base_version !== doc.current_version
-              ? "기준 버전이 바뀌었습니다. 내용을 확인하고 다시 저장하세요."
-              : "현재 기준 버전"}
-          </p>
-          <label>
-            작성 목적
-            <textarea
-              aria-label="작성 목적"
-              value={purpose}
-              disabled={!writable || busy}
-              onChange={(e) => setPurpose(e.target.value)}
-              maxLength={4000}
-            />
-          </label>
-          <label>
-            확정 사실·작성 기준
-            <textarea
-              aria-label="확정 사실·작성 기준"
-              value={facts}
-              disabled={!writable || busy}
-              onChange={(e) => setFacts(e.target.value)}
-              maxLength={12000}
-            />
-          </label>
-          {writable && (
-            <button
-              disabled={busy}
-              onClick={() => void run(() => saveContext(null))}
-            >
-              컨텍스트 저장
-            </button>
-          )}
-          {capture && (
-            <button
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  await saveContext(capture());
-                })
-              }
-            >
-              현재 문단을 Codex에 공유
-            </button>
-          )}
-          {detail.context.selection && (
-            <p>공유한 문단: {detail.context.selection.evidence.text}</p>
-          )}
-          <p className="hint">
-            목적·사실·선택 문단·대화는 이 앱의 DB에 보관됩니다. Codex는 MCP로 이
-            대화 ID를 읽고 제안을 등록할 수 있습니다.
-          </p>
+          <RewritePanel key={detail.id} thread={detail.id} document={doc} context={detail.context} contextDirty={contextDirty}
+            requestRewrite={requestRewrite} approveRewrite={approveRewrite} cancelRewrite={cancelRewrite} getPendingRewrite={getPendingRewrite} />
+          <WritingContextEditor key={`context-${detail.id}`} thread={detail.id} context={detail.context}
+            baseVersion={doc.current_version} writable={writable} capture={capture} onSaved={() => load(detail.id)} onDirty={dirtyChanged} />
+          <p className="hint">작성 정보와 대화는 이 앱에 저장됩니다. 후보 생성에는 선택한 작성 정보만 사용하며 전체 대화를 자동 전달하지 않습니다.</p>
           <div className="messages" aria-label="저장된 대화">
             {detail.messages.map((m) => (
               <article key={m.id}>

@@ -1,0 +1,103 @@
+{
+  "kind": "Windows developer setup verification; isolated clean working copy, not remote clone",
+  "date": "2026-10-18",
+  "runtime": {
+    "powershell": "Windows PowerShell 5.1",
+    "node": "24.15.0",
+    "python": "3.14.4"
+  },
+  "source_copy": {
+    "kind": "clean working copy, current tracked and new source only",
+    "files": 305,
+    "copied_venv": false,
+    "copied_node_modules": false,
+    "copied_userdata": false,
+    "copied_authentication": false,
+    "engine": "explicit verified offline kit"
+  },
+  "dependency_download_cache_reused": true,
+  "original_user_ports_targeted": false,
+  "runs": [
+    {
+      "id": "20261018-174503-f672f5d7",
+      "result": "smoke-passed",
+      "diagnostic": true,
+      "web_url": "http://127.0.0.1:15190",
+      "ports": [
+        18190,
+        15190
+      ],
+      "remaining_listeners": [],
+      "served_files_verified": 10,
+      "started_at": "2026-10-18T08:45:10.9731624Z",
+      "finished_at": "2026-10-18T08:45:22.0385131Z",
+      "model_calls": 0
+    },
+    {
+      "id": "20261018-174808-46da81ba",
+      "result": "smoke-passed",
+      "diagnostic": true,
+      "web_url": "http://127.0.0.1:15891",
+      "ports": [
+        18890,
+        15891
+      ],
+      "remaining_listeners": [],
+      "served_files_verified": 10,
+      "started_at": "2026-10-18T08:48:13.6732127Z",
+      "finished_at": "2026-10-18T08:48:23.2628962Z",
+      "model_calls": 0
+    }
+  ],
+  "kit": {
+    "archive": "hwp-assistant-developer-engine-0.8.6-20261018.zip",
+    "sha256": "bcfd8793bbc5fe3b3c766784348de4e07ccb794719479cffca476fe4715d36fa",
+    "archive_bytes": 37244030,
+    "files": 82,
+    "uncompressed_bytes": 52381891,
+    "diagnostic": true,
+    "contains_user_data": false,
+    "contains_credentials": false
+  },
+  "regressions": {
+    "archive_safety": {
+      "passed": 4,
+      "failed": 0
+    },
+    "credential_redirect_safety": {
+      "passed": 4,
+      "failed": 0,
+      "network_access": false,
+      "real_token_used": false
+    },
+    "occupied_port": {
+      "occupied": 15890,
+      "selected": 15891,
+      "existing_listener_preserved": true
+    },
+    "active_checkout_install_guard": {
+      "rejected_before_install": true,
+      "existing_process_preserved": true
+    },
+    "unknown_parameter": {
+      "rejected_before_work": true,
+      "cmd_exit_code": 1
+    }
+  },
+  "remote_release_download": "pending integrated verification by root",
+  "docker_or_native_recompile": "not run in this setup task",
+  "actual_ai_model_calls": 0,
+  "human_review": false,
+  "source_sha256": {
+    "Start HWP Assistant.cmd": "4eb333fd5e6c7c31f7d51365f41915f10ada0068dabc17464c6b1ea5133f4cfd",
+    "scripts/dev.ps1": "43c2ba1f2782247b9d8a48a4077d15291d0d1a5e7d9cf1197bd6cc9bb24ac03c",
+    "scripts/start-local.ps1": "0bf12f7fb0e6c98b498215877f1da466ab9e00afb6d4e252d7978fbc033aa502",
+    "scripts/developer-tools.ps1": "07f7489af0ede8411f4195259bb93bdefa5819492a85c5c366b3ce814c92ab14",
+    "scripts/check-codex-login.py": "aff1823850ac49941aa08031c64ea82732ebb5afe0fe8aca05861bd8b16ede3d",
+    "scripts/developer-engine-kit.mjs": "b416d869fecacc840560d3f40fe677ac5126bbf5fe3b2b403b669b036d9cbac3",
+    "scripts/developer-engine-kit.test.mjs": "3106af5fa9e94c023c7fd048a38f73d44b29c1268856f169912648f0826b0867",
+    "scripts/download-developer-engine.py": "79019addc1f965c2f7dc0732518af93b176b189d89b3b3b1c600667dfeef21b8",
+    "scripts/developer-download.test.py": "33c22b1d3beb34ff8fcffdea8120c1a305150c8e9ce5f6f9e5979672ac868de7",
+    "scripts/developer-engine.lock.json": "b32e518b339c0b221b435277c4eaa277d75efb88d005245323e7788ce7dfaca1"
+  }
+}

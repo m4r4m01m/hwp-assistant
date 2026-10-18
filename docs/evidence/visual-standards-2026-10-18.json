@@ -1,0 +1,259 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-18",
+  "kind": "Visual standard designer implementation and scoped verification",
+  "basis_head": "5d75900eb71671be696b9201f871c2c310f3878f",
+  "review": {
+    "url": "http://127.0.0.1:15185/",
+    "original_apps_preserved": [
+      "http://127.0.0.1:15183/",
+      "http://127.0.0.1:15184/"
+    ],
+    "data": "Separate SQLite backup and SHA-verified blob copies",
+    "protected_source_blobs": 7,
+    "all_protected_blob_sha256_unchanged": true,
+    "review_database_counts": {
+      "documents": 4,
+      "versions": 7,
+      "visual_standards": 1
+    },
+    "actual_model_calls": 0,
+    "registered_sample_settings": {
+      "body_after_pt": 10.0,
+      "body_line_percent": 180,
+      "body_size_pt": 16.0,
+      "circle_indent_pt": 10.0,
+      "dash_indent_pt": 20.0,
+      "heading_after_pt": 14.0,
+      "heading_line_percent": 160,
+      "heading_size_pt": 16.0,
+      "margin_bottom_mm": 10.0,
+      "margin_left_mm": 20.0,
+      "margin_right_mm": 20.0,
+      "margin_top_mm": 20.0,
+      "source_after_pt": 7.0,
+      "source_line_percent": 130,
+      "source_size_pt": 12.0,
+      "square_indent_pt": 0.0,
+      "table_border_color": "#4B8062",
+      "table_header_fill": "#DDEFE5",
+      "table_line_percent": 125,
+      "table_size_pt": 12.0,
+      "title_after_pt": 20.0,
+      "title_line_percent": 160,
+      "title_size_pt": 22.0
+    },
+    "registered_sample_settings_sha256": "ba9d9f06e923d097631ec1b5868811e410796c89d917308edb1d8ea255969445",
+    "registered_sample_hwpx_sha256": "1b95ef70e216f030bfee0a07093ec300eb339cd9f10984b1f60177cc7e6bec15",
+    "manual_browser_observation": "AI agent Computer Use: changed body 16pt/180%, green table fill/border, waited for actual two-page rendering, registered once, entered Reports with selected standard, reloaded and loaded the registered settings, confirmed setting input retains focus after actual rendering. No report generation submitted in the review app.",
+    "human_acceptance_review": false
+  },
+  "build": {
+    "typescript": "passed",
+    "mode": "Windows native diagnostic engine and locally built frontend",
+    "served_bundle_file_count": 10,
+    "served_files": [
+      {
+        "path": "rhwp/build-info.json",
+        "sha256": "7a033219811049469c7011981742f280e48384988a6f598c4984cce5e890b7cf"
+      },
+      {
+        "path": "rhwp/index.html",
+        "sha256": "b734f5756ff4e0aa2c15f48ae136a2c4f604468e3ff8bd0c9d270a96bc497814"
+      },
+      {
+        "path": "rhwp/rhwp.js",
+        "sha256": "12029c04cb7f4af12dc6c1026a0499e49e3a01d1bce4b6e2f79f51da1aa59da7"
+      },
+      {
+        "path": "rhwp/assets/rhwp_bg-jdZ2ww4q.wasm",
+        "sha256": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0"
+      },
+      {
+        "path": "rhwp/assets/canvaskit-renderer-DTebcGR5.js",
+        "sha256": "b8998967b6f4f8d13855777db5454418a111eb82205af83cf2ef2d67dc8e81e4"
+      },
+      {
+        "path": "rhwp/assets/index-ldC5SY6P.js",
+        "sha256": "f5ef9b7becb3448f7900a8ace1d7f51e39c64de5140f26d695db28b8b689fe29"
+      },
+      {
+        "path": "rhwp/assets/studio-plugin-Cp8dJ3L_.js",
+        "sha256": "abdcbcab732aad8d91b551c97ff045bec6b140ae87d94c5fd44235d5515fb4e7"
+      },
+      {
+        "path": "index.html",
+        "sha256": "8a9093c0a4de4ac16b36024aa7f065efe6c8283b0e43a79dfb4a5cf492404611"
+      },
+      {
+        "path": "assets/index-BGWbiu81.js",
+        "sha256": "ef548ff2194873a2f77e59e19739d60b6d0de9a53b8bf1ea9afd352ab67d0a23"
+      },
+      {
+        "path": "assets/index-BEVrHwje.css",
+        "sha256": "df5763315ce6da16db5879a2851cb07bdd4d78cd98c73c8cf229087cd9e5dd08"
+      }
+    ],
+    "engine_wasm_sha256": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0",
+    "source_sha256": {
+      "backend/app/visual_standards.py": "f5a82ae999b6d8233bf079472ff75a1423293239460db4b2a04ff457117a4916",
+      "backend/app/db.py": "2ea82bd5311283f252c59560b72bd40ad71946d089c1f7019ea0008dcf72e64e",
+      "backend/app/schema.py": "ff690c8f677ca1816af1aebfe08445e1b4f0bc62fe73507680ea9a5d8c4469a0",
+      "backend/app/document_standard.py": "65c54f76579a91d4bc2aab19a5effdca2d3808de8bc51f1f75c0312e192eff1e",
+      "backend/app/report_hwpx.py": "1c1b0ea5bd7591345096978c78ea0105323e8ae704341c180999598c113dafdb",
+      "backend/app/report_layout.py": "a0b1fb63877ae1d8d5a8825c4c9ac33e1515d5e97a5c854c723f53b861b65f2a",
+      "backend/app/report_rich.py": "db38ab47d7f6739d7912c18a7f363ee15e0508f7d81f8ca2524bbc861c793ce9",
+      "backend/app/reports.py": "f511bc5712635dbdcc51003ee265eba10455b67d1aa754a5861c0f3afd6179d2",
+      "backend/app/report_preview.py": "936a5d50c1254543ff0c09af798a75bedaf6d53dc30dfc35d07567e857e13934",
+      "frontend/src/standard-designer.tsx": "49a1c56405d8c1a8ad667391e3bbc8a22a3b4b7a72497b582c9190872a297415",
+      "frontend/src/standard-designer.css": "778464905adc1d672327e605c2ceacbfe68badb0ce2ee35d8a9910dc72051307",
+      "frontend/src/preview-svg.ts": "f31c3d8cada753698043433bb7d1eb20cd303390c5a7b76b5cef4d5fcb83ba83",
+      "frontend/src/reports.tsx": "1fa7b476537f65b35e2a0265c459cc2361f00dcdd9bd0c78f3c14d2fb6f7eedd",
+      "frontend/src/main.tsx": "b5804dd025b84ea126abeeb8038cf27f5081db4b32fc75398833beb96ae52284",
+      "frontend/src/template-market.tsx": "707efbcbbed2d9a6eda512eb4b6f63c7817b134dd1c8fb530e5720cd5b373592",
+      "scripts/audit-storage.py": "81f3551f16f62ea0ab905882e645946fa8ff28f44c45e865f93290c264922019"
+    }
+  },
+  "backend_tests": [
+    {
+      "scope": "Visual report integration and existing report preview/profile/TOC contracts",
+      "passed": 72,
+      "failed": 0,
+      "seconds": 54.96,
+      "command": ".venv/Scripts/python -m pytest -q backend/tests/test_visual_report_integration.py backend/tests/test_report_preview.py backend/tests/test_report_templates.py backend/tests/test_report_toc.py --basetemp .cache/visual-standard-report-checks-root",
+      "receipt": "Observed exec tool output; no reconstructed raw log"
+    },
+    {
+      "scope": "Visual API/storage/owner/frozen input contracts",
+      "passed": 27,
+      "failed": 0,
+      "command": ".venv/Scripts/python -m pytest -q backend/tests/test_visual_standards.py --basetemp .cache/visual-standard-tests-contract-r4"
+    },
+    {
+      "scope": "Additional strict integer revision validation",
+      "passed": 1,
+      "failed": 0,
+      "command": ".venv/Scripts/python -m pytest -q backend/tests/test_visual_standards.py -k selection_revision --basetemp .cache/visual-standard-revision-r1"
+    },
+    {
+      "scope": "Read-only storage audit including visual-standard blobs and old schema",
+      "passed": 15,
+      "failed": 0,
+      "command": ".venv/Scripts/python -m pytest -q backend/tests/test_storage_audit.py --basetemp .cache/visual-standard-storage-audit-r2"
+    },
+    {
+      "scope": "Visual rendering and existing standard/rich/preview contracts; some files overlap the 72-case group",
+      "passed": 37,
+      "new_rendering_cases": 5,
+      "failed": 0
+    }
+  ],
+  "legacy_compatibility": {
+    "baseline_head": "5d75900eb71671be696b9201f871c2c310f3878f",
+    "all_scaffold_and_layout_bytes_equal": true,
+    "samples": [
+      {
+        "sample": "plain",
+        "scaffold_sha256": "ec21b64492fef70942015042fd7b13bdbf3a2564465a0a0880b247e0bcb6c010",
+        "blocks": 11,
+        "legacy_layout_sha256": "982075b9f1fd611fc24b8fa335bd95527107022440d5f674225c84d52ddaba96",
+        "rich_layout_sha256": "71a1ee461af6e9be7ad6d22ab8a0b298e7bb8e3144d9902f56cfca2af8720a43"
+      },
+      {
+        "sample": "rich",
+        "scaffold_sha256": "25e62cfbe69187f173497539b7d81902fdbdb7dda4b15d526c13f172e413d2a1",
+        "blocks": 32,
+        "legacy_layout_sha256": "ca26f9e105b195b7ae0ba5a59f5dec22f859b9988162b0e7208e4762859fe0f0",
+        "rich_layout_sha256": "efcc052a5583db90458065555e3738bb722ebce1b9f096abc356d02415a84e22"
+      },
+      {
+        "sample": "long-boundary",
+        "scaffold_sha256": "279725437a7836541eeda5f6c19e2af257d9d35cac2470c6898df7d2203afbd9",
+        "blocks": 159,
+        "legacy_layout_sha256": "42b7fa572c1437556af312811baf92b176c4803bf8241274f25e08c522098911",
+        "rich_layout_sha256": "616df465b17d67821afab472f780cbee436dc1c03ac1deb57de250c339c720ca"
+      }
+    ]
+  },
+  "real_engine_e2e": {
+    "distinct_cases_passed": 6,
+    "actual_model_calls": 0,
+    "report_content": "MOCK AI fixtures",
+    "automated_approval": true,
+    "human_approval": false,
+    "case_receipts": [
+      {
+        "cases": [
+          "designer/registration/reload/mobile/focus retention and deliberate focus changes"
+        ],
+        "individual_case_result": "passed",
+        "aggregate_run_result": "passed",
+        "run": ".cache/visual-standard-e2e-2026-10-18-1945"
+      },
+      {
+        "cases": [
+          "stale response exclusion and invalid input rejection"
+        ],
+        "individual_case_result": "passed",
+        "aggregate_run_result": "passed",
+        "run": ".cache/visual-standard-e2e-2026-10-18-1915"
+      },
+      {
+        "cases": [
+          "lost registration response frozen retry",
+          "custom report generation/TOC/save/ordinary editor reopen and explicit new standard over old pending task"
+        ],
+        "individual_case_result": "passed",
+        "aggregate_run_result": "failed in a different screenshot-comparison helper case, repaired in 1915",
+        "run": ".cache/visual-standard-e2e-2026-10-18-1905"
+      },
+      {
+        "cases": [
+          "existing default TOC",
+          "existing market pinned standard preview/report entry"
+        ],
+        "individual_case_result": "passed",
+        "aggregate_run_result": "failed in designer test helper blob-fetch assertions; CSP was preserved and helpers repaired",
+        "run": ".cache/visual-standard-e2e-2026-10-18-1845"
+      }
+    ],
+    "custom_report": {
+      "physical_pages": 3,
+      "heading_count": 5,
+      "heading_uuid_hash_pages_and_export_identical_after_reopen": true,
+      "saved_sha256": "c811489185625f24ff2d22c49867854b5d083bc979772100328a947c6f91344e",
+      "saved_versions": 1
+    },
+    "test_cleanup": "Each retained run completed with no remaining test listeners; final review server intentionally remains available."
+  },
+  "screenshots": {
+    "path": "docs/evidence/visual-standard-designer-2026-10-18.jpg",
+    "sha256": "8d0fd5e359b57a7bd42d6cf98112eb50d4f28b0924c4cb81780191d91454931d",
+    "contents": "Fixed synthetic example only; no user report prose or personal document identifiers."
+  },
+  "actual_review_storage_audit": {
+    "result": "passed",
+    "documents": 4,
+    "versions": 7,
+    "visual_standards": 1,
+    "verified_blobs": 8,
+    "unreferenced_files": 0,
+    "issues": [],
+    "read_only": true,
+    "receipt": ".cache/standard-designer-review-2026-10-18/final-storage-audit-host.json"
+  },
+  "preserved": {
+    "canonical_reference_sha256": "6c68b50656867f1fc724c50549e60e1109e2f7a00219f2928ef58de0a45711f1",
+    "canonical_profile_sha256": "7b2a0cb0fd540a83fea952abd891b8fc3e535ed3ac92a5affa6898313d7e4271",
+    "source_and_historical_report_rewrites": 0,
+    "toc_contract_limits_relaxed": false,
+    "new_paid_fallbacks": false,
+    "historical_evidence_modified": false
+  },
+  "limits": [
+    "Current-tab memory holds unregistered edits and unresolved registration requests; no refresh recovery claim. Committed registrations reload from the server.",
+    "Preview is the actual rhwp output; native Hancom font/color equivalence is not newly verified.",
+    "Fixed sample must render all 1-6 pages before registration; no general report page limit changed.",
+    "No new actual model generation quality, human acceptance or Docker/WSL optimized deployment claim."
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "recorded_at": "2026-10-06T08:15:31.320680+00:00",
+  "kind": "current-state handoff; implementation unfinished",
+  "head": "1e0538781e02ac85d095bb3c72bf844943c305b3",
+  "default_generator": "codex",
+  "local_generator": "optional llm; not required for Codex path",
+  "new_product_source_edits_this_boundary_task": false,
+  "new_test_file": "backend/tests/test_rewrite_boundaries.py",
+  "targeted_command": ".venv/Scripts/python -m pytest -q backend/tests/test_rewrite_boundaries.py",
+  "targeted_result": {
+    "passed": 0,
+    "failed": 3,
+    "skipped": 0,
+    "warnings": 1
+  },
+  "failures": [
+    {
+      "test": "test_cancel_and_reissue_keeps_physical_execution_capacity_until_worker_returns",
+      "observation": "third task accepted while two logically cancelled workers had not returned",
+      "scope": "captured synthetic worker; proposed limit 2 is a new test expectation, not an existing product specification"
+    },
+    {
+      "test": "test_codex_dispatch_freezes_model_and_endpoint_at_task_acceptance",
+      "observation": "worker read later-model after acceptance config changed",
+      "scope": "synthetic subprocess only; model assertion failed before endpoint assertion"
+    },
+    {
+      "test": "test_publication_lock_refreshes_preloaded_task_and_document",
+      "observation": "preloaded Document kept old lease token after separate transaction and lock_task call",
+      "scope": "reused ORM Session; current worker normally opens a fresh Session; no production unauthorized publication demonstrated"
+    }
+  ],
+  "final_full_regression_this_changeset": "not run; previous 136-pass result predates these failing tests",
+  "context_design": "not yet written; context_used remains false",
+  "actual_model_calls_this_boundary_task": 0,
+  "actual_human_approvals_this_boundary_task": 0,
+  "model_server_rechecked_this_boundary_task": false,
+  "preservation": {
+    "baseline_files_unchanged": 179,
+    "changed_existing_files": [],
+    "original_data_files_unchanged": 56,
+    "historical_docs_unchanged": true
+  },
+  "engine": {
+    "version": "0.8.6",
+    "commit": "e8800c8def63449808a4092798442652ed460552",
+    "sha256_checked_now": {
+      "index.html": "21b7f25c5b62b0925a3c166e3a8cec9bd6ffbc7e8d64db5169d25bc09941e6c0",
+      "rhwp.js": "12029c04cb7f4af12dc6c1026a0499e49e3a01d1bce4b6e2f79f51da1aa59da7",
+      "assets/rhwp_bg-DdftfNrC.wasm": "0e81cdeb4a61de8dd12be6d79d3bf06a8c1153525883e4112f4dcb1257d68195",
+      "assets/canvaskit-renderer-G9QZqpU4.js": "3ad7c1e8fced26e22b8bc7d404bcf3c63cd79b4f9b4057ea1c2e5559dfd08172",
+      "assets/index-CKntJATf.js": "6c4ed8c27192da6b1c5e83159fea76f652da0237e9779ebbe931c64b941774a1",
+      "assets/studio-plugin-Cp8dJ3L_.js": "abdcbcab732aad8d91b551c97ff045bec6b140ae87d94c5fd44235d5515fb4e7"
+    },
+    "scope": "existing diagnostic artifacts; no new engine/browser execution in this handoff"
+  },
+  "remote_status": "last earlier fetch had unchanged two branches; no fresh fetch in this boundary task",
+  "commit_push_merge": false,
+  "review_package_excludes": [
+    "real documents",
+    "databases",
+    "auth files",
+    "runtime tokens",
+    "raw failure logs",
+    "entire .cache"
+  ],
+  "pending": [
+    "A-D coverage mapping and controlled-order tests",
+    "minimal source fixes after scope review",
+    "single-final-changeset full regression",
+    "fresh diagnostic app bundle regression",
+    "context design only"
+  ]
+}

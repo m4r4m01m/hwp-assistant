@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { root, lock, sha256, validateCore, ensureSource, isPinnedBinaryen } from './engine-build-lib.mjs';
+import { root, lock, sha256, validateCore, ensureSource, isPinnedBinaryen, assertStudioBridge, validateInstalledDependencies } from './engine-build-lib.mjs';
 import { checkBundle } from './check-engine-bundle.mjs';
 
 const parent = resolve(root, '.cache/engine-build-tests');
@@ -32,12 +32,14 @@ test('missing metadata cannot fall back to unpatched npm core', () => {
   assert.throws(() => validateCore(directory()), /No npm-core fallback/);
 });
 test('different source, patch, or toolchain is refused', () => {
-  for (const key of ['commit', 'patch_sha256', 'rust', 'wasm_bindgen']) {
+  for (const key of ['commit', 'patch_sha256', 'selection_patch', 'selection_patch_sha256', 'rust', 'wasm_bindgen']) {
     const path = fixture(info => { info[key] = 'different'; });
     assert.throws(() => validateCore(path, { diagnostic: true }), /provenance mismatch/);
   }
   const path = fixture(info => { info.source_sha256 = { ...lock.source_sha256, 'char_shapes.rs': 'different' }; });
   assert.throws(() => validateCore(path, { diagnostic: true }), /source mismatch/);
+  const selectionPath = fixture(info => { info.source_sha256 = { ...lock.source_sha256, 'cursor_nav.rs': 'different' }; });
+  assert.throws(() => validateCore(selectionPath, { diagnostic: true }), /source mismatch/);
 });
 test('changed WASM and changed binding are independently refused', () => {
   for (const name of ['rhwp_bg.wasm', 'rhwp.js']) {
@@ -110,4 +112,27 @@ test('unrelated checkout and local files are preserved', () => {
   assert.throws(() => ensureSource(repo), /Preserving vendor checkout/);
   assert.deepEqual(git(['rev-parse', 'HEAD']), head);
   assert.equal(readFileSync(resolve(repo, 'local.txt'), 'utf8'), 'uncommitted work');
+});
+test('bridge migration accepts only bytes bound to a verified previous receipt', () => {
+  const original = '// pinned\n', old = Buffer.from('// old bridge\n'), current = '// new bridge\n';
+  const previous = { bytes: old, sha256: sha256(old) };
+  assertStudioBridge(original + old, original, current, previous);
+  assertStudioBridge(original + current, original, current);
+  assert.throws(() => assertStudioBridge(original + old, original, current), /Preserving local/);
+  assert.throws(() => assertStudioBridge(original + old + '// user edit', original, current, previous), /Preserving local/);
+  assert.throws(() => assertStudioBridge(original + old, original, current, { ...previous, sha256: 'a'.repeat(64) }), /receipt/);
+});
+test('offline dependency reuse rejects missing packages and mismatched installed receipts', () => {
+  const path = directory();
+  assert.throws(() => validateInstalledDependencies(path), /receipt is missing/);
+  const packages = { 'node_modules/vite': { version: '1.0.0', resolved: 'fixture', integrity: 'fixture-hash' } };
+  mkdirSync(resolve(path, 'node_modules/vite/bin'), { recursive: true });
+  writeFileSync(resolve(path, 'package-lock.json'), JSON.stringify({packages}));
+  writeFileSync(resolve(path, 'node_modules/.package-lock.json'), JSON.stringify({packages}));
+  assert.throws(() => validateInstalledDependencies(path), /missing or changed/);
+  writeFileSync(resolve(path, 'node_modules/vite/package.json'), JSON.stringify({version:'1.0.0'}));
+  writeFileSync(resolve(path, 'node_modules/vite/bin/vite.js'), '// fixture');
+  assert.ok(validateInstalledDependencies(path).vite.endsWith('vite.js'));
+  writeFileSync(resolve(path, 'node_modules/.package-lock.json'), JSON.stringify({packages:{}}));
+  assert.throws(() => validateInstalledDependencies(path), /differs from pinned lock/);
 });

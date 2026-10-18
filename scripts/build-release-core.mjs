@@ -34,3 +34,4 @@ writeFileSync(receiptFile, JSON.stringify(receipt, null, 2) + '\n', { flag: 'wx'
 // wasm-pack emits an ESM entry but Node needs the package type for real WASM tests.
 run(process.execPath, ['scripts/record-patched-core.mjs', '--source', source, '--optimization-receipt', receiptFile]);
 run(process.execPath, ['scripts/test-engine-fill.mjs', resolve(source, 'pkg')]);
+run(process.execPath, ['scripts/test-engine-selection.mjs', resolve(source, 'pkg')]);

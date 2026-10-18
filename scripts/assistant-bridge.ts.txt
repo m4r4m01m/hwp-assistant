@@ -2,6 +2,9 @@
 // HWP Assistant downstream bridge. Read-only evidence and reported export only;
 // all text mutations still use rhwp's public exact-command SDK.
 import { collectTargetEvidence as assistantEvidence } from './document-agent/controller';
+import { sha256 as assistantSha256 } from '@noble/hashes/sha2.js';
+import { bytesToHex as assistantHex } from '@noble/hashes/utils.js';
+const assistantDigest = (value: Uint8Array) => assistantHex(assistantSha256(value));
 let assistantRevision = 0;
 const assistantListeners = new Set<() => void>();
 eventBus.on('document-mutated', () => {
@@ -11,6 +14,10 @@ eventBus.on('document-mutated', () => {
 (window as any).hwpAssistantBridge = {
   async newDocument() { await initPromise; await createNewDocument(); },
   revision: () => assistantRevision,
+  documentState() {
+    if (!documentAgent) throw new Error('문서가 열려 있지 않습니다.');
+    return documentAgent.getDocumentState();
+  },
   subscribe(listener: () => void) {
     assistantListeners.add(listener);
     return () => assistantListeners.delete(listener);
@@ -26,6 +33,71 @@ eventBus.on('document-mutated', () => {
     if (!documentAgent) throw new Error('편집기 초기화 중');
     const artifact = wasm.exportHwpxWithReport();
     return { ...artifact, revision: assistantRevision, epoch: wasm.documentGeneration };
+  },
+  paragraphPage(section: number, paragraph: number) {
+    if (!documentAgent || !Number.isSafeInteger(section) || section < 0
+      || !Number.isSafeInteger(paragraph) || paragraph < 0 || paragraph >= wasm.getParagraphCount(section))
+      throw new Error('렌더링 문단 좌표가 유효하지 않습니다.');
+    const position = wasm.getPageOfPosition(section, paragraph);
+    if (position.ok !== true || !Number.isSafeInteger(position.page)
+      || position.page! < 0 || position.page! >= wasm.pageCount)
+      throw new Error('문단의 실제 쪽수를 확인하지 못했습니다.');
+    return position.page! + 1;
+  },
+  // Same iframe and native pagination as the visible editor. This never focuses,
+  // edits, or substitutes page 1 when the native lookup fails.
+  layoutEvidence(targets: Array<{id: string; section: number; paragraph: number; length: number; text_sha256: string}>) {
+    if (!documentAgent || !Array.isArray(targets) || !targets.length || targets.length > 30)
+      throw new Error('목차 제목 조회 범위가 유효하지 않습니다.');
+    const revision = assistantRevision;
+    const epoch = wasm.documentGeneration;
+    const state = documentAgent.getDocumentState();
+    const artifact = wasm.exportHwpxWithReport();
+    if (artifact.contentLoss.count) throw new Error('내용 손실이 있는 문서는 목차를 검증할 수 없습니다.');
+    const export_sha256 = assistantDigest(artifact.bytes);
+    const page_count = wasm.pageCount;
+    const native = wasm.borrowDocumentHandle();
+    if (!native || !Number.isSafeInteger(page_count) || page_count < 1 || page_count > 2000)
+      throw new Error('렌더된 문서 쪽수가 유효하지 않습니다.');
+    const ids = new Set<string>();
+    const pages = new Map<number, Array<{secIdx: number; paraIdx: number; charStart: number; text: string}>>();
+    const headings = targets.map(target => {
+      if (!target || typeof target.id !== 'string' || !target.id || target.id.length > 128 || ids.has(target.id)
+        || !Number.isSafeInteger(target.section) || target.section < 0
+        || !Number.isSafeInteger(target.paragraph) || target.paragraph < 0
+        || !Number.isSafeInteger(target.length) || target.length < 1 || target.length > 300
+        || !/^[a-f0-9]{64}$/.test(target.text_sha256))
+        throw new Error('목차 제목 좌표 또는 해시가 유효하지 않습니다.');
+      ids.add(target.id);
+      const length = wasm.getParagraphLength(target.section, target.paragraph);
+      if (length !== target.length) throw new Error('렌더된 제목 길이와 고정된 제목 입력이 다릅니다.');
+      const text = wasm.getTextRange(target.section, target.paragraph, 0, length);
+      const text_sha256 = assistantDigest(new TextEncoder().encode(text));
+      if (length !== target.length || [...text].length !== length || text_sha256 !== target.text_sha256)
+        throw new Error('렌더된 제목과 고정된 제목 입력이 다릅니다.');
+      const position = wasm.getPageOfPosition(target.section, target.paragraph);
+      if (position.ok !== true || !Number.isSafeInteger(position.page)
+        || position.page! < 0 || position.page! >= page_count)
+        throw new Error('제목의 실제 쪽수를 확인하지 못했습니다.');
+      const page = position.page!;
+      if (!pages.has(page)) {
+        const layout = JSON.parse(native.getPageTextLayout(page));
+        if (!Array.isArray(layout.runs)) throw new Error('제목의 렌더 좌표가 없습니다.');
+        pages.set(page, layout.runs);
+      }
+      if (!pages.get(page)!.some(run => run.secIdx === target.section && run.paraIdx === target.paragraph
+        && run.charStart === 0 && typeof run.text === 'string' && run.text.length > 0
+        && text.startsWith(run.text)))
+        throw new Error('해당 쪽에서 제목 시작의 렌더 좌표를 확인하지 못했습니다.');
+      return {id: target.id, section: target.section, paragraph: target.paragraph, length, text_sha256, page: page + 1};
+    });
+    const after = wasm.exportHwpxWithReport();
+    const current = documentAgent.getDocumentState();
+    if (after.contentLoss.count || revision !== assistantRevision || epoch !== wasm.documentGeneration
+      || state.documentEpoch !== current.documentEpoch || state.changeSeq !== current.changeSeq
+      || page_count !== wasm.pageCount || export_sha256 !== assistantDigest(after.bytes))
+      throw new Error('목차 쪽수 조회 중 문서가 바뀌었습니다.');
+    return {revision, epoch, page_count, export_sha256, headings};
   },
   warnings: () => wasm.getValidationWarnings(),
   async acknowledge(revision: number, epoch: number, name: string) {

@@ -1,0 +1,1627 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-06",
+  "scope": "local-provider rewrite implementation, isolated mock/real-engine regression and follow-up validation",
+  "started_at": "2026-10-06T05:40:56+00:00",
+  "recorded_at": "2026-10-06T07:41:00.823931+00:00",
+  "elapsed_work_seconds": 7204.82,
+  "repository_head": "1e0538781e02ac85d095bb3c72bf844943c305b3",
+  "remote_branch_comparison": {
+    "main": "1e0538781e02ac85d095bb3c72bf844943c305b3",
+    "codex/initial-implementation": "2dbfd6084ad59a7fb2472228a04b6b416026ed39",
+    "tree_diff_exit_code": 0,
+    "new_remote_code": false
+  },
+  "commit_push_merge_performed": false,
+  "code_config_test_sha256": {
+    ".env.example": "2c9896808e10b68d473c5de4717b4f13b2317c17f52c0a66dc5e5c0a71687555",
+    "backend/app/codex_runner.py": "5d37c0ac6b983a270f5d012b212717d90bd964eb0200a3221f2b85ef764eec4d",
+    "backend/app/llm.py": "1fa56ec2b9f2819b5a8cba80e71c71b20f0eee642dd65c7d5e03ee1644e580f6",
+    "backend/app/local_rewrite.py": "7bfde9590cbcb4b07672dfe219b005bbd69a400135ad183d0d55ce03b913f079",
+    "backend/app/rewrite.py": "171f736c7f58926089344fa2b814adef63905889cd27d1505cc7362897f0a94b",
+    "backend/app/rewrite_contract.py": "bec17d315d1d8991dc5be25d91932800824d5fc6eb26f54cc8e32cd57d6efab2",
+    "backend/app/rewrite_jobs.py": "3907b4dea7c854b6d75b5ab3b260c046c5c5e094dfbc62c0dd18b471e66f6621",
+    "backend/tests/mock_local_provider.py": "c8cf628386eab31f7383b049b6480b257518ecb40fc295374ae3dd4f7db89eea",
+    "backend/tests/test_codex_runner.py": "6c155eeb32f14fa8ab88e3eb4ee20697cf9211609ae49a5d3c05eced3d642825",
+    "backend/tests/test_local_rewrite.py": "f36ca0306e05de3eb2b0699378ebfc92038b5ad58845c0fa9bb1031ebe2b81e3",
+    "backend/tests/test_mcp.py": "04cc2c53e6cbd3a78f13c7b4ba860d55f94b974d8f8dbdd251917860ae4a2a41",
+    "backend/tests/test_rewrite.py": "a5ffea659d8c32ec0d9099e18f342fc2a4bb3a4529d2c4c46a61c69d48209118",
+    "backend/tests/test_storage_audit.py": "8339c4ecd797b22ac1605ff22ce6a80b11622ac81d5b585813642de2df62a2a4",
+    "frontend/src/api.ts": "21cdf9be821c84e4a0926f9872a2339eb5ac8e5b0296b073a73a0f186ec699f9",
+    "frontend/src/collaboration.tsx": "81dcdaa6f40feeda840a37a0cfaaba9d64a2ba6cb135e30e6023b6aab5a51d43",
+    "frontend/src/main.tsx": "70f7f002e4fbea3aeba6e89bea4b4b44e1a0314c3a59d54cb7e3cb3dd3350268",
+    "frontend/src/rewrite.tsx": "765e00ce2ba0f27d2bf1f9ee839b7a1967e8e2b6b3a99b795ccfbc9df98274bf",
+    "frontend/src/style.css": "7c8863e3d653616109e02afb02f08ac02849058c6de3f6b4d41d052fda4cc346",
+    "frontend/tests/collaboration.spec.ts": "50a16215b2d5f37840e7f286ee569efffc0d5a5b91022c288a0172769dd5865b",
+    "frontend/tests/local-rewrite.spec.ts": "9b95dbbd69bd6375984ec4af9f32a729dc83104f6685cc2291f74dcae8aa5347",
+    "frontend/tests/rewrite-protection.spec.ts": "722157e808e7794605008a4794eaa6f66552ed64c4a02a682aa4b4c5a569bd28",
+    "frontend/tests/roundtrip.spec.ts": "db5dd6598f6d0b904e7ee55a7d561dc6095ed573c965122bfe0062fe6728fd1e",
+    "scripts/audit-storage.py": "a14e843d8ae53682a54e098692d0a11b0939393d16acaba4ef634256c02c25b0",
+    "scripts/test-isolated.ps1": "a4ab3db1428fa3841828eaa40901e429c329b9efbe1cd3eadd16ed059ff4ae0a",
+    "scripts/verify-codex-human-continuation.mjs": "c17e8188010b97478b56002306806e6eb44d0d69401f51aacd5907ec98b87346",
+    "scripts/verify-codex-human.mjs": "774b7c1eabe7ad8eaf6efb743af7e3c679bd4742edfb1a5a0d40714638b997e5",
+    "scripts/verify-codex-human.test.mjs": "c5cbf172674391eeb54ae77c2f45bf776401d26ec3f2cc0090468623eed3eb36",
+    "scripts/verify-rewrite-restart.py": "0613ae7afd6ab3a606cd9d587dfd44b08b1617341e7d502fea9c47de061e163e"
+  },
+  "changed_files": [
+    ".env.example",
+    "README.md",
+    "backend/app/codex_runner.py",
+    "backend/app/llm.py",
+    "backend/app/local_rewrite.py",
+    "backend/app/rewrite.py",
+    "backend/app/rewrite_contract.py",
+    "backend/app/rewrite_jobs.py",
+    "backend/tests/mock_local_provider.py",
+    "backend/tests/test_codex_runner.py",
+    "backend/tests/test_local_rewrite.py",
+    "backend/tests/test_mcp.py",
+    "backend/tests/test_rewrite.py",
+    "backend/tests/test_storage_audit.py",
+    "docs/collaboration-and-mcp.md",
+    "docs/compatibility.md",
+    "docs/evidence/local-rewrite-2026-10-06.json",
+    "docs/evidence/local-rewrite-mock-2026-10-06.png",
+    "docs/evidence/web-roundtrip-three-cycles-2026-10-06.png",
+    "docs/gpt-handoff-local-rewrite-2026-10-06.md",
+    "docs/local-model-rewrite.md",
+    "docs/manual-codex-verification.md",
+    "docs/remaining-work.md",
+    "docs/storage-audit.md",
+    "docs/verification-2026-10-06.md",
+    "frontend/src/api.ts",
+    "frontend/src/collaboration.tsx",
+    "frontend/src/main.tsx",
+    "frontend/src/rewrite.tsx",
+    "frontend/src/style.css",
+    "frontend/tests/collaboration.spec.ts",
+    "frontend/tests/local-rewrite.spec.ts",
+    "frontend/tests/rewrite-protection.spec.ts",
+    "frontend/tests/roundtrip.spec.ts",
+    "scripts/audit-storage.py",
+    "scripts/test-isolated.ps1",
+    "scripts/verify-codex-human-continuation.mjs",
+    "scripts/verify-codex-human.mjs",
+    "scripts/verify-codex-human.test.mjs",
+    "scripts/verify-rewrite-restart.py"
+  ],
+  "actual_model_generation_calls": 0,
+  "actual_human_candidate_approvals": 0,
+  "actual_hancom_tests_this_session": 0,
+  "model_readiness": {
+    "checked_at": "2026-10-06T07:25:27.215791+00:00",
+    "endpoint": "http://127.0.0.1:1234/v1/models",
+    "generation_calls": 0,
+    "model_id_confirmed": false,
+    "result": "connection_refused"
+  },
+  "engine": {
+    "version": "0.8.6",
+    "commit": "e8800c8def63449808a4092798442652ed460552",
+    "externalWebFonts": false,
+    "diagnostic": true,
+    "bridge_sha256": "4ad7f7906c3685848cdeb85acb533c2a4f6200aea560c2df378fa17bc79931be",
+    "bundle": {
+      "index.html": "21b7f25c5b62b0925a3c166e3a8cec9bd6ffbc7e8d64db5169d25bc09941e6c0",
+      "rhwp.js": "12029c04cb7f4af12dc6c1026a0499e49e3a01d1bce4b6e2f79f51da1aa59da7",
+      "assets/rhwp_bg-DdftfNrC.wasm": "0e81cdeb4a61de8dd12be6d79d3bf06a8c1153525883e4112f4dcb1257d68195",
+      "assets/canvaskit-renderer-G9QZqpU4.js": "3ad7c1e8fced26e22b8bc7d404bcf3c63cd79b4f9b4057ea1c2e5559dfd08172",
+      "assets/index-CKntJATf.js": "6c4ed8c27192da6b1c5e83159fea76f652da0237e9779ebbe931c64b941774a1",
+      "assets/studio-plugin-Cp8dJ3L_.js": "abdcbcab732aad8d91b551c97ff045bec6b140ae87d94c5fd44235d5515fb4e7"
+    },
+    "coreBuild": {
+      "commit": "e8800c8def63449808a4092798442652ed460552",
+      "patch": "rhwp-0.8.6-empty-fill",
+      "rust": "1.93.1",
+      "wasm_bindgen": "0.2.127",
+      "profile": "release",
+      "wasm_opt": false,
+      "purpose": "native diagnostic build; deployment optimization not verified",
+      "patch_sha256": "377171f8996a35046203d2ceb358ef580b1091fd067ee0ae2e053c4294013656",
+      "source_sha256": {
+        "header.rs": "7ab5d7bd3dca464fab2b9bf65351f95547bf335835e7338e546e65d9e73ed754",
+        "shape.rs": "52053c287545bc14bab65df5cf311e277e15d3007870ff622a217faa9a9826cb",
+        "char_shapes.rs": "47ee45e9a0ef6c5b0c27a342ad1982030d10a9d965157fe4d01fb1fe22fd832a"
+      },
+      "lock_sha256": "9b981042e21ec5166d8a0d74e968d646805803659adaedeb8a56241c57f75440",
+      "wasm_sha256": "0e81cdeb4a61de8dd12be6d79d3bf06a8c1153525883e4112f4dcb1257d68195",
+      "binding_sha256": "e84c5b03cd32927a86e1a2c8acf2c43d60127fcff83f8896daf85b864c78968a"
+    }
+  },
+  "tests": [
+    {
+      "command": ".venv/Scripts/python -m pytest -q",
+      "phase": "baseline",
+      "passed": 34
+    },
+    {
+      "command": "npm run test:e2e (isolated existing general/auth)",
+      "phase": "baseline",
+      "passed": 8
+    },
+    {
+      "command": ".venv/Scripts/python -m pytest -q",
+      "phase": "final",
+      "passed": 136,
+      "skipped": 0,
+      "warnings": 1,
+      "note": "existing Starlette/anyio deprecation",
+      "log": "final-pytest.log"
+    },
+    {
+      "command": "npm exec tsc -- --noEmit",
+      "result": "passed"
+    },
+    {
+      "command": "npm run test:engine-build",
+      "passed": 11
+    },
+    {
+      "command": "node --check (human harness and continuation)",
+      "result": "passed"
+    },
+    {
+      "command": "node --test scripts/verify-codex-human.test.mjs",
+      "passed": 1
+    },
+    {
+      "run": "isolated source complete",
+      "passed": 20,
+      "skipped": 1,
+      "skip": "opt-in real-clock soak"
+    },
+    {
+      "run": "isolated built final",
+      "passed": 10,
+      "skipped": 1,
+      "skip": "opt-in real-clock soak"
+    },
+    {
+      "run": "response boundaries",
+      "passed": 2,
+      "skipped": 0
+    },
+    {
+      "run": "unicode pagination guards",
+      "passed": 2,
+      "skipped": 0,
+      "actual_ai_calls": 0
+    },
+    {
+      "run": "review soak hour",
+      "passed": 1,
+      "skipped": 0
+    },
+    {
+      "command": "scripts/verify-rewrite-restart.py --real-expiry",
+      "result": "passed",
+      "elapsed_seconds": 602.33
+    },
+    {
+      "command": "scripts/audit-storage.py (original storage, read-only)",
+      "result": "passed"
+    },
+    {
+      "command": "npm run build",
+      "result": "failed at intended provenance guard",
+      "reason": "Missing pinned core/bundle provenance",
+      "release_build_verified": false
+    },
+    {
+      "command": "scripts/build-frontend.mjs --diagnostic --public ... --out ...",
+      "result": "passed",
+      "release_build_verified": false
+    }
+  ],
+  "browser_count_note": "20 full-source cases plus 2 response-boundary and 2 Unicode cases are 24 distinct regular cases across runs; the 1-hour soak is separate. Do not sum repeated runs as unique tests.",
+  "rewrite_chain": {
+    "mock": true,
+    "actual_model_calls": 0,
+    "approval": "automated test click",
+    "task_id": "f4c4c6cc-bc9d-47d0-b341-d32b1dc1ce97",
+    "candidates": [
+      "810d7479-6fb1-5c2f-a2ea-26449de25a33",
+      "954a7b6c-4a0a-59e9-8966-d8b5f0fb1a35"
+    ],
+    "original_sha256": "594e674b831ea7c364e7dbd3abde5b117f69fca17cd4f5f5cf2cb094410a5df7",
+    "saved_sha256": "ee26e1342992486e8f88d12a43f441570c2762db8f29290995ef76d039d5198d",
+    "execution": {
+      "provider": "llm",
+      "executor": "openai-compatible",
+      "model": "hwp-synthetic-fixture",
+      "completed": true,
+      "outcome": "ready",
+      "context_used": false,
+      "original_sha256": "ac3164d20430ca0a7c1a713086df89be727eb0ec9a6505f94cd3f41e58e43a3e",
+      "snapshot_sha256": "5c9788dcb709d655b94b12f6e6556525ffa086eb94e2998b4f636817c7b7587c",
+      "input_sha256": "be2796c9da1db4c1bb756cc5ba49f96ce131b5f6ecda90cb827f639316d0d5a3",
+      "generation_calls": 1,
+      "duration_ms": 267,
+      "finished_at": 1791269464.5928824
+    },
+    "non_target_preserved": true,
+    "version_count": 2,
+    "application": {
+      "id": "ef001b0b-fd47-4600-b761-ebf6db5e4212",
+      "task_id": "f4c4c6cc-bc9d-47d0-b341-d32b1dc1ce97",
+      "candidate_id": "954a7b6c-4a0a-59e9-8966-d8b5f0fb1a35",
+      "document_id": "37bcd7c5-3f85-44e8-aa4b-dc5bdfb84986",
+      "base_version": "81725e96-df22-43ba-a6b9-d602446fe594",
+      "status": "saved",
+      "saved_version": "1d4f2e9e-f5ee-491b-be60-e6f5cc5595e2"
+    },
+    "real_engine": true,
+    "snapshot": {
+      "state": {
+        "schemaVersion": 1,
+        "format": "hwp",
+        "documentEpoch": 1,
+        "changeSeq": 6,
+        "dirty": true,
+        "pageCount": 1,
+        "documentSha256": "c0e3f6a74f574714a9100e22f7ed956a5b147015bf200d20dd5f7617e996da5e"
+      },
+      "revision": 6,
+      "target": {
+        "kind": "body_paragraph",
+        "section": 0,
+        "paragraph": 2,
+        "charOffset": 0,
+        "length": 42
+      },
+      "evidence": {
+        "textSha256": "ac3164d20430ca0a7c1a713086df89be727eb0ec9a6505f94cd3f41e58e43a3e",
+        "formatSha256": "90fe5ee7fc54874c777a6b5c57c86f0c8143fd5b8052d2b5c3dda33d59525d38",
+        "adjacentContextSha256": "4ab71313a9959fa08b548fe7974b8e091af0e5326d467e90a3c1654f7a477a53"
+      }
+    }
+  },
+  "web_roundtrip": {
+    "kind": "real rhwp; synthetic UI document; no AI; no Hancom",
+    "completed_at": "2026-10-06T06:33:46.006Z",
+    "document_path": "/api/documents/69030247-32df-47e8-b4dd-63c7749bdcdc",
+    "actual_model_calls": 0,
+    "cycles": [
+      {
+        "cycle": 1,
+        "saved_version": "1a8d385f-a1ad-4a56-97b6-f45103d9bece",
+        "reuploaded_version": "6fb71035-26db-4b0f-84e2-d6108fa48eef",
+        "sha256": "700499efe8ea8098ba234ec0b7bf8bb213f831be7614fa6709903437c8f86d0f",
+        "version_count": 3,
+        "table_and_title_preserved": true,
+        "prior_versions_unchanged": true
+      },
+      {
+        "cycle": 2,
+        "saved_version": "204da1ce-523d-41c6-8fa8-6f383a378bf2",
+        "reuploaded_version": "640e6e9d-0e91-4ab0-aca7-487cdcaa6b62",
+        "sha256": "cfd026970e3e30da6f907ffe9c675a5753304e4f2fa354008d085c7690851a61",
+        "version_count": 5,
+        "table_and_title_preserved": true,
+        "prior_versions_unchanged": true
+      },
+      {
+        "cycle": 3,
+        "saved_version": "ad8aa205-a923-4679-9137-832e04a53fcf",
+        "reuploaded_version": "200017b0-102d-4f5a-80b4-68a70dc52a47",
+        "sha256": "900f1faf364b93f41b487069e02d586bf7cbc44061124607cce6856516b3281f",
+        "version_count": 7,
+        "table_and_title_preserved": true,
+        "prior_versions_unchanged": true
+      }
+    ],
+    "original_sha256": "fcba627df533519f71a7d55a921f494279af594138cf056edc08f8f2f2f60f4d",
+    "restored_version": "ade2b1ed-1c69-4a14-950e-323d265421ca",
+    "restored_sha256": "fcba627df533519f71a7d55a921f494279af594138cf056edc08f8f2f2f60f4d",
+    "version_count": 8,
+    "versions": [
+      {
+        "id": "ade2b1ed-1c69-4a14-950e-323d265421ca",
+        "document_id": "69030247-32df-47e8-b4dd-63c7749bdcdc",
+        "base_version": "200017b0-102d-4f5a-80b4-68a70dc52a47",
+        "size": 8161,
+        "sha256": "fcba627df533519f71a7d55a921f494279af594138cf056edc08f8f2f2f60f4d",
+        "created_at": 1791268424.716879,
+        "cause": "restore"
+      },
+      {
+        "id": "200017b0-102d-4f5a-80b4-68a70dc52a47",
+        "document_id": "69030247-32df-47e8-b4dd-63c7749bdcdc",
+        "base_version": "ad8aa205-a923-4679-9137-832e04a53fcf",
+        "size": 8178,
+        "sha256": "900f1faf364b93f41b487069e02d586bf7cbc44061124607cce6856516b3281f",
+        "created_at": 1791268423.1979349,
+        "cause": "reupload"
+      },
+      {
+        "id": "ad8aa205-a923-4679-9137-832e04a53fcf",
+        "document_id": "69030247-32df-47e8-b4dd-63c7749bdcdc",
+        "base_version": "640e6e9d-0e91-4ab0-aca7-487cdcaa6b62",
+        "size": 8178,
+        "sha256": "900f1faf364b93f41b487069e02d586bf7cbc44061124607cce6856516b3281f",
+        "created_at": 1791268422.8875613,
+        "cause": "web-edit"
+      },
+      {
+        "id": "640e6e9d-0e91-4ab0-aca7-487cdcaa6b62",
+        "document_id": "69030247-32df-47e8-b4dd-63c7749bdcdc",
+        "base_version": "204da1ce-523d-41c6-8fa8-6f383a378bf2",
+        "size": 8175,
+        "sha256": "cfd026970e3e30da6f907ffe9c675a5753304e4f2fa354008d085c7690851a61",
+        "created_at": 1791268420.3469934,
+        "cause": "reupload"
+      },
+      {
+        "id": "204da1ce-523d-41c6-8fa8-6f383a378bf2",
+        "document_id": "69030247-32df-47e8-b4dd-63c7749bdcdc",
+        "base_version": "6fb71035-26db-4b0f-84e2-d6108fa48eef",
+        "size": 8175,
+        "sha256": "cfd026970e3e30da6f907ffe9c675a5753304e4f2fa354008d085c7690851a61",
+        "created_at": 1791268419.9882667,
+        "cause": "web-edit"
+      },
+      {
+        "id": "6fb71035-26db-4b0f-84e2-d6108fa48eef",
+        "document_id": "69030247-32df-47e8-b4dd-63c7749bdcdc",
+        "base_version": "1a8d385f-a1ad-4a56-97b6-f45103d9bece",
+        "size": 8170,
+        "sha256": "700499efe8ea8098ba234ec0b7bf8bb213f831be7614fa6709903437c8f86d0f",
+        "created_at": 1791268417.573818,
+        "cause": "reupload"
+      },
+      {
+        "id": "1a8d385f-a1ad-4a56-97b6-f45103d9bece",
+        "document_id": "69030247-32df-47e8-b4dd-63c7749bdcdc",
+        "base_version": "40ff6ff3-8d53-4833-b474-86fc65139359",
+        "size": 8170,
+        "sha256": "700499efe8ea8098ba234ec0b7bf8bb213f831be7614fa6709903437c8f86d0f",
+        "created_at": 1791268417.2295928,
+        "cause": "web-edit"
+      },
+      {
+        "id": "40ff6ff3-8d53-4833-b474-86fc65139359",
+        "document_id": "69030247-32df-47e8-b4dd-63c7749bdcdc",
+        "base_version": null,
+        "size": 8161,
+        "sha256": "fcba627df533519f71a7d55a921f494279af594138cf056edc08f8f2f2f60f4d",
+        "created_at": 1791268415.6647406,
+        "cause": "upload"
+      }
+    ],
+    "source": "roundtrip-first",
+    "hancom": false
+  },
+  "restart": {
+    "mock": true,
+    "actual_model_calls": 0,
+    "actual_engine": false,
+    "approval": "not performed",
+    "observations": [
+      {
+        "elapsed_seconds": 1.48,
+        "status": "running",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      },
+      {
+        "elapsed_seconds": 31.52,
+        "status": "running",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      },
+      {
+        "elapsed_seconds": 61.56,
+        "status": "running",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      },
+      {
+        "elapsed_seconds": 91.59,
+        "status": "running",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      },
+      {
+        "elapsed_seconds": 121.61,
+        "status": "running",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      },
+      {
+        "elapsed_seconds": 151.66,
+        "status": "running",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      },
+      {
+        "elapsed_seconds": 181.69,
+        "status": "running",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      },
+      {
+        "elapsed_seconds": 211.71,
+        "status": "running",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      },
+      {
+        "elapsed_seconds": 241.74,
+        "status": "running",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      },
+      {
+        "elapsed_seconds": 271.78,
+        "status": "running",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      },
+      {
+        "elapsed_seconds": 301.8,
+        "status": "running",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      },
+      {
+        "elapsed_seconds": 331.86,
+        "status": "running",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      },
+      {
+        "elapsed_seconds": 361.89,
+        "status": "running",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      },
+      {
+        "elapsed_seconds": 391.96,
+        "status": "running",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      },
+      {
+        "elapsed_seconds": 422.01,
+        "status": "running",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      },
+      {
+        "elapsed_seconds": 452.04,
+        "status": "running",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      },
+      {
+        "elapsed_seconds": 482.1,
+        "status": "running",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      },
+      {
+        "elapsed_seconds": 512.15,
+        "status": "running",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      },
+      {
+        "elapsed_seconds": 542.17,
+        "status": "running",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      },
+      {
+        "elapsed_seconds": 572.22,
+        "status": "running",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      },
+      {
+        "elapsed_seconds": 602.25,
+        "status": "expired",
+        "mock_http_calls": 1,
+        "versions": 1,
+        "lease_renewed": true
+      }
+    ],
+    "started_at": 1791266665.5595613,
+    "first_pid": 31160,
+    "second_pid": 29412,
+    "old_listener_stopped": true,
+    "task_id": "158bf908-091e-4227-bbea-f9daf3615fe7",
+    "document_id": "0f6ae61d-1cac-48d2-b3c7-b51957707871",
+    "base_version": "f33f5544-7d0c-41b1-80db-f6230b75157f",
+    "original_sha256": "498952c0af69d1cf6715fb97b3346451dfa9a66567d2124f03d042739d3c581b",
+    "result": "passed",
+    "real_clock_expiry": true,
+    "final_status": "cancelled",
+    "elapsed_seconds": 602.33,
+    "mock_http_calls": 1,
+    "original_preserved": true,
+    "finished_at": 1791267270.2837274
+  },
+  "review_soak": {
+    "kind": "real rhwp; MOCK HTTP model; automated clicks; real clock soak",
+    "actual_model_calls": 0,
+    "requested_seconds": 3600,
+    "started_at": "2026-10-06T06:36:32.469Z",
+    "outcome": "passed",
+    "renewal": [
+      {
+        "elapsed": 30.277,
+        "status": 200
+      },
+      {
+        "elapsed": 60.288,
+        "status": 200
+      },
+      {
+        "elapsed": 90.288,
+        "status": 200
+      },
+      {
+        "elapsed": 120.29,
+        "status": 200
+      },
+      {
+        "elapsed": 150.286,
+        "status": 200
+      },
+      {
+        "elapsed": 180.276,
+        "status": 200
+      },
+      {
+        "elapsed": 210.289,
+        "status": 200
+      },
+      {
+        "elapsed": 240.285,
+        "status": 200
+      },
+      {
+        "elapsed": 270.285,
+        "status": 200
+      },
+      {
+        "elapsed": 300.286,
+        "status": 200
+      },
+      {
+        "elapsed": 330.291,
+        "status": 200
+      },
+      {
+        "elapsed": 360.288,
+        "status": 200
+      },
+      {
+        "elapsed": 390.281,
+        "status": 200
+      },
+      {
+        "elapsed": 420.287,
+        "status": 200
+      },
+      {
+        "elapsed": 450.288,
+        "status": 200
+      },
+      {
+        "elapsed": 480.292,
+        "status": 200
+      },
+      {
+        "elapsed": 510.278,
+        "status": 200
+      },
+      {
+        "elapsed": 540.278,
+        "status": 200
+      },
+      {
+        "elapsed": 570.29,
+        "status": 200
+      },
+      {
+        "elapsed": 600.286,
+        "status": 200
+      },
+      {
+        "elapsed": 630.286,
+        "status": 200
+      },
+      {
+        "elapsed": 660.279,
+        "status": 200
+      },
+      {
+        "elapsed": 690.286,
+        "status": 200
+      },
+      {
+        "elapsed": 720.284,
+        "status": 200
+      },
+      {
+        "elapsed": 750.283,
+        "status": 200
+      },
+      {
+        "elapsed": 780.275,
+        "status": 200
+      },
+      {
+        "elapsed": 810.277,
+        "status": 200
+      },
+      {
+        "elapsed": 840.284,
+        "status": 200
+      },
+      {
+        "elapsed": 870.289,
+        "status": 200
+      },
+      {
+        "elapsed": 900.282,
+        "status": 200
+      },
+      {
+        "elapsed": 930.284,
+        "status": 200
+      },
+      {
+        "elapsed": 960.281,
+        "status": 200
+      },
+      {
+        "elapsed": 990.283,
+        "status": 200
+      },
+      {
+        "elapsed": 1020.282,
+        "status": 200
+      },
+      {
+        "elapsed": 1050.277,
+        "status": 200
+      },
+      {
+        "elapsed": 1080.281,
+        "status": 200
+      },
+      {
+        "elapsed": 1110.279,
+        "status": 200
+      },
+      {
+        "elapsed": 1140.28,
+        "status": 200
+      },
+      {
+        "elapsed": 1170.281,
+        "status": 200
+      },
+      {
+        "elapsed": 1200.284,
+        "status": 200
+      },
+      {
+        "elapsed": 1230.28,
+        "status": 200
+      },
+      {
+        "elapsed": 1260.279,
+        "status": 200
+      },
+      {
+        "elapsed": 1290.278,
+        "status": 200
+      },
+      {
+        "elapsed": 1320.28,
+        "status": 200
+      },
+      {
+        "elapsed": 1350.286,
+        "status": 200
+      },
+      {
+        "elapsed": 1380.283,
+        "status": 200
+      },
+      {
+        "elapsed": 1410.292,
+        "status": 200
+      },
+      {
+        "elapsed": 1440.277,
+        "status": 200
+      },
+      {
+        "elapsed": 1470.277,
+        "status": 200
+      },
+      {
+        "elapsed": 1500.282,
+        "status": 200
+      },
+      {
+        "elapsed": 1530.28,
+        "status": 200
+      },
+      {
+        "elapsed": 1560.291,
+        "status": 200
+      },
+      {
+        "elapsed": 1590.295,
+        "status": 200
+      },
+      {
+        "elapsed": 1620.28,
+        "status": 200
+      },
+      {
+        "elapsed": 1650.293,
+        "status": 200
+      },
+      {
+        "elapsed": 1680.294,
+        "status": 200
+      },
+      {
+        "elapsed": 1710.294,
+        "status": 200
+      },
+      {
+        "elapsed": 1740.294,
+        "status": 200
+      },
+      {
+        "elapsed": 1770.29,
+        "status": 200
+      },
+      {
+        "elapsed": 1800.279,
+        "status": 200
+      },
+      {
+        "elapsed": 1830.276,
+        "status": 200
+      },
+      {
+        "elapsed": 1860.293,
+        "status": 200
+      },
+      {
+        "elapsed": 1890.29,
+        "status": 200
+      },
+      {
+        "elapsed": 1920.289,
+        "status": 200
+      },
+      {
+        "elapsed": 1950.291,
+        "status": 200
+      },
+      {
+        "elapsed": 1980.29,
+        "status": 200
+      },
+      {
+        "elapsed": 2010.288,
+        "status": 200
+      },
+      {
+        "elapsed": 2040.296,
+        "status": 200
+      },
+      {
+        "elapsed": 2070.29,
+        "status": 200
+      },
+      {
+        "elapsed": 2100.289,
+        "status": 200
+      },
+      {
+        "elapsed": 2130.289,
+        "status": 200
+      },
+      {
+        "elapsed": 2160.278,
+        "status": 200
+      },
+      {
+        "elapsed": 2190.289,
+        "status": 200
+      },
+      {
+        "elapsed": 2220.288,
+        "status": 200
+      },
+      {
+        "elapsed": 2250.284,
+        "status": 200
+      },
+      {
+        "elapsed": 2280.283,
+        "status": 200
+      },
+      {
+        "elapsed": 2310.29,
+        "status": 200
+      },
+      {
+        "elapsed": 2340.287,
+        "status": 200
+      },
+      {
+        "elapsed": 2370.286,
+        "status": 200
+      },
+      {
+        "elapsed": 2400.285,
+        "status": 200
+      },
+      {
+        "elapsed": 2430.289,
+        "status": 200
+      },
+      {
+        "elapsed": 2460.282,
+        "status": 200
+      },
+      {
+        "elapsed": 2490.286,
+        "status": 200
+      },
+      {
+        "elapsed": 2520.284,
+        "status": 200
+      },
+      {
+        "elapsed": 2550.289,
+        "status": 200
+      },
+      {
+        "elapsed": 2580.285,
+        "status": 200
+      },
+      {
+        "elapsed": 2610.282,
+        "status": 200
+      },
+      {
+        "elapsed": 2640.284,
+        "status": 200
+      },
+      {
+        "elapsed": 2670.284,
+        "status": 200
+      },
+      {
+        "elapsed": 2700.283,
+        "status": 200
+      },
+      {
+        "elapsed": 2730.283,
+        "status": 200
+      },
+      {
+        "elapsed": 2760.279,
+        "status": 200
+      },
+      {
+        "elapsed": 2790.285,
+        "status": 200
+      },
+      {
+        "elapsed": 2820.28,
+        "status": 200
+      },
+      {
+        "elapsed": 2850.277,
+        "status": 200
+      },
+      {
+        "elapsed": 2880.281,
+        "status": 200
+      },
+      {
+        "elapsed": 2910.277,
+        "status": 200
+      },
+      {
+        "elapsed": 2940.277,
+        "status": 200
+      },
+      {
+        "elapsed": 2970.274,
+        "status": 200
+      },
+      {
+        "elapsed": 3000.274,
+        "status": 200
+      },
+      {
+        "elapsed": 3030.274,
+        "status": 200
+      },
+      {
+        "elapsed": 3060.274,
+        "status": 200
+      },
+      {
+        "elapsed": 3090.295,
+        "status": 200
+      },
+      {
+        "elapsed": 3120.278,
+        "status": 200
+      },
+      {
+        "elapsed": 3150.279,
+        "status": 200
+      },
+      {
+        "elapsed": 3180.295,
+        "status": 200
+      },
+      {
+        "elapsed": 3210.279,
+        "status": 200
+      },
+      {
+        "elapsed": 3240.297,
+        "status": 200
+      },
+      {
+        "elapsed": 3270.28,
+        "status": 200
+      },
+      {
+        "elapsed": 3300.295,
+        "status": 200
+      },
+      {
+        "elapsed": 3330.294,
+        "status": 200
+      },
+      {
+        "elapsed": 3360.295,
+        "status": 200
+      },
+      {
+        "elapsed": 3390.295,
+        "status": 200
+      },
+      {
+        "elapsed": 3420.294,
+        "status": 200
+      },
+      {
+        "elapsed": 3450.282,
+        "status": 200
+      },
+      {
+        "elapsed": 3480.294,
+        "status": 200
+      },
+      {
+        "elapsed": 3510.292,
+        "status": 200
+      },
+      {
+        "elapsed": 3540.277,
+        "status": 200
+      },
+      {
+        "elapsed": 3570.29,
+        "status": 200
+      },
+      {
+        "elapsed": 3600.29,
+        "status": 200
+      }
+    ],
+    "checkpoints": [
+      {
+        "elapsed": 60.105,
+        "version_count": 1,
+        "renewal_count": 2,
+        "text_sha256": "ac3164d20430ca0a7c1a713086df89be727eb0ec9a6505f94cd3f41e58e43a3e"
+      },
+      {
+        "elapsed": 120.203,
+        "version_count": 1,
+        "renewal_count": 4,
+        "text_sha256": "ac3164d20430ca0a7c1a713086df89be727eb0ec9a6505f94cd3f41e58e43a3e"
+      },
+      {
+        "elapsed": 180.318,
+        "version_count": 1,
+        "renewal_count": 6,
+        "text_sha256": "ac3164d20430ca0a7c1a713086df89be727eb0ec9a6505f94cd3f41e58e43a3e"
+      },
+      {
+        "elapsed": 240.404,
+        "version_count": 1,
+        "renewal_count": 8,
+        "text_sha256": "ac3164d20430ca0a7c1a713086df89be727eb0ec9a6505f94cd3f41e58e43a3e"
+      },
+      {
+        "elapsed": 300.601,
+        "version_count": 1,
+        "renewal_count": 10,
+        "text_sha256": "fcaa741715589ff70a4f4139b43f504e206fee9d9e72ff853d695bb5df62feae"
+      },
+      {
+        "elapsed": 360.698,
+        "version_count": 1,
+        "renewal_count": 12,
+        "text_sha256": "fcaa741715589ff70a4f4139b43f504e206fee9d9e72ff853d695bb5df62feae"
+      },
+      {
+        "elapsed": 420.804,
+        "version_count": 1,
+        "renewal_count": 14,
+        "text_sha256": "fcaa741715589ff70a4f4139b43f504e206fee9d9e72ff853d695bb5df62feae"
+      },
+      {
+        "elapsed": 480.915,
+        "version_count": 1,
+        "renewal_count": 16,
+        "text_sha256": "fcaa741715589ff70a4f4139b43f504e206fee9d9e72ff853d695bb5df62feae"
+      },
+      {
+        "elapsed": 541.008,
+        "version_count": 1,
+        "renewal_count": 18,
+        "text_sha256": "fcaa741715589ff70a4f4139b43f504e206fee9d9e72ff853d695bb5df62feae"
+      },
+      {
+        "elapsed": 601.177,
+        "version_count": 1,
+        "renewal_count": 20,
+        "text_sha256": "e525d140acff963fe363c40ce7b2199436426fc16e718313b06ef870efd8ac4c"
+      },
+      {
+        "elapsed": 661.282,
+        "version_count": 1,
+        "renewal_count": 22,
+        "text_sha256": "e525d140acff963fe363c40ce7b2199436426fc16e718313b06ef870efd8ac4c"
+      },
+      {
+        "elapsed": 721.387,
+        "version_count": 1,
+        "renewal_count": 24,
+        "text_sha256": "e525d140acff963fe363c40ce7b2199436426fc16e718313b06ef870efd8ac4c"
+      },
+      {
+        "elapsed": 781.489,
+        "version_count": 1,
+        "renewal_count": 26,
+        "text_sha256": "e525d140acff963fe363c40ce7b2199436426fc16e718313b06ef870efd8ac4c"
+      },
+      {
+        "elapsed": 841.596,
+        "version_count": 1,
+        "renewal_count": 28,
+        "text_sha256": "e525d140acff963fe363c40ce7b2199436426fc16e718313b06ef870efd8ac4c"
+      },
+      {
+        "elapsed": 901.768,
+        "version_count": 1,
+        "renewal_count": 30,
+        "text_sha256": "c3ba92b6f847a089b28db089a4b89fd1e6ff9dd694c427950193544340afa853"
+      },
+      {
+        "elapsed": 961.871,
+        "version_count": 1,
+        "renewal_count": 32,
+        "text_sha256": "c3ba92b6f847a089b28db089a4b89fd1e6ff9dd694c427950193544340afa853"
+      },
+      {
+        "elapsed": 1021.969,
+        "version_count": 1,
+        "renewal_count": 34,
+        "text_sha256": "c3ba92b6f847a089b28db089a4b89fd1e6ff9dd694c427950193544340afa853"
+      },
+      {
+        "elapsed": 1082.081,
+        "version_count": 1,
+        "renewal_count": 36,
+        "text_sha256": "c3ba92b6f847a089b28db089a4b89fd1e6ff9dd694c427950193544340afa853"
+      },
+      {
+        "elapsed": 1142.215,
+        "version_count": 1,
+        "renewal_count": 38,
+        "text_sha256": "c3ba92b6f847a089b28db089a4b89fd1e6ff9dd694c427950193544340afa853"
+      },
+      {
+        "elapsed": 1202.458,
+        "version_count": 1,
+        "renewal_count": 40,
+        "text_sha256": "9aa14b2d858831e4a782fcc817e1cba34f37527d937eb1c1e0ba4fd703bf7d46"
+      },
+      {
+        "elapsed": 1262.558,
+        "version_count": 1,
+        "renewal_count": 42,
+        "text_sha256": "9aa14b2d858831e4a782fcc817e1cba34f37527d937eb1c1e0ba4fd703bf7d46"
+      },
+      {
+        "elapsed": 1322.697,
+        "version_count": 1,
+        "renewal_count": 44,
+        "text_sha256": "9aa14b2d858831e4a782fcc817e1cba34f37527d937eb1c1e0ba4fd703bf7d46"
+      },
+      {
+        "elapsed": 1382.795,
+        "version_count": 1,
+        "renewal_count": 46,
+        "text_sha256": "9aa14b2d858831e4a782fcc817e1cba34f37527d937eb1c1e0ba4fd703bf7d46"
+      },
+      {
+        "elapsed": 1442.901,
+        "version_count": 1,
+        "renewal_count": 48,
+        "text_sha256": "9aa14b2d858831e4a782fcc817e1cba34f37527d937eb1c1e0ba4fd703bf7d46"
+      },
+      {
+        "elapsed": 1503.094,
+        "version_count": 1,
+        "renewal_count": 50,
+        "text_sha256": "b042b4887027105e7656749ec82ac443558f02d546a16451e6d8424f7b7fb206"
+      },
+      {
+        "elapsed": 1563.204,
+        "version_count": 1,
+        "renewal_count": 52,
+        "text_sha256": "b042b4887027105e7656749ec82ac443558f02d546a16451e6d8424f7b7fb206"
+      },
+      {
+        "elapsed": 1623.3,
+        "version_count": 1,
+        "renewal_count": 54,
+        "text_sha256": "b042b4887027105e7656749ec82ac443558f02d546a16451e6d8424f7b7fb206"
+      },
+      {
+        "elapsed": 1683.404,
+        "version_count": 1,
+        "renewal_count": 56,
+        "text_sha256": "b042b4887027105e7656749ec82ac443558f02d546a16451e6d8424f7b7fb206"
+      },
+      {
+        "elapsed": 1743.505,
+        "version_count": 1,
+        "renewal_count": 58,
+        "text_sha256": "b042b4887027105e7656749ec82ac443558f02d546a16451e6d8424f7b7fb206"
+      },
+      {
+        "elapsed": 1803.684,
+        "version_count": 1,
+        "renewal_count": 60,
+        "text_sha256": "cd119a064fa41fc887830202a1ae698fd1d07ec6e553f7bb2420f1aff089e623"
+      },
+      {
+        "elapsed": 1863.79,
+        "version_count": 1,
+        "renewal_count": 62,
+        "text_sha256": "cd119a064fa41fc887830202a1ae698fd1d07ec6e553f7bb2420f1aff089e623"
+      },
+      {
+        "elapsed": 1923.891,
+        "version_count": 1,
+        "renewal_count": 64,
+        "text_sha256": "cd119a064fa41fc887830202a1ae698fd1d07ec6e553f7bb2420f1aff089e623"
+      },
+      {
+        "elapsed": 1983.999,
+        "version_count": 1,
+        "renewal_count": 66,
+        "text_sha256": "cd119a064fa41fc887830202a1ae698fd1d07ec6e553f7bb2420f1aff089e623"
+      },
+      {
+        "elapsed": 2044.097,
+        "version_count": 1,
+        "renewal_count": 68,
+        "text_sha256": "cd119a064fa41fc887830202a1ae698fd1d07ec6e553f7bb2420f1aff089e623"
+      },
+      {
+        "elapsed": 2104.3,
+        "version_count": 1,
+        "renewal_count": 70,
+        "text_sha256": "baf217a5d1fe346cd22e8a22fcccd03898f965bb16ddf46e76d71f0445f82632"
+      },
+      {
+        "elapsed": 2164.406,
+        "version_count": 1,
+        "renewal_count": 72,
+        "text_sha256": "baf217a5d1fe346cd22e8a22fcccd03898f965bb16ddf46e76d71f0445f82632"
+      },
+      {
+        "elapsed": 2224.508,
+        "version_count": 1,
+        "renewal_count": 74,
+        "text_sha256": "baf217a5d1fe346cd22e8a22fcccd03898f965bb16ddf46e76d71f0445f82632"
+      },
+      {
+        "elapsed": 2284.619,
+        "version_count": 1,
+        "renewal_count": 76,
+        "text_sha256": "baf217a5d1fe346cd22e8a22fcccd03898f965bb16ddf46e76d71f0445f82632"
+      },
+      {
+        "elapsed": 2344.731,
+        "version_count": 1,
+        "renewal_count": 78,
+        "text_sha256": "baf217a5d1fe346cd22e8a22fcccd03898f965bb16ddf46e76d71f0445f82632"
+      },
+      {
+        "elapsed": 2404.913,
+        "version_count": 1,
+        "renewal_count": 80,
+        "text_sha256": "efcadb122781a6ac41f0b9dc30abcaeaed7a0bd2ee2941bab56852d7632dbe4a"
+      },
+      {
+        "elapsed": 2465.025,
+        "version_count": 1,
+        "renewal_count": 82,
+        "text_sha256": "efcadb122781a6ac41f0b9dc30abcaeaed7a0bd2ee2941bab56852d7632dbe4a"
+      },
+      {
+        "elapsed": 2525.119,
+        "version_count": 1,
+        "renewal_count": 84,
+        "text_sha256": "efcadb122781a6ac41f0b9dc30abcaeaed7a0bd2ee2941bab56852d7632dbe4a"
+      },
+      {
+        "elapsed": 2585.217,
+        "version_count": 1,
+        "renewal_count": 86,
+        "text_sha256": "efcadb122781a6ac41f0b9dc30abcaeaed7a0bd2ee2941bab56852d7632dbe4a"
+      },
+      {
+        "elapsed": 2645.331,
+        "version_count": 1,
+        "renewal_count": 88,
+        "text_sha256": "efcadb122781a6ac41f0b9dc30abcaeaed7a0bd2ee2941bab56852d7632dbe4a"
+      },
+      {
+        "elapsed": 2705.503,
+        "version_count": 1,
+        "renewal_count": 90,
+        "text_sha256": "bd3604bae3779acef6f7fe9c00971bd15a5ec4241f27e69381e34907d1fda59c"
+      },
+      {
+        "elapsed": 2765.604,
+        "version_count": 1,
+        "renewal_count": 92,
+        "text_sha256": "bd3604bae3779acef6f7fe9c00971bd15a5ec4241f27e69381e34907d1fda59c"
+      },
+      {
+        "elapsed": 2825.705,
+        "version_count": 1,
+        "renewal_count": 94,
+        "text_sha256": "bd3604bae3779acef6f7fe9c00971bd15a5ec4241f27e69381e34907d1fda59c"
+      },
+      {
+        "elapsed": 2885.799,
+        "version_count": 1,
+        "renewal_count": 96,
+        "text_sha256": "bd3604bae3779acef6f7fe9c00971bd15a5ec4241f27e69381e34907d1fda59c"
+      },
+      {
+        "elapsed": 2945.904,
+        "version_count": 1,
+        "renewal_count": 98,
+        "text_sha256": "bd3604bae3779acef6f7fe9c00971bd15a5ec4241f27e69381e34907d1fda59c"
+      },
+      {
+        "elapsed": 3006.084,
+        "version_count": 1,
+        "renewal_count": 100,
+        "text_sha256": "f5d422ce99da15515d9f51756740623c5ce24608d64380915dec859b9746e0a9"
+      },
+      {
+        "elapsed": 3066.2,
+        "version_count": 1,
+        "renewal_count": 102,
+        "text_sha256": "f5d422ce99da15515d9f51756740623c5ce24608d64380915dec859b9746e0a9"
+      },
+      {
+        "elapsed": 3126.303,
+        "version_count": 1,
+        "renewal_count": 104,
+        "text_sha256": "f5d422ce99da15515d9f51756740623c5ce24608d64380915dec859b9746e0a9"
+      },
+      {
+        "elapsed": 3186.42,
+        "version_count": 1,
+        "renewal_count": 106,
+        "text_sha256": "f5d422ce99da15515d9f51756740623c5ce24608d64380915dec859b9746e0a9"
+      },
+      {
+        "elapsed": 3246.52,
+        "version_count": 1,
+        "renewal_count": 108,
+        "text_sha256": "f5d422ce99da15515d9f51756740623c5ce24608d64380915dec859b9746e0a9"
+      },
+      {
+        "elapsed": 3306.704,
+        "version_count": 1,
+        "renewal_count": 110,
+        "text_sha256": "29d2417ddfc7c096beb9501ed895e7bd5e47fa92b923ce00ef860e1c5e800df3"
+      },
+      {
+        "elapsed": 3366.81,
+        "version_count": 1,
+        "renewal_count": 112,
+        "text_sha256": "29d2417ddfc7c096beb9501ed895e7bd5e47fa92b923ce00ef860e1c5e800df3"
+      },
+      {
+        "elapsed": 3426.923,
+        "version_count": 1,
+        "renewal_count": 114,
+        "text_sha256": "29d2417ddfc7c096beb9501ed895e7bd5e47fa92b923ce00ef860e1c5e800df3"
+      },
+      {
+        "elapsed": 3487.029,
+        "version_count": 1,
+        "renewal_count": 116,
+        "text_sha256": "29d2417ddfc7c096beb9501ed895e7bd5e47fa92b923ce00ef860e1c5e800df3"
+      },
+      {
+        "elapsed": 3547.135,
+        "version_count": 1,
+        "renewal_count": 118,
+        "text_sha256": "29d2417ddfc7c096beb9501ed895e7bd5e47fa92b923ce00ef860e1c5e800df3"
+      },
+      {
+        "elapsed": 3600.191,
+        "version_count": 1,
+        "renewal_count": 120,
+        "text_sha256": "390fcf80bc1e87352bac2df525251fe67811e17c658cbeb1cf92afdd9df7fde6"
+      }
+    ],
+    "errors": [],
+    "task_id": "47016882-7b7a-4c46-87d5-c83e08f29c5c",
+    "document_path": "/api/documents/05db789e-4fc4-4435-9057-7b06ddd6f123",
+    "original_sha256": "594e674b831ea7c364e7dbd3abde5b117f69fca17cd4f5f5cf2cb094410a5df7",
+    "held_seconds": 3617.703,
+    "final_version_count": 4,
+    "fresh_task_id": "dcde9822-f544-4979-aaeb-22e3541b8f3a",
+    "stale_approval_blocked": true,
+    "autosave_resumed": true,
+    "finished_at": "2026-10-06T07:36:53.067Z",
+    "actual_review_hold_seconds": 3600.191,
+    "timing_note": "Raw held_seconds includes final save checks in the loaded test revision; checkpoints[-1].elapsed is the actual hold duration"
+  },
+  "storage_audit": {
+    "kind": "read-only SQLite/blob audit",
+    "result": "passed",
+    "started_at": 1791269041.8251193,
+    "finished_at": 1791269041.902443,
+    "documents": 33,
+    "versions": 55,
+    "verified_blobs": 55,
+    "verified_bytes": 419170,
+    "issues": [],
+    "unreferenced_files": 0,
+    "unreferenced_note": "Not deleted. May include quarantined, interrupted or concurrent writes.",
+    "limits": [
+      "SQLite metadata snapshot; blobs are read afterwards and expected immutable",
+      "No HWPX layout/content semantics, real model, PostgreSQL or backup/restore validation"
+    ]
+  },
+  "post_soak_storage_audit": {
+    "kind": "read-only SQLite/blob audit",
+    "result": "passed",
+    "started_at": 1791272377.4973493,
+    "finished_at": 1791272377.5446205,
+    "documents": 1,
+    "versions": 4,
+    "verified_blobs": 4,
+    "verified_bytes": 30523,
+    "issues": [],
+    "unreferenced_files": 0,
+    "unreferenced_note": "Not deleted. May include quarantined, interrupted or concurrent writes.",
+    "limits": [
+      "SQLite metadata snapshot; blobs are read afterwards and expected immutable",
+      "No HWPX layout/content semantics, real model, PostgreSQL or backup/restore validation"
+    ]
+  },
+  "preservation": {
+    "checked_files": 58,
+    "original_data_files": 56,
+    "changed_or_missing": [],
+    "unexpected_data_files": [],
+    "source_manifest_sha256": "e09f2bc6fd03bf184d7291e9edcd05429d96ecdc8876eedbab14941676bb2b73"
+  },
+  "isolated_runs": [
+    {
+      "directory": "isolated source complete",
+      "result": "passed",
+      "started_at": "2026-10-06T06:55:03.5560398Z",
+      "finished_at": "2026-10-06T06:56:43.3552578Z",
+      "commands": [
+        {
+          "built_app": false,
+          "command": "Playwright E2E",
+          "pattern": "",
+          "exit_code": 0
+        }
+      ],
+      "actual_model_calls": 0,
+      "remaining_listeners": [],
+      "services_stopped": 7
+    },
+    {
+      "directory": "isolated built final",
+      "result": "passed",
+      "started_at": "2026-10-06T06:50:40.1494554Z",
+      "finished_at": "2026-10-06T06:51:50.0711314Z",
+      "commands": [
+        {
+          "built_app": true,
+          "command": "Playwright E2E",
+          "pattern": "",
+          "exit_code": 0
+        }
+      ],
+      "actual_model_calls": 0,
+      "remaining_listeners": [],
+      "services_stopped": 7
+    },
+    {
+      "directory": "response boundaries",
+      "result": "passed",
+      "started_at": "2026-10-06T06:58:37.3747181Z",
+      "finished_at": "2026-10-06T06:59:07.8304829Z",
+      "commands": [
+        {
+          "built_app": true,
+          "command": "Playwright E2E",
+          "pattern": "lost approval response|lost receipt response",
+          "exit_code": 0
+        }
+      ],
+      "actual_model_calls": 0,
+      "remaining_listeners": [],
+      "services_stopped": 7
+    },
+    {
+      "directory": "unicode pagination guards",
+      "result": "passed",
+      "started_at": "2026-10-06T07:17:18.1420940Z",
+      "finished_at": "2026-10-06T07:17:40.8767181Z",
+      "commands": [
+        {
+          "built_app": false,
+          "command": "Playwright E2E",
+          "pattern": "4000 Unicode",
+          "exit_code": 0
+        }
+      ],
+      "actual_model_calls": 0,
+      "remaining_listeners": [],
+      "services_stopped": 7
+    },
+    {
+      "directory": "review soak hour",
+      "result": "passed",
+      "started_at": "2026-10-06T06:36:19.8735227Z",
+      "finished_at": "2026-10-06T07:36:56.4910315Z",
+      "commands": [
+        {
+          "built_app": false,
+          "command": "Playwright E2E",
+          "pattern": "long-lived review",
+          "exit_code": 0
+        }
+      ],
+      "actual_model_calls": 0,
+      "remaining_listeners": [],
+      "services_stopped": 7
+    }
+  ],
+  "iterative_service_cleanup": {
+    "stopped": [
+      {
+        "Id": 8240,
+        "Match": "mock_local_provider:app",
+        "Port": 18113
+      },
+      {
+        "Id": 23600,
+        "Match": "uvicorn app.main:app",
+        "Port": 18112
+      },
+      {
+        "Id": 3848,
+        "Match": "uvicorn app.main:app",
+        "Port": 18111
+      },
+      {
+        "Id": 30340,
+        "Match": "uvicorn app.main:app",
+        "Port": 18110
+      },
+      {
+        "Id": 5728,
+        "Match": "local-rewrite-2026-10-06-054056/public",
+        "Port": 15212
+      },
+      {
+        "Id": 24392,
+        "Match": "local-rewrite-2026-10-06-054056/public",
+        "Port": 15211
+      },
+      {
+        "Id": 4200,
+        "Match": "local-rewrite-2026-10-06-054056/public",
+        "Port": 15210
+      }
+    ],
+    "finished_at": "2026-10-06T07:08:28.4608846Z",
+    "remaining": []
+  },
+  "final_test_port_check": {
+    "checked_at": "2026-10-06T07:37:28.8532133Z",
+    "checked_port_count": 70,
+    "remaining_listeners": [],
+    "action": "read-only check; no processes terminated"
+  },
+  "retained_failed_attempts": [
+    {
+      "directory": "lost-save-before-fix",
+      "finding": "committed approved save lost response blocked retry; fixed and regression passed"
+    },
+    {
+      "directory": "isolated harness built",
+      "finding": "PowerShell stderr/cleanup script errors; corrected and rerun"
+    },
+    {
+      "directory": "isolated source final",
+      "finding": "general API fixture setup and Windows worker abnormal exit; 17 passed / 2 failed; subsequent full runs passed"
+    },
+    {
+      "directory": "unicode engine boundary",
+      "finding": "invalid test assumption: expanding page count is rejected; unchanged engine, byte-identical rollback confirmed"
+    }
+  ],
+  "limitations": [
+    "No actual local/company model or human candidate approval; mock quality is not evidence of model factuality",
+    "No new Hancom roundtrip, physically isolated network test, PostgreSQL/Docker/nginx deployment",
+    "Pinned exact command refuses page-count changes even within the 4000-codepoint limit",
+    "Diagnostic engine build only; production optimization/provenance guard unchanged",
+    "Storage audit is not backup/restore automation"
+  ]
+}

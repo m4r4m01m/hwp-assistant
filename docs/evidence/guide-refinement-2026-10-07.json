@@ -1,0 +1,179 @@
+{
+  "report": {
+    "pages": 9,
+    "toc": [
+      {
+        "title": "1. 추진 배경 및 개요",
+        "physical_page": 3,
+        "heading_rendered": true
+      },
+      {
+        "title": "2. 주요 내용",
+        "physical_page": 4,
+        "heading_rendered": true
+      },
+      {
+        "title": "가. 공개 사고 사례 비교",
+        "physical_page": 4,
+        "heading_rendered": true
+      },
+      {
+        "title": "나. 공격 경로와 피해 확산",
+        "physical_page": 5,
+        "heading_rendered": true
+      },
+      {
+        "title": "다. 우선 통제와 확인 증거",
+        "physical_page": 6,
+        "heading_rendered": true
+      },
+      {
+        "title": "3. 시사점 및 향후계획",
+        "physical_page": 7,
+        "heading_rendered": true
+      },
+      {
+        "title": "가. 90일 실행계획",
+        "physical_page": 7,
+        "heading_rendered": true
+      },
+      {
+        "title": "나. 사고 대응과 고객 보호",
+        "physical_page": 8,
+        "heading_rendered": true
+      },
+      {
+        "title": "붙임. 출처와 작성 범위",
+        "physical_page": 9,
+        "heading_rendered": true
+      }
+    ],
+    "toc_kind": "native leaders; render-verified snapshot, not a live field",
+    "content_tables": 5,
+    "layout_tables": 2,
+    "images": 2,
+    "outline_points": {
+      "□": 8,
+      "ㅇ": 8,
+      "-": 8
+    },
+    "marker_positions": [
+      {
+        "page": 3,
+        "marker_x_px": {
+          "□": 75.58666666666667,
+          "ㅇ": 88.92,
+          "-": 102.25333333333334
+        }
+      },
+      {
+        "page": 4,
+        "marker_x_px": {
+          "□": 75.58666666666667,
+          "ㅇ": 88.92,
+          "-": 102.25333333333334
+        }
+      },
+      {
+        "page": 5,
+        "marker_x_px": {
+          "□": 75.58666666666667,
+          "ㅇ": 88.92,
+          "-": 102.25333333333334
+        }
+      },
+      {
+        "page": 6,
+        "marker_x_px": {
+          "□": 75.58666666666667,
+          "ㅇ": 88.92,
+          "-": 102.25333333333334
+        }
+      },
+      {
+        "page": 7,
+        "marker_x_px": {
+          "□": 75.58666666666667,
+          "ㅇ": 88.92,
+          "-": 102.25333333333334
+        }
+      },
+      {
+        "page": 8,
+        "marker_x_px": {
+          "□": 75.58666666666667,
+          "ㅇ": 88.92,
+          "-": 102.25333333333334
+        }
+      },
+      {
+        "page": 9,
+        "marker_x_px": {
+          "□": 75.58666666666667,
+          "ㅇ": 88.92,
+          "-": 102.25333333333334
+        }
+      }
+    ],
+    "exact_commands": 168,
+    "content_loss_count": 0,
+    "real_engine": true,
+    "fresh_model_calls": 0,
+    "human_click_approval": false,
+    "hancom_verified": false,
+    "engine_warnings": {
+      "lineseg 배열이 비어있음": 147
+    },
+    "limitations": [
+      "rhwp still splits some Korean words despite KEEP_WORD in HWPX",
+      "Font substitution possible in preview",
+      "TOC must be regenerated after pagination changes"
+    ]
+  },
+  "persistence": {
+    "document_id": "7fefd91a-6dc2-4b87-abce-94e43508ce9b",
+    "version_id": "31ff2767-ba74-4c2b-a314-e5463d72a204",
+    "file_sha256": "decd7d74f77b716dd77c12ccdb9fbc4a8e3a800d944ff16effa12b8b010ac11b",
+    "saved_bytes_match": true,
+    "existing_documents_unchanged": 7,
+    "versions": 1
+  },
+  "preservation": {
+    "checked_files": 83,
+    "preserved_files": 82,
+    "authorized_profile_change": [
+      "backend\\app\\assets\\document-standard\\profile.json"
+    ],
+    "original_guide_and_hwpx_unchanged": true,
+    "historical_reports_and_blobs_unchanged": true
+  },
+  "source_set_sha256": "e2df0c5f7b6d5662157967a249b3af848b0d046614e2a004c7325703fceb66a5",
+  "validation": {
+    "pytest": {
+      "passed": 231,
+      "failed": 0,
+      "skipped": 0
+    },
+    "typescript_exit": 0,
+    "engine_build": {
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0
+    },
+    "source_e2e": {
+      "collected": 39,
+      "passed": 35,
+      "failed": 0,
+      "skipped": 4
+    },
+    "built_report_e2e": {
+      "collected": 1,
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0
+    },
+    "production_build": "blocked: missing pinned provenance",
+    "actual_model_calls": 0,
+    "human_approval": false
+  }
+}

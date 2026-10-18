@@ -1,0 +1,129 @@
+{
+  "date": "2026-10-08",
+  "head": "1e0538781e02ac85d095bb3c72bf844943c305b3",
+  "uncommitted": true,
+  "source_set_sha256": "e13845ea8dbee2850b5adf46e75a91ed6d6d104da9dcf8a993b56fc49017117d",
+  "manifest": "docs/evidence/rich-report-manifest-final-2026-10-08.json",
+  "changed_since_previous_stream_manifest": [
+    "AGENTS.md",
+    "backend/app/report_contract.py",
+    "backend/app/report_outline.py",
+    "backend/app/report_partial.py",
+    "backend/app/report_preview.py",
+    "backend/app/report_rich.py",
+    "backend/app/report_runner.py",
+    "backend/app/report_stream.py",
+    "backend/tests/report_mock_app.py",
+    "backend/tests/report_rich_fixture.py",
+    "backend/tests/test_report_rich.py",
+    "backend/tests/test_report_stream.py",
+    "frontend/src/report-content.tsx",
+    "frontend/src/report-preview.tsx",
+    "frontend/src/report-progress.tsx",
+    "frontend/src/reports.tsx",
+    "frontend/src/style.css",
+    "frontend/tests/report-rich.spec.ts",
+    "frontend/tests/reports.spec.ts",
+    "scripts/verify-report-rich.py"
+  ],
+  "contract": "korean-report-v4-visual-emphasis",
+  "presentation_policy": "tables-flow-emphasis-v1",
+  "checks": {
+    "pytest": {
+      "command": ".venv/Scripts/python -m pytest -q --basetemp=.cache/rich-report-2026-10-08/pytest-verified",
+      "passed": 266,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0,
+      "log": ".cache/rich-report-2026-10-08/pytest-verified.log",
+      "environment_diagnostic": "Windows access violation diagnostic in CPython platform._wmi_query at collection; suite subsequently completed, exit 0"
+    },
+    "typescript": {
+      "command": "node frontend/node_modules/typescript/bin/tsc --noEmit --project frontend/tsconfig.json",
+      "exit_code": 0
+    },
+    "build_guard": {
+      "command": "node --test scripts/engine-build.test.mjs",
+      "passed": 11,
+      "failed": 0,
+      "exit_code": 0
+    },
+    "production_build": {
+      "command": "npm run build",
+      "cwd": "frontend",
+      "exit_code": 1,
+      "expected_guard": "Missing pinned core/bundle provenance; not bypassed"
+    },
+    "source_e2e": {
+      "collected": 45,
+      "passed": 35,
+      "failed": 0,
+      "skipped": 10,
+      "skip_reasons": {
+        "long_soak": 1,
+        "report_specific_environment": 9
+      },
+      "evidence": ".cache/rich-report-source-verified-2026-10-08"
+    },
+    "built_mock_report_e2e": {
+      "collected": 5,
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "evidence": ".cache/rich-report-built-verified-2026-10-08",
+      "actual_model_calls": 0,
+      "human_approval": false
+    },
+    "recorded_actual_report_real_engine": {
+      "passed": 1,
+      "failed": 0,
+      "skipped": 0,
+      "evidence": ".cache/rich-report-actual-engine-2026-10-08",
+      "actual_model_calls_this_run": 0,
+      "real_engine": true,
+      "human_approval": false,
+      "document_saved": false,
+      "pages": 2,
+      "content_loss": 0,
+      "logical_text_preserved": true
+    }
+  },
+  "actual_codex": {
+    "execution_attempts": 3,
+    "schema_rejected_before_generation": 2,
+    "completed_generations": 1,
+    "duration_ms": 27835,
+    "research": false,
+    "topic": "synthetic security response training plan",
+    "raw_evidence": ".cache/rich-report-2026-10-08/actual-codex-strict.json",
+    "generation_contract_identical_to_final": true,
+    "generated_before_final_outline_css_test_changes": true
+  },
+  "intermediate_results_not_combined": {
+    "built_mock": {
+      "passed": 4,
+      "failed": 1,
+      "cause": "Existing E2E assumed no earlier documents; changed to compare initial document count",
+      "evidence": ".cache/rich-report-built-final-2026-10-08"
+    },
+    "initial_source_e2e": ".cache/rich-report-source-final-2026-10-08"
+  },
+  "preservation": {
+    "protected_blobs": 68,
+    "changed_protected_blobs": [],
+    "existing_report_states_preserved": true,
+    "existing_report_count": 6,
+    "manifest_mismatches": []
+  },
+  "deployment": {
+    "url": "http://127.0.0.1:15180/",
+    "run": ".cache/user-review/runs/20261008-102734-fbb76854",
+    "js": "index-Bdqfcaaa.js",
+    "css": "index-vLGOXahb.css",
+    "served_files_verified": 10
+  },
+  "manual_hancom_verified": false,
+  "human_approval_verified": false,
+  "long_602s_or_1h_rerun": false,
+  "example": "reports/2026-10-08-rich-draft-example/actual-rich-preview.hwpx"
+}

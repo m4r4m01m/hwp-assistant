@@ -1,0 +1,1372 @@
+{
+  "schema": "hwp-final-verification-v1",
+  "date": "2026-10-17",
+  "created_at": "2026-10-17T19:58:30.210793+09:00",
+  "source": {
+    "manifest": {
+      "path": "docs/evidence/final-manifest-2026-10-17.json",
+      "sha256": "4b316c55ae672c8092a69f0b8215b013ebe02f4fec8a80dca0322d71f37cc22a"
+    },
+    "source_set_sha256": "a19cdc9119e7f023e0c00745c2e9fba43f57d21dee6c6a1c6b4696d4d17e4d95",
+    "source_file_count": 161,
+    "engine_file_count": 82,
+    "branch": "codex/hwp-assistant-progress-2026-10-14",
+    "base_head": "493fffdd821d8953967f91aa236a8da4b6cac1cb"
+  },
+  "engine": {
+    "version": "0.8.6",
+    "commit": "e8800c8def63449808a4092798442652ed460552",
+    "diagnostic": true,
+    "bridge_sha256": "1c72afaab4cdeb936db935e87470bf0335b5c09f535b2f85db9c3d7579f9ce3b",
+    "wasm_sha256": "0e81cdeb4a61de8dd12be6d79d3bf06a8c1153525883e4112f4dcb1257d68195",
+    "wasm_opt": false
+  },
+  "runtime": {
+    "python": "3.14.4",
+    "node": "v24.15.0"
+  },
+  "observed_command_exit_receipts": {
+    "path": ".cache/final-2026-10-17/command-receipts.json",
+    "sha256": "0ab4640d9d2d92072d2b1bf3a48a9ab4dece0dd8ccaaf6d9e1d837f7c57717a1"
+  },
+  "commands": [
+    {
+      "command": "./.venv/Scripts/python.exe -m pytest -q --basetemp=.cache/final-backend-2026-10-17-full-r2-tmp",
+      "exit_code": 0,
+      "counts": {
+        "passed": 425,
+        "failed": 0,
+        "skipped": 0
+      },
+      "log": {
+        "path": ".cache/final-backend-2026-10-17-full-r2.log",
+        "sha256": "5f90f7cc04338a4e53f2d480c6db36df37e7b9c34098984f8d4cbc918a14952f"
+      },
+      "windows_native_error_observed": false
+    },
+    {
+      "command": "node frontend/node_modules/typescript/bin/tsc --noEmit --project frontend/tsconfig.json",
+      "exit_code": 0,
+      "log": {
+        "path": ".cache/final-2026-10-17/typescript-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "counts": null
+    },
+    {
+      "command": "node --test scripts/engine-build.test.mjs scripts/rewrite-request.test.mjs scripts/context-save.test.mjs scripts/text-diff.test.mjs",
+      "exit_code": 0,
+      "counts": {
+        "passed": 37,
+        "failed": 0,
+        "skipped": 0
+      },
+      "log": {
+        "path": ".cache/final-2026-10-17/node-final.log",
+        "sha256": "3452e5fdd34a653694a1969e229ebcda005b8be919ab4ab2e95c7dbced4df840"
+      }
+    },
+    {
+      "command": "npm --prefix frontend run build",
+      "exit_code": 1,
+      "status": "blocked by retained engine provenance guard",
+      "log": {
+        "path": ".cache/final-2026-10-17/normal-build.log",
+        "sha256": "d21c3c3717e92457d4332a49a92bf5fb3f4cfe44196abb5f7c6949548e17f9bd"
+      },
+      "counts": null,
+      "guard_cause": {
+        "default_public_build_info": {
+          "path": "frontend/public/rhwp/build-info.json",
+          "sha256": "122075b6803f9c2787b899e2d4e7548a296efa7a4a666cd2580b641809af083d"
+        },
+        "version": "0.8.6",
+        "has_core_build": false,
+        "has_bundle": false,
+        "diagnostic_value": null,
+        "message": "Missing pinned core/bundle provenance",
+        "interpretation": "The default public bundle lacks provenance metadata. The separately tested cache engine is diagnostic=true and wasm_opt=false; diagnostic success is not a normal release build."
+      }
+    },
+    {
+      "command": "& ./scripts/test-isolated.ps1 -EnginePublic .cache/toc-engine-final-2026-10-11/public -ReportMock -OutDir \".cache/final-source-r3-2026-10-17\"",
+      "exit_code": 0,
+      "counts": {
+        "collected": 66,
+        "passed": 61,
+        "failed": 0,
+        "skipped": 5
+      },
+      "skipped_tests": [
+        {
+          "test": "REAL rhwp + MOCK provider: long-lived review holds autosave, renews its lease, then resumes saving",
+          "reason": "Real-clock soak is opt-in via -SoakSeconds and was not repeated in this final regression."
+        },
+        {
+          "test": "REAL rhwp + RECORDED rich report: actual Codex visuals render and export without loss",
+          "reason": "Explicit recorded-result fixtures were not selected in this synthetic run; fresh actual Codex was checked separately."
+        },
+        {
+          "test": "REAL rhwp + RECORDED report: long-title formatted preview without premature save",
+          "reason": "Explicit recorded-result fixtures were not selected in this synthetic run; fresh actual Codex was checked separately."
+        },
+        {
+          "test": "REAL rhwp + RECORDED Codex report: vendor approved output and reopen",
+          "reason": "Explicit recorded-result fixtures were not selected in this synthetic run; fresh actual Codex was checked separately."
+        },
+        {
+          "test": "REAL rhwp + RECORDED Codex report: customer approved output and reopen",
+          "reason": "Explicit recorded-result fixtures were not selected in this synthetic run; fresh actual Codex was checked separately."
+        }
+      ],
+      "built_app": false,
+      "model": "synthetic fixtures",
+      "actual_model_calls": 0,
+      "real_rhwp": true,
+      "remaining_listeners": [],
+      "log": {
+        "path": ".cache/final-source-r3-2026-10-17/e2e.log",
+        "sha256": "7fc77004a0fa2afce103b59784724902bb3a171744df8be33c175d97992e2640"
+      },
+      "run": {
+        "path": ".cache/final-source-r3-2026-10-17/run.json",
+        "sha256": "838eb88b265c26c0801e75c0975564d0aad7e91b21167a74e0293a5907d06493"
+      },
+      "finished_at": "2026-10-17T10:57:55.9583192Z"
+    },
+    {
+      "command": "& ./scripts/test-isolated.ps1 -EnginePublic .cache/toc-engine-final-2026-10-11/public -ReportMock -BuiltApp -TestPattern \"MOCK report|MOCK HTTP local provider|MOCK provider|MOCK delayed provider\" -OutDir \".cache/final-built-r2-2026-10-17\"",
+      "exit_code": 0,
+      "counts": {
+        "collected": 38,
+        "passed": 37,
+        "failed": 0,
+        "skipped": 1
+      },
+      "skipped_tests": [
+        {
+          "test": "REAL rhwp + MOCK provider: long-lived review holds autosave, renews its lease, then resumes saving",
+          "reason": "Real-clock soak is opt-in via -SoakSeconds and was not repeated in this final regression."
+        }
+      ],
+      "built_app": true,
+      "model": "synthetic fixtures",
+      "actual_model_calls": 0,
+      "real_rhwp": true,
+      "remaining_listeners": [],
+      "log": {
+        "path": ".cache/final-built-r2-2026-10-17/e2e.log",
+        "sha256": "80b0a6317c32ac66e3a1d552ada72ccff17a0b2c9024e5dbc747f45581fa5602"
+      },
+      "run": {
+        "path": ".cache/final-built-r2-2026-10-17/run.json",
+        "sha256": "a815d5dec2999646bc9c258835550e84189e44a48abff940f0ff354f0fb86b74"
+      },
+      "finished_at": "2026-10-17T10:45:16.3930534Z"
+    },
+    {
+      "command": "& ./scripts/test-isolated.ps1 -EnginePublic .cache/toc-engine-final-2026-10-11/public -ReportMock -TestPattern \"MOCK provider: cancel resolves a lost request\" -OutDir \".cache/final-native-case-2026-10-17\"",
+      "exit_code": 0,
+      "counts": {
+        "collected": 1,
+        "passed": 1,
+        "failed": 0,
+        "skipped": 0
+      },
+      "skipped_tests": [],
+      "built_app": false,
+      "model": "synthetic fixtures",
+      "actual_model_calls": 0,
+      "real_rhwp": true,
+      "remaining_listeners": [],
+      "log": {
+        "path": ".cache/final-native-case-2026-10-17/e2e.log",
+        "sha256": "f9b6da3de0e72db58156b687111ce685b2e043f1fcfff7f7b3e9b2edc8fed56f"
+      },
+      "run": {
+        "path": ".cache/final-native-case-2026-10-17/run.json",
+        "sha256": "439fd55360de3d6fe4d634c67ac7fb1e36966cd826fabd984360aaa7d58d8fd0"
+      },
+      "finished_at": "2026-10-17T10:49:17.0826911Z"
+    }
+  ],
+  "long_toc": {
+    "source": {
+      "proof": {
+        "path": ".cache/final-source-r3-2026-10-17/results/report-toc-REAL-rhwp-MOCK--d943a--generation-save-and-reopen/long-toc-proof.json",
+        "sha256": "29fdabfcf2a25f0620493bcb2d468dc726e48474ae7c10113ec40caf519036fb"
+      },
+      "real_rhwp": true,
+      "actual_model_calls": 0,
+      "human_approval": false,
+      "automated_test_approval": true,
+      "source": {
+        "epoch": 3,
+        "revision": 159,
+        "page_count": 18,
+        "export_sha256": "ac21fa0dfe454879a665a0ec493b347fc2f3fb9715835bf67b5d0a58638bf891",
+        "headings": [
+          {
+            "section": 0,
+            "paragraph": 2,
+            "length": 5,
+            "page": 1,
+            "id": "c185ed8f-698c-5c95-b544-b2ec8074c71d",
+            "text_sha256": "8d08dd2ec7fd263317d30f5fca99a955e4864667b09d8148e9ee55ef896899f2"
+          },
+          {
+            "section": 0,
+            "paragraph": 5,
+            "length": 102,
+            "page": 1,
+            "id": "a9cc0f94-a401-5eab-bb8a-0466b5358fe9",
+            "text_sha256": "2ba2d91d01c68c271ecd2a48564aa2792081fa4dda6bbb7319a97e94a96d0b91"
+          },
+          {
+            "section": 0,
+            "paragraph": 26,
+            "length": 99,
+            "page": 4,
+            "id": "fdf8b534-8701-53d3-9025-cd25c582da07",
+            "text_sha256": "8d80be5640ac7ee4391e281b5901eff68f0e25f03ff9ec8b3ea7fbe3e8f079f2"
+          },
+          {
+            "section": 0,
+            "paragraph": 47,
+            "length": 98,
+            "page": 7,
+            "id": "c6b0c050-9a14-555a-8b07-197a6eb5190f",
+            "text_sha256": "7816ab98c138a1e0405cda8f4c72737d7552e9b2250bf70de22e59717a27cc58"
+          },
+          {
+            "section": 0,
+            "paragraph": 66,
+            "length": 100,
+            "page": 10,
+            "id": "0b4278f0-3164-5485-80f8-be3adda8b3d6",
+            "text_sha256": "0bb518967bb070dbc824ee17352105df03295b5e325d02a631add3e89577c97c"
+          },
+          {
+            "section": 0,
+            "paragraph": 87,
+            "length": 98,
+            "page": 13,
+            "id": "a5c72e76-dfb8-51c8-8064-ebe08b706118",
+            "text_sha256": "ae7adb6a53e36b9a8e9da6cf28ce965da347aeeedc5e8553eaf293a153b4113d"
+          },
+          {
+            "section": 0,
+            "paragraph": 108,
+            "length": 99,
+            "page": 16,
+            "id": "b3d2bf58-76c7-5153-aad1-81d54c41c106",
+            "text_sha256": "a1a4e8cb9810f3ea01b4f1c087dc7a9f6a9aca0c7043bff6e1be75124063ef6b"
+          },
+          {
+            "section": 0,
+            "paragraph": 127,
+            "length": 10,
+            "page": 18,
+            "id": "323d850e-b70b-5243-9f50-54353b6ef460",
+            "text_sha256": "c5d7ed9af84c8d22995616d3f028d6e70465fa15a49e40c2f5d6fbc690614dbd"
+          }
+        ]
+      },
+      "initial": {
+        "epoch": 1,
+        "revision": 0,
+        "page_count": 20,
+        "export_sha256": "a9835011e79266c57d64913143088edd05a37226097afcffccb64b3681a835f9",
+        "headings": [
+          {
+            "section": 0,
+            "paragraph": 3,
+            "length": 5,
+            "page": 3,
+            "id": "c185ed8f-698c-5c95-b544-b2ec8074c71d",
+            "text_sha256": "8d08dd2ec7fd263317d30f5fca99a955e4864667b09d8148e9ee55ef896899f2"
+          },
+          {
+            "section": 0,
+            "paragraph": 6,
+            "length": 102,
+            "page": 3,
+            "id": "a9cc0f94-a401-5eab-bb8a-0466b5358fe9",
+            "text_sha256": "2ba2d91d01c68c271ecd2a48564aa2792081fa4dda6bbb7319a97e94a96d0b91"
+          },
+          {
+            "section": 0,
+            "paragraph": 27,
+            "length": 99,
+            "page": 6,
+            "id": "fdf8b534-8701-53d3-9025-cd25c582da07",
+            "text_sha256": "8d80be5640ac7ee4391e281b5901eff68f0e25f03ff9ec8b3ea7fbe3e8f079f2"
+          },
+          {
+            "section": 0,
+            "paragraph": 48,
+            "length": 98,
+            "page": 9,
+            "id": "c6b0c050-9a14-555a-8b07-197a6eb5190f",
+            "text_sha256": "7816ab98c138a1e0405cda8f4c72737d7552e9b2250bf70de22e59717a27cc58"
+          },
+          {
+            "section": 0,
+            "paragraph": 67,
+            "length": 100,
+            "page": 12,
+            "id": "0b4278f0-3164-5485-80f8-be3adda8b3d6",
+            "text_sha256": "0bb518967bb070dbc824ee17352105df03295b5e325d02a631add3e89577c97c"
+          },
+          {
+            "section": 0,
+            "paragraph": 88,
+            "length": 98,
+            "page": 15,
+            "id": "a5c72e76-dfb8-51c8-8064-ebe08b706118",
+            "text_sha256": "ae7adb6a53e36b9a8e9da6cf28ce965da347aeeedc5e8553eaf293a153b4113d"
+          },
+          {
+            "section": 0,
+            "paragraph": 109,
+            "length": 99,
+            "page": 18,
+            "id": "b3d2bf58-76c7-5153-aad1-81d54c41c106",
+            "text_sha256": "a1a4e8cb9810f3ea01b4f1c087dc7a9f6a9aca0c7043bff6e1be75124063ef6b"
+          },
+          {
+            "section": 0,
+            "paragraph": 128,
+            "length": 10,
+            "page": 20,
+            "id": "323d850e-b70b-5243-9f50-54353b6ef460",
+            "text_sha256": "c5d7ed9af84c8d22995616d3f028d6e70465fa15a49e40c2f5d6fbc690614dbd"
+          }
+        ]
+      },
+      "reopened": {
+        "epoch": 1,
+        "revision": 0,
+        "page_count": 20,
+        "export_sha256": "a9835011e79266c57d64913143088edd05a37226097afcffccb64b3681a835f9",
+        "headings": [
+          {
+            "section": 0,
+            "paragraph": 3,
+            "length": 5,
+            "page": 3,
+            "id": "c185ed8f-698c-5c95-b544-b2ec8074c71d",
+            "text_sha256": "8d08dd2ec7fd263317d30f5fca99a955e4864667b09d8148e9ee55ef896899f2"
+          },
+          {
+            "section": 0,
+            "paragraph": 6,
+            "length": 102,
+            "page": 3,
+            "id": "a9cc0f94-a401-5eab-bb8a-0466b5358fe9",
+            "text_sha256": "2ba2d91d01c68c271ecd2a48564aa2792081fa4dda6bbb7319a97e94a96d0b91"
+          },
+          {
+            "section": 0,
+            "paragraph": 27,
+            "length": 99,
+            "page": 6,
+            "id": "fdf8b534-8701-53d3-9025-cd25c582da07",
+            "text_sha256": "8d80be5640ac7ee4391e281b5901eff68f0e25f03ff9ec8b3ea7fbe3e8f079f2"
+          },
+          {
+            "section": 0,
+            "paragraph": 48,
+            "length": 98,
+            "page": 9,
+            "id": "c6b0c050-9a14-555a-8b07-197a6eb5190f",
+            "text_sha256": "7816ab98c138a1e0405cda8f4c72737d7552e9b2250bf70de22e59717a27cc58"
+          },
+          {
+            "section": 0,
+            "paragraph": 67,
+            "length": 100,
+            "page": 12,
+            "id": "0b4278f0-3164-5485-80f8-be3adda8b3d6",
+            "text_sha256": "0bb518967bb070dbc824ee17352105df03295b5e325d02a631add3e89577c97c"
+          },
+          {
+            "section": 0,
+            "paragraph": 88,
+            "length": 98,
+            "page": 15,
+            "id": "a5c72e76-dfb8-51c8-8064-ebe08b706118",
+            "text_sha256": "ae7adb6a53e36b9a8e9da6cf28ce965da347aeeedc5e8553eaf293a153b4113d"
+          },
+          {
+            "section": 0,
+            "paragraph": 109,
+            "length": 99,
+            "page": 18,
+            "id": "b3d2bf58-76c7-5153-aad1-81d54c41c106",
+            "text_sha256": "a1a4e8cb9810f3ea01b4f1c087dc7a9f6a9aca0c7043bff6e1be75124063ef6b"
+          },
+          {
+            "section": 0,
+            "paragraph": 128,
+            "length": 10,
+            "page": 20,
+            "id": "323d850e-b70b-5243-9f50-54353b6ef460",
+            "text_sha256": "c5d7ed9af84c8d22995616d3f028d6e70465fa15a49e40c2f5d6fbc690614dbd"
+          }
+        ]
+      },
+      "convergence_passes": 2,
+      "saved_versions": 1,
+      "saved_sha256": "a9835011e79266c57d64913143088edd05a37226097afcffccb64b3681a835f9",
+      "long_title_count": 6,
+      "rich_table_and_diagram_count_including_toc": 5
+    },
+    "diagnostic_built_app": {
+      "proof": {
+        "path": ".cache/final-built-r2-2026-10-17/results/report-toc-REAL-rhwp-MOCK--d943a--generation-save-and-reopen/long-toc-proof.json",
+        "sha256": "8bd73d62a4bdf6e17dbb897d4fc61c2f01b880898535ed4135ef75a2e6ba3bc2"
+      },
+      "real_rhwp": true,
+      "actual_model_calls": 0,
+      "human_approval": false,
+      "automated_test_approval": true,
+      "source": {
+        "epoch": 3,
+        "revision": 159,
+        "page_count": 18,
+        "export_sha256": "ac21fa0dfe454879a665a0ec493b347fc2f3fb9715835bf67b5d0a58638bf891",
+        "headings": [
+          {
+            "section": 0,
+            "paragraph": 2,
+            "length": 5,
+            "page": 1,
+            "id": "5d5b7a1a-a5be-53d3-9f37-b763e1c7edde",
+            "text_sha256": "8d08dd2ec7fd263317d30f5fca99a955e4864667b09d8148e9ee55ef896899f2"
+          },
+          {
+            "section": 0,
+            "paragraph": 5,
+            "length": 102,
+            "page": 1,
+            "id": "a14edfc7-b4a4-57cc-9765-f64db53bcf9d",
+            "text_sha256": "2ba2d91d01c68c271ecd2a48564aa2792081fa4dda6bbb7319a97e94a96d0b91"
+          },
+          {
+            "section": 0,
+            "paragraph": 26,
+            "length": 99,
+            "page": 4,
+            "id": "501858bd-f194-51ea-9b16-61dff867751b",
+            "text_sha256": "8d80be5640ac7ee4391e281b5901eff68f0e25f03ff9ec8b3ea7fbe3e8f079f2"
+          },
+          {
+            "section": 0,
+            "paragraph": 47,
+            "length": 98,
+            "page": 7,
+            "id": "dd3aa90c-422d-524d-9919-0c9c84f13626",
+            "text_sha256": "7816ab98c138a1e0405cda8f4c72737d7552e9b2250bf70de22e59717a27cc58"
+          },
+          {
+            "section": 0,
+            "paragraph": 66,
+            "length": 100,
+            "page": 10,
+            "id": "ac73467d-f232-5459-ac82-1a64a795a93f",
+            "text_sha256": "0bb518967bb070dbc824ee17352105df03295b5e325d02a631add3e89577c97c"
+          },
+          {
+            "section": 0,
+            "paragraph": 87,
+            "length": 98,
+            "page": 13,
+            "id": "ff5e7cf7-b1c3-5f35-81ac-06ab1fc29234",
+            "text_sha256": "ae7adb6a53e36b9a8e9da6cf28ce965da347aeeedc5e8553eaf293a153b4113d"
+          },
+          {
+            "section": 0,
+            "paragraph": 108,
+            "length": 99,
+            "page": 16,
+            "id": "15477283-c482-57e9-8fca-be110bff9d81",
+            "text_sha256": "a1a4e8cb9810f3ea01b4f1c087dc7a9f6a9aca0c7043bff6e1be75124063ef6b"
+          },
+          {
+            "section": 0,
+            "paragraph": 127,
+            "length": 10,
+            "page": 18,
+            "id": "59f08019-e4d2-58bb-85d7-bfef9ef6854d",
+            "text_sha256": "c5d7ed9af84c8d22995616d3f028d6e70465fa15a49e40c2f5d6fbc690614dbd"
+          }
+        ]
+      },
+      "initial": {
+        "epoch": 1,
+        "revision": 0,
+        "page_count": 20,
+        "export_sha256": "214c0985609fd2e04268750050d5467a947c6c8120f85eaf8efc4459b9531210",
+        "headings": [
+          {
+            "section": 0,
+            "paragraph": 3,
+            "length": 5,
+            "page": 3,
+            "id": "5d5b7a1a-a5be-53d3-9f37-b763e1c7edde",
+            "text_sha256": "8d08dd2ec7fd263317d30f5fca99a955e4864667b09d8148e9ee55ef896899f2"
+          },
+          {
+            "section": 0,
+            "paragraph": 6,
+            "length": 102,
+            "page": 3,
+            "id": "a14edfc7-b4a4-57cc-9765-f64db53bcf9d",
+            "text_sha256": "2ba2d91d01c68c271ecd2a48564aa2792081fa4dda6bbb7319a97e94a96d0b91"
+          },
+          {
+            "section": 0,
+            "paragraph": 27,
+            "length": 99,
+            "page": 6,
+            "id": "501858bd-f194-51ea-9b16-61dff867751b",
+            "text_sha256": "8d80be5640ac7ee4391e281b5901eff68f0e25f03ff9ec8b3ea7fbe3e8f079f2"
+          },
+          {
+            "section": 0,
+            "paragraph": 48,
+            "length": 98,
+            "page": 9,
+            "id": "dd3aa90c-422d-524d-9919-0c9c84f13626",
+            "text_sha256": "7816ab98c138a1e0405cda8f4c72737d7552e9b2250bf70de22e59717a27cc58"
+          },
+          {
+            "section": 0,
+            "paragraph": 67,
+            "length": 100,
+            "page": 12,
+            "id": "ac73467d-f232-5459-ac82-1a64a795a93f",
+            "text_sha256": "0bb518967bb070dbc824ee17352105df03295b5e325d02a631add3e89577c97c"
+          },
+          {
+            "section": 0,
+            "paragraph": 88,
+            "length": 98,
+            "page": 15,
+            "id": "ff5e7cf7-b1c3-5f35-81ac-06ab1fc29234",
+            "text_sha256": "ae7adb6a53e36b9a8e9da6cf28ce965da347aeeedc5e8553eaf293a153b4113d"
+          },
+          {
+            "section": 0,
+            "paragraph": 109,
+            "length": 99,
+            "page": 18,
+            "id": "15477283-c482-57e9-8fca-be110bff9d81",
+            "text_sha256": "a1a4e8cb9810f3ea01b4f1c087dc7a9f6a9aca0c7043bff6e1be75124063ef6b"
+          },
+          {
+            "section": 0,
+            "paragraph": 128,
+            "length": 10,
+            "page": 20,
+            "id": "59f08019-e4d2-58bb-85d7-bfef9ef6854d",
+            "text_sha256": "c5d7ed9af84c8d22995616d3f028d6e70465fa15a49e40c2f5d6fbc690614dbd"
+          }
+        ]
+      },
+      "reopened": {
+        "epoch": 1,
+        "revision": 0,
+        "page_count": 20,
+        "export_sha256": "214c0985609fd2e04268750050d5467a947c6c8120f85eaf8efc4459b9531210",
+        "headings": [
+          {
+            "section": 0,
+            "paragraph": 3,
+            "length": 5,
+            "page": 3,
+            "id": "5d5b7a1a-a5be-53d3-9f37-b763e1c7edde",
+            "text_sha256": "8d08dd2ec7fd263317d30f5fca99a955e4864667b09d8148e9ee55ef896899f2"
+          },
+          {
+            "section": 0,
+            "paragraph": 6,
+            "length": 102,
+            "page": 3,
+            "id": "a14edfc7-b4a4-57cc-9765-f64db53bcf9d",
+            "text_sha256": "2ba2d91d01c68c271ecd2a48564aa2792081fa4dda6bbb7319a97e94a96d0b91"
+          },
+          {
+            "section": 0,
+            "paragraph": 27,
+            "length": 99,
+            "page": 6,
+            "id": "501858bd-f194-51ea-9b16-61dff867751b",
+            "text_sha256": "8d80be5640ac7ee4391e281b5901eff68f0e25f03ff9ec8b3ea7fbe3e8f079f2"
+          },
+          {
+            "section": 0,
+            "paragraph": 48,
+            "length": 98,
+            "page": 9,
+            "id": "dd3aa90c-422d-524d-9919-0c9c84f13626",
+            "text_sha256": "7816ab98c138a1e0405cda8f4c72737d7552e9b2250bf70de22e59717a27cc58"
+          },
+          {
+            "section": 0,
+            "paragraph": 67,
+            "length": 100,
+            "page": 12,
+            "id": "ac73467d-f232-5459-ac82-1a64a795a93f",
+            "text_sha256": "0bb518967bb070dbc824ee17352105df03295b5e325d02a631add3e89577c97c"
+          },
+          {
+            "section": 0,
+            "paragraph": 88,
+            "length": 98,
+            "page": 15,
+            "id": "ff5e7cf7-b1c3-5f35-81ac-06ab1fc29234",
+            "text_sha256": "ae7adb6a53e36b9a8e9da6cf28ce965da347aeeedc5e8553eaf293a153b4113d"
+          },
+          {
+            "section": 0,
+            "paragraph": 109,
+            "length": 99,
+            "page": 18,
+            "id": "15477283-c482-57e9-8fca-be110bff9d81",
+            "text_sha256": "a1a4e8cb9810f3ea01b4f1c087dc7a9f6a9aca0c7043bff6e1be75124063ef6b"
+          },
+          {
+            "section": 0,
+            "paragraph": 128,
+            "length": 10,
+            "page": 20,
+            "id": "59f08019-e4d2-58bb-85d7-bfef9ef6854d",
+            "text_sha256": "c5d7ed9af84c8d22995616d3f028d6e70465fa15a49e40c2f5d6fbc690614dbd"
+          }
+        ]
+      },
+      "convergence_passes": 2,
+      "saved_versions": 1,
+      "saved_sha256": "214c0985609fd2e04268750050d5467a947c6c8120f85eaf8efc4459b9531210",
+      "long_title_count": 6,
+      "rich_table_and_diagram_count_including_toc": 5
+    },
+    "visual_qa": {
+      "reviewed_run": ".cache/final-built-r2-2026-10-17",
+      "result": "Cover and full TOC native canvas images inspected: long Korean labels and two-digit pages were visible without clipping or overlap",
+      "images": [
+        {
+          "path": ".cache/final-built-r2-2026-10-17/results/report-toc-REAL-rhwp-MOCK--d943a--generation-save-and-reopen/long-toc-visible-canvas-01.png",
+          "sha256": "430033a3865e88393f402b055641cccc1d155da72c2f889a50eed60ce0f7b58a"
+        },
+        {
+          "path": ".cache/final-built-r2-2026-10-17/results/report-toc-REAL-rhwp-MOCK--d943a--generation-save-and-reopen/long-toc-visible-canvas-02.png",
+          "sha256": "98014145792804414eb64841d74b8135676d66896af095bd851dd4c28c6900c8"
+        }
+      ]
+    }
+  },
+  "actual_codex": {
+    "proof": {
+      "path": ".cache/live-final-codex-20261017-2fa1aace/proof/proof.json",
+      "sha256": "b403357ada0396f0d88902348f9e9acecc5adba35baca567ee4af703ab92a9dd"
+    },
+    "run": {
+      "path": ".cache/live-final-codex-20261017-2fa1aace/run.json",
+      "sha256": "8c2482743165432e469cf378f29bc900ab16de32ef7df204010cd429e7e6bd35"
+    },
+    "requests": {
+      "report": 1,
+      "rewrite": 1
+    },
+    "provider": "codex",
+    "model": "gpt-6.1-sol",
+    "human_approval": false,
+    "automated_test_approval": true,
+    "checks": {
+      "isolated_private_api_auth": true,
+      "report_generation_apply_save_reopen": true,
+      "rewrite_compare_approval_apply_receipt_save_reopen": true,
+      "rewrite_original_blob_preserved": true
+    },
+    "report": {
+      "toc_verified": true,
+      "page_count": 4,
+      "saved_sha256": "f11dc5575967235e7aee478c8e876204dad86b9b49d539ff753f9fb1a21d4d7a",
+      "reopened_sha256": "f11dc5575967235e7aee478c8e876204dad86b9b49d539ff753f9fb1a21d4d7a",
+      "reopened_content_loss": 0
+    },
+    "rewrite": {
+      "saved_sha256": "8d7f1020957fc43fab965b45a5e121f1a4608e79dc6602f4c5e3c07a7d83f8b0",
+      "original_sha256": "741c0aa23dac33ed2f749a160307bb8322138762519c259db1ae2c8c727517c6",
+      "version_count": 2,
+      "application_status": "saved"
+    },
+    "remaining_listeners": []
+  },
+  "hancom": {
+    "status": "Final exact short/long native open, SaveAs, close and fresh-window reopen verified; full visual compatibility remains limited",
+    "version": "10.0.0.5060",
+    "final_copy_roundtrip": {
+      "proof": {
+        "path": ".cache/final-hancom-roundtrip-2026-10-17-r1/native-ui-proof.json",
+        "sha256": "2727436ef5e1c190495fa7db998a84a0eafecd122e22497252d97927bf27daf0"
+      },
+      "date": "2026-10-17",
+      "verified_source_head": "77eabd62574bf1b3e4299d4fd422d4d5044c7ef0",
+      "source_set_sha256": "a19cdc9119e7f023e0c00745c2e9fba43f57d21dee6c6a1c6b4696d4d17e4d95",
+      "human_recovery_interaction_count": 2,
+      "automated_test_file_operations": true,
+      "actual_model_calls": 0,
+      "user_app_db_mutations": 0,
+      "source_documents_modified": false,
+      "application_left_running_for_inspection": true,
+      "documents": [
+        {
+          "kind": "short",
+          "input_copy": {
+            "path": ".cache/final-hancom-roundtrip-2026-10-17-r1/short-input-copy.hwpx",
+            "sha256": "f11dc5575967235e7aee478c8e876204dad86b9b49d539ff753f9fb1a21d4d7a"
+          },
+          "native_saved": {
+            "path": ".cache/final-hancom-roundtrip-2026-10-17-r1/short-hancom-saved.hwpx",
+            "sha256": "9cebcfd9ed7d38e43bb7211c36753753758e0767cb326d325eab4ff1388173c6"
+          },
+          "user_facing_native_saved_copy": {
+            "path": "reports/final-review-2026-10-17/short-hancom-saved.hwpx",
+            "sha256": "9cebcfd9ed7d38e43bb7211c36753753758e0767cb326d325eab4ff1388173c6"
+          },
+          "native_page_count": 4,
+          "stages": {
+            "open": "passed",
+            "save_as_hwpx": "passed",
+            "close": "passed",
+            "new_window_reopen": "passed"
+          },
+          "opened_window_id": 16385724,
+          "old_window_closed_before_reopen": true,
+          "reopened_window_id": 1579674,
+          "screenshots": [
+            {
+              "path": ".cache/final-hancom-roundtrip-2026-10-17-r1/short-open.png",
+              "sha256": "88d23a547aa97c5f6985850f142009f7fa297b3a76f232ba425226460b45b9d9"
+            },
+            {
+              "path": ".cache/final-hancom-roundtrip-2026-10-17-r1/short-saved.png",
+              "sha256": "81cd539d2fffd2d4b97a884db415f73783213fc463f35f3be2f03fd020225a1c"
+            },
+            {
+              "path": ".cache/final-hancom-roundtrip-2026-10-17-r1/short-reopened.png",
+              "sha256": "190339e561b126a0c6665e00092255b0e808392fcc0e2b5b9948b64a18102c69"
+            }
+          ],
+          "semantics": {
+            "proof": {
+              "path": ".cache/final-hancom-roundtrip-2026-10-17-r1/short-comparison-r2.json",
+              "sha256": "26dbf689a89f3ae35b7b9c1617593f009597d387eace0de42e863cffbced8c8e"
+            },
+            "observer_version": 2,
+            "check_count": 11,
+            "all_checks_passed": true,
+            "checks": {
+              "original_preserved": true,
+              "input_copy_preserved": true,
+              "all_nonspace_logical_text_preserved": true,
+              "whitespace_normalized_text_preserved": true,
+              "paragraph_text_and_order_preserved": true,
+              "table_count_preserved": true,
+              "table_cell_text_address_and_span_preserved": true,
+              "bold_color_preserved_for_each_nonspace_character": true,
+              "bold_color_height_preserved_for_each_nonspace_character": true,
+              "parenthetical_lead_labels_bold_preserved": true,
+              "referenced_blue_top_bottom_only_title_rule_present": true
+            },
+            "input_counters": {
+              "bytes": 15263,
+              "sections": 1,
+              "nonempty_paragraphs": 44,
+              "logical_compact_characters": 931,
+              "table_count": 3,
+              "cell_count": 23,
+              "parenthetical_lead_labels": 7,
+              "parenthetical_lead_labels_bold": 7
+            },
+            "native_saved_counters": {
+              "bytes": 63798,
+              "sections": 1,
+              "nonempty_paragraphs": 44,
+              "logical_compact_characters": 931,
+              "table_count": 3,
+              "cell_count": 23,
+              "parenthetical_lead_labels": 7,
+              "parenthetical_lead_labels_bold": 7
+            },
+            "input_hashes": {
+              "logical_compact_sha256": "e8eee3ef96531bad5de79c302f34972522c16742127e7f75272650ca21b69c98",
+              "logical_whitespace_normalized_sha256": "b8f9692994abd1e1dc569d2e61230009e4499cd6f48824dff1a9db9bf4877178",
+              "paragraph_compact_sequence_sha256": "75f45cfcc739eb88c6a48ddf0524261d86ed43080ac0c21fbe6027f5e8b2023c",
+              "styled_nonspace_characters_sha256": "8c11679e92ef0c0479447478de6440381d03fd4cf476c01a3b119387ffd71bc8",
+              "bold_color_nonspace_characters_sha256": "042776350b757d6db20a61eb7f787cef1cf145e71fc6cb1ec0b489283d2c26ec",
+              "tables_semantics_sha256": "f1c006e915a693e307f09d56982b99cba5c612919a3f69d9ce965b7aed026c91"
+            },
+            "native_saved_hashes": {
+              "logical_compact_sha256": "e8eee3ef96531bad5de79c302f34972522c16742127e7f75272650ca21b69c98",
+              "logical_whitespace_normalized_sha256": "b8f9692994abd1e1dc569d2e61230009e4499cd6f48824dff1a9db9bf4877178",
+              "paragraph_compact_sequence_sha256": "75f45cfcc739eb88c6a48ddf0524261d86ed43080ac0c21fbe6027f5e8b2023c",
+              "styled_nonspace_characters_sha256": "8c11679e92ef0c0479447478de6440381d03fd4cf476c01a3b119387ffd71bc8",
+              "bold_color_nonspace_characters_sha256": "042776350b757d6db20a61eb7f787cef1cf145e71fc6cb1ec0b489283d2c26ec",
+              "tables_semantics_sha256": "f1c006e915a693e307f09d56982b99cba5c612919a3f69d9ce965b7aed026c91"
+            },
+            "xml_title_rule_color": "#437FC1",
+            "xml_blue_top_bottom_only_rule_preserved": true,
+            "evidence_boundary": "Semantic comparison verifies XML content/style metadata; native physical page counts and visual observations are separate UI evidence."
+          }
+        },
+        {
+          "kind": "long",
+          "input_copy": {
+            "path": ".cache/final-hancom-roundtrip-2026-10-17-r1/long-input-copy.hwpx",
+            "sha256": "4bbbe9586ba68def2df90115bd6e280e3122eb7ec56c8e814b67d8448caef518"
+          },
+          "native_saved": {
+            "path": ".cache/final-hancom-roundtrip-2026-10-17-r1/long-hancom-saved.hwpx",
+            "sha256": "239a3531dee0194af5589d0f8dfed6b77bf66c736b395863efd8587c5ddeffc8"
+          },
+          "user_facing_native_saved_copy": {
+            "path": "reports/final-review-2026-10-17/long-hancom-saved.hwpx",
+            "sha256": "239a3531dee0194af5589d0f8dfed6b77bf66c736b395863efd8587c5ddeffc8"
+          },
+          "native_page_count": 20,
+          "stages": {
+            "open": "passed",
+            "save_as_hwpx": "passed",
+            "close": "passed",
+            "new_window_reopen": "passed"
+          },
+          "opened_window_id": 3414808,
+          "old_window_closed_before_reopen": true,
+          "reopened_window_id": 4527516,
+          "screenshots": [
+            {
+              "path": ".cache/final-hancom-roundtrip-2026-10-17-r1/long-open.png",
+              "sha256": "46dd4abc44c4189edf549a72b0251283fc2904d033005d669d1f84ef21cfbd11"
+            },
+            {
+              "path": ".cache/final-hancom-roundtrip-2026-10-17-r1/long-saved.png",
+              "sha256": "e56dea152fcbbb0e2f3755f9ca58921b7b923cc96c3380a9e32bfc4f75d8bc70"
+            },
+            {
+              "path": ".cache/final-hancom-roundtrip-2026-10-17-r1/long-reopened.png",
+              "sha256": "729ad209e67bcc40cdc65b3ee8712cbb4e452625a2916d00a792191ae27b1b81"
+            },
+            {
+              "path": ".cache/final-hancom-roundtrip-2026-10-17-r1/long-preview-20-pages.png",
+              "sha256": "bd569075c77898f25cad3fc981c3a8625ca5940a8b55538834e5a2d4701497f4"
+            },
+            {
+              "path": ".cache/final-hancom-roundtrip-2026-10-17-r1/long-native-toc.png",
+              "sha256": "b690584af95bf0419c36117a4e6020efda3479e587857f04221acd960b79255e"
+            },
+            {
+              "path": ".cache/final-hancom-roundtrip-2026-10-17-r1/long-preview-last-20.png",
+              "sha256": "c83b2a85cdeccac4bdec12f28bac76055bbdb2d3154134145687573c1b1df0a8"
+            }
+          ],
+          "semantics": {
+            "proof": {
+              "path": ".cache/final-hancom-roundtrip-2026-10-17-r1/long-comparison.json",
+              "sha256": "eeeeddf2f309c04f0b67c3a2e7e5b66f0563cd937448ce4ed3ebf172806eb544"
+            },
+            "observer_version": 2,
+            "check_count": 11,
+            "all_checks_passed": true,
+            "checks": {
+              "original_preserved": true,
+              "input_copy_preserved": true,
+              "all_nonspace_logical_text_preserved": true,
+              "whitespace_normalized_text_preserved": true,
+              "paragraph_text_and_order_preserved": true,
+              "table_count_preserved": true,
+              "table_cell_text_address_and_span_preserved": true,
+              "bold_color_preserved_for_each_nonspace_character": true,
+              "bold_color_height_preserved_for_each_nonspace_character": true,
+              "parenthetical_lead_labels_bold_preserved": true,
+              "referenced_blue_top_bottom_only_title_rule_present": true
+            },
+            "input_counters": {
+              "bytes": 17944,
+              "sections": 1,
+              "nonempty_paragraphs": 168,
+              "logical_compact_characters": 7776,
+              "table_count": 5,
+              "cell_count": 44,
+              "parenthetical_lead_labels": 19,
+              "parenthetical_lead_labels_bold": 19
+            },
+            "native_saved_counters": {
+              "bytes": 31922,
+              "sections": 1,
+              "nonempty_paragraphs": 168,
+              "logical_compact_characters": 7776,
+              "table_count": 5,
+              "cell_count": 44,
+              "parenthetical_lead_labels": 19,
+              "parenthetical_lead_labels_bold": 19
+            },
+            "input_hashes": {
+              "logical_compact_sha256": "9889b29d7a07c24c80f3190db30aba71f0425b36dfeb7745f774c90607ea62e6",
+              "logical_whitespace_normalized_sha256": "759bc553d1e0678f038258a8388c29d1cbd9d59ae164d568ec4fe2f6da230bcc",
+              "paragraph_compact_sequence_sha256": "a13e15f84d768c743c1e42240b8ec74fe74d3b283cbe89cb6f58710157b8f1ea",
+              "styled_nonspace_characters_sha256": "8521f4b1a22cdb34ef285964d00fa1501ec57d50bcec33d73ecc5ffaf1296413",
+              "bold_color_nonspace_characters_sha256": "706abd910ccfcdb982a6a24c5bc954dc7ae62115244ec4323d87807227b613f6",
+              "tables_semantics_sha256": "0b2bb0373783df438049c3b2d52284c51c9168d6ce36f99add222d436c831ca4"
+            },
+            "native_saved_hashes": {
+              "logical_compact_sha256": "9889b29d7a07c24c80f3190db30aba71f0425b36dfeb7745f774c90607ea62e6",
+              "logical_whitespace_normalized_sha256": "759bc553d1e0678f038258a8388c29d1cbd9d59ae164d568ec4fe2f6da230bcc",
+              "paragraph_compact_sequence_sha256": "a13e15f84d768c743c1e42240b8ec74fe74d3b283cbe89cb6f58710157b8f1ea",
+              "styled_nonspace_characters_sha256": "8521f4b1a22cdb34ef285964d00fa1501ec57d50bcec33d73ecc5ffaf1296413",
+              "bold_color_nonspace_characters_sha256": "706abd910ccfcdb982a6a24c5bc954dc7ae62115244ec4323d87807227b613f6",
+              "tables_semantics_sha256": "0b2bb0373783df438049c3b2d52284c51c9168d6ce36f99add222d436c831ca4"
+            },
+            "xml_title_rule_color": "#437FC1",
+            "xml_blue_top_bottom_only_rule_preserved": true,
+            "evidence_boundary": "Semantic comparison verifies XML content/style metadata; native physical page counts and visual observations are separate UI evidence."
+          },
+          "native_page_observations": {
+            "toc_page": 2,
+            "last_references_page": 20,
+            "print_preview_page_count": 20,
+            "long_labels_and_two_digit_pages_visible_without_observed_clipping_or_overlap": true
+          }
+        }
+      ]
+    },
+    "native_saved_readonly_rhwp_verification": {
+      "status": "passed",
+      "proof": {
+        "path": ".cache/final-hancom-roundtrip-2026-10-17-r1/rhwp-readonly-proof.json",
+        "sha256": "50bf2231177c47b20154d44941775717cac10511f2f4aad67a4d9e96aecf74e5"
+      },
+      "served_engine_check": {
+        "path": ".cache/final-hancom-roundtrip-2026-10-17-r1/served-engine-check.json",
+        "sha256": "6e2732b05269a4d78a24d008c30790230b2afe9d801ba813679859962de57246"
+      },
+      "critical_served_files_verified": 10,
+      "wasm_sha256": "0e81cdeb4a61de8dd12be6d79d3bf06a8c1153525883e4112f4dcb1257d68195",
+      "actual_model_calls": 0,
+      "server_mutations": 0,
+      "app_database_mutations": 0,
+      "browser_errors": 0,
+      "external_requests": 0,
+      "own_browser_closed": true,
+      "documents": [
+        {
+          "kind": "short",
+          "native_saved_input_sha256": "9cebcfd9ed7d38e43bb7211c36753753758e0767cb326d325eab4ff1388173c6",
+          "engine_export_sha256": "d6564a39d03f477551b8d1ca000abbd9aacce6e3b8a61187ab789b21406b0366",
+          "source_preserved": true,
+          "zero_content_loss": true,
+          "logical_text_preserved": true,
+          "logical_text_sha256": "5cd78a483e84e80f35e41f49888415989f717051c6e42172c822c991e1853f67",
+          "table_count": 3,
+          "cell_count": 23,
+          "native_layout": {
+            "epoch": 1,
+            "revision": 0,
+            "page_count": 4,
+            "export_sha256": "d6564a39d03f477551b8d1ca000abbd9aacce6e3b8a61187ab789b21406b0366",
+            "headings": [
+              {
+                "section": 0,
+                "paragraph": 1,
+                "length": 21,
+                "page": 1,
+                "id": "short-hancom-readonly-heading",
+                "text_sha256": "8aab93d158abd1fdd275d192d731d7ad63e74259401b04df5eb8779216d0cdfd"
+              }
+            ]
+          },
+          "warnings": {
+            "count": 0,
+            "summary_by_kind": {}
+          }
+        },
+        {
+          "kind": "long",
+          "native_saved_input_sha256": "239a3531dee0194af5589d0f8dfed6b77bf66c736b395863efd8587c5ddeffc8",
+          "engine_export_sha256": "5940ef38f113f57431841d625da4af9dcf77a12c7f11af0036a0b9c268af76ec",
+          "source_preserved": true,
+          "zero_content_loss": true,
+          "logical_text_preserved": true,
+          "logical_text_sha256": "adb1748a714bc39ec9b72a6ecd43d8d84813cf5b6ce8bc107d6cafbf4d5c7d0d",
+          "table_count": 5,
+          "cell_count": 44,
+          "native_layout": {
+            "epoch": 2,
+            "revision": 0,
+            "page_count": 20,
+            "export_sha256": "5940ef38f113f57431841d625da4af9dcf77a12c7f11af0036a0b9c268af76ec",
+            "headings": [
+              {
+                "section": 0,
+                "paragraph": 3,
+                "length": 5,
+                "page": 3,
+                "id": "long-hancom-readonly-heading",
+                "text_sha256": "8d08dd2ec7fd263317d30f5fca99a955e4864667b09d8148e9ee55ef896899f2"
+              }
+            ]
+          },
+          "warnings": {
+            "count": 120,
+            "summary_by_kind": {
+              "LinesegArrayEmpty": 120
+            }
+          }
+        }
+      ],
+      "export_boundary": "Read-only rhwp import/export may rewrite bytes. NativeSaved inputs remain unchanged; content and same-engine export/layout evidence were checked separately."
+    },
+    "visual_compatibility": {
+      "complete_compatibility_claimed": false,
+      "xml_blue_title_rule_preserved": "#437FC1",
+      "observed_native_title_rule_color": "orange/gold",
+      "original_pinned_reference_shows_same_difference": true,
+      "limitation": "Native title-rule color differs from the unchanged blue XML and from rhwp rendering; full visual compatibility is not claimed."
+    },
+    "earlier_attempts": [
+      {
+        "status": "partial; final review copies require manual verification",
+        "proof": {
+          "path": ".cache/live-final-hancom-20261017-a1/proof.json",
+          "sha256": "44281f5628451e12ce3276b1462413bfc0fbe4d311891ddbe79802202d83ee7b"
+        },
+        "final_copy_attempt": {
+          "path": ".cache/live-final-hancom-20261017-a2/proof.json",
+          "sha256": "ba3b71caeddd4c6225d119fb7c9ed13edad487a45801c589b097da0f52c0f7f2"
+        },
+        "latest_bounded_attempt": {
+          "path": ".cache/live-final-hancom-20261017-a3/proof.json",
+          "sha256": "010592df74647e9018e28f5c827a5b0015a985076fb5ff1f3945b8a443868634"
+        },
+        "version": "10.0.0.5060",
+        "tested_source_kind": "R2 frozen verified preview export; before server save",
+        "tested_source_sha256": "3bf10dbbbb77f439686c687b666e85141cf9fd2c60692589a33a625fa0830a91",
+        "expected_rhwp_pages": 20,
+        "stages": {
+          "open": "passed",
+          "save_as": "passed",
+          "reopen": "unverified"
+        },
+        "native_saved_sha256": "40eacaed39ebe0550a0a5dddcc9ac31dbcad68375ab0374496be109cb27adae4",
+        "semantics": {
+          "all_text_preserved": true,
+          "source_text_sha256": "adb1748a714bc39ec9b72a6ecd43d8d84813cf5b6ce8bc107d6cafbf4d5c7d0d",
+          "native_text_sha256": "adb1748a714bc39ec9b72a6ecd43d8d84813cf5b6ce8bc107d6cafbf4d5c7d0d",
+          "source_tables": 5,
+          "native_tables": 5
+        },
+        "visual_compatibility": "Hancom2018 showed color differences in both generated and original reference files; no generated-only regression established",
+        "final_copy_stages": {
+          "short": "unverified",
+          "long": "unverified"
+        },
+        "limitation": "Native reopen helper recovery failed. A subsequent recovery modal exposed no file path and bounded non-destructive Load failed on cached UI state. No recovery entry was deleted; final short/long copies were not opened or changed."
+      }
+    ]
+  },
+  "preservation": {
+    "status": "passed",
+    "proof": {
+      "path": ".cache/final-2026-10-17/preservation-after.json",
+      "sha256": "7becce3f855a0757b0d7ccc859a2ee2806ab04eeb438e60a925bfbcd5855cab6"
+    },
+    "protected_file_count": 71,
+    "database_count": 2,
+    "changed_protected_files": [],
+    "changed_databases": []
+  },
+  "review_app": {
+    "url": "http://127.0.0.1:15181",
+    "mode": "diagnostic local review app",
+    "served_proof": {
+      "path": ".cache/user-review/runs/20261017-192926-0ca7542b/served.json",
+      "sha256": "6e2732b05269a4d78a24d008c30790230b2afe9d801ba813679859962de57246"
+    },
+    "critical_served_files_verified": 10,
+    "tested_and_review_bundle_identical": true,
+    "bundle_file_count": 85,
+    "bundle_set_sha256": "c598bd75f0014e3c8ef3fbfcf85c5b91bedf57cfee1ac6a06dc7f4f33e22f627",
+    "documents": [
+      {
+        "kind": "short",
+        "file": {
+          "path": "reports/final-review-2026-10-17/short-rich-3-pages.hwpx",
+          "sha256": "e097a240e8bc6151bf9a90ec4665fa989c5aeac5f8465c640280e2564cd726f9"
+        },
+        "document_id": "1ef3c737-8acd-45ff-856d-a70188ae057e",
+        "version_id": "a3218d89-ec7f-4fa7-8702-f9a18fa750ce",
+        "version_count": 1,
+        "checks": [
+          {
+            "iteration": "open",
+            "real_rhwp": true,
+            "zero_content_loss": true,
+            "logical_text_preserved": true,
+            "native_layout": {
+              "epoch": 1,
+              "revision": 0,
+              "page_count": 3,
+              "export_sha256": "e097a240e8bc6151bf9a90ec4665fa989c5aeac5f8465c640280e2564cd726f9",
+              "headings": [
+                {
+                  "section": 0,
+                  "paragraph": 1,
+                  "length": 22,
+                  "page": 1,
+                  "id": "short-review-heading",
+                  "text_sha256": "93fd24a16e41fba96f37f234addfa7b22a4314c612ba6fc64f5a72b2fb1c57de"
+                }
+              ]
+            },
+            "warning_count": 38
+          },
+          {
+            "iteration": "reopen",
+            "real_rhwp": true,
+            "zero_content_loss": true,
+            "logical_text_preserved": true,
+            "native_layout": {
+              "epoch": 1,
+              "revision": 0,
+              "page_count": 3,
+              "export_sha256": "e097a240e8bc6151bf9a90ec4665fa989c5aeac5f8465c640280e2564cd726f9",
+              "headings": [
+                {
+                  "section": 0,
+                  "paragraph": 1,
+                  "length": 22,
+                  "page": 1,
+                  "id": "short-review-heading",
+                  "text_sha256": "93fd24a16e41fba96f37f234addfa7b22a4314c612ba6fc64f5a72b2fb1c57de"
+                }
+              ]
+            },
+            "warning_count": 38
+          }
+        ],
+        "proof": {
+          "path": ".cache/final-2026-10-17/review-import/review-import-proof.json",
+          "sha256": "eb62efa9768bbfd8d087b1f72f63ec69e62f002dacb441391b0204c0074f7a62"
+        }
+      },
+      {
+        "kind": "long",
+        "file": {
+          "path": "reports/final-review-2026-10-17/long-toc-20-pages.hwpx",
+          "sha256": "4bbbe9586ba68def2df90115bd6e280e3122eb7ec56c8e814b67d8448caef518"
+        },
+        "document_id": "2a58d71c-e0db-4fb7-b77b-5bc4d8c1cef9",
+        "version_id": "f746e1bb-32af-4f23-aba7-cd31c43afd6d",
+        "version_count": 1,
+        "checks": [
+          {
+            "iteration": "open",
+            "real_rhwp": true,
+            "zero_content_loss": true,
+            "logical_text_preserved": true,
+            "native_layout": {
+              "epoch": 1,
+              "revision": 0,
+              "page_count": 20,
+              "export_sha256": "4bbbe9586ba68def2df90115bd6e280e3122eb7ec56c8e814b67d8448caef518",
+              "headings": [
+                {
+                  "section": 0,
+                  "paragraph": 3,
+                  "length": 5,
+                  "page": 3,
+                  "id": "long-review-heading",
+                  "text_sha256": "8d08dd2ec7fd263317d30f5fca99a955e4864667b09d8148e9ee55ef896899f2"
+                }
+              ]
+            },
+            "warning_count": 168
+          },
+          {
+            "iteration": "reopen",
+            "real_rhwp": true,
+            "zero_content_loss": true,
+            "logical_text_preserved": true,
+            "native_layout": {
+              "epoch": 1,
+              "revision": 0,
+              "page_count": 20,
+              "export_sha256": "4bbbe9586ba68def2df90115bd6e280e3122eb7ec56c8e814b67d8448caef518",
+              "headings": [
+                {
+                  "section": 0,
+                  "paragraph": 3,
+                  "length": 5,
+                  "page": 3,
+                  "id": "long-review-heading",
+                  "text_sha256": "8d08dd2ec7fd263317d30f5fca99a955e4864667b09d8148e9ee55ef896899f2"
+                }
+              ]
+            },
+            "warning_count": 168
+          }
+        ],
+        "proof": {
+          "path": ".cache/final-2026-10-17/review-import/review-import-proof.json",
+          "sha256": "eb62efa9768bbfd8d087b1f72f63ec69e62f002dacb441391b0204c0074f7a62"
+        }
+      },
+      {
+        "kind": "actual",
+        "file": {
+          "path": "reports/final-review-2026-10-17/short-actual-codex-report.hwpx",
+          "sha256": "f11dc5575967235e7aee478c8e876204dad86b9b49d539ff753f9fb1a21d4d7a"
+        },
+        "document_id": "73c5e971-2d19-462d-ad85-bd06d347d529",
+        "version_id": "03e39538-dc65-42bf-b442-cd7de31284b9",
+        "version_count": 1,
+        "checks": [
+          {
+            "iteration": "open",
+            "real_rhwp": true,
+            "zero_content_loss": true,
+            "logical_text_preserved": true,
+            "native_layout": {
+              "epoch": 1,
+              "revision": 0,
+              "page_count": 4,
+              "export_sha256": "f11dc5575967235e7aee478c8e876204dad86b9b49d539ff753f9fb1a21d4d7a",
+              "headings": [
+                {
+                  "section": 0,
+                  "paragraph": 1,
+                  "length": 21,
+                  "page": 1,
+                  "id": "actual-review-heading",
+                  "text_sha256": "8aab93d158abd1fdd275d192d731d7ad63e74259401b04df5eb8779216d0cdfd"
+                }
+              ]
+            },
+            "warning_count": 44
+          },
+          {
+            "iteration": "reopen",
+            "real_rhwp": true,
+            "zero_content_loss": true,
+            "logical_text_preserved": true,
+            "native_layout": {
+              "epoch": 1,
+              "revision": 0,
+              "page_count": 4,
+              "export_sha256": "f11dc5575967235e7aee478c8e876204dad86b9b49d539ff753f9fb1a21d4d7a",
+              "headings": [
+                {
+                  "section": 0,
+                  "paragraph": 1,
+                  "length": 21,
+                  "page": 1,
+                  "id": "actual-review-heading",
+                  "text_sha256": "8aab93d158abd1fdd275d192d731d7ad63e74259401b04df5eb8779216d0cdfd"
+                }
+              ]
+            },
+            "warning_count": 44
+          }
+        ],
+        "proof": {
+          "path": ".cache/final-2026-10-17/review-actual-import/review-import-proof.json",
+          "sha256": "685d63e7c9935fa718a943da2c308b441a04635bfb587cce439eab7a07b5b2bf"
+        }
+      }
+    ]
+  },
+  "earlier_attempts_not_added_to_final_counts": [
+    {
+      "path": ".cache/final-source-r2-2026-10-17",
+      "counts": {
+        "collected": 66,
+        "passed": 60,
+        "failed": 1,
+        "skipped": 5
+      },
+      "exit_code": 1,
+      "log": {
+        "path": ".cache/final-source-r2-2026-10-17/e2e.log",
+        "sha256": "4fd1293c0e06b1ad34db4e773ae4c207d1f116b8e53a13e365c7d28a1e05b0ec"
+      },
+      "run": {
+        "path": ".cache/final-source-r2-2026-10-17/run.json",
+        "sha256": "51efdac927bfb680711dfff64347a527998ddc6707e621443e2b6632460ed54c"
+      },
+      "status": "Windows Playwright worker exited unexpectedly before the cancel test body; code 3221226505 (0xC0000409), no assertion trace. Preserved as a failed run; clean targeted recovery and sequential full source R3 are separate commands."
+    },
+    {
+      "path": ".cache/final-source-2026-10-17",
+      "counts": {
+        "passed": 59,
+        "failed": 2,
+        "skipped": 5
+      },
+      "status": "superseded: rich idle-stream product race and older TOC-ready observation fixed"
+    },
+    {
+      "path": ".cache/final-built-2026-10-17",
+      "status": "intentionally stopped to restart with the corrected backend; no passing claim"
+    },
+    {
+      "path": ".cache/report-toc-long-r1-2026-10-17",
+      "status": "pre-ready save button absence observation corrected"
+    },
+    {
+      "path": ".cache/report-toc-long-r2-2026-10-17",
+      "status": "raw XML substring observation corrected for soft line breaks"
+    },
+    {
+      "path": ".cache/report-toc-long-r3-2026-10-17",
+      "status": "virtual canvas count observation corrected; native page evidence retained"
+    },
+    {
+      "path": ".cache/report-stream-idle-source-2026-10-17",
+      "counts": {
+        "passed": 2,
+        "failed": 1,
+        "skipped": 0
+      },
+      "status": "stream partial display fixed; remaining rich virtual-canvas observation fixed in R2"
+    },
+    {
+      "kind": "Earlier bounded Hancom attempts a1/a2/a3",
+      "status": "Earlier preview-only SaveAs and recovery-modal failures retained; final exact-copy roundtrip is recorded separately after user recovery actions.",
+      "proofs": [
+        {
+          "path": ".cache/live-final-hancom-20261017-a1/proof.json",
+          "sha256": "44281f5628451e12ce3276b1462413bfc0fbe4d311891ddbe79802202d83ee7b"
+        },
+        {
+          "path": ".cache/live-final-hancom-20261017-a2/proof.json",
+          "sha256": "ba3b71caeddd4c6225d119fb7c9ed13edad487a45801c589b097da0f52c0f7f2"
+        },
+        {
+          "path": ".cache/live-final-hancom-20261017-a3/proof.json",
+          "sha256": "010592df74647e9018e28f5c827a5b0015a985076fb5ff1f3945b8a443868634"
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Normal deployment provenance remains unverified; diagnostic build success is separate.",
+    "Hancom2018 title rules render orange/gold despite unchanged blue XML and the same difference in the original reference; full visual compatibility remains limited.",
+    "Arbitrary market HWPX profile conversion, generic template editing, complex image/field merging, SSO and isolated-network operations remain outside this completion scope.",
+    "Read-only rhwp reimport of the native-saved long copy reported 120 LinesegArrayEmpty warnings; content loss was zero, logical text was preserved and actual rendering remained 20 pages. The short native-saved copy reported zero warnings."
+  ],
+  "privacy": "Only whitelisted counts, status, identifiers, geometry, relative paths and SHA-256 metadata. No raw model text, approvals, base64, credentials, databases or traces are copied."
+}

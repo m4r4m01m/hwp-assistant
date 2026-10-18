@@ -22,21 +22,21 @@ def provider(monkeypatch):
         '{"replacement":"x","reason":"x","command":"bad"}',
     ],
 )
-def test_invalid_mock_output_rejected(provider, content):
+def test_invalid_mock_output_rejected(provider, content, monkeypatch):
     async def request(*args):
         return {"choices": [{"message": {"content": content}}]}
 
-    provider.request = request
+    monkeypatch.setattr(OpenAICompatible, "request", request)
     with pytest.raises(HTTPException) as e:
         asyncio.run(provider.review("원문"))
     assert e.value.status_code == 502
 
 
-def test_mock_valid_output_and_stateless_prompt(provider):
+def test_mock_valid_output_and_stateless_prompt(provider, monkeypatch):
     requests = []
 
     async def request(*args):
-        requests.append(args[2])
+        requests.append(args[3])
         return {
             "choices": [
                 {
@@ -47,7 +47,7 @@ def test_mock_valid_output_and_stateless_prompt(provider):
             ]
         }
 
-    provider.request = request
+    monkeypatch.setattr(OpenAICompatible, "request", request)
     assert asyncio.run(provider.review("원문")).replacement == "개선 문장"
     asyncio.run(provider.review("두 번째"))
     assert len(requests[1]["messages"]) == 2

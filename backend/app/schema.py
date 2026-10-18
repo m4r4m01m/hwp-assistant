@@ -1,7 +1,7 @@
 """002/003: additive tables, preserving existing documents, versions and all blob keys."""
 import os
 from sqlalchemy import select, update
-from .db import Base, Access, Conversation, Document, transaction
+from .db import Base, Access, Conversation, Document, VisualStandard, transaction
 
 
 def migrate(engine, users):
@@ -17,6 +17,8 @@ def migrate(engine, users):
             raise ValueError("Set HWP_LEGACY_OWNER explicitly to migrate existing public documents")
         if users and "local" not in users and not owner and db.scalar(select(Access).where(Access.user_id == "local")):
             raise ValueError("Set HWP_LEGACY_OWNER explicitly to migrate the local workspace")
+        if users and "local" not in users and not owner and db.scalar(select(VisualStandard).where(VisualStandard.owner_id == "local")):
+            raise ValueError("Set HWP_LEGACY_OWNER explicitly to migrate local visual standards")
         for doc in legacy:
             db.add(Access(document_id=doc.id, user_id=owner, role="owner"))
             doc.lease_token = None
@@ -36,3 +38,4 @@ def migrate(engine, users):
                     doc.lease_until = 0
             if "local" not in users:
                 db.execute(update(Conversation).where(Conversation.owner_id == "local").values(owner_id=owner))
+                db.execute(update(VisualStandard).where(VisualStandard.owner_id == "local").values(owner_id=owner))

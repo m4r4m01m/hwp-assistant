@@ -161,3 +161,18 @@ def test_stale_save_after_approval_preserves_latest_and_application(job):
     assert r.status_code == 409
     assert c.get(f"/api/documents/{doc['id']}").json()["current_version"] == latest
     assert c.get(f"/api/documents/{doc['id']}/applications").json()[0]["saved_version"] is None
+
+
+def test_cancel_codex_submission_preserves_candidates_and_invalidates_run_token(job):
+    c, app, _, tid, _, body, token = job
+    task_id = body["id"]
+    payload = {"original_sha256": body["selection"]["evidence"]["textSha256"],
+               "candidates": [{"replacement": "보관 후보 하나", "reason": "FIXTURE"},
+                              {"replacement": "보관 후보 둘", "reason": "FIXTURE"}]}
+    headers = {"Authorization": "Bearer " + token}
+    assert c.post(f"/api/rewrite-tasks/{task_id}/candidates", json=payload, headers=headers).status_code == 200
+    before = c.get(f"/api/threads/{tid}/rewrite-tasks").json()[0]
+    assert c.post(f"/api/rewrite-tasks/{task_id}/cancel").status_code == 200
+    after = c.get(f"/api/threads/{tid}/rewrite-tasks").json()[0]
+    assert after["status"] == "cancelled" and after["candidates"] == before["candidates"]
+    assert c.get(f"/api/rewrite-tasks/{task_id}/input", headers=headers).status_code == 401

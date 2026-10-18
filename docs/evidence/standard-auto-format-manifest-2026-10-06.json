@@ -1,0 +1,127 @@
+{
+  "head": "1e0538781e02ac85d095bb3c72bf844943c305b3",
+  "scope": "Files used or changed by default-format work; existing uncommitted changes retained. Untracked files explicitly included.",
+  "source_set_sha256": "c20399a50caad571cf927241872f7426f0a866bd5842267f44c6d6a42fbbe79a",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "65464ba446f9d28141c105b851c0e76fbf8122dcb5c36c2c9e28eb176e37bbcd",
+      "bytes": 1671
+    },
+    {
+      "path": "README.md",
+      "sha256": "c096053e1743e1a0687c3b6f0102c97624dbb940f87136df7100f228e8339c0f",
+      "bytes": 25146
+    },
+    {
+      "path": "docs/document-writing-standard.md",
+      "sha256": "ad930ad4fdaea4ab958e679c63f801294d137526e0b0544f99419f1e24170a66",
+      "bytes": 4796
+    },
+    {
+      "path": "docs/standard-auto-format-2026-10-06.md",
+      "sha256": "278f6a7e716e7c3bbf9d84c16271eb83ec28aadf70aedc48a5b61b6d7e0b90fc",
+      "bytes": 5156
+    },
+    {
+      "path": "backend/app/document_standard.py",
+      "sha256": "922f784311454df40d1d33f8b2c773d697ab6ad57d58bd543d4efb6f7f6f450d",
+      "bytes": 6875
+    },
+    {
+      "path": "backend/app/report_contract.py",
+      "sha256": "1037be594bf45f4ce17b0389bb5bd9462ebbbf3d7d407497df9ec125d8a77fd2",
+      "bytes": 6504
+    },
+    {
+      "path": "backend/app/report_hwpx.py",
+      "sha256": "0e9e31584737690fdbed6b44c726af5242f1a1f48cfc3619da40a57e46ee623a",
+      "bytes": 3734
+    },
+    {
+      "path": "backend/app/reports.py",
+      "sha256": "3fcc44125589cc96c7f4d3e2a0be734e28309c473703a6d27974d69e8ef1c56c",
+      "bytes": 13360
+    },
+    {
+      "path": "backend/tests/test_document_standard.py",
+      "sha256": "f3fbbe9307e6c80c2e25668ad18ca73827b5d72562765373e68195fdb0544669",
+      "bytes": 4544
+    },
+    {
+      "path": "frontend/src/reports.tsx",
+      "sha256": "bbe9e0f3fd6fb51b31fe591120bcf2fbde9a69c1128003321ecf67f00677870a",
+      "bytes": 15087
+    },
+    {
+      "path": "frontend/tests/reports.spec.ts",
+      "sha256": "75d60499d3347fca905bfacf08d552977b0f8fd5bf8622412fdd390785cc1717",
+      "bytes": 7815
+    },
+    {
+      "path": "scripts/build-standard-report.py",
+      "sha256": "d2acfda4358b4c7b25bbed1d3f8a8a28459381525d641653a6a4216bedc3ab3d",
+      "bytes": 29823
+    },
+    {
+      "path": "scripts/render-standard-report.mjs",
+      "sha256": "010aefbd129b3246e506298ed08d1ec363ec56fb0a21f38e212084593257b528",
+      "bytes": 11213
+    },
+    {
+      "path": "backend/requirements.lock.txt",
+      "sha256": "c8f81db2e84fd52b906bad9cf89bd274b9183d5fb30c486571bb54c78811dc0f",
+      "bytes": 513
+    },
+    {
+      "path": "frontend/package-lock.json",
+      "sha256": "54f1ce6039c3ab78cfcc2d9d69484c18b51af1482d514e7e0fdb867b8ff6b993",
+      "bytes": 42560
+    },
+    {
+      "path": "backend/app/assets/document-standard/profile.json",
+      "sha256": "35ee872ead459b9b4c50dfa22ad3d561abbc35547dfc0b3bee1ac13322e644f1",
+      "bytes": 748
+    },
+    {
+      "path": "backend/app/assets/document-standard/reference.hwpx",
+      "sha256": "6c68b50656867f1fc724c50549e60e1109e2f7a00219f2928ef58de0a45711f1",
+      "bytes": 37641
+    },
+    {
+      "path": "reports/2026-10-06/standard-corrected/financial-cyber-standard.hwpx",
+      "sha256": "cb57c1de2befc8b771f8dbb13369af0f5e30f04a02ae9cb3e2fc0d886ecff54f",
+      "bytes": 125355
+    },
+    {
+      "path": "reports/2026-10-06/standard-corrected/financial-cyber-standard.pdf",
+      "sha256": "7a5844a053e612244c2a7cac7b7cec860c07e378cb9a657c1aaad407d698701e",
+      "bytes": 455541
+    },
+    {
+      "path": "reports/2026-10-06/standard-corrected/preview.html",
+      "sha256": "5369a7d1e981be841494479cea1f982d0025fc0e44daae937c0ff67e0fad976a",
+      "bytes": 1825764
+    },
+    {
+      "path": "reports/2026-10-06/standard-corrected/verification.json",
+      "sha256": "898280c313f93113296d6b92aef484c173468c22013c4378070f9adf8df82544",
+      "bytes": 1899
+    },
+    {
+      "path": ".cache/rhwp/pkg/rhwp.js",
+      "sha256": "e84c5b03cd32927a86e1a2c8acf2c43d60127fcff83f8896daf85b864c78968a",
+      "bytes": 432962
+    },
+    {
+      "path": ".cache/rhwp/pkg/rhwp_bg.wasm",
+      "sha256": "0e81cdeb4a61de8dd12be6d79d3bf06a8c1153525883e4112f4dcb1257d68195",
+      "bytes": 11613332
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "cdcaf2da403626847238b4a5375655924e3a84fd15b66f9cfa952c29d5abdc62",
+      "bytes": 684
+    }
+  ]
+}

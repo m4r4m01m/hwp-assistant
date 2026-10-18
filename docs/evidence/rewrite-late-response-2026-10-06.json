@@ -1,0 +1,566 @@
+{
+  "recorded_at": "2026-10-06T09:37:46.428076+00:00",
+  "head": "1e0538781e02ac85d095bb3c72bf844943c305b3",
+  "branch": "main",
+  "reviewed_source_set": "0a8bef6e932f590903e81ee60cfdf46fe9c3c7a59994711dae26024de8335843",
+  "reviewed_execution_files_matched": 90,
+  "source_set_sha256": "46a208cd44a030f34fda0ad53032b8d0ae6178f68c82cda7717e12caa7d7dd09",
+  "source_manifest": "rewrite-late-response-manifest-2026-10-06.json",
+  "source_unchanged_after_tests": true,
+  "changed_source": [
+    {
+      "path": "frontend/src/main.tsx",
+      "before_sha256": "a7392a75f07058d015810d170ed660c7f16d8cee252b1c792394dbddcfa3dbbf",
+      "after_sha256": "25210589a78c67d42f62bbdc8a0c6a16a325a6d2825c7c98d9432c3e68acfb30",
+      "git": "tracked"
+    },
+    {
+      "path": "frontend/tests/local-rewrite.spec.ts",
+      "before_sha256": "a16587929bf03c0af8d0ac10605a36643d5d427a1b619cc267869b8800f4bf53",
+      "after_sha256": "012f064af86d534a0f87548d661ca1b6b7fc679d4d4c3e2736626826a8767127",
+      "git": "existing untracked"
+    },
+    {
+      "path": "scripts/rewrite-request.test.mjs",
+      "before_sha256": null,
+      "after_sha256": "acb2c83ecc2a1dfc1e32ca1e4be69542fca5a4c7f7644c690d18453f8ef972ae",
+      "git": "new untracked"
+    }
+  ],
+  "before_fix": {
+    "callback": {
+      "collected": 8,
+      "passed": 5,
+      "failed": 3,
+      "skipped": 0,
+      "failures": [
+        "late success clears B",
+        "late 4xx clears B and restores A previous hold",
+        "late network error falsely reports retained A request; does not clear B"
+      ]
+    },
+    "browser_first_run": {
+      "failed": 2,
+      "details": [
+        "success case changed B retry ID",
+        "4xx case Windows worker exit 3221226505 before execution; not product evidence"
+      ]
+    },
+    "browser_4xx_repeat": {
+      "failed": 1,
+      "details": "late A synthetic 409 removed comparison/autosave hold while B response was held"
+    }
+  },
+  "after_fix_targeted": {
+    "callback": {
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0
+    },
+    "browser": {
+      "passed": 2,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "final_regression": {
+    "callback": {
+      "command": "node --test scripts/rewrite-request.test.mjs",
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0
+    },
+    "pytest": {
+      "command": ".venv/Scripts/python -m pytest -q --junitxml=.cache/rewrite-late-response-2026-10-06/final-pytest.xml",
+      "collected": 173,
+      "passed": 173,
+      "failed": 0,
+      "skipped": 0,
+      "warnings": 1,
+      "seconds": 39.01,
+      "boundary_count": 35,
+      "by_file": {
+        "backend.tests.test_cli_process": 2,
+        "backend.tests.test_codex_runner": 6,
+        "backend.tests.test_collaboration": 9,
+        "backend.tests.test_llm": 7,
+        "backend.tests.test_local_rewrite": 85,
+        "backend.tests.test_mcp": 2,
+        "backend.tests.test_process_restart": 1,
+        "backend.tests.test_rewrite": 7,
+        "backend.tests.test_rewrite_boundaries": 35,
+        "backend.tests.test_storage": 10,
+        "backend.tests.test_storage_audit": 9
+      }
+    },
+    "typescript": {
+      "command": "node frontend/node_modules/typescript/bin/tsc --noEmit --project frontend/tsconfig.json",
+      "exit_code": 0
+    },
+    "engine_guards": {
+      "command": "node --test scripts/engine-build.test.mjs",
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0
+    },
+    "e2e": {
+      "source": {
+        "collected": 30,
+        "passed": 29,
+        "failed": 0,
+        "skipped": 1,
+        "skip_reason": "only opt-in long-lived review; no long wait added",
+        "command": "powershell -NoProfile -File scripts/test-isolated.ps1 -EnginePublic .cache/engine-release-2026-09-27/public -OutDir .cache/rewrite-late-response-2026-10-06/final-source-e2e",
+        "started_at": "2026-10-06T09:31:59.1275940Z",
+        "finished_at": "2026-10-06T09:34:18.7596974Z",
+        "remaining_listeners": [],
+        "served_hashes": {
+          "general": {
+            "mode": "source app, copied engine",
+            "url": "http://127.0.0.1:52234",
+            "files": [
+              {
+                "path": "rhwp/build-info.json",
+                "sha256": "522434e96515a6f56c310a1f9d197f00d5e65852227b9ea747bfab71c6fed469"
+              },
+              {
+                "path": "rhwp/index.html",
+                "sha256": "21b7f25c5b62b0925a3c166e3a8cec9bd6ffbc7e8d64db5169d25bc09941e6c0"
+              },
+              {
+                "path": "rhwp/rhwp.js",
+                "sha256": "12029c04cb7f4af12dc6c1026a0499e49e3a01d1bce4b6e2f79f51da1aa59da7"
+              },
+              {
+                "path": "rhwp/assets/rhwp_bg-DdftfNrC.wasm",
+                "sha256": "0e81cdeb4a61de8dd12be6d79d3bf06a8c1153525883e4112f4dcb1257d68195"
+              },
+              {
+                "path": "rhwp/assets/canvaskit-renderer-G9QZqpU4.js",
+                "sha256": "3ad7c1e8fced26e22b8bc7d404bcf3c63cd79b4f9b4057ea1c2e5559dfd08172"
+              },
+              {
+                "path": "rhwp/assets/index-CKntJATf.js",
+                "sha256": "6c4ed8c27192da6b1c5e83159fea76f652da0237e9779ebbe931c64b941774a1"
+              },
+              {
+                "path": "rhwp/assets/studio-plugin-Cp8dJ3L_.js",
+                "sha256": "abdcbcab732aad8d91b551c97ff045bec6b140ae87d94c5fd44235d5515fb4e7"
+              }
+            ]
+          },
+          "auth": {
+            "mode": "source app, copied engine",
+            "url": "http://127.0.0.1:52318",
+            "files": [
+              {
+                "path": "rhwp/build-info.json",
+                "sha256": "522434e96515a6f56c310a1f9d197f00d5e65852227b9ea747bfab71c6fed469"
+              },
+              {
+                "path": "rhwp/index.html",
+                "sha256": "21b7f25c5b62b0925a3c166e3a8cec9bd6ffbc7e8d64db5169d25bc09941e6c0"
+              },
+              {
+                "path": "rhwp/rhwp.js",
+                "sha256": "12029c04cb7f4af12dc6c1026a0499e49e3a01d1bce4b6e2f79f51da1aa59da7"
+              },
+              {
+                "path": "rhwp/assets/rhwp_bg-DdftfNrC.wasm",
+                "sha256": "0e81cdeb4a61de8dd12be6d79d3bf06a8c1153525883e4112f4dcb1257d68195"
+              },
+              {
+                "path": "rhwp/assets/canvaskit-renderer-G9QZqpU4.js",
+                "sha256": "3ad7c1e8fced26e22b8bc7d404bcf3c63cd79b4f9b4057ea1c2e5559dfd08172"
+              },
+              {
+                "path": "rhwp/assets/index-CKntJATf.js",
+                "sha256": "6c4ed8c27192da6b1c5e83159fea76f652da0237e9779ebbe931c64b941774a1"
+              },
+              {
+                "path": "rhwp/assets/studio-plugin-Cp8dJ3L_.js",
+                "sha256": "abdcbcab732aad8d91b551c97ff045bec6b140ae87d94c5fd44235d5515fb4e7"
+              }
+            ]
+          },
+          "local": {
+            "mode": "source app, copied engine",
+            "url": "http://127.0.0.1:52353",
+            "files": [
+              {
+                "path": "rhwp/build-info.json",
+                "sha256": "522434e96515a6f56c310a1f9d197f00d5e65852227b9ea747bfab71c6fed469"
+              },
+              {
+                "path": "rhwp/index.html",
+                "sha256": "21b7f25c5b62b0925a3c166e3a8cec9bd6ffbc7e8d64db5169d25bc09941e6c0"
+              },
+              {
+                "path": "rhwp/rhwp.js",
+                "sha256": "12029c04cb7f4af12dc6c1026a0499e49e3a01d1bce4b6e2f79f51da1aa59da7"
+              },
+              {
+                "path": "rhwp/assets/rhwp_bg-DdftfNrC.wasm",
+                "sha256": "0e81cdeb4a61de8dd12be6d79d3bf06a8c1153525883e4112f4dcb1257d68195"
+              },
+              {
+                "path": "rhwp/assets/canvaskit-renderer-G9QZqpU4.js",
+                "sha256": "3ad7c1e8fced26e22b8bc7d404bcf3c63cd79b4f9b4057ea1c2e5559dfd08172"
+              },
+              {
+                "path": "rhwp/assets/index-CKntJATf.js",
+                "sha256": "6c4ed8c27192da6b1c5e83159fea76f652da0237e9779ebbe931c64b941774a1"
+              },
+              {
+                "path": "rhwp/assets/studio-plugin-Cp8dJ3L_.js",
+                "sha256": "abdcbcab732aad8d91b551c97ff045bec6b140ae87d94c5fd44235d5515fb4e7"
+              }
+            ]
+          }
+        },
+        "response_barrier_evidence": [
+          {
+            "kind": "real rhwp, MOCK HTTP provider, same document",
+            "lateResponse": "4xx",
+            "actual_model_calls": 0,
+            "human_approvals": 0,
+            "stages": [
+              "A accepted; HTTP response held",
+              "A model gate entered; still running",
+              "A logically cancelled after panel remount",
+              "B accepted; HTTP response held",
+              "late A 4xx delivered while B response still held",
+              "B response lost after server acceptance",
+              "same B input/ID retried; 2 tasks, 2 MOCK calls, 1 version; bytes unchanged"
+            ],
+            "request_ids": [
+              "3c8d5ca3-68c6-4a38-be57-ecfc6612fa43",
+              "b4e5e5d5-20c1-4865-a944-fe7d7a7d99a8",
+              "b4e5e5d5-20c1-4865-a944-fe7d7a7d99a8"
+            ],
+            "identical_B_retry": true,
+            "task_count": 2,
+            "mock_calls": 2,
+            "original_sha256": "594e674b831ea7c364e7dbd3abde5b117f69fca17cd4f5f5cf2cb094410a5df7",
+            "buffer_sha256": "789d97b94f8059af3fdb901e1b57c1735b781f033b9be8b30f0abeb8df725220",
+            "frozen_B_sha256": "57c4475f985742c61a93062664a8598afedb3dbe912b166a05eae2bcf5dd5209",
+            "context_used": false
+          },
+          {
+            "kind": "real rhwp, MOCK HTTP provider, same document",
+            "lateResponse": "success",
+            "actual_model_calls": 0,
+            "human_approvals": 0,
+            "stages": [
+              "A accepted; HTTP response held",
+              "A model gate entered; still running",
+              "A logically cancelled after panel remount",
+              "B accepted; HTTP response held",
+              "late A success delivered while B response still held",
+              "B response lost after server acceptance",
+              "same B input/ID retried; 2 tasks, 2 MOCK calls, 1 version; bytes unchanged"
+            ],
+            "request_ids": [
+              "5f49f7e7-e9ed-4863-8670-02c2187ae6a6",
+              "a199e3c3-fdeb-45eb-8553-c25b732a222d",
+              "a199e3c3-fdeb-45eb-8553-c25b732a222d"
+            ],
+            "identical_B_retry": true,
+            "task_count": 2,
+            "mock_calls": 2,
+            "original_sha256": "594e674b831ea7c364e7dbd3abde5b117f69fca17cd4f5f5cf2cb094410a5df7",
+            "buffer_sha256": "789d97b94f8059af3fdb901e1b57c1735b781f033b9be8b30f0abeb8df725220",
+            "frozen_B_sha256": "d5e90b3364eddd9ee479fc2b6074fc68ec6d8dcf959f6e098ae2aaa19b590db3",
+            "context_used": false
+          }
+        ]
+      },
+      "built": {
+        "collected": 18,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 1,
+        "skip_reason": "only opt-in long-lived review; no long wait added",
+        "command": "powershell -NoProfile -File scripts/test-isolated.ps1 -EnginePublic .cache/engine-release-2026-09-27/public -OutDir .cache/rewrite-late-response-2026-10-06/final-built-e2e -BuiltApp",
+        "started_at": "2026-10-06T09:35:09.3542210Z",
+        "finished_at": "2026-10-06T09:36:58.3118116Z",
+        "remaining_listeners": [],
+        "served_hashes": {
+          "general": {
+            "mode": "fresh diagnostic app bundle",
+            "url": "http://127.0.0.1:53653",
+            "files": [
+              {
+                "path": "rhwp/build-info.json",
+                "sha256": "522434e96515a6f56c310a1f9d197f00d5e65852227b9ea747bfab71c6fed469"
+              },
+              {
+                "path": "rhwp/index.html",
+                "sha256": "21b7f25c5b62b0925a3c166e3a8cec9bd6ffbc7e8d64db5169d25bc09941e6c0"
+              },
+              {
+                "path": "rhwp/rhwp.js",
+                "sha256": "12029c04cb7f4af12dc6c1026a0499e49e3a01d1bce4b6e2f79f51da1aa59da7"
+              },
+              {
+                "path": "rhwp/assets/rhwp_bg-DdftfNrC.wasm",
+                "sha256": "0e81cdeb4a61de8dd12be6d79d3bf06a8c1153525883e4112f4dcb1257d68195"
+              },
+              {
+                "path": "rhwp/assets/canvaskit-renderer-G9QZqpU4.js",
+                "sha256": "3ad7c1e8fced26e22b8bc7d404bcf3c63cd79b4f9b4057ea1c2e5559dfd08172"
+              },
+              {
+                "path": "rhwp/assets/index-CKntJATf.js",
+                "sha256": "6c4ed8c27192da6b1c5e83159fea76f652da0237e9779ebbe931c64b941774a1"
+              },
+              {
+                "path": "rhwp/assets/studio-plugin-Cp8dJ3L_.js",
+                "sha256": "abdcbcab732aad8d91b551c97ff045bec6b140ae87d94c5fd44235d5515fb4e7"
+              },
+              {
+                "path": "index.html",
+                "sha256": "c740709331fb358a34e39846141083378a541d2432c98577c7634090292b4a46"
+              },
+              {
+                "path": "assets/index-CX8O9ijw.js",
+                "sha256": "5dac2d8a2f5883340ea1c3c5ac199b7546b8eb8f494bb0b45bbca14a1533e9d1"
+              },
+              {
+                "path": "assets/index-rpum2c6Q.css",
+                "sha256": "d6304e3a1638c3b6efa88dc1dcb8aefb114080e3700d6864fd1fb52ccbd76a97"
+              }
+            ]
+          },
+          "auth": {
+            "mode": "fresh diagnostic app bundle",
+            "url": "http://127.0.0.1:53661",
+            "files": [
+              {
+                "path": "rhwp/build-info.json",
+                "sha256": "522434e96515a6f56c310a1f9d197f00d5e65852227b9ea747bfab71c6fed469"
+              },
+              {
+                "path": "rhwp/index.html",
+                "sha256": "21b7f25c5b62b0925a3c166e3a8cec9bd6ffbc7e8d64db5169d25bc09941e6c0"
+              },
+              {
+                "path": "rhwp/rhwp.js",
+                "sha256": "12029c04cb7f4af12dc6c1026a0499e49e3a01d1bce4b6e2f79f51da1aa59da7"
+              },
+              {
+                "path": "rhwp/assets/rhwp_bg-DdftfNrC.wasm",
+                "sha256": "0e81cdeb4a61de8dd12be6d79d3bf06a8c1153525883e4112f4dcb1257d68195"
+              },
+              {
+                "path": "rhwp/assets/canvaskit-renderer-G9QZqpU4.js",
+                "sha256": "3ad7c1e8fced26e22b8bc7d404bcf3c63cd79b4f9b4057ea1c2e5559dfd08172"
+              },
+              {
+                "path": "rhwp/assets/index-CKntJATf.js",
+                "sha256": "6c4ed8c27192da6b1c5e83159fea76f652da0237e9779ebbe931c64b941774a1"
+              },
+              {
+                "path": "rhwp/assets/studio-plugin-Cp8dJ3L_.js",
+                "sha256": "abdcbcab732aad8d91b551c97ff045bec6b140ae87d94c5fd44235d5515fb4e7"
+              },
+              {
+                "path": "index.html",
+                "sha256": "c740709331fb358a34e39846141083378a541d2432c98577c7634090292b4a46"
+              },
+              {
+                "path": "assets/index-CX8O9ijw.js",
+                "sha256": "5dac2d8a2f5883340ea1c3c5ac199b7546b8eb8f494bb0b45bbca14a1533e9d1"
+              },
+              {
+                "path": "assets/index-rpum2c6Q.css",
+                "sha256": "d6304e3a1638c3b6efa88dc1dcb8aefb114080e3700d6864fd1fb52ccbd76a97"
+              }
+            ]
+          },
+          "local": {
+            "mode": "fresh diagnostic app bundle",
+            "url": "http://127.0.0.1:53672",
+            "files": [
+              {
+                "path": "rhwp/build-info.json",
+                "sha256": "522434e96515a6f56c310a1f9d197f00d5e65852227b9ea747bfab71c6fed469"
+              },
+              {
+                "path": "rhwp/index.html",
+                "sha256": "21b7f25c5b62b0925a3c166e3a8cec9bd6ffbc7e8d64db5169d25bc09941e6c0"
+              },
+              {
+                "path": "rhwp/rhwp.js",
+                "sha256": "12029c04cb7f4af12dc6c1026a0499e49e3a01d1bce4b6e2f79f51da1aa59da7"
+              },
+              {
+                "path": "rhwp/assets/rhwp_bg-DdftfNrC.wasm",
+                "sha256": "0e81cdeb4a61de8dd12be6d79d3bf06a8c1153525883e4112f4dcb1257d68195"
+              },
+              {
+                "path": "rhwp/assets/canvaskit-renderer-G9QZqpU4.js",
+                "sha256": "3ad7c1e8fced26e22b8bc7d404bcf3c63cd79b4f9b4057ea1c2e5559dfd08172"
+              },
+              {
+                "path": "rhwp/assets/index-CKntJATf.js",
+                "sha256": "6c4ed8c27192da6b1c5e83159fea76f652da0237e9779ebbe931c64b941774a1"
+              },
+              {
+                "path": "rhwp/assets/studio-plugin-Cp8dJ3L_.js",
+                "sha256": "abdcbcab732aad8d91b551c97ff045bec6b140ae87d94c5fd44235d5515fb4e7"
+              },
+              {
+                "path": "index.html",
+                "sha256": "c740709331fb358a34e39846141083378a541d2432c98577c7634090292b4a46"
+              },
+              {
+                "path": "assets/index-CX8O9ijw.js",
+                "sha256": "5dac2d8a2f5883340ea1c3c5ac199b7546b8eb8f494bb0b45bbca14a1533e9d1"
+              },
+              {
+                "path": "assets/index-rpum2c6Q.css",
+                "sha256": "d6304e3a1638c3b6efa88dc1dcb8aefb114080e3700d6864fd1fb52ccbd76a97"
+              }
+            ]
+          }
+        },
+        "response_barrier_evidence": [
+          {
+            "kind": "real rhwp, MOCK HTTP provider, same document",
+            "lateResponse": "4xx",
+            "actual_model_calls": 0,
+            "human_approvals": 0,
+            "stages": [
+              "A accepted; HTTP response held",
+              "A model gate entered; still running",
+              "A logically cancelled after panel remount",
+              "B accepted; HTTP response held",
+              "late A 4xx delivered while B response still held",
+              "B response lost after server acceptance",
+              "same B input/ID retried; 2 tasks, 2 MOCK calls, 1 version; bytes unchanged"
+            ],
+            "request_ids": [
+              "3318f87a-4914-48c6-bc83-2fccaf1becd3",
+              "9bef78c7-ddab-4dd0-a26a-72a85a2a8f00",
+              "9bef78c7-ddab-4dd0-a26a-72a85a2a8f00"
+            ],
+            "identical_B_retry": true,
+            "task_count": 2,
+            "mock_calls": 2,
+            "original_sha256": "594e674b831ea7c364e7dbd3abde5b117f69fca17cd4f5f5cf2cb094410a5df7",
+            "buffer_sha256": "789d97b94f8059af3fdb901e1b57c1735b781f033b9be8b30f0abeb8df725220",
+            "frozen_B_sha256": "7f9080967eb757d852dac867316312f8c53d79b7b6a868b929c69b6767773bea",
+            "context_used": false
+          },
+          {
+            "kind": "real rhwp, MOCK HTTP provider, same document",
+            "lateResponse": "success",
+            "actual_model_calls": 0,
+            "human_approvals": 0,
+            "stages": [
+              "A accepted; HTTP response held",
+              "A model gate entered; still running",
+              "A logically cancelled after panel remount",
+              "B accepted; HTTP response held",
+              "late A success delivered while B response still held",
+              "B response lost after server acceptance",
+              "same B input/ID retried; 2 tasks, 2 MOCK calls, 1 version; bytes unchanged"
+            ],
+            "request_ids": [
+              "72eaa06a-b855-4d8d-85db-818f5ddd6e8f",
+              "5082a20d-c254-4447-bb38-54b9471bdc8e",
+              "5082a20d-c254-4447-bb38-54b9471bdc8e"
+            ],
+            "identical_B_retry": true,
+            "task_count": 2,
+            "mock_calls": 2,
+            "original_sha256": "594e674b831ea7c364e7dbd3abde5b117f69fca17cd4f5f5cf2cb094410a5df7",
+            "buffer_sha256": "789d97b94f8059af3fdb901e1b57c1735b781f033b9be8b30f0abeb8df725220",
+            "frozen_B_sha256": "4e4bc8955b0fa0b9b84b0b94e8b8a399c2cae2cbeeeb6ff05775cc87dde585dc",
+            "context_used": false
+          }
+        ]
+      }
+    }
+  },
+  "default_provider": "codex",
+  "optional_provider": "llm",
+  "context_used": false,
+  "scope": {
+    "callbacks": "actual TSX callback and API helper code, synthetic refs/API promises, no browser claim",
+    "browser": "real rhwp, synthetic HTTP model, real public API state transitions, no DB ID/status mutation",
+    "actual_model_calls": 0,
+    "human_approvals": 0,
+    "new_E2E_approval_clicks": 0,
+    "existing_regression_approvals": "automated clicks only"
+  },
+  "preservation": {
+    "baseline_files": 358,
+    "baseline_files_unchanged": 356,
+    "existing_files_changed": [
+      "frontend/src/main.tsx",
+      "frontend/tests/local-rewrite.spec.ts"
+    ],
+    "data_files_unchanged": 56,
+    "historical_docs_unchanged": 38,
+    "default_engine_files_unchanged": 86,
+    "diagnostic_engine_source_files_unchanged": 82,
+    "data_and_engine_inventory_unchanged": true,
+    "backend_and_prior_boundary_logic_unchanged": true,
+    "authentication": "not modified or included in evidence; no actual CLI login/model execution",
+    "user_buffers": "no existing user browser/editor was controlled; new isolated headless sessions only"
+  },
+  "cleanup": [
+    {
+      "name": "browser-after",
+      "result": "passed",
+      "remaining_listeners": [],
+      "ports": 7
+    },
+    {
+      "name": "browser-before",
+      "result": "failed",
+      "remaining_listeners": [],
+      "ports": 7
+    },
+    {
+      "name": "browser-before-4xx",
+      "result": "failed",
+      "remaining_listeners": [],
+      "ports": 7
+    },
+    {
+      "name": "final-built-e2e",
+      "result": "passed",
+      "remaining_listeners": [],
+      "ports": 7
+    },
+    {
+      "name": "final-source-e2e",
+      "result": "passed",
+      "remaining_listeners": [],
+      "ports": 7
+    }
+  ],
+  "git_operations": {
+    "commit": false,
+    "push": false,
+    "merge": false,
+    "fetch_pull": false,
+    "reset_clean": false
+  },
+  "remaining": [
+    "602-second restart/expiry test on this new source set",
+    "1-hour review/autosave test on this new source set"
+  ],
+  "deployment": "unchanged engine/build guards; diagnostic app verification is not deployment readiness",
+  "excluded_from_shared_artifacts": [
+    "real documents",
+    "databases",
+    "auth files",
+    "runtime tokens",
+    "raw failure logs",
+    "whole .cache"
+  ]
+}

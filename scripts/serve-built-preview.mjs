@@ -21,6 +21,9 @@ const nginx = readFileSync(resolve(root, 'frontend/nginx.conf'), 'utf8');
 const headers = Object.fromEntries([...nginx.matchAll(/add_header\s+([\w-]+)\s+(?:"([^"]+)"|([^;\s]+))\s+always;/g)]
   .map(match => [match[1], match[2] || match[3]]));
 if (!headers['Content-Security-Policy']) throw Error('Could not read the actual nginx CSP');
+// Revalidate the local app shell after a new diagnostic bundle is installed.
+// Keep all existing CSP/auth headers; a normal refresh must see the new UI.
+headers['Cache-Control'] = 'no-cache';
 const server = await preview({ configFile: false, root: resolve(root, 'frontend'), build: { outDir },
   preview: { host: '127.0.0.1', port, strictPort: true, headers,
     proxy: { '/api': { target: api.origin, changeOrigin: false } } } });

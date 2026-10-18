@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-18",
+  "kind": "Editor workspace cleanup and actual pointer selection review",
+  "basis_head": "5d75900eb71671be696b9201f871c2c310f3878f",
+  "changed_ui_files": ["frontend/src/main.tsx", "frontend/src/style.css", "frontend/tests/editor-workspace.spec.ts"],
+  "engine_evidence": "docs/evidence/body-selection-2026-10-18.json",
+  "color_evidence": "docs/evidence/hancom-color-observation-2026-10-18.json",
+  "verification": {
+    "typescript": "passed",
+    "diagnostic_frontend_build": "passed",
+    "served_file_hash_matches": 10,
+    "e2e_passed": 5,
+    "e2e_failed": 0,
+    "e2e_log": ".cache/workspace-ui-e2e-2026-10-18/e2e.log",
+    "e2e_receipt": ".cache/workspace-ui-e2e-2026-10-18/run.json",
+    "e2e_scope": [
+      "Compact menus, keyboard/outside/frame dismissal, recovery bytes, history and save-as preservation at 862x692 and 400x760",
+      "One visible panel; unsent conversation and unsaved writing context survive tool switching and declined explicit close; unchanged document bytes",
+      "Real engine and MOCK AI transport: approval, stale proposal rejection and undo",
+      "Three save/download/reupload/reopen cycles; historical bytes preserved; restore creates a version",
+      "TOC physical pages, hierarchy, unsaved body content, explicit refresh, server save and reopen"
+    ],
+    "actual_model_calls": 0,
+    "ai_transport": "mock",
+    "test_service_remaining_listeners": [],
+    "independent_read_only_ui_review": "No concrete new regression found; actual UI/E2E observation recorded separately.",
+    "pinned_cursor_nav_rustfmt_check": "Rust 1.93.1 --check --edition 2021 passed"
+  },
+  "browser_observation": {
+    "method": "AI agent Computer Use in the Codex in-app browser",
+    "review_url": "http://127.0.0.1:15184/",
+    "original_url_preserved": "http://127.0.0.1:15183/",
+    "review_data": "Separate SQLite backup and seven SHA-verified blob copies",
+    "viewport": {"width": 1280, "height": 720},
+    "editor_iframe_rect": {"y": 103, "height": 617},
+    "forward_pointer_drag": "Actual three-line summary, heading and following three-line paragraph are highlighted without missing text lines.",
+    "reverse_pointer_drag": "Same visible text range is highlighted.",
+    "file_menu": "Save-as, recovery download, history and saved/download distinction visibly present; Escape closes menu.",
+    "body_text_input_or_manual_save": false,
+    "human_acceptance_review_performed": false,
+    "narrow_screenshot_comparison": "At 862x692, approximate document viewport top changed from y340 to y252. Comparison evidence only, not a document constraint."
+  },
+  "local_screenshot_sha256": {
+    ".cache/ui-review-2026-10-18/before-selection.jpg": "087d363b6d7f71029fde1d3d64df40dc85a39e11ca4f17d84499b237e8d26c61",
+    ".cache/ui-review-2026-10-18/after-workspace.jpg": "b41081dd3eeffac6e60e41a688167c3cfb33454da9e1f588188e3c0433bc36d1",
+    ".cache/ui-review-2026-10-18/after-selection.jpg": "97d2817d9c316b3bfc0c47c29ef0fd198c4a13580e60096fff56f7aa0215fcc3",
+    ".cache/ui-review-2026-10-18/after-selection-reverse.jpg": "97d2817d9c316b3bfc0c47c29ef0fd198c4a13580e60096fff56f7aa0215fcc3",
+    ".cache/ui-review-2026-10-18/after-file-menu.jpg": "f3ef1ba641a4ac6357a7772045ca9aa9034f500cafb66b1ee56d7bd2ef68c61e"
+  },
+  "preservation": {
+    "original_blob_files_sha256_checked_after_browser_review": 7,
+    "all_original_blob_hashes_preserved": true,
+    "backend_standard_profile_or_generation_prompt_changed": false,
+    "historical_evidence_modified": false,
+    "new_ui_checks_publish_private_user_document_text_or_ids": false,
+    "screenshots_committed": false
+  },
+  "limits": [
+    "Windows native diagnostic engine and local review app; Docker/WSL optimized deployment not verified.",
+    "No new actual model-generation quality or Hancom save/reopen claim.",
+    "Hancom2018 color interpretation difference remains diagnosed, with no speculative product color inversion.",
+    "Existing duplicate page-fragment rendering is preserved; this patch repairs its selection overlay only."
+  ]
+}

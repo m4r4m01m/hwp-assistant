@@ -24,22 +24,26 @@ test("REAL HWPX template: register, recommend, apply, edit delta, preserve pinne
   const sourceUrl = (await row
     .getByRole("link", { name: "다운로드", exact: true })
     .getAttribute("href"))!;
-  let prompts = 0;
-  page.on("dialog", (d) =>
-    d.accept(++prompts === 1 ? filename : "회의 결정 기록"),
-  );
   await row.getByRole("button", { name: "양식 등록" }).click();
   await expect(
-    page.getByRole("heading", { name: "템플릿 추천 · 적용" }),
+    page.getByRole("heading", { name: "템플릿 마켓" }),
   ).toBeVisible();
+  await page.getByLabel("양식 이름", { exact: true }).fill(filename);
+  await page.getByLabel("양식 설명", { exact: true }).fill("회의 결정 기록");
+  await page.getByLabel("양식 태그", { exact: true }).fill("회의, 기록");
+  await expect(page.getByRole("button", { name: "고정 버전으로 양식 등록" })).toBeEnabled();
+  await page.getByRole("button", { name: "고정 버전으로 양식 등록" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "고정 버전을 양식으로 등록" })).toBeVisible();
   await page.getByLabel("템플릿 검색").fill("회의");
   const template = page
-    .locator(".modal article")
+    .locator(".market-card")
     .filter({
       has: page.getByRole("heading", { name: filename, exact: true }),
     });
-  await expect(template).toContainText("일치: 회의");
-  await template.getByRole("button", { name: "이 양식으로 새 문서" }).click();
+  await expect(template).toContainText("회의 결정 기록");
+  await template.getByRole("button", { name: "미리보기 · 사용" }).click();
+  await expect(page.getByRole("img", { name: "양식 미리보기 1쪽" })).toBeVisible({ timeout: 90000 });
+  await page.getByRole("button", { name: "이 양식으로 새 문서" }).click();
   await expect(page.getByRole("status")).toHaveText("저장 완료", {
     timeout: 90000,
   });
@@ -107,10 +111,11 @@ test("REAL engine + external proposal fixture: persisted context, explicit appro
     .getByRole("link", { name: "저장본 다운로드" })
     .getAttribute("href"))!;
   const docPath = fileUrl.split("/versions/")[0];
-  await page.getByRole("button", { name: "대화 · Codex 열기" }).click();
+  await page.getByRole("button", { name: "대화 · AI 열기" }).click();
   page.on("dialog", (d) => d.accept("문서 공동 검토"));
   await page.getByRole("button", { name: "공유 대화 만들기" }).click();
   await page.getByLabel("작성 목적").fill("명확한 회의록");
+  await page.getByText("기존 메모 · 후보 입력에서 제외", { exact: true }).click();
   await page.getByLabel("확정 사실·작성 기준").fill("결정된 날짜만 사용");
   await page.getByRole("button", { name: "현재 문단을 Codex에 공유" }).click();
   await expect(page.locator(".collaboration")).toContainText(

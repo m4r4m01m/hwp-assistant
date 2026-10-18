@@ -12,19 +12,28 @@ import {
 } from "node:fs";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { root, lock, ensureSource, validateCore, normalizeNewlines, hashFile } from "./engine-build-lib.mjs";
+import { root, lock, ensureSource, validateCore, assertStudioBridge, validateInstalledDependencies, hashFile } from "./engine-build-lib.mjs";
+import { checkBundle } from "./check-engine-bundle.mjs";
 const { values } = parseArgs({ options: {
   "core-dir": { type: "string" },
   out: { type: "string", default: "frontend/public/rhwp" },
   diagnostic: { type: "boolean", default: false },
+  "reuse-installed": { type: "boolean", default: false },
+  "previous-bridge": { type: "string" },
+  "previous-bundle": { type: "string" },
 } });
 const out = resolve(root, values.out);
 if (values.diagnostic && out === resolve(root, "frontend/public/rhwp"))
   throw Error("Diagnostic builds require a separate --out; preserving the default engine.");
+if (values["reuse-installed"] && !values.diagnostic)
+  throw Error("Reusing installed dependencies is limited to explicit diagnostic builds.");
+if (!!values["previous-bridge"] !== !!values["previous-bundle"])
+  throw Error("A bridge transition requires both previous bridge and verified previous bundle.");
 const coreDir = resolve(root, values["core-dir"] || ".cache/rhwp-core-release/pkg");
 const coreBuild = validateCore(coreDir, { diagnostic: values.diagnostic });
 // Run the real engine before touching the vendor tree or publishing output.
 execFileSync(process.execPath, [resolve(root, "scripts/test-engine-fill.mjs"), coreDir], { stdio: "inherit" });
+execFileSync(process.execPath, [resolve(root, "scripts/test-engine-selection.mjs"), coreDir], { stdio: "inherit" });
 const repo = ensureSource();
 const commit = lock.commit;
 const run = (cmd, args, cwd = repo, env = {}) =>
@@ -40,29 +49,36 @@ const originalMain = execFileSync(
   { cwd: repo, encoding: "utf8" },
 );
 const mainPath = resolve(repo, "rhwp-studio/src/main.ts");
-const bridgedMain = originalMain + readFileSync(resolve(root, "scripts/assistant-bridge.ts.txt"), "utf8");
-const currentMain = normalizeNewlines(readFileSync(mainPath, "utf8"));
-if (currentMain !== normalizeNewlines(originalMain) && currentMain !== normalizeNewlines(bridgedMain))
-  throw new Error("Preserving local Studio main.ts changes; expected only the pinned assistant bridge.");
+const bridge = readFileSync(resolve(root, "scripts/assistant-bridge.ts.txt"), "utf8");
+const bridgedMain = originalMain + bridge;
+let previous = null;
+if (values["previous-bridge"]) {
+  const receipt = checkBundle(resolve(root, values["previous-bundle"]), { deployment: false });
+  previous = { bytes: readFileSync(resolve(root, values["previous-bridge"])), sha256: receipt.bridge_sha256 };
+}
+assertStudioBridge(readFileSync(mainPath, "utf8"), originalMain, bridge, previous);
+const studio = resolve(repo, "rhwp-studio");
+const installed = values["reuse-installed"] ? validateInstalledDependencies(studio) : null;
 writeFileSync(
   mainPath,
   bridgedMain,
 );
-cpSync(
+if (coreDir !== resolve(repo, "pkg")) cpSync(
   coreDir,
   resolve(repo, "pkg"),
   { recursive: true },
 );
 // Git symlinks are plain text on some Windows hosts. Materialize the licensed assets.
-const studio = resolve(repo, "rhwp-studio");
 const fonts = resolve(studio, "public/fonts");
 if (existsSync(fonts) && !lstatSync(fonts).isDirectory()) unlinkSync(fonts);
 mkdirSync(resolve(studio, "public/fonts"), { recursive: true });
 cpSync(resolve(repo, "assets/fonts"), resolve(studio, "public/fonts"), {
   recursive: true,
 });
-run("npm", ["ci"], studio);
-run("npm", ["exec", "vite", "build", "--", "--base=/rhwp/"], studio, {
+if (!installed) run("npm", ["ci"], studio);
+run(installed ? process.execPath : "npm", installed
+  ? [installed.vite, "build", "--base=/rhwp/"]
+  : ["exec", "vite", "build", "--", "--base=/rhwp/"], studio, {
   RHWP_DISABLE_EXTERNAL_WEBFONTS: "1",
   RHWP_SUBSECOND: "0",
 });
@@ -82,7 +98,9 @@ writeFileSync(
   resolve(out, "build-info.json"),
   JSON.stringify(
     { version: lock.version, commit, externalWebFonts: false, diagnostic: values.diagnostic,
-      bridge_sha256: hashFile(resolve(root, "scripts/assistant-bridge.ts.txt")), bundle, coreBuild },
+      bridge_sha256: hashFile(resolve(root, "scripts/assistant-bridge.ts.txt")), bundle, coreBuild,
+      ...(installed ? { dependencyReuse: { package_lock_sha256: installed.package_lock_sha256,
+        installed_lock_sha256: installed.installed_lock_sha256, installation_performed: false } } : {}) },
     null,
     2,
   ),

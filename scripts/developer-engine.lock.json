@@ -1,0 +1,10 @@
+{
+  "repository": "m4r4m01m/hwp-assistant",
+  "tag": "developer-engine-2026-10-18",
+  "asset": "hwp-assistant-developer-engine-0.8.6-20261018.zip",
+  "sha256": "bcfd8793bbc5fe3b3c766784348de4e07ccb794719479cffca476fe4715d36fa",
+  "diagnostic": true,
+  "engine_commit": "e8800c8def63449808a4092798442652ed460552",
+  "wasm_sha256": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0",
+  "bridge_sha256": "1c72afaab4cdeb936db935e87470bf0335b5c09f535b2f85db9c3d7579f9ce3b"
+}
