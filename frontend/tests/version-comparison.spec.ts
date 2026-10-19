@@ -164,8 +164,10 @@ async function history(page: Page, name: string) {
   await row.getByRole("button", { name: "버전 기록", exact: true }).click();
 }
 async function openPair(page: Page, left = 1, right = 3) {
-  await page.getByLabel(`기준 버전 ${left}`, { exact: true }).check();
-  await page.getByLabel(`비교 버전 ${right}`, { exact: true }).check();
+  for (const checkbox of await page.getByRole("checkbox").all())
+    await checkbox.uncheck();
+  await page.getByLabel(`버전 ${left} 선택`, { exact: true }).check();
+  await page.getByLabel(`버전 ${right} 선택`, { exact: true }).check();
   await page
     .getByRole("button", { name: "선택한 두 버전 비교", exact: true })
     .click();
@@ -189,6 +191,47 @@ test("REAL rhwp: arbitrary pair, per-paragraph savers, native pages, reverse and
   await expect(
     page.getByRole("button", { name: "이 버전 복원" }).first(),
   ).toBeDisabled();
+  await expect(page.locator(".history-table th")).toHaveText([
+    "선택",
+    "저장 버전",
+    "저장한 사용자",
+    "작업",
+  ]);
+  await expect(page.locator(".history-table input:checked")).toHaveCount(0);
+  const choose = (number: number) =>
+    page.getByLabel(`버전 ${number} 선택`, { exact: true });
+  const selectionRole = (number: number) =>
+    page
+      .getByRole("row")
+      .filter({ has: choose(number) })
+      .locator(".history-selection-role");
+  const compareButton = page.getByRole("button", {
+    name: "선택한 두 버전 비교",
+    exact: true,
+  });
+  await expect(compareButton).toBeDisabled();
+  await choose(2).check();
+  await expect(selectionRole(2)).toHaveText("1 · 기준");
+  await expect(compareButton).toBeDisabled();
+  await choose(1).check();
+  await expect(selectionRole(1)).toHaveText("2 · 비교");
+  await expect(compareButton).toBeEnabled();
+  await choose(3).click();
+  await expect(page.getByRole("alert")).toContainText(
+    "두 버전까지만 선택할 수 있습니다.",
+  );
+  await expect(choose(3)).not.toBeChecked();
+  await expect(choose(2)).toBeChecked();
+  await expect(choose(1)).toBeChecked();
+  await page
+    .locator(".history-modal")
+    .screenshot({ path: "test-results/version-selection-limit.png" });
+  await choose(2).uncheck();
+  await expect(selectionRole(1)).toHaveText("1 · 기준");
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(compareButton).toBeDisabled();
+  await choose(3).check();
+  await expect(selectionRole(3)).toHaveText("2 · 비교");
   const writes: string[] = [],
     external: string[] = [],
     errors: string[] = [];
@@ -277,7 +320,7 @@ test("REAL rhwp: arbitrary pair, per-paragraph savers, native pages, reverse and
   ).toBe(3);
 });
 
-test("REAL rhwp: formatting-only comparison and same-version guard", async ({
+test("REAL rhwp: formatting-only comparison and single-selection guard", async ({
   page,
   request,
 }) => {
@@ -285,7 +328,7 @@ test("REAL rhwp: formatting-only comparison and same-version guard", async ({
   await save(request, doc, bold(base), "bob");
   await login(page, "alice");
   await history(page, doc.name);
-  await page.getByLabel("기준 버전 2", { exact: true }).check();
+  await page.getByLabel("버전 2 선택", { exact: true }).check();
   await expect(
     page.getByRole("button", { name: "선택한 두 버전 비교" }),
   ).toBeDisabled();
@@ -400,6 +443,8 @@ test("comparison handles permission errors and closing while loading without sta
   await save(request, doc, edit(base, "1,000", "1,500"), "bob");
   await login(page, "reader");
   await history(page, doc.name);
+  await page.getByLabel("버전 1 선택", { exact: true }).check();
+  await page.getByLabel("버전 2 선택", { exact: true }).check();
   await page.route("**/api/documents/*/compare?*", (route) =>
     route.fulfill({
       status: 404,

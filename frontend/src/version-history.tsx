@@ -21,8 +21,10 @@ export function History({
   const [rows, setRows] = useState<Version[]>([]),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
-  const [left, setLeft] = useState(""),
-    [right, setRight] = useState(""),
+  const [selection, setSelection] = useState<{ ids: string[]; error: string }>({
+      ids: [],
+      error: "",
+    }),
     [pair, setPair] = useState<[Version, Version] | null>(null);
   const [changes, setChanges] = useState<{
     recorded: boolean;
@@ -34,19 +36,24 @@ export function History({
     }[];
   } | null>(null);
   const detailRequest = useRef(0);
+  const toggleSelection = (id: string) =>
+    setSelection((previous) => {
+      if (previous.ids.includes(id))
+        return { ids: previous.ids.filter((value) => value !== id), error: "" };
+      if (previous.ids.length === 2)
+        return {
+          ...previous,
+          error:
+            "두 버전까지만 선택할 수 있습니다. 선택한 버전을 해제한 뒤 다시 선택하세요.",
+        };
+      return { ids: [...previous.ids, id], error: "" };
+    });
   useEffect(() => {
     const abort = new AbortController();
+    setSelection({ ids: [], error: "" });
     api<Version[]>(`/documents/${d.id}/versions`, { signal: abort.signal })
       .then((items) => {
         setRows(items);
-        const current =
-          items.find((v) => v.id === d.current_version) || items[0];
-        setRight(current?.id || "");
-        setLeft(
-          items.find((v) => v.id === current?.base_version)?.id ||
-            items[1]?.id ||
-            "",
-        );
       })
       .catch((e) => {
         if (!abort.signal.aborted) setError(e.message);
@@ -73,36 +80,42 @@ export function History({
         <button onClick={onClose}>닫기</button>
       </header>
       <p>
-        기준 버전과 비교 버전을 하나씩 선택하세요. 복원은 과거 이력을 유지한 채
-        새 버전을 만듭니다.
+        두 버전을 순서대로 선택하세요. 첫 번째는 기준, 두 번째는 비교
+        대상입니다. 복원은 과거 이력을 유지한 채 새 버전을 만듭니다.
       </p>
       {error && <p role="alert">{error}</p>}
       <div className="history-compare-bar">
         <span>
           {rows.length < 2
             ? "비교하려면 저장 버전이 두 개 이상 필요합니다."
-            : left === right
-              ? "서로 다른 두 버전을 선택하세요."
-              : "선택한 두 저장본을 비교합니다."}
+            : selection.ids.length === 0
+              ? "기준으로 삼을 버전을 먼저 선택하세요. (0/2)"
+              : selection.ids.length === 1
+                ? "비교할 버전을 하나 더 선택하세요. (1/2)"
+                : "선택한 순서대로 기준 문서와 비교 문서를 엽니다. (2/2)"}
         </span>
         <button
           className="primary"
-          disabled={!left || !right || left === right || busy}
+          disabled={selection.ids.length !== 2 || busy}
           onClick={() => {
-            const a = rows.find((v) => v.id === left),
-              b = rows.find((v) => v.id === right);
+            const a = rows.find((v) => v.id === selection.ids[0]),
+              b = rows.find((v) => v.id === selection.ids[1]);
             if (a && b) setPair([a, b]);
           }}
         >
           선택한 두 버전 비교
         </button>
       </div>
+      {selection.error && (
+        <p role="alert" className="bad">
+          {selection.error}
+        </p>
+      )}
       <div className="history-table-wrap">
         <table className="history-table">
           <thead>
             <tr>
-              <th>기준</th>
-              <th>비교</th>
+              <th>선택</th>
               <th>저장 버전</th>
               <th>저장한 사용자</th>
               <th>작업</th>
@@ -112,22 +125,27 @@ export function History({
             {rows.map((v, i) => (
               <tr key={v.id} data-version-id={v.id}>
                 <td>
-                  <input
-                    type="radio"
-                    name="history-base"
-                    aria-label={`기준 버전 ${rows.length - i}`}
-                    checked={left === v.id}
-                    onChange={() => setLeft(v.id)}
-                  />
-                </td>
-                <td>
-                  <input
-                    type="radio"
-                    name="history-target"
-                    aria-label={`비교 버전 ${rows.length - i}`}
-                    checked={right === v.id}
-                    onChange={() => setRight(v.id)}
-                  />
+                  <label className="history-selection">
+                    <input
+                      type="checkbox"
+                      aria-label={`버전 ${rows.length - i} 선택`}
+                      aria-describedby={
+                        selection.ids.includes(v.id)
+                          ? `history-role-${v.id}`
+                          : undefined
+                      }
+                      checked={selection.ids.includes(v.id)}
+                      onChange={() => toggleSelection(v.id)}
+                    />
+                    {selection.ids.includes(v.id) && (
+                      <span
+                        id={`history-role-${v.id}`}
+                        className="history-selection-role"
+                      >
+                        {selection.ids[0] === v.id ? "1 · 기준" : "2 · 비교"}
+                      </span>
+                    )}
+                  </label>
                 </td>
                 <td>
                   <strong>

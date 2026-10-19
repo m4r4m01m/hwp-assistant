@@ -45,6 +45,20 @@
   height: 18px;
   accent-color: #27699c;
 }
+.history-selection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  min-width: 56px;
+  cursor: pointer;
+}
+.history-selection-role {
+  color: #215c91;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
 .history-table small {
   display: block;
   margin-top: 5px;
