@@ -3,6 +3,7 @@ import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
 import { root } from './engine-build-lib.mjs';
 import { checkBundle } from './check-engine-bundle.mjs';
+import { comparisonCorePlugin } from './comparison-core.mjs';
 
 const { values } = parseArgs({ options: {
   public: { type: 'string', default: 'frontend/public' },
@@ -15,6 +16,9 @@ if (values.diagnostic && outDir === resolve(root, 'frontend/dist'))
 const policy = { deployment: !values.diagnostic };
 checkBundle(resolve(publicDir, 'rhwp'), policy);
 await build({ root: resolve(root, 'frontend'), configFile: false, publicDir,
-  build: { outDir, emptyOutDir: false } });
+  plugins: [comparisonCorePlugin({ publicDir, diagnostic: values.diagnostic })],
+  build: { outDir, emptyOutDir: false, rollupOptions: { input: {
+    app: resolve(root, 'frontend/index.html'), comparison: resolve(root, 'frontend/compare-renderer.html'),
+  } } } });
 checkBundle(resolve(outDir, 'rhwp'), policy);
 console.log('Frontend + verified engine ready:', outDir);

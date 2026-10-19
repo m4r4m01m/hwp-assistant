@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-19",
+  "branch": "codex/version-compare-attribution",
+  "base_main": "bbc9b792afff986cae80d392e9ff7ce822328c94",
+  "environment": {
+    "os": "macOS arm64",
+    "python": "3.14.7",
+    "node": "22.19.0",
+    "browser": "Playwright Chrome channel",
+    "databases": "isolated synthetic test databases; existing user documents not used"
+  },
+  "engine": {
+    "version": "0.8.6",
+    "commit": "e8800c8def63449808a4092798442652ed460552",
+    "mode": "verified diagnostic development kit; not optimized production evidence",
+    "wasm_sha256": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0",
+    "binding_sha256": "e84c5b03cd32927a86e1a2c8acf2c43d60127fcff83f8896daf85b864c78968a",
+    "editor_bridge_changed": false
+  },
+  "checks": [
+    { "command": ".venv/bin/python -m pytest -q", "passed": 550, "failed": 0 },
+    { "command": ".venv/bin/python -m pytest -q backend/tests/test_version_compare.py", "passed": 14, "failed": 0, "note": "Final targeted run includes three boundary tests added after the full run; counts overlap." },
+    { "command": "node --test scripts/*.test.mjs", "passed": 44, "failed": 0 },
+    { "command": "tsc --noEmit", "result": "passed" },
+    { "command": "build-frontend.mjs --diagnostic", "result": "passed" },
+    { "suite": "frontend/tests/version-comparison.spec.ts", "passed": 6, "failed": 0, "ai": "none", "engine": "real pinned WASM" },
+    { "suites": ["engine.spec.ts", "editor-workspace.spec.ts", "roundtrip.spec.ts"], "passed": 7, "failed": 0, "ai": "one mock AI transport case; no real model calls", "engine": "real pinned WASM" }
+  ],
+  "verified": [
+    "arbitrary nonadjacent and reversed version pairs",
+    "paragraph-level account attribution through intermediate saves",
+    "unknown legacy authors and honest single-user local identity",
+    "format-only changes and reference ID renumbering",
+    "native table-cell locations and page shifts after large insertions",
+    "empty paragraph formatting, duplicate ambiguity and image resource hashes",
+    "reader access, cross-document rejection and permission revocation",
+    "transaction failure preserves version and author consistency",
+    "immutable original bytes and comparison without API writes",
+    "open editor's unsaved bytes, revision and edit lease preserved",
+    "save, download, reopen and restore regressions",
+    "native document highlights and unclipped modal at multiple zoom levels"
+  ],
+  "not_verified": ["Hancom rendering parity", "isolated-network installation", "Windows execution of this branch", "production optimized engine build", "real AI generation"],
+  "known_limits": [
+    "Authors identify the account saving a change, not the creator of an externally uploaded file.",
+    "Legacy versions have no author backfill; local mode cannot distinguish people.",
+    "Nested tables and generic objects have no inferred highlight coordinates.",
+    "Bounded history and document sizes are documented; unsupported cases are surfaced."
+  ]
+}

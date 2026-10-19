@@ -1,0 +1,33 @@
+html,
+body {
+  margin: 0;
+  background: #eaf0f5;
+  color-scheme: light;
+}
+body {
+  padding: 12px;
+}
+#page > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: white;
+  box-shadow: 0 2px 9px #132c4a22;
+}
+.change-mark {
+  pointer-events: none;
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+}
+.change-mark.modified {
+  fill: #eeb52f33;
+  stroke: #b57b00;
+}
+.change-mark.added {
+  fill: #25856133;
+  stroke: #258561;
+}
+.change-mark.removed {
+  fill: #d04b4b33;
+  stroke: #c23a3a;
+}

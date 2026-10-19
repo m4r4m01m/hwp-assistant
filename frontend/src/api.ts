@@ -13,6 +13,7 @@ export type Version = {
   sha256: string;
   cause: string;
   created_at: number;
+  author?: { user_id: string; identity_kind: "local" | "authenticated" } | null;
 };
 export class ApiError extends Error {
   constructor(readonly status: number, message: string) {

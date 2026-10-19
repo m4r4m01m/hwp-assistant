@@ -31,7 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
 COPY scripts /app/scripts
 COPY --from=core-build /app/.cache/rhwp-core-release/pkg /app/.cache/rhwp-core-release/pkg
 RUN npm run engine
-COPY frontend/index.html frontend/tsconfig.json frontend/vite.config.ts ./
+COPY frontend/index.html frontend/compare-renderer.html frontend/tsconfig.json frontend/vite.config.ts ./
 COPY frontend/src ./src
 RUN npm run build
 

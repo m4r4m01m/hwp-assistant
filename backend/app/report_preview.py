@@ -177,7 +177,7 @@ def install_preview(app, publish, doc_dict, lock_report, decode):
                 # lease, original or historical version is modified.
                 doc = Document(id=str(uuid.uuid4()), name=preview["name"], created_at=time.time(), lease_until=0)
                 db.add(doc); db.flush(); db.add(Access(document_id=doc.id, user_id=request.state.user, role="owner"))
-                version = publish(db, doc, data, None, None, str(value.id), "upload")
+                version = publish(db, doc, data, None, None, str(value.id), "upload", author_id=request.state.user)
                 saved_version = version.id
                 approved = {"id": str(value.id), "mode": "formatted-preview", "document_id": doc.id,
                     "base_version": version.id, "saved_version": version.id, "save_binding": binding,

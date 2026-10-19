@@ -198,7 +198,7 @@ def install_reports(app, publish, check_lease, doc_dict):
                     matches_base(visual["base_standard"])
                 doc = Document(id=str(uuid.uuid4()), name="작성 중 - " + json.loads(row.draft)["title"].replace("/", " ").replace("\\", " ") + ".hwpx", created_at=time.time(), lease_until=0)
                 db.add(doc); db.flush(); db.add(Access(document_id=doc.id, user_id=request.state.user, role="owner"))
-                base = publish(db, doc, data, None, None, str(value.id), "upload")
+                base = publish(db, doc, data, None, None, str(value.id), "upload", author_id=request.state.user)
                 approval = {"id": str(value.id), "draft_sha256": row.draft_sha256, "document_id": doc.id,
                     "base_version": base.id, "seed_sha256": digest(seed), "scaffold_sha256": digest(data),
                     "document_standard": standard_metadata(),
@@ -239,7 +239,7 @@ def install_reports(app, publish, check_lease, doc_dict):
             binding = report_hash({"receipts": value.receipts, "output_sha256": digest(data), "document_sha256": value.document_sha256})
             if approval.get("save_binding") and approval["save_binding"] != binding:
                 raise HTTPException(409, "기존 저장 출력과 다른 내용으로 재시도할 수 없습니다.")
-            version = publish(db, doc, data, approval["base_version"], value.token, str(uuid.uuid5(value.approval_id, "save")), "report")
+            version = publish(db, doc, data, approval["base_version"], value.token, str(uuid.uuid5(value.approval_id, "save")), "report", author_id=request.state.user)
             doc.name = json.loads(row.draft)["title"].replace("/", " ").replace("\\", " ") + ".hwpx"
             approval.update(save_binding=binding, saved_version=version.id, output_sha256=digest(data), receipts=value.receipts)
             row.approval = canonical(approval)

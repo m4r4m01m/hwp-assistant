@@ -1,0 +1,336 @@
+.modal.history-modal section {
+  width: min(1140px, 96vw);
+}
+.history-header,
+.comparison-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+.history-header h2,
+.comparison-header h2 {
+  margin: 0;
+}
+.history-compare-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  margin: 20px 0;
+  border: 1px solid #cadbea;
+  border-radius: 10px;
+  background: #f0f6fc;
+}
+.history-table-wrap {
+  overflow: auto;
+}
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.history-table th {
+  text-align: left;
+  background: #f4f7fa;
+}
+.history-table th,
+.history-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid #dce4eb;
+}
+.history-table input {
+  width: 18px;
+  height: 18px;
+  accent-color: #27699c;
+}
+.history-table small {
+  display: block;
+  margin-top: 5px;
+  color: #607386;
+}
+.history-current {
+  background: #e0f0e9;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 11px;
+  color: #21634c;
+}
+.history-actions {
+  min-width: 260px;
+}
+.history-actions button,
+.history-actions .button {
+  padding: 6px 9px;
+  font-size: 12px;
+}
+.comparison-modal {
+  z-index: 1100;
+}
+.modal.comparison-modal > section {
+  width: min(1800px, 98vw);
+  height: 94vh;
+  max-height: 96vh;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.comparison-header > div {
+  min-width: 0;
+}
+.comparison-header h2 {
+  font-size: 21px;
+  overflow-wrap: anywhere;
+}
+.comparison-header p {
+  margin: 5px 0;
+  font-size: 13px;
+  color: #596d80;
+}
+.comparison-policy {
+  margin: 8px 0;
+  font-size: 12px;
+  color: #526779;
+}
+.comparison-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.comparison-toolbar button {
+  padding: 5px 12px;
+  font-size: 13px;
+}
+.comparison-warnings {
+  background: #fff8e8;
+  border: 1px solid #e8d8ad;
+  padding: 7px 12px;
+  font-size: 12px;
+}
+.comparison-warnings p {
+  margin: 5px 0;
+}
+.comparison-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  flex: 1;
+  min-height: 0;
+  gap: 14px;
+  margin-top: 10px;
+}
+.comparison-documents {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-height: 0;
+}
+.comparison-pane {
+  border: 1px solid #cad6e1;
+  border-radius: 9px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.comparison-pane-head {
+  padding: 10px 12px;
+  background: #f5f8fb;
+  border-bottom: 1px solid #dbe3eb;
+}
+.comparison-pane-head strong {
+  display: block;
+  font-size: 14px;
+}
+.comparison-pane-head span {
+  font-size: 11px;
+  color: #5b7184;
+}
+.comparison-pages {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+.comparison-pages button {
+  padding: 2px 10px;
+  min-width: 26px;
+  font-size: 15px;
+}
+.comparison-pane iframe {
+  width: 100%;
+  flex: 1;
+  min-height: 240px;
+  border: 0;
+  background: #eaf0f5;
+}
+.comparison-location {
+  min-height: 30px;
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: #5b7184;
+}
+.comparison-sidebar {
+  width: auto;
+  overflow: auto;
+  min-width: 0;
+  background: #f7f9fc;
+  border: 1px solid #d6e0e9;
+  border-radius: 9px;
+  padding: 12px;
+}
+.comparison-sidebar h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+.comparison-change-list {
+  max-height: 32vh;
+  overflow: auto;
+}
+.comparison-change-list > button {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  margin: 0 0 7px;
+  background: white;
+  font-size: 11px;
+}
+.comparison-change-list > button.selected {
+  border: 2px solid #3479b1;
+  background: #edf5fc;
+  padding: 9px;
+}
+.compare-kind {
+  font-weight: 700;
+  color: #8a630d;
+}
+.compare-kind.added {
+  color: #247251;
+}
+.compare-kind.removed {
+  color: #a23434;
+}
+.compare-snippet {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+  color: #263f55;
+}
+.compare-byline {
+  color: #526779;
+  font-weight: 600;
+}
+.comparison-detail {
+  border-top: 1px solid #d3dfe9;
+  margin-top: 12px;
+  padding-top: 12px;
+  font-size: 12px;
+}
+.comparison-detail p {
+  font-size: 12px;
+}
+.compare-text-before,
+.compare-text-after {
+  padding: 10px;
+  margin-bottom: 6px;
+  background: white;
+  border: 1px solid #d9e2e9;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 170px;
+  overflow: auto;
+}
+.compare-text-before:empty::before,
+.compare-text-after:empty::before {
+  content: "(내용 없음)";
+  color: #7d8d9b;
+}
+.comparison-detail del {
+  color: #9f2e2e;
+  background: #fde5e5;
+}
+.comparison-detail ins {
+  color: #176343;
+  background: #dcf2e6;
+  text-decoration: none;
+}
+.comparison-provenance {
+  display: grid;
+  gap: 5px;
+  margin: 14px 0;
+}
+.comparison-provenance > span:nth-child(odd) {
+  color: #637c91;
+  font-size: 11px;
+}
+.compare-author {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.compare-author > span {
+  font-size: 11px;
+  color: #62788b;
+}
+.compare-muted {
+  color: #778795;
+  font-size: 11px;
+}
+.comparison-detail ol {
+  padding-left: 18px;
+}
+.comparison-detail li {
+  margin: 10px 0;
+}
+.comparison-detail small {
+  display: block;
+  color: #718596;
+}
+.compare-caution {
+  background: #fff3da;
+  color: #785a25;
+  padding: 8px;
+}
+@media (max-width: 1000px) {
+  .comparison-workspace {
+    grid-template-columns: minmax(0, 1fr) 240px;
+  }
+  .modal.comparison-modal > section {
+    padding: 10px;
+  }
+}
+@media (max-width: 760px) {
+  .modal.comparison-modal > section {
+    overflow: auto;
+    height: 96vh;
+  }
+  .comparison-workspace {
+    display: flex;
+    flex-direction: column;
+    flex: none;
+  }
+  .comparison-documents {
+    min-height: 62vh;
+  }
+  .comparison-sidebar {
+    overflow: visible;
+  }
+  .comparison-pane iframe {
+    min-height: 380px;
+  }
+  .history-compare-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

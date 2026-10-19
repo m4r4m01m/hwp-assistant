@@ -148,7 +148,7 @@ test("REAL rhwp, NO AI: three save/download/reupload/reopen cycles preserve tabl
     .getByRole("button", { name: "버전 기록", exact: true }).click();
   page.once("dialog", dialog => dialog.accept()); // Automated fixture restore, not a human action.
   const restoredResponse = page.waitForResponse(r => r.request().method() === "POST" && r.url().includes("/restore?"));
-  await page.locator(".modal article").filter({ has: page.locator(`a[href="${originalUrl}"]`) })
+  await page.locator(".history-table tbody tr").filter({ has: page.locator(`a[href="${originalUrl}"]`) })
     .getByRole("button", { name: "이 버전 복원", exact: true }).click();
   const restoreResponse = await restoredResponse;
   expect(restoreResponse.ok(), await restoreResponse.text()).toBeTruthy();

@@ -67,6 +67,6 @@ def install_document_copy(app, locked, publish, doc_dict):
                 db.add(doc); db.flush()
                 db.add(Access(document_id=destination, user_id=request.state.user, role="owner"))
             # A byte-preserving first upload reuses the existing fsync + commit boundary.
-            publish(db, doc, data, None, None, key, "upload")
+            publish(db, doc, data, None, None, key, "upload", author_id=request.state.user)
             result = {**doc_dict(doc), "role": "owner", "source_document": source_id, "source_version": version.id}
         return result

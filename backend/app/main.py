@@ -10,7 +10,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from .db import Access, ChangeSet, Document, Version, make_engine, transaction
+from .db import Access, ChangeSet, Document, Version, VersionAuthor, make_engine, transaction
+from .version_compare import author_dict, install_version_compare
 from .hwpx import validate, digest, loss_warnings, MAX_FILE
 from .llm import OpenAICompatible
 from .auth import COOKIE, authenticate, credentials, require_access, bind_lease, require_lease_owner
@@ -111,7 +112,7 @@ def create_app(database_url=None, storage_dir=None):
                 os.close(fd)
 
     def version_dict(v):
-        return {
+        return {**{
             k: getattr(v, k)
             for k in (
                 "id",
@@ -122,7 +123,7 @@ def create_app(database_url=None, storage_dir=None):
                 "created_at",
                 "cause",
             )
-        }
+        }, "author": author_dict(v)}
 
     def doc_dict(d):
         return {
@@ -139,7 +140,7 @@ def create_app(database_url=None, storage_dir=None):
         validate(data)
         return data
 
-    def publish(db, doc, data, base, token, request_id, cause):
+    def publish(db, doc, data, base, token, request_id, cause, *, author_id):
         if not request_id or len(request_id) > 64:
             raise HTTPException(422, "Idempotency-Key가 필요합니다.")
         fingerprint = digest(json.dumps([base, cause, digest(data)]).encode())
@@ -199,6 +200,9 @@ def create_app(database_url=None, storage_dir=None):
             session_hash=digest((token or "").encode()),
         )
         db.add(v)
+        db.flush()
+        db.add(VersionAuthor(version_id=v.id, user_id=author_id,
+                             identity_kind="authenticated" if users else "local"))
         db.flush()
         if base:
             old = db.get(Version, base)
@@ -292,7 +296,7 @@ def create_app(database_url=None, storage_dir=None):
                 raise HTTPException(409, "이미 존재하는 문서 ID입니다.")
             else:
                 require_access(db, doc.id, request.state.user, "owner", lock=True)
-            publish(db, doc, data, None, None, idempotency_key, "upload")
+            publish(db, doc, data, None, None, idempotency_key, "upload", author_id=request.state.user)
             result = {**doc_dict(doc), "role": "owner"}
         return result
 
@@ -408,7 +412,7 @@ def create_app(database_url=None, storage_dir=None):
                 application = validate_application_save(db, doc, x_application_id, request.state.user,
                                                         idempotency_key, base_version, data)
             v = publish(
-                db, doc, data, base_version, x_edit_session, idempotency_key, cause
+                db, doc, data, base_version, x_edit_session, idempotency_key, cause, author_id=request.state.user
             )
             result = version_dict(v)
             if application:
@@ -438,6 +442,7 @@ def create_app(database_url=None, storage_dir=None):
                 x_edit_session,
                 idempotency_key,
                 "restore",
+                author_id=request.state.user,
             )
             result = version_dict(v)
         return result
@@ -476,6 +481,7 @@ def create_app(database_url=None, storage_dir=None):
 
     from .collaboration import install_collaboration
     install_collaboration(app, locked, check_lease, publish, doc_dict, version_dict)
+    install_version_compare(app, version_dict)
     from .rewrite import install_rewrite
     install_rewrite(app, check_lease)
     from .document_copy import install_document_copy

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { History } from "./version-history";
 import { EditorAdapter, type Snapshot, type ExportSnapshot } from "./editor";
 import {
   api,
@@ -1212,126 +1213,6 @@ function Editor({
           }}
         />
       )}
-    </div>
-  );
-}
-function History({
-  document: d,
-  onClose,
-  onRestore,
-}: {
-  document: Document;
-  onClose: () => void;
-  onRestore: (v: Version) => Promise<void>;
-}) {
-  const [rows, setRows] = useState<Version[]>([]),
-    [error, setError] = useState(""),
-    [busy, setBusy] = useState(false),
-    [changes, setChanges] = useState<{
-      recorded: boolean;
-      version: Version;
-      entries: {
-        path: string;
-        before_sha256: string | null;
-        after_sha256: string | null;
-      }[];
-    } | null>(null);
-  useEffect(() => {
-    api<Version[]>(`/documents/${d.id}/versions`)
-      .then(setRows)
-      .catch((e) => setError(e.message));
-  }, [d]);
-  return (
-    <div className="modal">
-      <section>
-        <button className="close" onClick={onClose}>
-          닫기
-        </button>
-        <h2>{d.name} · 버전 기록</h2>
-        <p>복원은 선택한 파일로 새 버전을 만듭니다. 과거 이력은 유지됩니다.</p>
-        {error && <p role="alert">{error}</p>}
-        {rows.map((v) => (
-          <article key={v.id}>
-            <strong>
-              {
-                (
-                  {
-                    upload: "최초 업로드",
-                    "web-edit": "웹 편집",
-                    reupload: "재업로드",
-                    restore: "복원",
-                  } as Record<string, string>
-                )[v.cause]
-              }
-            </strong>{" "}
-            · {new Date(v.created_at * 1000).toLocaleString("ko-KR")} ·{" "}
-            {v.size.toLocaleString()} bytes{" "}
-            <small>
-              {v.id} {v.id === d.current_version ? "(현재)" : ""}
-            </small>
-            <a className="button" href={fileUrl(d, v.id)}>
-              다운로드
-            </a>
-            <button
-              onClick={async () => {
-                try {
-                  setChanges(
-                    await api(`/documents/${d.id}/versions/${v.id}/changes`),
-                  );
-                } catch (e) {
-                  setError(String(e));
-                }
-              }}
-            >
-              변경분 보기
-            </button>
-            <button
-              disabled={busy || d.role === "reader"}
-              onClick={async () => {
-                if (!confirm("이 버전으로 복원하여 새 버전을 만들까요?"))
-                  return;
-                setBusy(true);
-                try {
-                  await onRestore(v);
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              이 버전 복원
-            </button>
-          </article>
-        ))}
-        {changes && (
-          <div className="notice">
-            <strong>
-              기준 버전: {changes.version.base_version || "최초 저장"}
-            </strong>
-            {!changes.recorded ? (
-              <p>최초 저장 또는 변경분 기록 도입 전 버전입니다.</p>
-            ) : changes.entries.length === 0 ? (
-              <p>HWPX 내부 항목의 내용 변경이 없습니다.</p>
-            ) : (
-              <ul>
-                {changes.entries.map((e) => (
-                  <li key={e.path}>
-                    {e.path} ·{" "}
-                    {!e.before_sha256
-                      ? "추가"
-                      : !e.after_sha256
-                        ? "삭제"
-                        : "변경"}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p>
-              파일 내부 항목의 해시 비교입니다. 한글 서식·배치 호환성을 판정하는
-              검사는 아닙니다.
-            </p>
-          </div>
-        )}
-      </section>
     </div>
   );
 }

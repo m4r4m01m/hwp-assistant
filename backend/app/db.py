@@ -49,6 +49,14 @@ class Access(Base):
     role: Mapped[str] = mapped_column(String(12))
 
 
+class VersionAuthor(Base):
+    """Additive, immutable save attribution. Missing rows are deliberately unknown."""
+    __tablename__ = "version_authors"
+    version_id: Mapped[str] = mapped_column(ForeignKey("versions.id"), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(80))
+    identity_kind: Mapped[str] = mapped_column(String(16))
+
+
 class LeaseOwner(Base):
     __tablename__ = "lease_owners"
     document_id: Mapped[str] = mapped_column(ForeignKey("documents.id"), primary_key=True)
