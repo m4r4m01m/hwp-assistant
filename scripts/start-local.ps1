@@ -14,6 +14,8 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'desktop-launch-lib.ps1')
+$sourceContext = Get-HwpSourceContext $projectRoot
 $python = Join-Path $projectRoot '.venv/Scripts/python.exe'
 $node = (Get-Command node -ErrorAction Stop).Source
 $engineSource = if ([IO.Path]::IsPathRooted($EnginePublic)) { [IO.Path]::GetFullPath($EnginePublic) } else { [IO.Path]::GetFullPath((Join-Path $projectRoot $EnginePublic)) }
@@ -45,12 +47,13 @@ $buildArguments = @((Join-Path $PSScriptRoot 'build-frontend.mjs'),'--public',(J
 if ($diagnostic) { $buildArguments += '--diagnostic' }
 & $node @buildArguments
 if ($LASTEXITCODE -ne 0) { throw 'Diagnostic app build failed; no servers started.' }
+if ((Get-HwpSourceContext $projectRoot).fingerprint -ne $sourceContext.fingerprint) { throw 'Application source changed during build. Rerun to build a consistent app; no servers started.' }
 
 $environmentNames = @('DATABASE_URL','STORAGE_DIR','HWP_AUTH_TOKENS','HWP_LEGACY_OWNER','HWP_REWRITE_PROVIDER','HWP_CODEX_USER','HWP_CODEX_API_URL','LLM_PROVIDER')
 $savedEnvironment = @{}
 foreach ($name in $environmentNames) { $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
 $children = [Collections.Generic.List[object]]::new()
-$proof = @{ kind='local developer launcher'; diagnostic=$diagnostic; engine_wasm_sha256=$engineInfo.coreBuild.wasm_sha256; started_at=[DateTime]::UtcNow.ToString('o'); web_url="http://127.0.0.1:$Port"; data_directory=$dataRoot; provider='codex'; startup_generates_candidates=$false; services=@(); result='starting' }
+$proof = @{ kind='local developer launcher'; diagnostic=$diagnostic; project_root=$projectRoot; run_directory=$runRoot; source_fingerprint=$sourceContext.fingerprint; engine_bridge_sha256=$engineInfo.bridge_sha256; engine_wasm_sha256=$engineInfo.coreBuild.wasm_sha256; started_at=[DateTime]::UtcNow.ToString('o'); web_url="http://127.0.0.1:$Port"; data_directory=$dataRoot; provider='codex'; startup_generates_candidates=$false; services=@(); result='starting' }
 function Quote-ReviewArgument([string]$Value) {
   $escaped = [regex]::Replace($Value, '(\\*)"', '$1$1\"')
   $escaped = [regex]::Replace($escaped, '(\\+)$', '$1$1')
@@ -61,7 +64,7 @@ function Start-ReviewService([string]$Name, [string]$Executable, [string[]]$Argu
   $child = Start-Process -FilePath $Executable -ArgumentList $argumentLine -WorkingDirectory $projectRoot -WindowStyle Hidden -PassThru `
     -RedirectStandardOutput (Join-Path $runRoot "$Name.log") -RedirectStandardError (Join-Path $runRoot "$Name.err.log")
   $children.Add($child)
-  $proof.services += @{ name=$Name; launcher_pid=$child.Id; port=$ServicePort }
+  $proof.services += @{ name=$Name; launcher_pid=$child.Id; launcher_started_at=$child.StartTime.ToUniversalTime().ToString('o'); port=$ServicePort }
   $deadline = [DateTime]::UtcNow.AddSeconds(30)
   while ([DateTime]::UtcNow -lt $deadline) {
     $child.Refresh()
@@ -78,6 +81,7 @@ function Start-ReviewService([string]$Name, [string]$Executable, [string[]]$Argu
         }
         if ($ancestorId -ne $child.Id) { throw 'Port belongs to another process.' }
         $proof.services[-1].listener_pid = [int]$owner
+        $proof.services[-1].listener_started_at = (Get-Process -Id $owner -ErrorAction Stop).StartTime.ToUniversalTime().ToString('o')
         return
       }
     } catch { }

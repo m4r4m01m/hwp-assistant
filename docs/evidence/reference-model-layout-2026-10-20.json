@@ -1,0 +1,413 @@
+{
+  "verified_at": "2026-10-20",
+  "result": "passed",
+  "scope": "Original appendix 1–3 defaults, actual Codex drafts, separate real-engine recorded-result replay, save and reopen",
+  "source_sha256": "6c68b50656867f1fc724c50549e60e1109e2f7a00219f2928ef58de0a45711f1",
+  "engine_wasm_sha256": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0",
+  "verification_boundaries": {
+    "initial_diagnostic_actual_model_calls": 3,
+    "final_actual_model_calls": 4,
+    "total_actual_model_calls": 7,
+    "final_model_samples": 3,
+    "actual_feedback_revisions": 1,
+    "replay_actual_model_calls": 0,
+    "research": false,
+    "user_database_writes": false,
+    "isolated_test_database_writes": true,
+    "automated_save": true,
+    "human_review": false,
+    "hancom_verified": false,
+    "assistant_visual_inspection": true
+  },
+  "model_records": [
+    {
+      "sample": "executive",
+      "input_sha256": "6303fb6980d0649e021b32f2ae1d19e96a9918e45d12d44caa5b3dcef3fa99ac",
+      "draft_sha256": "8aa21fea7b313eecdd1f35c2e769a2fa49eef146e5d34cf268a277cb57130312",
+      "file_sha256": "8b340d3f6ee39d6d888c29f851f174754e0ec429617468d2a40d8caaf39e1036",
+      "numeric_period_role_condition_tokens_preserved": true,
+      "headings": [
+        "업무양식 정비 현황",
+        "버전 보존 및 게시 조건",
+        "시범 운영 추진 계획"
+      ],
+      "actual_model_calls": 1,
+      "engine": false,
+      "sources_invented": false,
+      "limitations_explicit": true,
+      "title": "공용 문서함 정비 현황 및 추진 방안",
+      "prompt": "공용 문서함 정비 현황과 추진 방안을 표준 업무보고로 정리. 모두 합성 검수 자료이며 실제 회사·사건·규정이 아니다. 외부 검색·가짜 URL·실제 사고 통계를 쓰지 않는다. 가상 운영팀의 공용 문서함 정비를 다룬다. 제공된 확인 사실: 대상은 업무양식 24개이고 담당 확인 완료 18개, 미확인 6개다. 원본과 이전 버전은 보존하며 수정본은 별도 검토 후 새 버전으로 등록한다. 계획은 2026. 11. 2.~11. 13. 시범 운영이고, 운영팀이 수집·목록 정리를 맡고 검토 담당자가 내용과 권한을 확인한다. 담당 확인 전에는 게시하지 않는 조건을 반드시 보존한다. 목표는 모든 대상에 담당과 검토 상태를 기재하는 것이다. 3개 또는 4개 짧은 절, 절마다 핵심 판단 한 문단과 필요할 때만 보조 항목을 둔다. 기한/역할/완료증거를 담은 간결한 표 하나를 쓰고 표 내용을 본문에 중복하지 않는다. 사실과 제안을 구분하고 모든 날짜·숫자·조건을 보존하되 새로운 수치·예산·확정 결정을 만들지 않는다.",
+      "feedback": null,
+      "cover": null,
+      "template_id": "standard-business",
+      "template_revision": 1,
+      "visual_standard_id": "abd3b26a-9e24-526c-bdb1-4ebd42c5ffcd",
+      "visual_standard_sha256": "28c19e74944ac5f7c4a336ba4df6f8a94adbee96bcee0202d4c3e66e04bcd6f1",
+      "model": "gpt-6.1-sol",
+      "executor": "codex-app-server",
+      "completed": true,
+      "elapsed_ms": 24729,
+      "local_record": ".cache/reference-review-2026-10-20/actual-executive.json"
+    },
+    {
+      "sample": "vendor",
+      "input_sha256": "6b9efc00262353a4e0aa0d255c153d35b749a337dbe9a83dd9c70f3eb44fd172",
+      "draft_sha256": "de5c859a706a782aa74f03abc125ee407138d73a6fc6da0b1c34a7073b7765ee",
+      "file_sha256": "259a1074e6627c0842b369ff252545531e39a80e62f34fff231048726d75e64c",
+      "numeric_period_role_condition_tokens_preserved": true,
+      "headings": [
+        "조건부 승인 요청",
+        "담당 확인 현황",
+        "원본 보존과 버전 등록",
+        "대안별 추진계획"
+      ],
+      "actual_model_calls": 1,
+      "engine": false,
+      "sources_invented": false,
+      "limitations_explicit": true,
+      "title": "클라우드 공용 문서함 정비 승인 요청",
+      "prompt": "클라우드 공용 문서함 정비 승인 요청을 경영진 의사결정 보고로 정리. 모두 합성 검수 자료이며 실제 회사·사건·규정이 아니다. 외부 검색·가짜 URL·실제 사고 통계를 쓰지 않는다. 가상 운영팀의 공용 문서함 정비를 다룬다. 제공된 확인 사실: 대상은 업무양식 24개이고 담당 확인 완료 18개, 미확인 6개다. 원본과 이전 버전은 보존하며 수정본은 별도 검토 후 새 버전으로 등록한다. 계획은 2026. 11. 2.~11. 13. 시범 운영이고, 운영팀이 수집·목록 정리를 맡고 검토 담당자가 내용과 권한을 확인한다. 담당 확인 전에는 게시하지 않는 조건을 반드시 보존한다. 목표는 모든 대상에 담당과 검토 상태를 기재하는 것이다. 3개 또는 4개 짧은 절, 절마다 핵심 판단 한 문단과 필요할 때만 보조 항목을 둔다. 기한/역할/완료증거를 담은 간결한 표 하나를 쓰고 표 내용을 본문에 중복하지 않는다. 사실과 제안을 구분하고 모든 날짜·숫자·조건을 보존하되 새로운 수치·예산·확정 결정을 만들지 않는다.",
+      "feedback": null,
+      "cover": {
+        "date": "2026. 10. 20.",
+        "department": "문서관리팀"
+      },
+      "template_id": "executive-decision",
+      "template_revision": 1,
+      "visual_standard_id": "103d544e-1407-57a9-bfc4-910c02742c3f",
+      "visual_standard_sha256": "b7413880953bec9392dfd4c618c9a77134a2b88c45f829bd3f8a48eae6fdf336",
+      "model": "gpt-6.1-sol",
+      "executor": "codex-app-server",
+      "completed": true,
+      "elapsed_ms": 28085,
+      "local_record": ".cache/reference-review-2026-10-20/actual-vendor.json"
+    },
+    {
+      "sample": "customer",
+      "input_sha256": "f1673d25519bd495d3fa143078cd9d5e1449004ab180bf29ff77aae22f68d437",
+      "draft_sha256": "32715bf41eb14c7cc49c83031f4f1b108097566770f97f228ba1c2ec1326efc4",
+      "file_sha256": "3d056651e318c0e1c6eab099e0387bccf3d6cdecc5166596eef0e03cc2939ae6",
+      "numeric_period_role_condition_tokens_preserved": true,
+      "headings": [
+        "대상 및 확인 현황",
+        "게시 및 버전 관리",
+        "시범 운영 및 완료 기준"
+      ],
+      "actual_model_calls": 1,
+      "engine": false,
+      "sources_invented": false,
+      "limitations_explicit": true,
+      "title": "업무양식 공용 문서함 정비 추진계획",
+      "prompt": "고객정보가 담기지 않는 업무양식 공용 문서함 정비 추진계획을 정리. 모두 합성 검수 자료이며 실제 회사·사건·규정이 아니다. 외부 검색·가짜 URL·실제 사고 통계를 쓰지 않는다. 가상 운영팀의 공용 문서함 정비를 다룬다. 제공된 확인 사실: 대상은 업무양식 24개이고 담당 확인 완료 18개, 미확인 6개다. 원본과 이전 버전은 보존하며 수정본은 별도 검토 후 새 버전으로 등록한다. 계획은 2026. 11. 2.~11. 13. 시범 운영이고, 운영팀이 수집·목록 정리를 맡고 검토 담당자가 내용과 권한을 확인한다. 담당 확인 전에는 게시하지 않는 조건을 반드시 보존한다. 목표는 모든 대상에 담당과 검토 상태를 기재하는 것이다. 3개 또는 4개 짧은 절, 절마다 핵심 판단 한 문단과 필요할 때만 보조 항목을 둔다. 기한/역할/완료증거를 담은 간결한 표 하나를 쓰고 표 내용을 본문에 중복하지 않는다. 사실과 제안을 구분하고 모든 날짜·숫자·조건을 보존하되 새로운 수치·예산·확정 결정을 만들지 않는다.",
+      "feedback": null,
+      "cover": {
+        "date": "2026. 10. 20.",
+        "department": "문서관리팀"
+      },
+      "template_id": "response-plan",
+      "template_revision": 1,
+      "visual_standard_id": "49b0b63a-ecdd-5bad-be4c-5de58efedf1a",
+      "visual_standard_sha256": "f08198cb90860c749dbc19aec6bb478e2b9d0086d982aa511975c187e01b7c1d",
+      "model": "gpt-6.1-sol",
+      "executor": "codex-app-server",
+      "completed": true,
+      "elapsed_ms": 25565,
+      "local_record": ".cache/reference-review-2026-10-20/actual-customer.json"
+    },
+    {
+      "sample": "executive-revision",
+      "input_sha256": "7ffeb88be3cca33e5b3832232d6d15450c0ea9d4af473c3bb953042096c794fb",
+      "draft_sha256": "82a62e3a4dacc1d8549a2c91a35427ba4ed030815cacce50e9a09cd8aa7d8b9e",
+      "file_sha256": "3ed50f6d4e4f64169ef2e818204f5de9a3f9fbb77d54f3940975cc76a5f538ef",
+      "numeric_period_role_condition_tokens_preserved": true,
+      "headings": [
+        "업무양식 정비 현황",
+        "버전 보존 및 게시 조건",
+        "시범 운영 추진 계획"
+      ],
+      "actual_model_calls": 1,
+      "engine": false,
+      "sources_invented": false,
+      "limitations_explicit": true,
+      "title": "공용 문서함 정비 현황 및 추진 방안",
+      "prompt": "공용 문서함 정비 현황과 추진 방안을 표준 업무보고로 정리. 모두 합성 검수 자료이며 실제 회사·사건·규정이 아니다. 외부 검색·가짜 URL·실제 사고 통계를 쓰지 않는다. 가상 운영팀의 공용 문서함 정비를 다룬다. 제공된 확인 사실: 대상은 업무양식 24개이고 담당 확인 완료 18개, 미확인 6개다. 원본과 이전 버전은 보존하며 수정본은 별도 검토 후 새 버전으로 등록한다. 계획은 2026. 11. 2.~11. 13. 시범 운영이고, 운영팀이 수집·목록 정리를 맡고 검토 담당자가 내용과 권한을 확인한다. 담당 확인 전에는 게시하지 않는 조건을 반드시 보존한다. 목표는 모든 대상에 담당과 검토 상태를 기재하는 것이다. 3개 또는 4개 짧은 절, 절마다 핵심 판단 한 문단과 필요할 때만 보조 항목을 둔다. 기한/역할/완료증거를 담은 간결한 표 하나를 쓰고 표 내용을 본문에 중복하지 않는다. 사실과 제안을 구분하고 모든 날짜·숫자·조건을 보존하되 새로운 수치·예산·확정 결정을 만들지 않는다.",
+      "feedback": "기존 수치·기간·역할·원본 및 이전 버전 보존·담당 확인 전 게시 금지 조건은 그대로 유지해줘. 완료 판단에는 담당 확인표와 검토 기록이 모두 있어야 한다는 제안을 추가하고, 보완 의견을 반영했음을 설명하는 문장은 보고서에 넣지 마.",
+      "cover": null,
+      "template_id": "standard-business",
+      "template_revision": 1,
+      "visual_standard_id": "abd3b26a-9e24-526c-bdb1-4ebd42c5ffcd",
+      "visual_standard_sha256": "28c19e74944ac5f7c4a336ba4df6f8a94adbee96bcee0202d4c3e66e04bcd6f1",
+      "model": "gpt-6.1-sol",
+      "executor": "codex-app-server",
+      "completed": true,
+      "elapsed_ms": 23454,
+      "local_record": ".cache/reference-review-2026-10-20/actual-executive-revision.json"
+    }
+  ],
+  "content_review": "Model output was read and compared against the supplied synthetic material. Figures, period, owner roles, preserve-original/version rule and no-publication-before-owner-confirmation condition remain. Recommendations are explicitly marked as proposals. Revision preserves the original draft separately and adds both owner-confirmation checklist and review record as completion evidence. Token assertions support, but do not replace, this semantic reading.",
+  "format_results": [
+    {
+      "preset": "appendix-1",
+      "pages": 2,
+      "toc_page": null,
+      "first_body_page": 1,
+      "saved_sha256": "8b51fc6b959431efb8ffc3766754235f6755f6f473d0ea64e129350c5cdd8ccc",
+      "replayed_model_draft_json_sha256": "8f4611a6a654e1c59e8f2c859e22f634f184eaad0b613a25ca1eb1418e7ec6ca",
+      "zero_content_loss": true,
+      "a4_margins_checked": true,
+      "bullet_font": "휴먼명조",
+      "bullet_size_pt": 14,
+      "saved_and_reopened_exact_bytes": true,
+      "all_pages_visually_inspected": true,
+      "title_clearance": {
+        "blue_rule_count": 2,
+        "bottom_rule_edge": 177.07333333333332,
+        "first_heading_top": 233.54653930664062
+      },
+      "local_document": ".cache/reference-review-2026-10-20/appendix-1/appendix-1.hwpx",
+      "local_page_images": [
+        ".cache/reference-review-2026-10-20/appendix-1/page-1.png",
+        ".cache/reference-review-2026-10-20/appendix-1/page-2.png"
+      ]
+    },
+    {
+      "preset": "appendix-2",
+      "pages": 4,
+      "toc_page": 2,
+      "first_body_page": 3,
+      "saved_sha256": "a8205a5d57125ff7ad8aa17762951fe100edf7bf8baa1b79be0d6dd0b6d5ba95",
+      "replayed_model_draft_json_sha256": "30865aad293268e0aca3f2e04b3f8c716ce9e688948ef72b2a265548c2440405",
+      "zero_content_loss": true,
+      "a4_margins_checked": true,
+      "bullet_font": "휴먼명조",
+      "bullet_size_pt": 14,
+      "saved_and_reopened_exact_bytes": true,
+      "all_pages_visually_inspected": true,
+      "title_clearance": null,
+      "local_document": ".cache/reference-review-2026-10-20/appendix-2/appendix-2.hwpx",
+      "local_page_images": [
+        ".cache/reference-review-2026-10-20/appendix-2/page-1.png",
+        ".cache/reference-review-2026-10-20/appendix-2/page-2.png",
+        ".cache/reference-review-2026-10-20/appendix-2/page-3.png",
+        ".cache/reference-review-2026-10-20/appendix-2/page-4.png"
+      ],
+      "toc": {
+        "passes": 2,
+        "entry_count": 5,
+        "toc_page_count": 1,
+        "observed_entry_lines": [
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "headings_distinguishable": true,
+        "uuid_and_text_hash_verified": true,
+        "heading_pages_match_actual_engine": true,
+        "heading_pages": [
+          3,
+          3,
+          3,
+          3,
+          4
+        ],
+        "headings": [
+          {
+            "cp_length": 12,
+            "heading_id": "7bb66e53-43ad-5b1b-b45f-4808b76c3af8",
+            "id": "7bb66e53-43ad-5b1b-b45f-4808b76c3af8",
+            "length": 12,
+            "level": 1,
+            "native_text": "1. 조건부 승인 요청",
+            "paragraph": 16,
+            "section": 0,
+            "text": "1. 조건부 승인 요청",
+            "text_sha256": "7ae9077960a673c969353a943c1515ecd7afcc961ed28c608a7772ebaeaa3c17"
+          },
+          {
+            "cp_length": 11,
+            "heading_id": "7895ebf2-3d2a-556f-a341-4345bfa461b9",
+            "id": "7895ebf2-3d2a-556f-a341-4345bfa461b9",
+            "length": 11,
+            "level": 1,
+            "native_text": "2. 담당 확인 현황",
+            "paragraph": 19,
+            "section": 0,
+            "text": "2. 담당 확인 현황",
+            "text_sha256": "b05357445160dac0813783a90fab136ea7ca9e19b0a01f6df190c184c0fa64cc"
+          },
+          {
+            "cp_length": 15,
+            "heading_id": "2060d190-b47d-5903-8070-4af96b8e684c",
+            "id": "2060d190-b47d-5903-8070-4af96b8e684c",
+            "length": 15,
+            "level": 1,
+            "native_text": "3. 원본 보존과 버전 등록",
+            "paragraph": 22,
+            "section": 0,
+            "text": "3. 원본 보존과 버전 등록",
+            "text_sha256": "c18e076dae1845cd29d5a83cf36e2c4acc20fc7a97a3225d2476db3866835f77"
+          },
+          {
+            "cp_length": 11,
+            "heading_id": "3daf4130-48d8-5f2e-942e-994338273a0f",
+            "id": "3daf4130-48d8-5f2e-942e-994338273a0f",
+            "length": 11,
+            "level": 1,
+            "native_text": "4. 대안별 추진계획",
+            "paragraph": 26,
+            "section": 0,
+            "text": "4. 대안별 추진계획",
+            "text_sha256": "564461f634096da82dcddcfabbfee222ee69c5bb1357566cb90e8adea29cdd38"
+          },
+          {
+            "cp_length": 10,
+            "heading_id": "ee776244-8e8f-5507-a031-6d3d77efda07",
+            "id": "ee776244-8e8f-5507-a031-6d3d77efda07",
+            "length": 10,
+            "level": 1,
+            "native_text": "출처 및 확인 사항",
+            "paragraph": 30,
+            "section": 0,
+            "text": "출처 및 확인 사항",
+            "text_sha256": "c5d7ed9af84c8d22995616d3f028d6e70465fa15a49e40c2f5d6fbc690614dbd"
+          }
+        ],
+        "longest_heading_by_characters": "3. 원본 보존과 버전 등록",
+        "limit_changed": false
+      }
+    },
+    {
+      "preset": "appendix-3",
+      "pages": 3,
+      "toc_page": 1,
+      "first_body_page": 2,
+      "saved_sha256": "18ad3dc07cb5220e513b4101016fb0c2dcd0406615424f69e37f7f7bef11a6a3",
+      "replayed_model_draft_json_sha256": "9152602ee2820aaad0f60dffae1e4fa57903a702c74b020d8bc9bb37a1584934",
+      "zero_content_loss": true,
+      "a4_margins_checked": true,
+      "bullet_font": "휴먼명조",
+      "bullet_size_pt": 14,
+      "saved_and_reopened_exact_bytes": true,
+      "all_pages_visually_inspected": true,
+      "title_clearance": null,
+      "local_document": ".cache/reference-review-2026-10-20/appendix-3/appendix-3.hwpx",
+      "local_page_images": [
+        ".cache/reference-review-2026-10-20/appendix-3/page-1.png",
+        ".cache/reference-review-2026-10-20/appendix-3/page-2.png",
+        ".cache/reference-review-2026-10-20/appendix-3/page-3.png"
+      ],
+      "toc": {
+        "passes": 2,
+        "entry_count": 4,
+        "toc_page_count": 1,
+        "observed_entry_lines": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "headings_distinguishable": true,
+        "uuid_and_text_hash_verified": true,
+        "heading_pages_match_actual_engine": true,
+        "heading_pages": [
+          2,
+          2,
+          2,
+          2
+        ],
+        "headings": [
+          {
+            "cp_length": 13,
+            "heading_id": "d3fc03c4-ee05-598a-be50-640141cd5d4a",
+            "id": "d3fc03c4-ee05-598a-be50-640141cd5d4a",
+            "length": 13,
+            "level": 1,
+            "native_text": "1. 대상 및 확인 현황",
+            "paragraph": 9,
+            "section": 0,
+            "text": "1. 대상 및 확인 현황",
+            "text_sha256": "90de28ec46f2d6bdf1cf3f1ad84535f32c8076b7298ce74c3c2999e7db62027a"
+          },
+          {
+            "cp_length": 13,
+            "heading_id": "f4fac6c4-975a-59e0-8d03-8cd35ff53cf8",
+            "id": "f4fac6c4-975a-59e0-8d03-8cd35ff53cf8",
+            "length": 13,
+            "level": 1,
+            "native_text": "2. 게시 및 버전 관리",
+            "paragraph": 12,
+            "section": 0,
+            "text": "2. 게시 및 버전 관리",
+            "text_sha256": "0a6d66f22fd6a0754f4dace64eb77a48c95d0dce2697fb41a08744645465a47b"
+          },
+          {
+            "cp_length": 16,
+            "heading_id": "cdb792d3-cea5-5dff-9b3b-a5760ed05cd4",
+            "id": "cdb792d3-cea5-5dff-9b3b-a5760ed05cd4",
+            "length": 16,
+            "level": 1,
+            "native_text": "3. 시범 운영 및 완료 기준",
+            "paragraph": 16,
+            "section": 0,
+            "text": "3. 시범 운영 및 완료 기준",
+            "text_sha256": "a703afd3a33cd16237169de4df6164ecaa510eb74edb7e0344d5c6177db96096"
+          },
+          {
+            "cp_length": 10,
+            "heading_id": "2ffe06ae-1a0d-5165-8b10-4ac6fdebb8e6",
+            "id": "2ffe06ae-1a0d-5165-8b10-4ac6fdebb8e6",
+            "length": 10,
+            "level": 1,
+            "native_text": "출처 및 확인 사항",
+            "paragraph": 20,
+            "section": 0,
+            "text": "출처 및 확인 사항",
+            "text_sha256": "c5d7ed9af84c8d22995616d3f028d6e70465fa15a49e40c2f5d6fbc690614dbd"
+          }
+        ],
+        "longest_heading_by_characters": "3. 시범 운영 및 완료 기준",
+        "limit_changed": false
+      }
+    }
+  ],
+  "regressions_found_and_fixed": [
+    {
+      "finding": "Default NUMBERED turned ordinary square prose into 15pt numbered subheadings.",
+      "fix": "New original presets default to BULLETS and retain 14pt source body font; explicit NUMBERED and frozen inputs are preserved."
+    },
+    {
+      "finding": "The original square item uses five leading 10pt spaces, while margin-only extraction lost their width.",
+      "fix": "New default uses native-measured 24.75pt indent; square/circle/dash x coordinates match original. See reference-bullet-indent-2026-10-20.json."
+    },
+    {
+      "finding": "Compact title paragraph rule overlapped first heading in actual appendix1 output.",
+      "fix": "New reference-title-v1 policy uses original 15mm one-cell title frame and original trailing spacer. Existing untagged frozen layouts remain unchanged. Actual SVG clearance now 56.47px."
+    },
+    {
+      "finding": "Initial appendix2/3 native export removed empty text nodes in new cover hosts and strict body comparison rejected TOC preparation.",
+      "fix": "Emit native control/table host form without empty t nodes. Strict semantic body validation remains unchanged; all final samples pass."
+    }
+  ],
+  "observations": [
+    "All nine final page PNGs were inspected. Title/cover, appendix placement, body glyph hierarchy, TOC, table and flow text render without clipping or title-rule overlap.",
+    "Appendix2 TOC has five distinct one-line entries; appendix3 has four distinct one-line entries. Both converge in two passes.",
+    "Source table width is 62.060593% of the available area; four-column cells wrap dates and completion evidence into several lines. No source width/font compression or truncation was added. This remains a readability choice for human review.",
+    "Appendix3 source/verification prose continues onto page3; no page count or section limit was relaxed.",
+    "No new claim that Hancom 2018 has been visually verified is made in this run."
+  ],
+  "local_test_directory": ".cache/reference-live-e2e-20261020-b",
+  "local_review_directory": ".cache/reference-review-2026-10-20",
+  "tests": [
+    {
+      "command": ".venv/Scripts/python -m pytest -q --tb=short --basetemp=.cache/pytest-reference-indent-20261020 backend/tests/test_reference_source.py backend/tests/test_reference_standard.py backend/tests/test_reference_report.py",
+      "result": "21 passed (before subsequent cover/title additions; cover agent separately validates those additions)"
+    },
+    {
+      "command": "scripts/test-isolated.ps1 -EnginePublic .cache/developer/runs/20261020-005312-87c42e04/public -OutDir .cache/reference-live-e2e-20261020-b -BuiltApp -ReportMock -RecordedReports .cache/reference-live-final-20261020 -TestPattern \"RECORDED reference sample\"",
+      "result": "3 passed (34.0s)",
+      "fixture_source": "Final actual Codex outputs, not mock-generated prose"
+    }
+  ]
+}

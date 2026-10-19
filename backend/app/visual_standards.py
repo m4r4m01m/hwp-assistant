@@ -25,6 +25,8 @@ from .hwpx import digest, validate
 from .report_contract import ReportValue, canonical, paragraph, report_blocks, report_hash
 from .report_hwpx import HP, paragraphs, scaffold
 from .report_rich import layout_rich_report
+from . import reference_standard
+from .reference_standard import VisualSettingsV3
 
 Size = Annotated[float, Field(strict=True, ge=8, le=36, allow_inf_nan=False)]
 Line = Annotated[int, Field(strict=True, ge=100, le=220)]
@@ -171,9 +173,9 @@ class VisualBaseStandard(ReportValue):
 
 class VisualSelection(ReportValue):
     id: uuid.UUID
-    revision: Literal[1, 2]
+    revision: Literal[1, 2, 3]
     name: str = Field(min_length=1, max_length=120)
-    settings: VisualSettingsV2 | VisualSettings
+    settings: VisualSettingsV3 | VisualSettingsV2 | VisualSettings
     settings_sha256: Sha
     base_standard: VisualBaseStandard
     preview_sha256: Sha
@@ -189,7 +191,7 @@ class VisualSelection(ReportValue):
 
     @model_validator(mode="after")
     def bound_settings(self):
-        if self.revision != (2 if isinstance(self.settings, VisualSettingsV2) else 1):
+        if self.revision != settings_revision(self.settings):
             raise ValueError("표준 리비전과 설정 계약이 일치하지 않습니다.")
         if report_hash(self.settings.model_dump(mode="json")) != self.settings_sha256:
             raise ValueError("서식 설정과 해시가 일치하지 않습니다.")
@@ -197,7 +199,7 @@ class VisualSelection(ReportValue):
 
 
 class PreviewVisual(ReportValue):
-    settings: VisualSettingsV2 | VisualSettings
+    settings: VisualSettingsV3 | VisualSettingsV2 | VisualSettings
     seed_base64: str = Field(min_length=1, max_length=2000000)
 
 
@@ -214,6 +216,33 @@ class RegisterVisual(PreviewVisual):
 def base_standard():
     value = metadata()
     return {key: value[key] for key in ("id", "reference_sha256", "profile_sha256")}
+
+
+def settings_revision(settings):
+    return 3 if isinstance(settings, VisualSettingsV3) else 2 if isinstance(settings, VisualSettingsV2) else 1
+
+
+def builtin_presets():
+    """Stable source-based choices use the same immutable selection contract."""
+    standard = base_standard()
+    return [dict(id=reference_standard.builtin_identity(item["preset_id"]), name=item["name"], revision=3,
+        settings=VisualSettingsV3.model_validate(reference_standard.defaults(item["preset_id"])).model_dump(mode="json"),
+        base_standard=standard, **{key: value for key, value in item.items() if key in ("description", "source_range")})
+        for item in reference_standard.preset_definitions()]
+
+
+def _complete_builtin(item):
+    settings = item["settings"]
+    return {**item, "settings_sha256": report_hash(settings),
+            "preview_sha256": digest(reference_standard.render_preset(settings))}
+
+
+def builtin_selections():
+    return [_complete_builtin(item) for item in builtin_presets()]
+
+
+def _selection_only(item):
+    return {key: item[key] for key in VisualSelection.model_fields}
 
 
 def matches_base(expected):
@@ -255,6 +284,8 @@ SAMPLE = {
 
 def render_preview(seed, settings):
     """Render synthetic content; all report production uses the same style functions."""
+    if settings.get("preset_id") in reference_standard.PRESETS:
+        return reference_standard.render_preview(seed, settings)
     sample = SAMPLE
     if "citation_style" in settings:
         sample = copy.deepcopy(SAMPLE)
@@ -302,6 +333,12 @@ def verified_file(folder, row):
 def validate_visual_selection(db, user, value, *, folder=None):
     """Only new report tasks resolve a registration; frozen retries keep their input."""
     supplied = value.model_dump(mode="json")
+    candidate = next((item for item in builtin_presets() if item["id"] == str(value.id)), None) if value.revision == 3 else None
+    if candidate is not None:
+        if _selection_only(_complete_builtin(candidate)) != supplied:
+            raise HTTPException(409, "선택한 원문 별첨 표준의 고정 값이 다릅니다. 목록을 다시 확인하세요.")
+        matches_base(supplied["base_standard"])
+        return supplied
     row = db.get(VisualStandard, str(value.id))
     if not row or row.owner_id != user:
         raise HTTPException(404, "등록한 문서 표준을 찾을 수 없습니다.")
@@ -337,7 +374,23 @@ def install_visual_standards(app):
         with Session(engine) as db:
             items = [snapshot_value(row) for row in db.scalars(select(VisualStandard)
                      .where(VisualStandard.owner_id == request.state.user).order_by(VisualStandard.created_at.desc()))]
-        return {"defaults": DEFAULTS, "fields": field_catalog(), "items": items}
+        presets = builtin_selections()
+        return {"defaults": reference_standard.defaults(), "fields": reference_standard.field_catalog(), "items": items,
+                "revision": 3, "legacy": {
+                    "1": {"defaults": LEGACY_DEFAULTS, "fields": [field for field in field_catalog() if field["key"] in LEGACY_DEFAULTS]},
+                    "2": {"defaults": DEFAULTS, "fields": field_catalog()},
+                }, "presets": presets, "default_id": presets[0]["id"], "max_pages": reference_standard.MAX_PAGES,
+                "source": reference_standard.source_metadata(), "rules": reference_standard.rules(),
+                "reference_preview_url": "/api/document-standard/preview"}
+
+    @app.get("/api/document-standard/preview")
+    def original_preview():
+        standard = base_standard()
+        data = reference_standard.original_projection()
+        matches_base(standard)
+        return {"name": metadata()["name"], "preview_base64": base64.b64encode(data).decode(),
+                "preview_sha256": digest(data), "reference_sha256": standard["reference_sha256"],
+                "max_pages": reference_standard.MAX_PAGES}
 
     @app.post("/api/visual-standards/preview")
     def preview(value: PreviewVisual):
@@ -346,7 +399,8 @@ def install_visual_standards(app):
         data = render_preview(decoded_seed(value.seed_base64), settings)
         matches_base(standard)
         return {"settings_sha256": report_hash(settings), "preview_sha256": digest(data),
-                "preview_base64": base64.b64encode(data).decode(), "base_standard": standard}
+                "preview_base64": base64.b64encode(data).decode(), "base_standard": standard,
+                "max_pages": reference_standard.MAX_PAGES if isinstance(value.settings, VisualSettingsV3) else 6}
 
     @app.post("/api/visual-standards")
     def register(value: RegisterVisual, request: Request):
@@ -365,6 +419,8 @@ def install_visual_standards(app):
                     raise HTTPException(409, "같은 표준 등록 ID에 다른 입력을 사용할 수 없습니다.")
                 verified_file(folder, old)
                 return snapshot_value(old)
+            if str(value.id) in {item["id"] for item in builtin_presets()}:
+                raise HTTPException(409, "원문 별첨의 고정 ID는 새 표준 등록에 사용할 수 없습니다.")
             settings = value.settings.model_dump(mode="json")
             if report_hash(settings) != value.settings_sha256:
                 raise HTTPException(409, "설정이 변경되었습니다. 현재 예시를 다시 확인하세요.")
@@ -374,7 +430,7 @@ def install_visual_standards(app):
             if digest(data) != value.preview_sha256:
                 raise HTTPException(409, "확인한 예시 파일과 등록할 예시가 다릅니다. 현재 예시를 다시 확인하세요.")
             matches_base(standard)
-            snapshot = VisualSelection.model_validate({"id": str(value.id), "revision": 2 if isinstance(value.settings, VisualSettingsV2) else 1, "name": value.name,
+            snapshot = VisualSelection.model_validate({"id": str(value.id), "revision": settings_revision(value.settings), "name": value.name,
                 "settings": settings, "settings_sha256": value.settings_sha256,
                 "base_standard": standard, "preview_sha256": value.preview_sha256}).model_dump(mode="json")
             key = "visual-" + str(uuid.uuid4()) + ".hwpx"

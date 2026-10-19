@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, ApiError, jsonRequest } from "./api";
 import { EditorAdapter } from "./editor";
 import { previewSvg } from "./preview-svg";
+import { WorkspaceNav, WorkspaceIcon, type WorkspaceSection } from "./workspace-nav";
 import "./standard-designer.css";
 
 type Settings = Record<string, number | string | boolean>;
@@ -19,24 +20,34 @@ type Field = {
   key: string;
   label: string;
   group: string;
-  type: "number" | "color" | "select" | "boolean";
+  type: "number" | "color" | "select" | "boolean" | "text" | "textarea";
   min?: number;
   max?: number;
   step?: number;
   unit?: string;
   options?: { value: string | number; label: string }[];
   help?: string;
+  min_length?: number;
+  max_length?: number;
   enabled_when?: { key: string; value: number | string | boolean };
   disabled_when?: { key: string; value: number | string | boolean };
 };
-type Catalog = { defaults: Settings; fields: Field[]; items: VisualSelection[] };
+type SettingsCatalog = { defaults: Settings; fields: Field[] };
+type Preset = VisualSelection & { description: string };
+type Catalog = SettingsCatalog & { items: VisualSelection[]; presets?: Preset[]; default_id?: string;
+  legacy?: Record<string, SettingsCatalog>; max_pages?: number; reference_preview_url?: string;
+  source?: { name: string; reference_sha256: string; profile_sha256: string; raw_endpoint_internal: boolean; preview_presentation?: string };
+  rules?: { id: string; title: string; text: string; anchors: { part: string; path?: string; ordinal: number; top_level_index?: number; paragraph_id?: string | null }[] }[] };
 type PreviewResponse = {
   settings_sha256: string;
   preview_sha256: string;
   preview_base64: string;
   base_standard: BaseStandard;
+  max_pages?: number;
 };
 type RenderedPreview = PreviewResponse & { key: string; settings: Settings; pages: string[] };
+type ReferenceResponse = { preview_base64: string; preview_sha256: string; reference_sha256: string; name: string; max_pages: number };
+type ReferencePreview = Omit<ReferenceResponse, "preview_base64"> & { pages: string[] };
 type Registration = {
   id: string;
   name: string;
@@ -60,11 +71,15 @@ async function sha256(bytes: Uint8Array) {
   return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(bytes))))
     .map(value => value.toString(16).padStart(2, "0")).join("");
 }
-function readSettings(fields: Field[], values: Record<string, string>): { settings: Settings; error: string } {
+function readSettings(fields: Field[], values: Record<string, string>, legacyIntegerPercent = false): { settings: Settings; error: string } {
   const settings: Settings = {};
   for (const field of fields) {
     const input = values[field.key] ?? "";
-    if (field.type === "boolean") {
+    if (field.type === "text" || field.type === "textarea") {
+      if ((field.min_length !== undefined && input.length < field.min_length) || (field.max_length !== undefined && input.length > field.max_length))
+        return { settings, error: `${field.group} ${field.label}: ${field.min_length ?? 0}~${field.max_length ?? "허용"}자 범위로 입력하세요.` };
+      settings[field.key] = input;
+    } else if (field.type === "boolean") {
       if (input !== "true" && input !== "false") return { settings, error: `${field.group} ${field.label}: 켜짐 또는 꺼짐을 선택하세요.` };
       settings[field.key] = input === "true";
     } else if (field.type === "select") {
@@ -78,20 +93,24 @@ function readSettings(fields: Field[], values: Record<string, string>): { settin
       const number = Number(input);
       if (!input.trim() || !Number.isFinite(number) || (field.min !== undefined && number < field.min) || (field.max !== undefined && number > field.max))
         return { settings, error: `${field.group} ${field.label}: ${field.min ?? "최솟값"}~${field.max ?? "최댓값"}${field.unit || ""} 범위의 수치를 입력하세요.` };
-      if (field.unit === "%" && !Number.isInteger(number)) return { settings, error: `${field.group} ${field.label}: 정수로 입력하세요.` };
+      if (legacyIntegerPercent && field.unit === "%" && !Number.isInteger(number)) return { settings, error: `${field.group} ${field.label}: 정수로 입력하세요.` };
       settings[field.key] = number;
     }
   }
   return { settings, error: "" };
 }
 
-export function StandardDesigner({ onClose, onRegistered, onReport }: {
+export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }: {
   onClose: () => void;
   onRegistered?: (standard: VisualSelection) => void;
   onReport?: (standard: VisualSelection) => void;
+  onNavigate?: (section: WorkspaceSection) => void;
 }) {
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
+  const [settingsRevision, setSettingsRevision] = useState(3);
+  const [view, setView] = useState<"settings" | "reference">("settings");
+  const [reference, setReference] = useState<ReferencePreview | null>(null);
   const [source, setSource] = useState("");
   const [seed, setSeed] = useState("");
   const [phase, setPhase] = useState<"preparing" | "waiting" | "loading" | "rendering" | "ready" | "error">("preparing");
@@ -105,7 +124,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport }: {
   const [registering, setRegistering] = useState(false);
   const [saved, setSaved] = useState<VisualSelection | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(() => window.matchMedia("(min-width: 721px)").matches);
   const [filter, setFilter] = useState("");
   const host = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -114,12 +133,21 @@ export function StandardDesigner({ onClose, onRegistered, onReport }: {
   const generation = useRef(0);
   const queue = useRef<Promise<unknown>>(Promise.resolve());
   const pageUrls = useRef<string[]>([]);
+  const referencePageUrls = useRef<string[]>([]);
   const mounted = useRef(true);
-  const checked = readSettings(catalog?.fields || [], values);
+  const definition = settingsRevision < 3 && catalog?.presets?.length ? catalog.legacy?.[String(settingsRevision)] : catalog;
+  const checked = readSettings(definition?.fields || [], values, settingsRevision < 3);
   const currentKey = settingsKey(checked.settings);
-  const valid = !!catalog && !checked.error;
-  const current = valid && phase === "ready" && preview?.key === currentKey;
+  const valid = !!catalog && !!definition && !checked.error;
+  const current = view === "settings" && valid && phase === "ready" && preview?.key === currentKey;
   const locked = registering || !!registration;
+
+  useEffect(() => {
+    const wide = window.matchMedia("(min-width: 721px)");
+    const changed = () => setSettingsOpen(wide.matches);
+    wide.addEventListener("change", changed);
+    return () => wide.removeEventListener("change", changed);
+  }, []);
 
   function restoreSettingFocus() {
     const control = focusedSetting.current, active = document.activeElement;
@@ -134,6 +162,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport }: {
     void api<Catalog>("/visual-standards", { signal: controller.signal }).then(result => {
       if (!live) return;
       setCatalog(result);
+      setSettingsRevision(result.presets?.length ? 3 : 2);
       setValues(inputValues(result.defaults));
     }).catch(cause => { if (live && !controller.signal.aborted) { setError(String(cause)); setPhase("error"); } });
     void (async () => {
@@ -155,12 +184,14 @@ export function StandardDesigner({ onClose, onRegistered, onReport }: {
       adapter.current = null;
       pageUrls.current.forEach(url => URL.revokeObjectURL(url));
       pageUrls.current = [];
+      referencePageUrls.current.forEach(url => URL.revokeObjectURL(url));
+      referencePageUrls.current = [];
     };
   }, []);
 
   useEffect(() => {
     const requestGeneration = ++generation.current;
-    if (!catalog || !seed || !valid || locked) return;
+    if (!catalog || !seed || !valid || locked || view !== "settings") return;
     let live = true;
     const controller = new AbortController();
     setPhase("waiting");
@@ -182,7 +213,9 @@ export function StandardDesigner({ onClose, onRegistered, onReport }: {
             if (!live || requestGeneration !== generation.current) return;
             restoreSettingFocus();
             const count = await engine.sdk.pageCount();
-            if (!Number.isInteger(count) || count < 1 || count > 6) throw new Error("예시 문서가 예상 범위(1~6쪽)를 벗어났습니다. 미리보기와 등록을 중단했습니다.");
+            const limit = settingsRevision < 3 ? 6 : result.max_pages ?? catalog.max_pages;
+            if (!Number.isInteger(limit) || !limit || !Number.isInteger(count) || count < 1 || count > limit)
+              throw new Error(`예시 문서가 서버에서 정한 범위(1~${limit || "확인 필요"}쪽)를 벗어났습니다. 미리보기와 등록을 중단했습니다.`);
             const urls: string[] = [];
             try {
               for (let index = 0; index < count; index++) {
@@ -212,7 +245,54 @@ export function StandardDesigner({ onClose, onRegistered, onReport }: {
         });
     }, 400);
     return () => { live = false; clearTimeout(timer); controller.abort(); };
-  }, [catalog, seed, currentKey, valid, locked, retry, inputRevision]);
+  }, [catalog, seed, currentKey, valid, locked, retry, inputRevision, settingsRevision, view]);
+
+  useEffect(() => {
+    if (view !== "reference" || !catalog?.reference_preview_url || !seed || locked) return;
+    const requestGeneration = ++generation.current;
+    let live = true;
+    const controller = new AbortController();
+    setPhase("loading"); setError("");
+    const path = catalog.reference_preview_url.replace(/^\/api(?=\/)/, "");
+    void api<ReferenceResponse>(path, { signal: controller.signal }).then(result => {
+      const rendering = queue.current.catch(() => {}).then(async () => {
+        if (!live || generation.current !== requestGeneration) return;
+        const engine = adapter.current;
+        if (!engine) throw new Error("기준서를 표시할 한글 엔진을 준비하지 못했습니다.");
+        const bytes = decode(result.preview_base64);
+        const expectedSource = catalog.source?.reference_sha256 || catalog.presets?.[0]?.base_standard.reference_sha256;
+        if (await sha256(bytes) !== result.preview_sha256 || !expectedSource || result.reference_sha256 !== expectedSource)
+          throw new Error("기준서의 원본 근거 또는 표시 파일 해시가 다릅니다.");
+        if (!live || generation.current !== requestGeneration) return;
+        setPhase("rendering");
+        await engine.load(bytes.buffer, result.name + ".hwpx");
+        if (!live || generation.current !== requestGeneration) return;
+        restoreSettingFocus();
+        const count = await engine.sdk.pageCount();
+        if (!Number.isInteger(result.max_pages) || result.max_pages < 1 || !Number.isInteger(count) || count < 1 || count > result.max_pages)
+          throw new Error("기준서 전체 쪽수를 확인할 수 없습니다. 일부 쪽만 표시하지 않았습니다.");
+        const urls: string[] = [];
+        try {
+          for (let index = 0; index < count; index++) {
+            if (!live || generation.current !== requestGeneration) return;
+            const url = URL.createObjectURL(new Blob([previewSvg(await engine.sdk.getPageSvg(index))], { type: "image/svg+xml" }));
+            urls.push(url);
+            const image = new Image(); image.src = url; await image.decode();
+          }
+          if (!live || generation.current !== requestGeneration) return;
+          const previous = referencePageUrls.current;
+          referencePageUrls.current = urls;
+          setReference({ name: result.name, preview_sha256: result.preview_sha256, reference_sha256: result.reference_sha256, max_pages: result.max_pages, pages: urls }); setPhase("ready");
+          setTimeout(() => previous.forEach(url => URL.revokeObjectURL(url)), 0);
+        } finally { if (referencePageUrls.current !== urls) urls.forEach(url => URL.revokeObjectURL(url)); }
+      });
+      queue.current = rendering;
+      return rendering;
+    }).catch(cause => {
+      if (live && generation.current === requestGeneration && !controller.signal.aborted) { setError(String(cause)); setPhase("error"); }
+    });
+    return () => { live = false; controller.abort(); };
+  }, [view, catalog, seed, locked, retry]);
 
   useEffect(() => {
     const element = dialog.current;
@@ -234,11 +314,16 @@ export function StandardDesigner({ onClose, onRegistered, onReport }: {
   function selectSource(id: string) {
     if (!catalog || locked) return;
     const selected = catalog.items.find(item => item.id === id);
+    const revision = selected?.revision || (catalog.presets?.length ? 3 : 2);
+    const sourceDefinition = revision < 3 && catalog.presets?.length ? catalog.legacy?.[String(revision)] : catalog;
+    if (!sourceDefinition) { setError("이전 표준의 설정 계약을 불러오지 못했습니다. 목록을 다시 확인하세요."); return; }
     generation.current++;
+    setView("settings");
     setSource(id);
-    // Editing an older registration creates a new copy. Its frozen snapshot and
-    // hash remain untouched; only the copy receives defaults for new options.
-    setValues(inputValues({ ...catalog.defaults, ...selected?.settings }));
+    setSettingsRevision(revision);
+    // Each old registration keeps its own field set; V3 source defaults never
+    // enter V1/V2 settings or change their registration retry/hash contract.
+    setValues(inputValues({ ...sourceDefinition.defaults, ...selected?.settings }));
     setInputRevision(previous => previous + 1);
     setName(selected ? `${selected.name} 사본` : "");
     setSaved(null);
@@ -279,25 +364,34 @@ export function StandardDesigner({ onClose, onRegistered, onReport }: {
       } else setRegistrationError("등록 결과를 확인하지 못했습니다. 입력과 요청을 보존했습니다. ‘같은 등록 결과 재확인’을 눌러 주세요.");
     } finally { if (mounted.current) setRegistering(false); }
   }
-  function close() {
-    if (locked) return;
-    if (source || currentKey !== settingsKey(catalog?.defaults || {})) {
-      if (!saved && !window.confirm("아직 등록하지 않은 서식 설정이 있습니다. 문서 표준 편집을 닫을까요?")) return;
+  function canLeave() {
+    if (locked) return false;
+    if (source || currentKey !== settingsKey(definition?.defaults || {})) {
+      if (!saved && !window.confirm("아직 등록하지 않은 서식 설정이 있습니다. 문서 표준 편집을 닫을까요?")) return false;
     }
-    onClose();
+    return true;
+  }
+  function close() { if (canLeave()) onClose(); }
+
+  function switchView(next: "settings" | "reference") {
+    if (locked || next === view) return;
+    generation.current++; setView(next); setPhase("waiting"); setError("");
   }
 
-  const groups = Array.from(new Set(catalog?.fields.map(field => field.group) || []));
-  const filteredFields = (catalog?.fields || []).filter(field => !filter.trim() || `${field.group} ${field.label} ${field.help || ""}`.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase()));
+  const fields = (definition?.fields || []).filter(field => field.key !== "preset_id");
+  const groups = Array.from(new Set(fields.map(field => field.group)));
+  const filteredFields = fields.filter(field => !filter.trim() || `${field.group} ${field.label} ${field.help || ""}`.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase()));
   const sourceSelection = catalog?.items.find(item => item.id === source);
-  const olderSource = sourceSelection && Object.keys(catalog!.defaults).some(key => !(key in sourceSelection.settings));
+  const olderSource = sourceSelection && sourceSelection.revision < 3 && !!catalog?.presets?.length;
   function fieldDisabled(field: Field) {
-    return locked || !!(field.enabled_when && checked.settings[field.enabled_when.key] !== field.enabled_when.value) ||
+    return locked || view === "reference" || !!(field.enabled_when && checked.settings[field.enabled_when.key] !== field.enabled_when.value) ||
       !!(field.disabled_when && checked.settings[field.disabled_when.key] === field.disabled_when.value);
   }
   function fieldControl(field: Field) {
     const label = `${field.group} ${field.label}`, disabled = fieldDisabled(field);
     const description = field.help ? `standard-help-${field.key}` : undefined;
+    if (field.type === "textarea") return <textarea aria-label={label} aria-describedby={description} minLength={field.min_length} maxLength={field.max_length} rows={4} value={values[field.key] || ""} disabled={disabled} onChange={event => change(field.key, event.target.value)} />;
+    if (field.type === "text") return <input className="standard-text-value" type="text" aria-label={label} aria-describedby={description} minLength={field.min_length} maxLength={field.max_length} value={values[field.key] || ""} disabled={disabled} onChange={event => change(field.key, event.target.value)} />;
     if (field.type === "boolean") return <span className="standard-toggle">
       <input type="checkbox" role="switch" aria-label={label} aria-describedby={description} checked={values[field.key] === "true"} disabled={disabled} onChange={event => change(field.key, String(event.target.checked))} />
       <span aria-hidden="true">{values[field.key] === "true" ? "켜짐" : "꺼짐"}</span>
@@ -311,48 +405,56 @@ export function StandardDesigner({ onClose, onRegistered, onReport }: {
     </span>;
     return <span className="standard-value"><input type="number" aria-label={label} aria-describedby={description} min={field.min} max={field.max} step={field.step} value={values[field.key] || ""} disabled={disabled} onChange={event => change(field.key, event.target.value)} /><span>{field.unit}</span></span>;
   }
-  const stateText = checked.error ? "입력값 확인 필요" : !seed || !catalog ? "예시 준비 중…" : phase === "waiting" ? "변경 반영 대기…" : phase === "loading" ? "예시 서식 적용 중…" : phase === "rendering" ? "한글 엔진으로 배치 중…" : phase === "ready" && current ? `반영 완료 · ${preview?.pages.length}쪽` : "미리보기 확인 필요";
+  const stateText = view === "settings" && checked.error ? "입력값 확인 필요" : !seed || !catalog ? "예시 준비 중…" : phase === "waiting" ? "변경 반영 대기…" : phase === "loading" ? view === "reference" ? "기준서 불러오는 중…" : "예시 서식 적용 중…" : phase === "rendering" ? "한글 엔진으로 배치 중…" : phase === "ready" && (current || view === "reference" && reference) ? `${view === "reference" ? "기준서 전체" : "반영 완료"} · ${view === "reference" ? reference?.pages.length : preview?.pages.length}쪽` : "미리보기 확인 필요";
+  const displayError = view === "reference" ? error : checked.error || error;
+  const selectedPreset = catalog?.presets?.find(preset => preset.settings.preset_id === values.preset_id);
+  const displayedPages = view === "reference" ? reference?.pages : preview?.pages;
   return <main className="standard-designer" onFocusCapture={event => {
     const target = event.target;
     if (!(target instanceof HTMLElement) || host.current?.contains(target)) return;
-    focusedSetting.current = target.matches(".standard-settings input, .standard-settings select") ? target : null;
+    focusedSetting.current = target.matches(".standard-settings input, .standard-settings select, .standard-settings textarea") ? target : null;
   }} onPointerDownCapture={event => {
-    if (event.target instanceof HTMLElement && !event.target.matches(".standard-settings input, .standard-settings select")) focusedSetting.current = null;
+    if (event.target instanceof HTMLElement && !event.target.matches(".standard-settings input, .standard-settings select, .standard-settings textarea")) focusedSetting.current = null;
   }}>
-    <nav className="standard-mobile-rail" aria-label="표준 편집 도구">
-      <button aria-label="← 문서 목록" title="문서 목록" disabled={locked} onClick={close}>←<small>목록</small></button>
-      <button aria-label={`문서 표준 설정 ${settingsOpen ? "닫기" : "열기"}`} aria-expanded={settingsOpen} onClick={() => setSettingsOpen(value => !value)}>☷<small>설정</small></button>
-      <button aria-label={saved ? "등록 완료" : "표준 템플릿으로 등록"} title="표준 템플릿으로 등록" className="primary" disabled={!current || locked || !!saved} onClick={() => setDialogOpen(true)}>＋<small>{saved ? "완료" : "등록"}</small></button>
-    </nav>
-    <div className="standard-designer-grid">
-      <aside className={`standard-settings${settingsOpen ? " settings-open" : ""}`} aria-label="문서 표준 설정">
+    <WorkspaceNav active="standards" compact className="standard-workspace-rail" label="표준 편집 도구" onBack={close} onNavigate={onNavigate ? section => { if (canLeave()) onNavigate(section); } : undefined} disabled={locked}>
+      <button aria-label={`문서 표준 설정 ${settingsOpen ? "닫기" : "열기"}`} aria-expanded={settingsOpen} aria-controls="standard-settings-panel" onClick={() => setSettingsOpen(value => !value)}><WorkspaceIcon name="settings" /><span>설정</span></button>
+      {catalog?.reference_preview_url && <button aria-label={view === "reference" ? "서식 미리보기로 돌아가기" : "기준서 전체 보기"} aria-pressed={view === "reference"} disabled={locked} onClick={() => switchView(view === "reference" ? "settings" : "reference")}><WorkspaceIcon name="documents" /><span>{view === "reference" ? "미리보기" : "기준서"}</span></button>}
+      <button aria-label={saved ? "표준 등록 완료" : "표준 등록 열기"} title="표준 템플릿으로 등록" className="primary" disabled={!current || locked || !!saved} onClick={() => setDialogOpen(true)}><WorkspaceIcon name="plus" /><span>{saved ? "완료" : "등록"}</span></button>
+    </WorkspaceNav>
+    <div className={`standard-designer-grid${settingsOpen ? " settings-visible" : ""}`}>
+      <aside id="standard-settings-panel" className="standard-settings" hidden={!settingsOpen} aria-label="문서 표준 설정">
     <header className="standard-designer-header">
-      <div><small>새 보고서에 사용할 서식</small><h1>문서 표준 편집</h1><p>왼쪽 설정을 바꾸면 오른쪽 예시에 반영됩니다.</p></div>
+      <div><small>기준서에서 시작하는 보고서 서식</small><h1>문서 표준 편집</h1><p>기준서의 서식과 규정을 확인하고 새 표준으로 등록합니다.</p></div>
       <div className="standard-designer-actions">
-        <button disabled={locked} onClick={close}>← 문서 목록</button>
         <button className="primary" disabled={!current || locked || !!saved} onClick={() => setDialogOpen(true)}>{saved ? "등록 완료" : "표준 템플릿으로 등록"}</button>
       </div>
     </header>
-        <div className="standard-preview-toolbar"><strong>예시 문서</strong><span className="standard-preview-state" role="status"><i className={`standard-preview-dot${current ? "" : " pending"}`} aria-hidden="true" />{stateText}</span></div>
-        {(error || checked.error) && <div className="standard-designer-error" role="alert">{checked.error || error}{!checked.error && !locked && catalog && seed && <><br /><button onClick={() => setRetry(value => value + 1)}>미리보기 다시 확인</button></>}</div>}
-        <div className="standard-settings-intro"><strong>서식 설정</strong>기본 표준과 기존 문서는 보존됩니다. 수정한 설정은 새 표준으로 등록합니다.</div>
-        {catalog && <div className="standard-setting-fields standard-source"><label className="standard-field"><span>설정 불러오기</span><select aria-label="설정 불러오기" value={source} disabled={locked} onChange={event => selectSource(event.target.value)}><option value="">기본 문서작성 표준</option>{catalog.items.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label></div>}
-        {olderSource && <p className="standard-source-note" role="note">이전 표준의 설정을 불러왔습니다. 새 옵션은 기본값으로 보완하며, 등록하면 별도의 새 표준으로 저장합니다.</p>}
+        {catalog?.reference_preview_url && <div className="standard-view-tabs" role="tablist" aria-label="기준서와 서식 보기"><button role="tab" aria-selected={view === "settings"} disabled={locked} onClick={() => switchView("settings")}>서식 미리보기</button><button role="tab" aria-selected={view === "reference"} disabled={locked} onClick={() => switchView("reference")}>기준서 전체</button></div>}
+        <div className="standard-preview-toolbar"><strong>{view === "reference" ? "기준서 전체" : "서식 미리보기"}</strong><span className="standard-preview-state" role="status"><i className={`standard-preview-dot${current || view === "reference" && phase === "ready" ? "" : " pending"}`} aria-hidden="true" />{stateText}</span></div>
+        {displayError && <div className="standard-designer-error" role="alert">{displayError}{(view === "reference" || !checked.error) && !locked && catalog && seed && <><br /><button onClick={() => setRetry(value => value + 1)}>미리보기 다시 확인</button></>}</div>}
+        <div className="standard-settings-intro"><strong>{catalog?.source?.name || "서식 설정"}</strong>{view === "reference" ? "기준서 전체를 읽기 전용으로 표시합니다. 서식 변경과 등록은 서식 미리보기에서 진행하세요." : "기준서에서 읽은 서식값을 바탕으로 조정합니다. 기본 양식을 바꿔도 현재 수치와 문구는 유지하며, 등록하면 별도의 새 표준으로 보관합니다."}</div>
+        {view === "settings" && settingsRevision >= 3 && catalog?.source?.preview_presentation && <p className="standard-source-note">{catalog.source.preview_presentation}</p>}
+        {catalog && <div className="standard-setting-fields standard-source"><label className="standard-field"><span>설정 불러오기</span><select aria-label="설정 불러오기" value={source} disabled={locked} onChange={event => selectSource(event.target.value)}><option value="">기준서 기반 새 표준</option>{catalog.items.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label></div>}
+        {olderSource && <p className="standard-source-note" role="note">이전 등록 표준의 설정을 그대로 불러왔습니다. 기존 설정과 파일은 보존하고, 수정하면 같은 형식의 새 표준으로 등록합니다.</p>}
+        {settingsRevision >= 3 && !!catalog?.presets?.length && <div className="standard-setting-fields standard-source standard-preset"><label className="standard-field"><span>기본 양식</span><select aria-label="기본 양식" value={values.preset_id || ""} disabled={locked || view === "reference"} onChange={event => change("preset_id", event.target.value)}>{catalog.presets.map(preset => <option key={preset.id} value={String(preset.settings.preset_id)}>{preset.name}</option>)}</select></label><p className="standard-preset-description">{selectedPreset?.description}</p></div>}
         {catalog && <div className="standard-settings-search"><label htmlFor="standard-settings-filter">설정 찾기</label><div><input id="standard-settings-filter" type="search" value={filter} onChange={event => setFilter(event.target.value)} placeholder="정렬, 테두리, 쪽번호…" />{filter && <button aria-label="설정 검색 지우기" onClick={() => setFilter("")}>×</button>}</div></div>}
         {groups.filter(group => filteredFields.some(field => field.group === group)).map(group => <details className="standard-setting-group" key={`${filter ? "filtered" : "all"}-${group}`} open={!!filter || groups.indexOf(group) < 3}>
-          <summary>{group}</summary><div className="standard-setting-fields">{filteredFields.filter(field => field.group === group).map(field => <label className={`standard-field${field.type === "select" ? " standard-field-select" : ""}${fieldDisabled(field) ? " standard-field-disabled" : ""}`} key={field.key}>
+          <summary>{group}</summary><div className="standard-setting-fields">{filteredFields.filter(field => field.group === group).map(field => <label className={`standard-field${field.type === "select" ? " standard-field-select" : ""}${field.type === "text" || field.type === "textarea" ? " standard-field-text" : ""}${fieldDisabled(field) ? " standard-field-disabled" : ""}`} key={field.key}>
             <span>{field.label}</span>{fieldControl(field)}
             {field.help && <small className="standard-field-help" id={`standard-help-${field.key}`}>{field.help}</small>}
           </label>)}</div>
         </details>)}
         {catalog && !filteredFields.length && <p className="standard-settings-no-results" role="status">일치하는 설정이 없습니다.</p>}
-        {catalog && <div className="standard-settings-footer"><button disabled={locked} onClick={() => selectSource("")}>기본값으로 되돌리기</button><p>제목의 파란 상하선과 □ → ㅇ → - 계층은 유지합니다. 글꼴은 예시를 표시하는 환경에 따라 대체될 수 있습니다.</p></div>}
+        {!!catalog?.rules?.length && <details className="standard-source-rules"><summary>기준서 원문 규정</summary>{catalog.rules.map(rule => <section key={rule.id}><h2>{rule.title}</h2><p>{rule.text}</p></section>)}</details>}
+        {catalog && <div className="standard-settings-footer"><button disabled={locked} onClick={() => selectSource("")}>원본 기본값 복원</button><p>원본 기준서와 이전 등록 파일은 변경하지 않습니다. 글꼴은 예시를 표시하는 환경에 따라 대체될 수 있습니다.</p></div>}
       </aside>
-      <section className="standard-preview" aria-label="문서 표준 실제 미리보기">
-        <div className="standard-preview-pages" aria-busy={!current}>
-          {saved && <div className="standard-registration" role="status"><h2>‘{saved.name}’ 등록 완료</h2><p>새 보고서를 만들 때 이 표준을 선택할 수 있습니다.</p>{onReport && <button className="primary" onClick={() => onReport(saved)}>이 표준으로 보고서 작성</button>}</div>}
-          {!preview && <div className="standard-preview-empty">{stateText}</div>}
-          {preview?.pages.map((url, index) => <figure key={url}><img src={url} alt={`문서 표준 예시 ${index + 1}쪽`} /><figcaption>{index + 1} / {preview.pages.length}쪽 · 실제 한글 엔진 미리보기</figcaption></figure>)}
+      <section className="standard-preview" aria-label={view === "reference" ? "기준서 전체 실제 보기" : "문서 표준 실제 미리보기"}>
+        <div className="standard-preview-pages" aria-busy={phase !== "ready" || view === "settings" && !current}
+          data-preview-sha256={view === "reference" ? reference?.preview_sha256 : preview?.preview_sha256}
+          data-settings-sha256={view === "settings" ? preview?.settings_sha256 : undefined}>
+          {saved && view === "settings" && <div className="standard-registration" role="status"><h2>‘{saved.name}’ 등록 완료</h2><p>새 보고서를 만들 때 이 표준을 선택할 수 있습니다.</p>{onReport && <button className="primary" onClick={() => onReport(saved)}>이 표준으로 보고서 작성</button>}</div>}
+          {!displayedPages && <div className="standard-preview-empty">{stateText}</div>}
+          {displayedPages?.map((url, index) => <figure key={url}><img src={url} alt={`${view === "reference" ? "기준서" : "문서 표준 예시"} ${index + 1}쪽`} /><figcaption>{index + 1} / {displayedPages.length}쪽 · 실제 한글 엔진 {view === "reference" ? "기준서 보기" : "미리보기"}</figcaption></figure>)}
         </div>
       </section>
     </div>

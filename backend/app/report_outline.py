@@ -4,6 +4,15 @@ import re
 from .report_layout import lines, width
 
 
+# A predicate must retain its preceding word when a new outline item is made.
+# This adds no prose and does not reinterpret sentence contents or citations.
+ENDING = re.compile(r"\S+\s+(?:필요(?:함|가\s+있음)?|아님|있음|없음|가능함|불가함|어려움|"
+                    r"예정임|계획임|대상임|확인됨|요구됨|권고함|기대됨|중요함|타당함|"
+                    r"적절함|미정임|완료됨|유지됨|우려됨|관련됨|해당함|해야\s+함|하지\s+않음)"
+                    r"(?=[.!?。\s]|\[S|주\d+\)|\*\d|$)"
+                    r"(?:[.!?。]?\s*(?:\[S[1-9]\d?\]|주[1-9]\d?\)|\*[1-9]\d?))*")
+
+
 def split_bullet(text, protected=()):
     marker = re.match(r"^(□|ㅇ|○|-) ", text)
     if not marker:
@@ -25,6 +34,7 @@ def split_bullet(text, protected=()):
         # New rich drafts keep a selected phrase together when adding another
         # bullet. Existing callers and frozen plans retain the previous policy.
         spans = [m.span() for phrase in protected for m in re.finditer(re.escape(phrase), remaining)]
+        spans.extend(match.span() for match in ENDING.finditer(remaining))
         while True:
             crossing = [(a, b) for a, b in spans if a < cut < b]
             if not crossing: break

@@ -19,9 +19,13 @@ async function openSample(page: Page) {
 async function expectFullHeightEditor(page: Page) {
   const viewport = page.viewportSize()!;
   const frame = (await page.locator(".block-editor-slot.active iframe").boundingBox())!;
-  expect(frame.x).toBe(64);
+  const side = page.locator(".editor-row > aside:visible");
+  const panel = await side.count() ? (await side.boundingBox())! : null;
+  const left = panel ? panel.x + panel.width : 64;
+  if (panel) { expect(panel.x).toBe(64); expect(panel.y).toBe(0); expect(panel.height).toBe(viewport.height); }
+  expect(frame.x).toBeCloseTo(left, 1);
   expect(frame.y).toBe(0);
-  expect(frame.width).toBe(viewport.width - 64);
+  expect(frame.width).toBeCloseTo(viewport.width - left, 1);
   expect(frame.height).toBe(viewport.height);
   await page.evaluate(() => window.scrollTo(100000, 100000));
   const outer = await page.evaluate(() => ({
@@ -123,7 +127,7 @@ test("REAL rhwp workspace: one visible panel preserves unsent conversation and w
     const visiblePanel = (await page.locator(".editor-row > aside:visible").boundingBox())!;
     expect(visiblePanel.y).toBe(0);
     expect(visiblePanel.height).toBe(692);
-    expect(visiblePanel.x + visiblePanel.width).toBe(862);
+    expect(visiblePanel.x).toBe(64);
   }
   await page.setViewportSize({ width: 1366, height: 768 });
   await expectFullHeightEditor(page);

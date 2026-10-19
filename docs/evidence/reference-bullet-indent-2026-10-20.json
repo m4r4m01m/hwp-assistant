@@ -1,0 +1,68 @@
+{
+  "verified_at": "2026-10-20",
+  "kind": "Pinned native WASM rendering of original appendix 1 and corrected new default",
+  "source_sha256": "6c68b50656867f1fc724c50549e60e1109e2f7a00219f2928ef58de0a45711f1",
+  "engine_wasm_sha256": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0",
+  "actual_model_calls": 0,
+  "human_review": false,
+  "hancom_verified": false,
+  "original_projection_pages": 12,
+  "source_part": "Contents/section0.xml",
+  "source_paragraph_ordinals": [
+    399,
+    401,
+    403
+  ],
+  "original_glyph_positions": [
+    {
+      "page": 9,
+      "text": "□‘A사’는2015.3.31",
+      "x": 108.58666666666667,
+      "y": 442
+    },
+    {
+      "page": 9,
+      "text": "ㅇ2015년현재~-박찬호(야",
+      "x": 119.58666666666667,
+      "y": 484.6666666666667
+    },
+    {
+      "page": 9,
+      "text": "-박찬호(야구선수)가말한“인",
+      "x": 132.92000000000002,
+      "y": 527.3333333333333
+    }
+  ],
+  "new_preset_glyph_positions": [
+    {
+      "page": 1,
+      "text": "□‘A사’는2015.3.31",
+      "x": 108.58666666666667,
+      "y": 429.61333333333334
+    },
+    {
+      "page": 1,
+      "text": "ㅇ2015년현재~-박찬호(야",
+      "x": 119.58666666666667,
+      "y": 472.28000000000003
+    },
+    {
+      "page": 1,
+      "text": "-박찬호(야구선수)가말한“인",
+      "x": 132.92000000000002,
+      "y": 514.9466666666667
+    }
+  ],
+  "body_origin_x_px": 75.58666666666667,
+  "source_square_prefix": {
+    "spaces": 5,
+    "character_size_pt": 10,
+    "character_id": "64"
+  },
+  "converted_square_left_indent_pt": 24.75,
+  "circle_left_indent_pt": 33,
+  "dash_left_indent_pt": 43,
+  "interpretation": "The native engine measures the five-space prefix as 33 CSS pixels (24.75pt), not the nominal 25pt estimate. This source-example placement is separate from the numbered-heading one-space rule. Only new defaults receive the converted native margin; original and frozen content are not rewritten.",
+  "verification": "All three displayed marker x coordinates exactly match the original appendix 1; the new source preset renders on one page.",
+  "local_evidence_directory": ".cache/reference-indent-20261020"
+}

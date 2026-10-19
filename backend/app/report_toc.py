@@ -72,9 +72,14 @@ def normalize_generated_layout(data):
 
 
 def initial_config(preview, source, request_id):
-    _,section,_,_=parsed(source)
+    header,section,_,_=parsed(source)
+    from .reference_report import toc_anchor_index, TOC_ANCHOR_STYLE, COVER_SPACER_STYLE
+    anchor_index = toc_anchor_index(header, section)
+    anchor_styles = {s.get("id") for s in header.iter(f"{{{HH}}}style") if s.get("name") in (TOC_ANCHOR_STYLE, COVER_SPACER_STYLE)}
     selected=[]; index=1; position=0
     while position<len(preview["plan"]):
+        while index < len(section) and section[index].get("styleIDRef") in anchor_styles:
+            index += 1
         item=preview["plan"][position]
         if item["kind"]=="heading":
             if index>=len(section):raise HTTPException(422,"보고서 제목 위치를 확인할 수 없습니다.")
@@ -89,7 +94,7 @@ def initial_config(preview, source, request_id):
         index+=1
     if not 1<=len(selected)<=30:raise HTTPException(422,"자동 목차는 제목 1~30개를 지원합니다.")
     return dict(toc_id=str(uuid.uuid5(uuid.UUID(preview["id"]),"automatic-report-toc")),
-                target=dict(section=0,paragraph=1,expected_text_sha256=digest(native_text(section[1],anchor=True).encode())),headings=selected)
+                target=dict(section=0,paragraph=anchor_index,expected_text_sha256=digest(native_text(section[anchor_index],anchor=True).encode())),headings=selected)
 
 
 def refresh_config(preview, source):

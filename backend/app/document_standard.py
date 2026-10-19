@@ -7,7 +7,7 @@ import zipfile
 from pathlib import Path
 from xml.etree import ElementTree as ET
 from fastapi import HTTPException
-from .hwpx import digest
+from .hwpx import digest, validate
 
 HP = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 HH = "http://www.hancom.co.kr/hwpml/2011/head"
@@ -30,7 +30,45 @@ def load_standard():
 
 def metadata():
     profile, _ = load_standard()
-    return {**profile, "reference_url": "/api/document-standard/reference", "automatic": True}
+    return {**profile, "reference_url": "/api/document-standard/reference",
+            "reference_view_url": "/api/document-standard/reference-view", "automatic": True}
+
+
+def normalize_no_fill(root):
+    """Known Hancom no-color encoding, only for explicitly new derived artifacts.
+
+    Actual black/white/RGB colors and every non-color 'none' value are untouched.
+    Never apply this to historical blobs or a frozen plan on retry.
+    """
+    changed = 0
+    for element in root.iter():
+        for attribute in ("shadeColor", "faceColor"):
+            if element.get(attribute, "").casefold() == "none":
+                element.set(attribute, "#FFFFFFFF")
+                changed += 1
+    return changed
+
+
+def reference_view():
+    """A separately named reading copy; the hash-pinned original stays exact."""
+    profile, reference = load_standard()
+    _, roots = validate(reference)
+    output = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(reference)) as source, zipfile.ZipFile(output, "w") as target:
+        for entry in source.infolist():
+            data = source.read(entry)
+            root = roots.get(entry.filename)
+            if root is not None and normalize_no_fill(root):
+                for _, namespace in ET.iterparse(io.BytesIO(data), events=["start-ns"]):
+                    try:
+                        ET.register_namespace(*namespace)
+                    except ValueError:
+                        pass
+                data = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+            target.writestr(copy.copy(entry), data)
+    result = output.getvalue()
+    validate(result)
+    return profile, result
 
 
 def set_margins(para, *, left=0, right=0, intent=0, before=0, after=0):
@@ -54,6 +92,10 @@ def source_parts():
 
 
 def report_styles(*, visual_settings=None):
+    from .reference_report import is_reference
+    if is_reference(visual_settings):
+        from .reference_report import report_styles as reference_styles
+        return reference_styles(visual_settings)
     profile, header, section = source_parts()
     chars = header.find(f".//{{{HH}}}charProperties")
     paras = header.find(f".//{{{HH}}}paraProperties")
@@ -122,8 +164,7 @@ def report_styles(*, visual_settings=None):
                 border.attrib.update(offsetTop="365", offsetBottom=str(365 + bottom))
         chars.append(char); paras.append(para); formats[kind] = (cid, pid)
     chars.set("itemCnt", str(len(chars))); paras.set("itemCnt", str(len(paras)))
-    for element in header.iter():
-        if element.get("shadeColor") == "none": element.set("shadeColor", "#FFFFFFFF")
+    normalize_no_fill(header)
     properties = copy.deepcopy(section.find(f".//{{{HP}}}secPr"))
     for child in list(properties):
         if child.tag.split("}")[-1] in ("parameterset", "presentation"):
@@ -144,6 +185,10 @@ def layout_metrics(section, visual_settings=None):
     page = section.find(f".//{{{HP}}}pagePr")
     margin = page.find(f"{{{HP}}}margin")
     available = (int(page.get("width")) - int(margin.get("left")) - int(margin.get("right"))) / 100
+    from .reference_report import is_reference
+    if is_reference(visual_settings):
+        return available, (int(page.get("height")) - int(margin.get("top")) - int(margin.get("bottom"))
+                           - int(margin.get("header", "0")) - int(margin.get("footer", "0"))) / 100 - 20
     # Preserve the existing safety allowance while respecting custom top/bottom
     # margins. The bundled reference uses 5669 + 2834 HWP units here.
     budget = 625 + (8503 - int(margin.get("top")) - int(margin.get("bottom"))) / 100
@@ -205,7 +250,7 @@ def format_signature(data, plan):
     footer_numbers = []
     for footer in section.iter(f"{{{HP}}}footer"):
         entries = []
-        for p in footer.findall(f"{{{HP}}}subList/{{{HP}}}p"):
+        for p in footer.iter(f"{{{HP}}}p"):
             pr = paras[p.get("paraPrIDRef")]
             numbers = []
             for run in p.findall(f"{{{HP}}}run"):
@@ -219,6 +264,9 @@ def format_signature(data, plan):
                             ("type", "DIGIT"), ("userChar", ""), ("prefixChar", ""), ("suffixChar", ""), ("supscript", "0"))}})
             entries.append({"alignment": pr.find(f"{{{HH}}}align").get("horizontal"), "numbers": numbers,
                             "text": "".join(t.text or "" for t in p.iter(f"{{{HP}}}t"))})
-        footer_numbers.append({"apply": footer.get("applyPageType", "BOTH"), "paragraphs": entries})
+        tables = [{"size": dict(table.find(f"{{{HP}}}sz").attrib), "position": dict(table.find(f"{{{HP}}}pos").attrib),
+                   "cells": [{"size": dict(cell.find(f"{{{HP}}}cellSz").attrib), "margin": dict(cell.find(f"{{{HP}}}cellMargin").attrib)}
+                             for cell in table.iter(f"{{{HP}}}tc")]} for table in footer.iter(f"{{{HP}}}tbl")]
+        footer_numbers.append({"apply": footer.get("applyPageType", "BOTH"), "paragraphs": entries, "tables": tables})
     return {"paragraphs": result, "page": dict(page.attrib), "page_margins": dict(page.find(f"{{{HP}}}margin").attrib),
             "page_numbers": page_numbers, "footer_numbers": footer_numbers}

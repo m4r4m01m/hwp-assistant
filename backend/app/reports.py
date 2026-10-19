@@ -6,19 +6,29 @@ import time
 import uuid
 from threading import Thread
 from fastapi import HTTPException, Request, Response
-from pydantic import Field
+from pydantic import Field, field_validator
 from sqlalchemy import select, text
 from .auth import require_access, require_lease_owner
 from .codex_runner import capture_settings
 from .db import Access, Document, ReportTask, Version, transaction
 from .hwpx import digest, validate
-from .report_contract import ReportValue, ReportDraft, canonical, report_hash, report_blocks
+from .report_contract import ReportValue, ReportDraft, canonical, report_hash, report_blocks, paragraph
 from .report_hwpx import scaffold, paragraphs
 from .report_runner import generate_report, CONTRACT
 from .rewrite_capacity import ExecutionSlot
-from .document_standard import load_standard, metadata as standard_metadata, format_signature
+from .document_standard import load_standard, metadata as standard_metadata, format_signature, reference_view
 from .report_templates import ReportTemplate, catalog as template_catalog, validate_selection
 from .visual_standards import VisualSelection, validate_visual_selection, install_visual_standards, matches_base
+
+
+class ReportCover(ReportValue):
+    date: str = Field(default="", max_length=60)
+    department: str = Field(default="", max_length=100)
+
+    @field_validator("date", "department")
+    @classmethod
+    def plain_cover_line(cls, value):
+        return paragraph(value) if value else value
 
 
 class CreateReport(ReportValue):
@@ -27,12 +37,30 @@ class CreateReport(ReportValue):
     research: bool = True
     template: ReportTemplate | None = None
     visual_standard: VisualSelection | None = None
+    cover: ReportCover | None = None
 
 
 class ApproveReport(ReportValue):
     id: uuid.UUID
     draft_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     seed_base64: str = Field(min_length=1, max_length=2000000)
+
+
+class ReviseReport(ReportValue):
+    id: uuid.UUID
+    draft_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    feedback: str = Field(min_length=1, max_length=6000)
+
+    @field_validator("feedback")
+    @classmethod
+    def useful_feedback(cls, value):
+        if not value.strip() or any(ord(c) < 32 and c not in "\n\r\t" for c in value):
+            raise ValueError("보완할 내용을 입력해 주세요.")
+        return value
+
+
+class RevisionSourceError(ValueError):
+    pass
 
 
 class SaveReport(ReportValue):
@@ -85,6 +113,12 @@ def run_report(engine, task_id, user, value, settings):
     try:
         draft, evidence = generate_report(value, settings, progress, active)
         draft = ReportDraft.model_validate(draft).model_dump()
+        if revision := value.get("revision"):
+            # A review can add research, but it must not silently rebind existing
+            # citation IDs or discard their evidence. Prose still needs review.
+            sources = {source["id"]: source for source in draft["sources"]}
+            if any(sources.get(source["id"]) != source for source in revision["draft"]["sources"]):
+                raise RevisionSourceError("보완 초안의 기존 출처가 변경되었습니다.")
         with transaction(engine) as db:
             row = lock_report(db, task_id, user)
             if row.status != "running":
@@ -97,11 +131,14 @@ def run_report(engine, task_id, user, value, settings):
             if "progress" in execution: execution["progress"]["stage"] = "complete"
             row.execution = canonical(execution)
             row.status = "ready"
-    except Exception:
+    except Exception as exc:
         with transaction(engine) as db:
             row = lock_report(db, task_id, user)
             if row.status == "running":
-                row.status, row.error = "failed", "Codex 보고서 생성을 완료하지 못했습니다. 로그인·연결·출력 형식을 확인한 뒤 새 요청을 시작하세요."
+                row.status = "failed"
+                row.error = ("보완본에서 기존 출처가 달라져 적용하지 않았습니다. 원래 초안은 보존되어 있습니다. 의견을 확인한 뒤 다시 요청하세요."
+                    if isinstance(exc, RevisionSourceError) else
+                    "Codex 보고서 생성을 완료하지 못했습니다. 로그인·연결·출력 형식을 확인한 뒤 새 요청을 시작하세요.")
                 execution = json.loads(row.execution)
                 execution.update(completed_at=time.time(), completed=False)
                 row.execution = canonical(execution)
@@ -121,6 +158,14 @@ def install_reports(app, publish, check_lease, doc_dict):
     def get_document_standard_reference():
         _, data = load_standard()
         return Response(data, media_type="application/hwp+zip", headers={"Content-Disposition": 'attachment; filename="document-writing-standard.hwpx"'})
+
+    @app.get("/api/document-standard/reference-view")
+    def get_document_standard_reference_view():
+        profile, data = reference_view()
+        return Response(data, media_type="application/hwp+zip", headers={
+            "Content-Disposition": 'attachment; filename="document-writing-standard-view.hwpx"',
+            "ETag": '"' + digest(data) + '"', "X-HWP-Original-SHA256": profile["reference_sha256"],
+        })
 
     @app.get("/api/report-templates")
     def get_report_templates():
@@ -160,6 +205,45 @@ def install_reports(app, publish, check_lease, doc_dict):
             slot.start(Thread, run_report, (engine, task_id, user, body, settings))
         return result
 
+    @app.post("/api/report-tasks/{source_task_id}/revise")
+    def revise_report(source_task_id: str, value: ReviseReport, request: Request):
+        user, task_id = request.state.user, str(value.id)
+        if user != os.getenv("HWP_CODEX_USER", "local"):
+            raise HTTPException(403, "이 서버의 Codex 실행 사용자에게 보고서 작성을 요청하세요.")
+        requested = {"source_task_id": source_task_id, "draft_sha256": value.draft_sha256, "feedback": value.feedback}
+        with ExecutionSlot(app.state.rewrite_capacity) as slot:
+            with transaction(engine) as db:
+                if engine.dialect.name == "postgresql":
+                    db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": int(digest(task_id.encode())[:15], 16)})
+                # Reconfirm a lost response before checking current configuration
+                # or capacity. The already frozen request must never run again.
+                if db.get(ReportTask, task_id):
+                    row = lock_report(db, task_id, user)
+                    frozen = json.loads(row.input).get("revision", {})
+                    if any(frozen.get(key) != item for key, item in requested.items()):
+                        raise HTTPException(409, "같은 요청 ID에 다른 초안이나 보완 의견을 사용할 수 없습니다.")
+                    return task_dict(row)
+                source = lock_report(db, source_task_id, user)
+                if source.status != "ready" or not source.draft or source.draft_sha256 != value.draft_sha256:
+                    raise HTTPException(409, "검토한 초안이 완료되지 않았거나 현재 초안과 다릅니다.")
+                source_draft = json.loads(source.draft)
+                if report_hash(source_draft) != value.draft_sha256:
+                    raise HTTPException(409, "기존 초안의 무결성을 확인할 수 없습니다.")
+                # Keep the preceding task, any frozen preview, approval and saved
+                # document untouched. Repeated reviews snapshot only the latest
+                # validated draft, avoiding an unbounded chain in model input.
+                body = {key: item for key, item in json.loads(source.input).items() if key not in ("id", "revision")}
+                body.update(id=task_id, revision={**requested, "draft": source_draft})
+                settings = capture_settings()
+                slot.reserve()
+                row = ReportTask(id=task_id, owner_id=user, input=canonical(body), input_sha256=report_hash(body),
+                    status="running", created_at=time.time(), execution=canonical({"executor": "codex-app-server", "model": settings.model,
+                    "contract": CONTRACT, "research": body["research"], "input_sha256": report_hash(body), "context_used": False,
+                    "revision_of": source_task_id, "reviewed_draft_sha256": value.draft_sha256}))
+                db.add(row); db.flush(); result = task_dict(row)
+            slot.start(Thread, run_report, (engine, task_id, user, body, settings))
+        return result
+
     @app.get("/api/report-tasks/{task_id}")
     def get_report(task_id: str, request: Request):
         with transaction(engine) as db:
@@ -192,7 +276,7 @@ def install_reports(app, publish, check_lease, doc_dict):
                 visual = json.loads(row.input).get("visual_standard")
                 if visual:
                     matches_base(visual["base_standard"])
-                data, plan = (scaffold(seed, report_blocks(json.loads(row.draft), visual_settings=visual["settings"]), visual_settings=visual["settings"])
+                data, plan = (scaffold(seed, report_blocks(json.loads(row.draft), visual_settings=visual["settings"], cover=json.loads(row.input).get("cover")), visual_settings=visual["settings"])
                               if visual else scaffold(seed, report_blocks(json.loads(row.draft))))
                 if visual:
                     matches_base(visual["base_standard"])

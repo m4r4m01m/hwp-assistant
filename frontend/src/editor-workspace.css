@@ -1,5 +1,5 @@
 .editor-workspace.workspace {
-  --editor-rail-width: 64px;
+  --editor-rail-width: var(--workspace-nav-width);
   display: grid;
   grid-template-columns: var(--editor-rail-width) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
@@ -8,21 +8,7 @@
   position: relative;
 }
 .editor-workspace .editor-rail {
-  grid-column: 1;
-  grid-row: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior: contain;
-  padding: 8px 5px;
-  background: #fff;
-  border-right: 1px solid #d5dfe9;
   z-index: 20;
-  scrollbar-width: thin;
 }
 .editor-workspace .editor-rail-action {
   position: relative;
@@ -121,27 +107,36 @@
   height: 100%;
   min-width: 0;
   min-height: 0;
+  display: grid;
+  grid-template-columns: 0 minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  position: relative;
+  overflow: clip;
 }
+.editor-workspace .editor-row:has(> aside:not([hidden])) {
+  grid-template-columns: min(400px, 40vw) minmax(0, 1fr);
+}
+.editor-workspace .editor-row > .editor { grid-column: 2; grid-row: 1; min-width: 0; min-height: 0; }
 .editor-workspace .block-editor-wrapper {
   overflow: clip;
   min-height: 0;
 }
 .editor-workspace .editor iframe { display: block; width: 100%; height: 100%; }
 .editor-workspace .editor-row > aside {
-  position: absolute;
-  z-index: 10;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(400px, 100%);
+  position: relative;
+  grid-column: 1;
+  grid-row: 1;
+  width: 100%;
   height: 100%;
   min-width: 0;
-  max-width: 100%;
+  max-width: none;
   max-height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
-  box-shadow: -8px 0 28px #17324e24;
+  border-left: 0;
+  border-right: 1px solid #dce4ed;
+  box-shadow: none;
 }
 .editor-workspace .editor-row > aside[hidden] { display: none; }
 .editor-workspace .editor-notifications {
@@ -167,7 +162,6 @@
 }
 .editor-workspace .editor-notifications button { font-size: 12px; white-space: normal; }
 @media (max-height: 580px) {
-  .editor-workspace .editor-rail { gap: 1px; padding-top: 4px; padding-bottom: 4px; }
   .editor-workspace .editor-rail-action { min-height: 42px; gap: 2px; padding-top: 4px; padding-bottom: 4px; }
   .editor-workspace .editor-rail-group { padding-top: 4px; margin-top: 1px; gap: 1px; }
   .editor-workspace .editor-help { padding-top: 4px; }

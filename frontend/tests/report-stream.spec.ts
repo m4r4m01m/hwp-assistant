@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { writeFile } from 'node:fs/promises';
+import { expectNativeTitleRules } from './report-format-proof';
 
 test('REAL rhwp + MOCK report stream: received text before completion, reload and formatted handoff', async ({ page, request }, info) => {
   test.skip(process.env.HWP_E2E_REPORT_MOCK !== '1' || !!process.env.HWP_REPORT_FIXTURES, 'Synthetic child events only; never starts a model.');
@@ -24,16 +25,18 @@ test('REAL rhwp + MOCK report stream: received text before completion, reload an
     await expect(paper).toContainText('□ (요약)'); expect(posts).toBe(1);
     expect((await request.post(`/api/test/report-stream/${id}/release`)).ok()).toBeTruthy();
     await expect(paper).toContainText('외부 업체 위험');
-    await expect(paper.getByTestId('stream-report-paragraph').first()).toHaveCSS('border-top-color','rgb(67, 127, 193)');
+    await expect(paper.locator('.report-draft-content')).toBeVisible(); // Received content is not a fabricated page layout.
     const inProgress = await (await request.get(`/api/report-tasks/${id}`)).json();
     expect(inProgress.status).toBe('running'); expect(inProgress.draft).toBeNull();
     await page.screenshot({ path:info.outputPath('body-growing-before-completion.png'), fullPage:true });
     expect((await request.post(`/api/test/report-stream/${id}/finish`)).ok()).toBeTruthy();
+    await page.getByRole('button', { name:'이 내용으로 문서 만들기', exact:true }).click();
     await expect(page.getByRole('button', { name:'초안 확정·서버 저장', exact:true })).toBeVisible({ timeout:60000 });
     await expect(page.locator('.formatted-report-surface')).toHaveAttribute('data-ready','true');
     await expect(page.getByRole('alert')).toHaveCount(0);
     expect(await (await request.get('/api/documents')).json()).toHaveLength(before);
     const task = await (await request.get(`/api/report-tasks/${id}`)).json();
+    await expectNativeTitleRules(page, task.draft.title);
     expect(task.execution.timings.first_text_ms).toBeLessThan(task.execution.timings.generation_ms);
     await page.screenshot({ path:info.outputPath('stream-to-editable-hwpx.png'), fullPage:true });
     await writeFile(info.outputPath('stream-proof.json'), JSON.stringify({ model:'synthetic stdio events', actual_model_calls:0,
@@ -53,15 +56,16 @@ test('MOCK report stream: cancel keeps partial text and new request is independe
     const posted = page.waitForResponse(r => r.url().endsWith('/api/report-tasks') && r.request().method() === 'POST');
     await page.getByRole('button', { name:'Codex로 보고서 초안 만들기', exact:true }).click(); id=(await (await posted).json()).id;
     await expect(page.getByTestId('stream-report-paragraph').first()).toBeVisible();
-    await page.getByRole('button', { name:'작성 요청', exact:true }).click();
+    await expect(page.getByRole('button', { name:'작성 진행', exact:true })).toHaveAttribute('aria-expanded', 'true');
     await page.getByRole('button', { name:'결과 수신 중단', exact:true }).click();
-    await page.getByRole('button', { name:'결과·출처', exact:true }).click();
+    await expect(page.getByRole('button', { name:'결과·출처', exact:true })).toHaveAttribute('aria-expanded', 'true');
     await expect(page.getByText('작성 중인 내용 보존', { exact:true })).toBeVisible();
     await expect(page.getByTestId('stream-report-paragraph').first()).toBeVisible();
     expect((await (await request.get(`/api/report-tasks/${id}`)).json()).status).toBe('cancelled');
     await page.getByRole('button', { name:'작성 요청', exact:true }).click();
     await page.getByLabel('보고서 작성 요청', { exact:true }).fill('새 독립 보고서 요청 합성 시험');
     await page.getByRole('button', { name:'Codex로 보고서 초안 만들기', exact:true }).click();
+    await page.getByRole('button', { name:'이 내용으로 문서 만들기', exact:true }).click();
     await expect(page.getByRole('button', { name:'초안 확정·서버 저장', exact:true })).toBeVisible({timeout:60000});
     expect((await (await request.get(`/api/report-tasks/${id}`)).json()).status).toBe('cancelled');
   } finally {

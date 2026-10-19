@@ -196,35 +196,76 @@ def report_hash(value):
 def citation_marker(identifier, style):
     """Presentation only: canonical source IDs in the stored draft never change."""
     number = identifier[1:]
+    if style == "STARS":
+        return "*" * int(number)
     return f"주{number})" if style == "NOTE" else f"*{number}" if style == "ASTERISK" else f"[{identifier}]"
 
 
-def presentation_text(value, settings, source_ids, *, body=False):
+def presentation_text(value, settings, source_ids, *, body=False, marks=None):
     if body and settings.get("body_parenthetical_labels") is False:
         # Only the bounded lead-label grammar used by the existing emphasis
         # contract is eligible. Conditions and parentheses later in prose stay.
-        value = re.sub(r"^(\s*(?:[□ㅇ○-]\s*)?)\(([^()]{1,24})\)(\s*)",
+        label = "요약|배경|차이점|조치|제안|현황|목적|쟁점|방안|일정|결론|핵심" if settings.get("preset_id") else "[^()]{1,24}"
+        value = re.sub(r"^(\s*(?:[□ㅇ○-]\s*)?)\((" + label + r")\)(\s*)",
                        lambda match: match[1] if match[3] else match[0], value, count=1)
     style = settings.get("citation_style", "BRACKET_S")
-    return re.sub(r"\[(S\d+)\]", lambda match: citation_marker(match[1], style)
-                  if match[1] in source_ids else match[0], value)
+    offset = 0
+    def replace(match):
+        nonlocal offset
+        if match[1] not in source_ids:
+            return match[0]
+        result = citation_marker(match[1], style)
+        if marks is not None:
+            marks.append((match.start() + offset, match.start() + offset + len(result)))
+        offset += len(result) - len(match[0])
+        return result
+    return re.sub(r"\[(S\d+)\]", replace, value)
 
 
-def report_blocks(draft, *, concise=False, rich=False, visual_settings=None):
+def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cover=None):
     """Budget pages before fenced application, retaining bullet continuation styles."""
     draft = ReportDraft.model_validate(draft)
     settings = visual_settings or {}
+    reference = settings.get("preset_id") in ("appendix-1", "appendix-2", "appendix-3")
     source_ids = {source.id for source in draft.sources}
+    rendered_marks = {}
     def present(value, *, body=False):
-        return presentation_text(value, settings, source_ids, body=body)
+        marks = []
+        result = presentation_text(value, settings, source_ids, body=body, marks=marks)
+        if reference and settings.get("citation_superscript") and marks:
+            rendered_marks[result] = marks
+        return result
     emphasis = [{**item.model_dump(), "text": present(item.text, body=True)} for item in draft.emphasis]
     blocks = [(draft.title, "title", False, {})]
+    if reference and settings["preset_id"] == "appendix-1":
+        from .reference_report import TITLE_LAYOUT_POLICY
+        blocks[0][3]["title_layout"] = TITLE_LAYOUT_POLICY
+    if reference and settings["preset_id"] in ("appendix-2", "appendix-3") and cover is not None:
+        from .reference_report import COVER_LAYOUT_POLICY
+        # Presence is an explicit new layout contract. Absence preserves the
+        # shape of older plans, including previews frozen before this feature.
+        blocks[0][3]["cover_layout"] = COVER_LAYOUT_POLICY
+        for field in ("date", "department"):
+            if cover.get(field):
+                blocks.append((paragraph(cover[field]), "body", False, {"style_kind": "cover_" + field}))
     if settings.get("show_core_summary", True):
         blocks.extend([("핵심 요약", "heading", False, {}), (present(draft.summary, body=True), "body", False, {})])
     table_number = diagram_number = 0
     for i, section in enumerate(draft.sections, 1):
-        blocks.append((f"{i}. {section.heading}", "heading", True, {}))
-        blocks.extend((present(p, body=True), "body", False, {}) for p in section.paragraphs)
+        if reference:
+            from .reference_report import body_item, numbered_marker
+            marker = numbered_marker(settings["numbered_1_marker"], i)
+            blocks.append((f"{marker} {section.heading}", "heading", True, {}))
+            counters = [0, 0, 0, 0]
+            for prose in section.paragraphs:
+                # Strip only eligible lead labels before replacing the canonical
+                # bullet with a numbered marker; (1)/(가) are structural text.
+                prose = presentation_text(prose, {**settings, "citation_style": "BRACKET_S"}, source_ids, body=True)
+                text, reference_role = body_item(prose, settings, counters)
+                blocks.append((present(text), "body", False, {"style_kind": reference_role}))
+        else:
+            blocks.append((f"{i}. {section.heading}", "heading", True, {}))
+            blocks.extend((present(p, body=True), "body", False, {}) for p in section.paragraphs)
         for visual in [*section.tables, *section.diagrams]:
             is_table = isinstance(visual, ReportTable)
             if is_table: table_number += 1
@@ -252,13 +293,13 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None):
             new_page = page_chars + len(value) > 1100
             page_chars = len(value) if new_page else page_chars + len(value)
             blocks.append((value, "body", new_page, {}))
-    if concise:
+    if concise and not reference:
         from .report_outline import split_bullet
         blocks = [(part, kind, forced and i == 0, meta) for text, kind, forced, meta in blocks
                   for i, part in enumerate(split_bullet(text, [e["text"] for e in emphasis] if rich else ()) if kind == "body" else [text])]
     result, used = [], 0
     for text, kind, forced, meta in blocks:
-        style_kind = role(text, kind)
+        style_kind = meta.get("style_kind", role(text, kind))
         # Preserve every character; split only at an existing space when possible.
         # Bounded chunks leave room for larger mandated fonts and indents.
         chunks = []
@@ -268,6 +309,7 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None):
             cut = cut + 1 if cut >= 250 else 380
             chunks.append(remaining[:cut]); remaining = remaining[cut:]
         chunks.append(remaining)
+        chunk_offset = 0
         for index, chunk in enumerate(chunks):
             weighted = sum(1 if ord(c) > 255 else .6 for c in chunk)
             width, line, gap = (33, 22.4, 14) if kind == "body" else (27, 35.2, 25) if kind == "title" else (29, 25.6, 14) if kind == "heading" else (39, 15.6, 7)
@@ -277,8 +319,14 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None):
             new_page = (forced and index == 0) or (used > 0 and used + cost > 570)
             used = cost if new_page else used + cost
             result.append({"text": chunk, "kind": kind, "page_break": new_page, **meta})
+            if reference and (kind != "source" or meta.get("visual_id") or meta.get("visual_caption")):
+                ranges = [(start - chunk_offset, end - chunk_offset) for start, end in rendered_marks.get(text, ())
+                          if chunk_offset <= start < end <= chunk_offset + len(chunk)]
+                if ranges:
+                    result[-1]["citation_ranges"] = ranges
+            chunk_offset += len(chunk)
             if rich:
                 result[-1]["emphasis"] = [item for item in emphasis if item["text"] in chunk]
-            if style_kind in ("square", "circle", "dash"):
+            if style_kind in ("square", "circle", "dash", "dot"):
                 result[-1]["style_kind"] = style_kind + ("_continuation" if index else "")
     return result

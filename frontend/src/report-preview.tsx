@@ -30,6 +30,7 @@ import {
   type LiveReport,
 } from "./report-progress";
 import { ReportContent, type ReportBlock } from "./report-content";
+import { WorkspaceIcon } from "./workspace-nav";
 
 type Preview = {
   id: string;
@@ -76,24 +77,33 @@ type Saving = {
   };
 };
 
+export type ReportRecovery = {
+  download: () => ExportSnapshot;
+  matches: (snapshot: ExportSnapshot) => boolean;
+};
+
 export function ReportPreview({
   taskId,
   draftHash,
   onLock,
   onSaved,
+  onRecoverySnapshot,
   onExit,
   sourceBlocks,
   toolbarHost,
+  detailsHost,
   workspacePanelOpen,
   onShowDetails,
 }: {
   taskId: string;
   draftHash: string;
   onLock: (locked: boolean) => void;
-  onSaved: (doc: Document, options?: { unsavedChanges: boolean }) => void;
+  onSaved: (doc: Document, options?: { unsavedChanges: boolean; recovery?: ReportRecovery }) => void;
+  onRecoverySnapshot?: (snapshot: ExportSnapshot | null) => void;
   onExit: () => void;
   sourceBlocks?: LiveReport["blocks"];
   toolbarHost?: HTMLElement | null;
+  detailsHost: HTMLElement | null;
   workspacePanelOpen?: boolean;
   onShowDetails?: () => void;
 }) {
@@ -169,6 +179,7 @@ export function ReportPreview({
     off.current = instance.bridge.subscribe(() => {
       if (!owns(value) || editor.current !== instance) return;
       setDirty(true);
+      if (savedRef.current) onRecoverySnapshot?.(null);
       if (prepared.current?.toc_policy === REPORT_TOC_POLICY)
         setTocStatus("stale");
     });
@@ -747,7 +758,23 @@ export function ReportPreview({
           "서버 저장은 확인됐지만 후속 편집은 미저장입니다. 현재 초안을 다운로드하세요.",
         );
         onLock(true);
-        onSaved(doc, { unsavedChanges: true });
+        onSaved(doc, { unsavedChanges: true, recovery: {
+          download: () => {
+            owner(value);
+            if (editor.current !== instance) throw new Error("복구 출력을 만들 보고서 편집기가 달라졌습니다.");
+            const snapshot = instance.exportHwpx();
+            if (snapshot.contentLoss.count) throw new Error("복구용 출력 검사를 완료하지 못했습니다. 현재 초안을 유지합니다.");
+            downloadBytes(snapshot.bytes, `후속 편집 복구용 - ${preview.name}`);
+            onRecoverySnapshot?.(snapshot);
+            return snapshot;
+          },
+          matches: snapshot => {
+            owner(value);
+            if (editor.current !== instance) return false;
+            const current = instance.exportHwpx();
+            return !current.contentLoss.count && current.epoch === snapshot.epoch && current.revision === snapshot.revision && reportBytesEqual(current.bytes, snapshot.bytes);
+          },
+        } });
       } else {
         setStatus("HWPX 서버 저장 완료");
         onLock(false);
@@ -773,6 +800,7 @@ export function ReportPreview({
       if (!exported || exported.contentLoss.count)
         throw new Error("복구용 출력 검사를 완료하지 못했습니다.");
       downloadBytes(exported.bytes, prepared.current?.name || "한글 초안.hwpx");
+      if (savedRef.current) onRecoverySnapshot?.(exported);
     } catch (e) {
       setError(String(e));
     }
@@ -790,7 +818,8 @@ export function ReportPreview({
             disabled={busy || tocBusy || Boolean(tocTask.current)}
             onClick={() => void save()}
           >
-            {pendingSave ? <><span>저장</span><span>재확인</span></> : <><span>초안 확정</span><span>서버 저장</span></>}
+            <WorkspaceIcon name="save" />
+            <span>{pendingSave ? "저장 재확인" : "초안 확정·서버 저장"}</span>
           </button>
         )}
         {ready &&
@@ -802,7 +831,8 @@ export function ReportPreview({
               disabled={busy || tocBusy || pendingSave || cancelRetry}
               onClick={() => void refreshToc()}
             >
-              {tocRetry ? <><span>목차 준비</span><span>재확인</span></> : <span>목차 갱신</span>}
+              <WorkspaceIcon name="refresh" />
+              <span>{tocRetry ? "목차 준비 재확인" : "목차 갱신"}</span>
             </button>
           )}
         {(((tocBusy || tocRetry) && ready) || cancelRetry) && (
@@ -812,15 +842,17 @@ export function ReportPreview({
             disabled={Boolean(tocTask.current?.cancelling && operation.current)}
             onClick={() => void cancelToc()}
           >
-            {cancelRetry ? <><span>목차 취소</span><span>재확인</span></> : <><span>목차 갱신</span><span>취소</span></>}
+            <WorkspaceIcon name="close" />
+            <span>{cancelRetry ? "목차 취소 재확인" : "목차 갱신 취소"}</span>
           </button>
         )}
         {ready && (
           <button disabled={busy} onClick={download}
             aria-label={saved && dirty ? "후속 편집 복구용 다운로드" : "현재 초안 다운로드"}
             title={saved && dirty ? "후속 편집 복구용 다운로드" : "현재 초안 다운로드"}>
+            <WorkspaceIcon name="download" />
             {saved && dirty
-              ? <><span>후속 편집</span><span>복구 출력</span></>
+              ? <span>후속 편집 복구 출력</span>
               : <span>다운로드</span>}
           </button>
         )}
@@ -830,10 +862,11 @@ export function ReportPreview({
             if (!detailsOpen) onShowDetails?.();
             setDetailsOpen(value => !value);
           }}>
-          <span>{pages ? `${pages}쪽` : "진행"}</span><span>{error ? "상태 !" : tocStatus === "stale" ? "갱신 필요" : "상태"}</span>
+          <WorkspaceIcon name="settings" />
+          <span>{pages ? `${pages}쪽 · ` : ""}{error ? "오류 확인" : tocStatus === "stale" ? "목차 갱신 필요" : "진행 상태"}</span>
         </button>
         {!ready && !busy && !cancelRetry && (
-          <button aria-label="한글 초안 준비 재시도" title="한글 초안 준비 재시도" onClick={() => void prepare()}><span>초안 준비</span><span>재시도</span></button>
+          <button aria-label="한글 초안 준비 재시도" title="한글 초안 준비 재시도" onClick={() => void prepare()}><WorkspaceIcon name="refresh" /><span>초안 준비 재시도</span></button>
         )}
         {!busy && !tocBusy && !pendingSave && (!saved || dirty) && (
           <button
@@ -848,6 +881,7 @@ export function ReportPreview({
                 onExit();
             }}
           >
+            <WorkspaceIcon name="close" />
             <span>편집 종료</span>
           </button>
         )}
@@ -857,8 +891,8 @@ export function ReportPreview({
     <div className="formatted-report">
       {toolbarHost ? createPortal(toolbar, toolbarHost) : toolbar}
       <p role="status" className="report-accessible-status">{status}</p>
-      <aside id="report-preview-status-panel" className="report-workspace-drawer report-status-drawer" hidden={!detailsOpen} aria-label="초안 상태와 진행 정보">
-        <div className="report-drawer-heading"><h2>초안 상태</h2><button aria-label="초안 상태 닫기" onClick={() => setDetailsOpen(false)}>×</button></div>
+      {detailsHost && createPortal(<aside id="report-preview-status-panel" className="report-workspace-drawer report-status-drawer" hidden={!detailsOpen} aria-label="초안 상태와 진행 정보">
+        <div className="report-drawer-heading"><h2>초안 상태</h2><button aria-label="초안 상태 닫기" onClick={() => setDetailsOpen(false)}><WorkspaceIcon name="close" size={18} /></button></div>
         <p>{previewStatus}</p>
         <ReportProgress stage={stage} count={applied.length} total={total} />
         {!ready && <label className="check-label"><input type="checkbox" checked={showProcess} onChange={e => {
@@ -881,7 +915,7 @@ export function ReportPreview({
           {error}
         </p>
       )}
-      </aside>
+      </aside>, detailsHost)}
       <div
         className="formatted-report-surface"
         aria-label="한글 초안 편집기"
@@ -909,7 +943,8 @@ export function ReportPreview({
             className="report-live-scroll"
             aria-label="작성 중인 문단 미리보기"
           >
-            <div ref={livePaper} className="report-live-paper">
+            <div className="report-formatting-heading"><strong>3. 서식·페이지 배치</strong><p>{status}</p><p>아래는 확인한 내용입니다. 선택한 양식의 실제 문서는 배치 검증이 끝나면 표시됩니다.</p></div>
+            <div ref={livePaper} className="report-draft-content">
               <ReportContent
                 blocks={sourceBlocks?.length ? sourceBlocks : applied}
                 testId={

@@ -11,13 +11,23 @@ HP = "http://www.hancom.co.kr/hwpml/2011/paragraph"
 HH = "http://www.hancom.co.kr/hwpml/2011/head"
 
 
+def body_text(node):
+    # Native running headers/footers are checked by format_signature. They are
+    # not body-paragraph text, even when their controls live in paragraph zero.
+    if node.tag in (f"{{{HP}}}header", f"{{{HP}}}footer"):
+        return ""
+    if node.tag == f"{{{HP}}}t":
+        return "".join(node.itertext())
+    return "".join(body_text(child) for child in node)
+
+
 def paragraphs(data):
     _, roots = validate(data)
     sections = sorted(k for k in roots if k.startswith("Contents/section"))
     if sections != ["Contents/section0.xml"]:
         raise HTTPException(422, "보고서는 하나의 본문 구역을 사용해야 합니다.")
     root = roots[sections[0]]
-    return root, ["".join(t.text or "" for t in p.iter(f"{{{HP}}}t")) for p in root]
+    return root, [body_text(p) for p in root]
 
 
 def scaffold(seed, blocks, *, visual_settings=None):
@@ -45,6 +55,9 @@ def scaffold(seed, blocks, *, visual_settings=None):
     position = visual_settings.get("page_number_position", "BOTTOM_CENTER") if visual_settings else "BOTTOM_CENTER"
     ET.SubElement(ctrl, f"{{{HP}}}pageNum", {"pos": position if style in ("DASH", "ROMAN") else "NONE",
         "formatType": "ROMAN_CAPITAL" if style == "ROMAN" else "DIGIT", "sideChar": "-"})
+    if style == "PAGE_TOTAL":
+        from .reference_page_number import page_total_footer
+        page_total_footer(header, original, *formats["page_number"], position)
     if style == "PLAIN":
         # The pinned pageNum sideChar parser/exporter substitutes '-' for an
         # empty decoration. Native footer PAGE auto-number fields round-trip
@@ -69,6 +82,8 @@ def scaffold(seed, blocks, *, visual_settings=None):
         p = ET.SubElement(root, f"{{{HP}}}p", {**original.attrib, "id": str(index), "pageBreak": "1" if block["page_break"] else "0"})
         r = ET.SubElement(p, f"{{{HP}}}run", dict(run.attrib))
         kind = block.get("style_kind", role(block["text"], block["kind"]))
+        if kind == "title" and visual_settings and visual_settings.get("preset_id") in ("appendix-2", "appendix-3"):
+            kind = "cover_title"
         if kind in formats:
             cid, pid = formats[kind]
             r.set("charPrIDRef", cid); p.set("paraPrIDRef", pid)

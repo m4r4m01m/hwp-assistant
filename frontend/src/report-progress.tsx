@@ -11,14 +11,14 @@ export function ReportTiming({ timings }: { timings?: Record<string, number | nu
     .map(([key, label]) => `${label} ${(timings[key]! / 1000).toFixed(1)}초`).join(" · ")}</small>;
 }
 
-export type ReportStage = "writing" | "applying" | "formatting" | "ready";
-const steps = ["내용 작성", "문서에 입력", "서식·페이지 배치", "편집 가능"];
+export type ReportStage = "writing" | "review" | "applying" | "formatting" | "ready";
+const steps = ["초안 작성", "내용 검토·보완", "서식·페이지 배치", "편집·저장"];
 export function ReportProgress({ stage, count, total }: { stage: ReportStage; count?: number; total?: number }) {
-  const current = ["writing", "applying", "formatting", "ready"].indexOf(stage);
+  const current = stage === "applying" ? 2 : ["writing", "review", "formatting", "ready"].indexOf(stage);
   return <ol className="report-steps" aria-label="보고서 작성 진행 단계" data-stage={stage}>
     {steps.map((label, i) => <li key={label} className={i < current ? "done" : i === current ? "current" : ""}
       aria-current={i === current ? "step" : undefined}><b>{i < current ? "✓" : i + 1}</b>{label}
-      {i === 1 && stage === "applying" && total ? <small>{count || 0}/{total} 문단</small> : null}</li>)}
+      {i === 2 && stage === "applying" && total ? <small>문서 입력 {count || 0}/{total} 문단</small> : null}</li>)}
   </ol>;
 }
 export function ReportWriting({ startedAt, progress, stopped, controlsHost }: { startedAt?: number; progress?: LiveReport; stopped?: boolean; controlsHost?: HTMLElement | null }) {
@@ -41,7 +41,7 @@ export function ReportWriting({ startedAt, progress, stopped, controlsHost }: { 
   return <div className="report-writing">{controlsHost ? createPortal(controls, controlsHost) : controls}
     <div ref={paper} className="report-live-scroll" aria-label="생성 중인 보고서" onScroll={e => {
       const el = e.currentTarget; follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-    }}><div className="report-live-paper">
+    }}><div className="report-draft-content">
       <ReportContent blocks={progress?.blocks || []} testId="stream-report-paragraph" />
       {!progress?.blocks.length && <p className="hint">첫 문장이 도착하면 이곳에서 바로 이어집니다. 자료 조사 중에는 본문이 아직 없을 수 있습니다.</p>}
       <p className="report-live-caption">{stopped ? "생성이 완료되지 않은 내용입니다. 한글 문서로 확정하거나 저장하지 않았습니다." : "실시간 생성 초안 · 내용이 바뀔 수 있으며, 최종 줄바꿈과 페이지 배치는 생성 완료 후 적용합니다."}</p>

@@ -37,6 +37,8 @@ class RichLayout:
         self.styles = {}
         self.serial = 900000
         self.visual_settings = visual_settings
+        from .reference_report import is_reference
+        self.reference = is_reference(visual_settings)
         self.page_width = page_width
         self.page_budget = page_budget
         self.table_size = round(visual_settings.get("table_size_pt", 12) * 100) if visual_settings is not None else 1200
@@ -61,6 +63,13 @@ class RichLayout:
             line = visual_settings.get("table_line_percent", 125) if visual_settings is not None else 125
             for e in para.iter(f"{{{HH}}}lineSpacing"): e.set("value", str(line))
             para.find(f"{{{HH}}}border").set("borderFillIDRef", "1")
+            if self.reference and name != "host":
+                from .reference_source import apply_character, apply_paragraph
+                reference_role = "caption" if name == "caption" else "table"
+                apply_character(header, char, reference_role, visual_settings)
+                from .reference_report import native_character
+                native_character(char)
+                apply_paragraph(para, reference_role, visual_settings)
             self.styles[name] = (self.append(self.chars, char), self.append(self.paras, para))
         self.fills = {}
         for name, shade, line in (("header", "#E8EFF8", True), ("cell", None, True),
@@ -92,7 +101,12 @@ class RichLayout:
         if key not in self.variants:
             char = copy.deepcopy(self.char_map[cid])
             if bits & 1 and char.find(f"{{{HH}}}bold") is None: E.SubElement(char, f"{{{HH}}}bold")
-            if bits & 2: char.set("textColor", BLUE)
+            if bits & 2: char.set("textColor", self.visual_settings.get("emphasis_color", "#0000FF") if self.reference else BLUE)
+            if bits & 4 and char.find(f"{{{HH}}}supscript") is None:
+                E.SubElement(char, f"{{{HH}}}supscript")
+            if self.reference:
+                from .reference_report import native_character
+                native_character(char)
             self.variants[key] = self.append(self.chars, char)
         return self.variants[key]
 
@@ -104,9 +118,26 @@ class RichLayout:
         pr = self.para_map[p.get("paraPrIDRef")]
         margins = pr.find(f"{{{HP}}}switch/{{{HP}}}case/{{{HH}}}margin")
         margin = {e.tag.split("}")[-1]: int(e.get("value")) / 100 for e in margins}
-        limit = limit or (self.page_width - margin["left"] - max(0, -margin["intent"]) - 10) / size
+        if self.reference:
+            ratio = float(self.char_map[cid].find(f"{{{HH}}}ratio").get("hangul", "100")) / 100
+            spacing = float(self.char_map[cid].find(f"{{{HH}}}spacing").get("hangul", "0")) / 100
+            if limit is None:
+                limit = (self.page_width - margin["left"] - margin["right"] - max(0, -margin["intent"]) - 10) / size
+            limit /= max(.1, ratio + spacing)
+        else:
+            limit = limit or (self.page_width - margin["left"] - max(0, -margin["intent"]) - 10) / size
+        if limit <= 0:
+            raise ValueError("Paragraph margins leave no room for report text")
         parts = lines(item["text"], limit, item["kind"] == "title")
         flags = emphasis_ranges(item["text"], item.get("emphasis", []))
+        if item.get("style_kind") in ("cover_date", "cover_department"):
+            flags = [0] * len(item["text"])
+        if self.reference:
+            for start, end in item.get("citation_ranges", []):
+                if not 0 <= start < end <= len(flags):
+                    raise ValueError("Invalid frozen citation range")
+                for position in range(start, end):
+                    flags[position] |= 4
         for child in list(p): p.remove(child)
         offset = 0
         for n, part in enumerate(parts):
@@ -123,17 +154,17 @@ class RichLayout:
         p.set("pageBreak", "0")
         count = sum(max(1, math.ceil(width(part.rstrip()) / limit)) for part in parts)
         factor = paragraph_line_factor(pr) if self.visual_settings is not None else 1.25 if style else 1.3 if item["kind"] == "source" else 1.6
-        return count * size * factor + margin["next"] + (margin["prev"] if self.visual_settings is not None and "title_vertical_offset_pt" in self.visual_settings else 0)
+        return count * size * factor + margin["next"] + (margin["prev"] if self.reference or self.visual_settings is not None and "title_vertical_offset_pt" in self.visual_settings else 0)
 
     def table_fill(self, family, x, y, columns, rows):
         settings = self.visual_settings or {}
         if "table_border_scope" not in settings:
             return self.fills[family]
         scope = settings["table_border_scope"]
-        edges = {"leftBorder": scope == "ALL" or scope == "OUTER" and x == 0,
-                 "rightBorder": scope == "ALL" or scope == "OUTER" and x == columns - 1,
-                 "topBorder": scope in ("ALL", "HORIZONTAL") or scope == "OUTER" and y == 0,
-                 "bottomBorder": scope in ("ALL", "HORIZONTAL") or scope == "OUTER" and y == rows - 1}
+        edges = {"leftBorder": scope == "ALL" or scope == "OUTER" and x == 0 or scope == "NO_OUTER_SIDES" and x > 0,
+                 "rightBorder": scope == "ALL" or scope == "OUTER" and x == columns - 1 or scope == "NO_OUTER_SIDES" and x < columns - 1,
+                 "topBorder": scope in ("ALL", "HORIZONTAL", "NO_OUTER_SIDES") or scope == "OUTER" and y == 0,
+                 "bottomBorder": scope in ("ALL", "HORIZONTAL", "NO_OUTER_SIDES") or scope == "OUTER" and y == rows - 1}
         key = (family, tuple(edges.values()))
         if key not in self.cell_border_variants:
             fill = copy.deepcopy(next(item for item in self.borders if item.get("id") == self.fills[family]))
@@ -153,6 +184,8 @@ class RichLayout:
                for y, row in enumerate(rows) for x, p in enumerate(row)) or any(len(row) != columns for row in rows):
             raise ValueError("Invalid frozen table geometry")
         table_width = round(self.page_width * 100)
+        if self.reference and not diagram:
+            table_width = round(table_width * self.visual_settings["table_width_percent"] / 100)
         widths = ([round((table_width - (columns // 2) * 2400) / ((columns + 1) // 2)) if x % 2 == 0 else 2400 for x in range(columns)]
                   if diagram else [table_width // columns] * columns)
         widths[-1] = table_width - sum(widths[:-1])
@@ -168,6 +201,9 @@ class RichLayout:
         padding = {"left": "510", "right": "510", "top": "300", "bottom": "300"}
         if not diagram and self.cell_padding is not None:
             padding = {key: str(self.cell_padding) for key in padding}
+        if self.reference and not diagram:
+            padding = {side: str(round(self.visual_settings[f"table_padding_{side}_mm"] * 7200 / 25.4)) for side in padding}
+            tbl.set("repeatHeader", "1" if self.visual_settings["table_repeat_header"] else "0")
         E.SubElement(tbl, f"{{{HP}}}inMargin", padding)
         total = 0
         for y, row in enumerate(rows):
@@ -177,13 +213,16 @@ class RichLayout:
                 p = original[item["paragraph"]]
                 arrow = diagram and x % 2 == 1
                 available = widths[x] - int(padding["left"]) - int(padding["right"])
-                if not diagram and self.cell_padding is not None and available < self.table_size:
+                if not diagram and (self.reference or self.cell_padding is not None) and available < self.table_size:
                     raise ValueError("Cell padding leaves no room for report text")
                 cost = self.text(p, item, style="card" if diagram else "cell", limit=available / self.table_size,
-                                 strong=diagram or y == 0)
+                                 strong=diagram or y == 0 and not self.reference)
                 prepared.append((p, cost, "arrow" if arrow else "card" if diagram else "header" if y == 0 else "cell"))
             vertical = int(padding["top"]) + int(padding["bottom"])
             height = max(3000, math.ceil(max(cost for _, cost, _ in prepared) * 100) + (vertical + 300 if not diagram and self.cell_padding is not None else 900))
+            if self.reference and not diagram:
+                height = max(round(self.visual_settings["table_min_row_height_mm"] * 7200 / 25.4),
+                             math.ceil(max(cost for _, cost, _ in prepared) * 100) + vertical)
             total += height
             for x, (p, _, fill) in enumerate(prepared):
                 fill_id = self.fills[fill] if diagram else self.table_fill(fill, x, y, columns, len(rows))
@@ -219,23 +258,44 @@ def layout_rich_report(data, plan, *, visual_settings=None):
             else:
                 p = original[item["paragraph"]]
                 cost = layout.text(p, item, style="caption" if item.get("visual_caption") else None,
-                                   strong=bool(item.get("visual_caption")))
+                                   strong=bool(item.get("visual_caption")) and not layout.reference)
+                if layout.reference and item["kind"] == "title":
+                    from .reference_report import has_title_layout, title_layout_cost
+                    if has_title_layout(plan): cost = title_layout_cost(visual_settings, cost)
                 index += 1
             prepared.append((p, item, cost))
         for p in list(section)[1:]: section.remove(p)
         used = 0
+        from .reference_report import has_cover_layout
+        cover_layout = layout.reference and has_cover_layout(plan)
+        body_started = False
         for i, (p, item, cost) in enumerate(prepared):
             following = prepared[i + 1][2] if (item["kind"] == "heading" or item.get("visual_caption")) and i + 1 < len(prepared) else 0
             needed = cost + following if cost + following <= page_budget else cost
-            new_page = used > 0 and used + needed > page_budget
+            is_cover = cover_layout and (item["kind"] == "title" or item.get("style_kind") in ("cover_date", "cover_department"))
+            first_body = cover_layout and not is_cover and not body_started
+            if first_body:
+                used = 0
+                body_started = True
+            new_page = first_body or not is_cover and used > 0 and used + needed > page_budget
             p.set("pageBreak", "1" if new_page else "0")
             used = cost if new_page else used + cost
             section.append(p)
         # Every verified paragraph remains exactly once, in its original reading order,
         # including table cells and diagram labels. Empty object hosts carry no claims.
+        running = {p for control in section.iter() if control.tag in (f"{{{HP}}}header", f"{{{HP}}}footer") for p in control.iter(f"{{{HP}}}p")}
         actual = ["".join(t.text or "" for run in p.findall(f"{{{HP}}}run") for t in run.findall(f"{{{HP}}}t"))
-                  for p in section.iter(f"{{{HP}}}p")]
+                  for p in section.iter(f"{{{HP}}}p") if p not in running]
         if [s for s in actual if s] != [s for s in before if s]: raise ValueError("Rich layout changed report text")
+        if layout.reference:
+            from .reference_report import arrange_report
+            arrange_report(header, section, visual_settings, plan=plan)
+            # Cover layout may add only empty spacers and object hosts; every
+            # date/department/title remains the text applied by exact commands.
+            after_cover = ["".join(t.text or "" for run in p.findall(f"{{{HP}}}run") for t in run.findall(f"{{{HP}}}t"))
+                           for p in section.iter(f"{{{HP}}}p") if p not in running]
+            if [s for s in after_cover if s] != [s for s in before if s]:
+                raise ValueError("Cover layout changed report text")
         out = io.BytesIO()
         replacements = {"Contents/section0.xml": E.tostring(section, encoding="utf-8", xml_declaration=True),
                         "Contents/header.xml": E.tostring(header, encoding="utf-8", xml_declaration=True)}

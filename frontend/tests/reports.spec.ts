@@ -1,6 +1,13 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import { unzipSync, strFromU8 } from "fflate";
+import { expectNativeTitleRules } from "./report-format-proof";
+
+async function legacyReport(page: Page) {
+  await expect(page.getByLabel("문서 서식 표준", { exact: true })).toBeEnabled();
+  await page.getByLabel("문서 서식 표준", { exact: true }).selectOption("");
+  await page.getByText("작성 예시와 기준", { exact: true }).click();
+}
 
 test("REAL rhwp + MOCK report: prompt, approval, exact commands, save retry and reopen", async ({ page, request }, info) => {
   test.skip(process.env.HWP_E2E_REPORT_MOCK !== "1" || !!process.env.HWP_REPORT_FIXTURES, "Requires isolated mock report server; never implicitly starts Codex.");
@@ -19,13 +26,14 @@ test("REAL rhwp + MOCK report: prompt, approval, exact commands, save retry and 
   });
   try {
     await page.goto("/"); await page.getByRole("button", { name: "보고서 작성", exact: true }).click();
-    const standard = await (await request.get("/api/document-standard")).json();
-    await expect(page.getByRole("link", { name: "기준서 원본 보기", exact: true })).toHaveAttribute("href", standard.reference_url);
+    await legacyReport(page);
+    await expect(page.getByRole("button", { name: "문서작성 기준 열기", exact: true })).toBeEnabled();
     await page.getByRole("button", { name: "금융권 해킹 대응", exact: true }).click();
     await page.getByRole("button", { name: "Codex로 보고서 초안 만들기", exact: true }).click();
     await page.getByRole("button", { name: "같은 요청 접수 재확인", exact: true }).click();
     await expect(page.getByRole("heading", { name: "금융권 해킹 대응 보고서 — 합성 시험", exact: true })).toBeVisible();
     expect(sent).toHaveLength(2); expect(sent[1]).toEqual(sent[0]);
+    await page.getByRole("button", { name: "이 내용으로 문서 만들기", exact: true }).click();
     await expect(page.getByRole("button", { name: "초안 확정·서버 저장", exact: true })).toBeVisible({ timeout: 60000 });
     await expect(page.getByRole("alert")).toHaveCount(0);
     expect(await (await request.get("/api/documents")).json()).toHaveLength(documentsBefore);
@@ -70,6 +78,7 @@ test("REAL rhwp + MOCK report: prompt, approval, exact commands, save retry and 
     await page.getByRole('button', { name: '← 문서 목록', exact: true }).click();
     await page.getByRole('button', { name: '보고서 작성', exact: true }).click();
     await expect(page.getByLabel('보고서 작성 요청', { exact:true })).toBeEditable();
+    await page.getByRole('button', { name: '최근 보고서', exact: true }).click();
     await page.locator('.report-history button').filter({ hasText:'금융권 해킹 대응 보고서 — 합성 시험' }).first().click();
     await expect(page.getByRole('status')).toHaveText('저장 완료'); // A saved request opens the real document, not raw draft text.
     await writeFile(info.outputPath("report-proof.json"), JSON.stringify({ actual_model_calls: 0, model: "mock", engine: "real rhwp", human_approval: false,
@@ -86,10 +95,12 @@ test("REAL rhwp + RECORDED report: long-title formatted preview without prematur
     return route.continue();
   });
   await page.goto("/"); await page.getByRole("button", { name: "보고서 작성", exact: true }).click();
+  await legacyReport(page);
   await page.getByRole("button", { name: "금융권 해킹 대응", exact: true }).click();
   const accepted = page.waitForResponse(r => r.url().endsWith('/api/report-tasks') && r.request().method() === 'POST');
   await page.getByRole("button", { name: "Codex로 보고서 초안 만들기", exact: true }).click();
   const job = await (await accepted).json();
+  await page.getByRole('button', { name: '이 내용으로 문서 만들기', exact: true }).click();
   await page.getByRole('button', { name: '한글 초안 준비 재시도', exact: true }).click({ timeout: 60000 });
   await expect(page.getByRole('button', { name: '초안 확정·서버 저장', exact: true })).toBeVisible({ timeout: 60000 });
   await expect(page.getByRole('alert')).toHaveCount(0);
@@ -104,6 +115,7 @@ test("REAL rhwp + RECORDED report: long-title formatted preview without prematur
   expect(reportPages).toBeGreaterThan(0);
   expect(preview.outline_policy).toBe('short-items-v1');
   expect(preview.plan.filter((p: any) => p.text.startsWith('□ ')).length).toBeGreaterThan(6);
+  await page.getByRole('button', { name: '최근 보고서', exact: true }).click();
   await expect(page.locator('.report-history li').first()).toContainText('초안 준비');
   const history = await page.locator('.report-history').boundingBox(), historyButton = await page.locator('.report-history button').first().boundingBox();
   expect(historyButton!.x + historyButton!.width).toBeLessThanOrEqual(history!.x + history!.width + 1);
@@ -144,15 +156,17 @@ test("REAL rhwp + MOCK report: live stages, short items and formatted preview af
     const shell = await page.goto('/');
     expect(shell!.headers()['cache-control']).toContain('no-cache');
     await page.getByRole('button', { name: '보고서 작성', exact: true }).click();
+    await legacyReport(page);
     await page.getByRole('button', { name: '금융권 해킹 대응', exact: true }).click();
     await page.getByRole('button', { name: 'Codex로 보고서 초안 만들기', exact: true }).click();
     await expect(page.getByText('Codex 응답 준비 중…', { exact: true })).toBeVisible();
     expect(await (await request.get('/api/documents')).json()).toHaveLength(before);
     releaseWriting();
+    await page.getByRole('button', { name: '이 내용으로 문서 만들기', exact: true }).click();
     await expect(page.locator('.report-steps[data-stage=applying]')).toBeVisible();
     await expect(page.getByTestId('applied-report-paragraph').first()).toBeVisible();
     await expect(page.locator('.report-steps[data-stage=formatting]')).toBeVisible({ timeout: 60000 });
-    await expect(page.getByTestId('applied-report-paragraph').first()).toHaveCSS('border-top-color', 'rgb(67, 127, 193)');
+    await expect(page.getByLabel('작성 중인 문단 미리보기', { exact: true }).locator('.report-draft-content')).toBeVisible();
     await page.screenshot({ path: info.outputPath('live-formatting.png'), fullPage: true });
     expect(await (await request.get('/api/documents')).json()).toHaveLength(before);
     releaseLayout();
@@ -163,6 +177,8 @@ test("REAL rhwp + MOCK report: live stages, short items and formatted preview af
     const preview = await (await request.get(`/api/report-tasks/${taskId}/preview`)).json();
     expect(preview.toc_policy).toBe('report-native-toc-v1');
     expect(preview.toc_verified).toBe(true);
+    const complete = await (await request.get(`/api/report-tasks/${taskId}`)).json();
+    await expectNativeTitleRules(page, complete.draft.title);
     page.on('dialog', dialog => dialog.accept()); // Test-owned unsaved preview; no user browser affected.
     await page.reload(); await page.getByRole('button', { name: '보고서 작성', exact: true }).click();
     await expect(page.getByRole('button', { name: '초안 확정·서버 저장', exact: true })).toBeVisible({ timeout: 60000 });
@@ -183,10 +199,12 @@ for (const [name, prompt] of [["vendor", "금융회사 외부 업체·클라우�
   test(`REAL rhwp + RECORDED Codex report: ${name} approved output and reopen`, async ({ page, request }, info) => {
     test.skip(!process.env.HWP_REPORT_FIXTURES, "Explicitly recorded actual Codex output; no fresh model calls in this browser test.");
     await page.goto("/"); await page.getByRole("button", { name: "보고서 작성", exact: true }).click();
+    await legacyReport(page);
     await page.getByLabel("보고서 작성 요청", { exact: true }).fill(prompt);
     const posted = page.waitForResponse(r => r.url().endsWith("/api/report-tasks") && r.request().method() === "POST");
     await page.getByRole("button", { name: "Codex로 보고서 초안 만들기", exact: true }).click();
     const accepted = await (await posted).json();
+    await page.getByRole("button", { name: "이 내용으로 문서 만들기", exact: true }).click();
     await expect(page.getByRole("button", { name: "초안 확정·서버 저장", exact: true })).toBeVisible({ timeout: 60000 });
     const task = await (await request.get(`/api/report-tasks/${accepted.id}`)).json();
     expect(task.execution.delivery).toBe("recorded-result-replay");

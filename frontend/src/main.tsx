@@ -22,6 +22,8 @@ import { StandardDesigner, type VisualSelection } from "./standard-designer";
 import { BlockInsert, BlockFenceError, blockJson, type BlockCapture, type PreparedBlock } from "./block-insert";
 import { TocPanel, type TocCapture, type PreparedToc } from "./toc";
 import "./editor-workspace.css";
+import { WorkspaceNav, WorkspaceIcon, type WorkspaceSection } from "./workspace-nav";
+import "./workspace-shell.css";
 
 function App({
   account,
@@ -57,6 +59,13 @@ function App({
       .finally(() => { if (generation === listGeneration.current) setLoading(false); });
   };
   useEffect(refresh, [query]);
+  function navigate(section: WorkspaceSection) {
+    setActive(null); setCreating(false); setHistory(null); setSharing(null);
+    setRegisterTemplate(undefined); setReportStandard(undefined);
+    setTemplates(section === "templates"); setReports(section === "reports");
+    setStandardDesigner(section === "standards");
+    if (section === "documents") refresh();
+  }
   async function copySaved(source: Document) {
     if (copying) return;
     let frozen = copyPending;
@@ -88,32 +97,25 @@ function App({
       setError(String(e));
     }
   }
-  if (standardDesigner) return <StandardDesigner onClose={() => { setStandardDesigner(false); refresh(); }}
+  if (standardDesigner) return <StandardDesigner onNavigate={navigate} onClose={() => { setStandardDesigner(false); refresh(); }}
     onReport={standard => { setReportStandard(standard); setStandardDesigner(false); setReports(true); }} />;
-  if (reports) return <Reports initialVisualStandard={reportStandard} onClose={() => { setReports(false); setReportStandard(undefined); refresh(); }} onOpen={doc => { setReports(false); setReportStandard(undefined); setActive(doc); }} />;
-  if (templates) return <TemplateMarket registerDocument={registerTemplate}
+  if (reports) return <Reports onNavigate={navigate} initialVisualStandard={reportStandard} onClose={() => { setReports(false); setReportStandard(undefined); refresh(); }} onOpen={doc => { setReports(false); setReportStandard(undefined); setActive(doc); }} />;
+  if (templates) return <TemplateMarket onNavigate={navigate} registerDocument={registerTemplate}
     onClose={() => { setTemplates(false); setRegisterTemplate(undefined); refresh(); }}
     onApply={doc => { setTemplates(false); setRegisterTemplate(undefined); setActive(doc); }}
     onDesignStandard={() => { setTemplates(false); setRegisterTemplate(undefined); setStandardDesigner(true); }}
     onReport={() => { setTemplates(false); setRegisterTemplate(undefined); setReports(true); }} />;
   if (active?.role === "reader")
     return (
-      <main className="drive">
-        <button
-          onClick={() => {
-            setActive(null);
-            refresh();
-          }}
-        >
-          ← 문서 목록
-        </button>
+      <div className="workspace-shell"><WorkspaceNav active="documents" onNavigate={navigate} onBack={() => { setActive(null); refresh(); }} />
+      <main className="drive drive-workspace">
         <h1>{active.name}</h1>
         <p>열람 권한 · 저장본과 문서 공유 대화를 확인할 수 있습니다.</p>
         <a className="button" href={fileUrl(active)}>
           저장본 다운로드
         </a>
         <CollaborationPanel document={active} />
-      </main>
+      </main></div>
     );
   if (active || creating)
     return (
@@ -130,51 +132,28 @@ function App({
       />
     );
   return (
-    <main className="drive">
-      <header>
+    <div className="workspace-shell library-shell">
+      <WorkspaceNav active="documents" onNavigate={navigate} disabled={copying} footer={<><strong>{account.user_id}</strong><small>{account.authentication_required ? "문서 권한 적용" : "개인 개발 문서함"}</small>{account.authentication_required && <button onClick={async () => { await api("/auth/logout", { method: "POST" }); location.reload(); }}>로그아웃</button>}</>}>
+        <button className="primary workspace-nav-action" onClick={() => setCreating(true)}><WorkspaceIcon name="plus"/><span>+ 새 문서</span></button>
+        <label className="button workspace-nav-action" title="HWPX 업로드"><WorkspaceIcon name="upload"/><span>HWPX 업로드</span><input aria-label="HWPX 업로드" type="file" accept=".hwpx" onChange={event => { if (event.target.files?.[0]) void incoming(event.target.files[0]); event.target.value = ""; }} /></label>
+        <p className="workspace-nav-note">문서를 만들거나 기존 HWPX를 가져와 작업하세요.</p>
+      </WorkspaceNav>
+    <main className="drive drive-workspace">
+      <header className="library-heading">
         <div>
-          <small>
-            {account.user_id} ·{" "}
-            {account.authentication_required
-              ? "문서 권한 적용"
-              : "단일 사용자 개발 모드"}
-          </small>
+          <small>내 작업 공간</small>
           <h1>HWPX 문서함</h1>
           <p>원본을 보존하며 문서를 편집하고, 새 버전으로 저장합니다.</p>
         </div>
-        <button onClick={() => setCreating(true)}>+ 새 문서</button>
-        <button className="primary" onClick={() => setReports(true)}>보고서 작성</button>
-        <button onClick={() => { setRegisterTemplate(undefined); setTemplates(true); }}>템플릿 마켓</button>
-        <button onClick={() => setStandardDesigner(true)}>문서 표준 편집</button>
-        {account.authentication_required && (
-          <button
-            onClick={async () => {
-              await api("/auth/logout", { method: "POST" });
-              location.reload();
-            }}
-          >
-            로그아웃
-          </button>
-        )}
-        <label className="button primary">
-          HWPX 업로드
-          <input
-            aria-label="HWPX 업로드"
-            type="file"
-            accept=".hwpx"
-            onChange={(e) => {
-              if (e.target.files?.[0]) void incoming(e.target.files[0]);
-              e.target.value = "";
-            }}
-          />
-        </label>
+        <span className="library-document-count">{docs.length}개 문서</span>
       </header>
-      <div className="notice">
+      <details className="library-account-note"><summary>문서 보관 및 권한 안내</summary><div className="notice">
         {account.authentication_required
           ? "문서별 열람·편집·소유자 권한과 대화 공개 범위가 적용됩니다."
           : "인증 미설정: 한 명의 local 사용자로 동작합니다. 사용자별 공유는 서버 인증을 설정해야 사용할 수 있습니다."}{" "}
         한글 왕복 호환성은 별도 검증이 필요합니다.
-      </div>
+      </div></details>
+      <div className="library-toolbar">
       <input
         className="search"
         aria-label="파일명 검색"
@@ -186,6 +165,7 @@ function App({
         <option value="newest">최근 등록순</option><option value="oldest">오래된 등록순</option><option value="name">이름순</option>
       </select></label>
       <button disabled={loading} onClick={refresh}>문서 목록 새로고침</button>
+      </div>
       {copyPending && <div className="notice">{copyPending.source.name}의 저장본 복제를 확인 중입니다.
         <button disabled={copying} onClick={() => void copySaved(copyPending.source)}>{copying ? "복제 중…" : "같은 사본 생성 결과 재확인"}</button>
       </div>}
@@ -204,7 +184,7 @@ function App({
           문서가 없습니다. HWPX를 업로드하거나 새 문서를 만드세요.
         </div>
       ) : (
-        <table>
+        <div className="library-table-wrap"><table className="library-table">
           <thead>
             <tr>
               <th>문서명</th>
@@ -215,14 +195,14 @@ function App({
           <tbody>
             {sortedDocs.map((d) => (
               <tr key={d.id}>
-                <td>
+                <td className="library-document-name">
                   <button className="link" onClick={() => setActive(d)}>
-                    {d.name}
+                    <WorkspaceIcon name="documents"/><span>{d.name}</span>
                   </button>
                 </td>
                 <td>{new Date(d.created_at * 1000).toLocaleString("ko-KR")}</td>
-                <td>
-                  <button
+                <td className="library-document-actions">
+                  <button aria-label="이름 변경" title="이름 변경"
                     disabled={d.role === "reader"}
                     onClick={async () => {
                       const name = prompt("새 문서명", d.name);
@@ -239,15 +219,15 @@ function App({
                         }
                     }}
                   >
-                    이름 변경
+                    <WorkspaceIcon name="rename" size={17}/>
                   </button>
-                  <a className="button" href={fileUrl(d)}>
-                    다운로드
+                  <a className="button" href={fileUrl(d)} aria-label="다운로드" title="저장본 다운로드">
+                    <WorkspaceIcon name="download" size={17}/>
                   </a>
-                  <button disabled={copying || !!copyPending} onClick={() => void copySaved(d)}>저장본 복제</button>
-                  <button onClick={() => setHistory(d)}>버전 기록</button>
-                  <label className="button">
-                    새 버전 업로드
+                  <button aria-label="저장본 복제" title="저장본 복제" disabled={copying || !!copyPending} onClick={() => void copySaved(d)}><WorkspaceIcon name="copy" size={17}/></button>
+                  <button aria-label="버전 기록" title="버전 기록" onClick={() => setHistory(d)}><WorkspaceIcon name="history" size={17}/></button>
+                  <label className="button" title="새 버전 업로드">
+                    <WorkspaceIcon name="upload" size={17}/>
                     <input
                       type="file"
                       disabled={d.role === "reader"}
@@ -291,20 +271,20 @@ function App({
                     />
                   </label>
                   {d.role === "owner" && (
-                    <button onClick={() => setSharing(d)}>공유 권한</button>
+                    <button aria-label="공유 권한" title="공유 권한" onClick={() => setSharing(d)}><WorkspaceIcon name="share" size={17}/></button>
                   )}
                   {d.role !== "reader" && (
-                    <button
+                    <button aria-label="양식 등록" title="양식 등록"
                       onClick={() => { setRegisterTemplate(d); setTemplates(true); }}
                     >
-                      양식 등록
+                      <WorkspaceIcon name="templates" size={17}/>
                     </button>
                   )}
                 </td>
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
       {sharing && (
         <AccessPanel document={sharing} onClose={() => setSharing(null)} />
@@ -345,26 +325,10 @@ function App({
           }}
         />
       )}
-    </main>
+    </main></div>
   );
 }
 
-function EditorRailIcon({ name }: { name: "back" | "document" | "save" | "download" | "file" | "block" | "toc" | "conversation" | "review" | "help" | "undo" }) {
-  const paths = {
-    back: "M15 5 8 12l7 7M8 12h12",
-    document: "M7 3h7l4 4v14H7zM14 3v5h4M10 12h5M10 16h5",
-    save: "M5 3h13l3 3v15H3V3zM7 3v6h10V3M7 21v-8h10v8",
-    download: "M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4",
-    file: "M3 6h7l2 2h9v12H3zM3 6V4h7l2 2h7v2",
-    block: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM17.5 14v7M14 17.5h7",
-    toc: "M8 5h13M8 12h13M8 19h13M3 5h.01M3 12h.01M3 19h.01",
-    conversation: "M4 4h16v12H9l-5 4zM8 8h8M8 12h5",
-    review: "M4 3h12v8M4 3v18h8M8 7h4M8 11h3M15 15l2 2 4-5",
-    help: "M9.1 8a3 3 0 0 1 5.8 1c0 2-3 2-3 4M12 17h.01M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20",
-    undo: "M9 4 4 9l5 5M4 9h10a6 6 0 0 1 0 12h-3",
-  };
-  return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]} /></svg>;
-}
 
 function Editor({
   initial,
@@ -838,7 +802,7 @@ function Editor({
   }
   return (
     <div className="workspace editor-workspace">
-      <nav className="editor-rail" aria-label="문서 작업">
+      <WorkspaceNav active="documents" compact className="editor-rail" label="문서 작업">
         <button
           className="editor-rail-action editor-back"
           title="문서 목록"
@@ -855,11 +819,11 @@ function Editor({
               onClose();
           }}
         >
-          <EditorRailIcon name="back" /><span>목록</span>
+          <WorkspaceIcon name="back" /><span>목록</span>
         </button>
         <details className="editor-menu editor-document-menu" name="editor-overflow" ref={documentMenu}>
           <summary className="editor-rail-action" aria-label="문서 정보" title={`${name} · ${status}`}>
-            <EditorRailIcon name="document" /><span>문서</span>
+            <WorkspaceIcon name="document" /><span>문서</span>
             <span role="status" className={`editor-save-state${status.includes("실패") ? " bad" : ""}${dirty ? " unsaved" : ""}`}>
               <span className="editor-visually-hidden">{status}</span>
             </span>
@@ -877,15 +841,15 @@ function Editor({
           disabled={!ready || status === "저장 중" || blockHolding}
           onClick={() => void save(true)}
         >
-          <EditorRailIcon name="save" /><span>저장</span>
+          <WorkspaceIcon name="save" /><span>저장</span>
         </button>
         {doc.current && (
           <a className="button editor-rail-action editor-download" aria-label="저장본 다운로드" title="서버에 저장된 버전 다운로드" href={fileUrl(doc.current)}>
-            <EditorRailIcon name="download" /><span>받기</span>
+            <WorkspaceIcon name="download" /><span>받기</span>
           </a>
         )}
         <details className="editor-menu" name="editor-overflow" ref={fileMenu}>
-          <summary className="editor-rail-action" aria-label="파일 작업" title="파일 작업"><EditorRailIcon name="file" /><span>파일</span></summary>
+          <summary className="editor-rail-action" aria-label="파일 작업" title="파일 작업"><WorkspaceIcon name="file" /><span>파일</span></summary>
           <div className="editor-menu-content" role="group" aria-label="파일 작업 메뉴" onClick={event => {
             if ((event.target as Element).closest("button, a") && fileMenu.current) fileMenu.current.open = false;
           }}>
@@ -931,19 +895,19 @@ function Editor({
         </details>
         <div className="editor-rail-group" role="group" aria-label="문서 구성">
           <button className="editor-rail-action" disabled={!ready} title="블록 삽입" aria-label={`블록 삽입 ${blockPanel ? "닫기" : "열기"}`} aria-pressed={blockPanel}
-            onClick={() => showPanel(blockPanel ? null : "block")}><EditorRailIcon name="block" /><span>블록</span></button>
+            onClick={() => showPanel(blockPanel ? null : "block")}><WorkspaceIcon name="block" /><span>블록</span></button>
           {doc.current?.role !== "reader" && <button className="editor-rail-action editor-toc-state" disabled={!ready} data-state={tocStatus} title={`목차 관리 · ${tocLabel} · ${tocDescription}`} aria-label={`목차 ${tocPanel ? "닫기" : "관리"}`} aria-pressed={tocPanel}
-            onClick={() => showPanel(tocPanel ? null : "toc")}><EditorRailIcon name="toc" /><span>목차</span><i className="editor-toc-dot" aria-hidden="true" /><span className="editor-visually-hidden" aria-label="목차 상태">{tocLabel}</span></button>}
+            onClick={() => showPanel(tocPanel ? null : "toc")}><WorkspaceIcon name="toc" /><span>목차</span><i className="editor-toc-dot" aria-hidden="true" /><span className="editor-visually-hidden" aria-label="목차 상태">{tocLabel}</span></button>}
         </div>
         <div className="editor-rail-group" role="group" aria-label="AI 및 대화">
           <button className="editor-rail-action" disabled={!doc.current} title="대화 · AI" aria-label={`대화 · AI ${conversationPanel ? "닫기" : "열기"}`} aria-pressed={conversationPanel}
-            onClick={() => showPanel(conversationPanel ? null : "conversation")}><EditorRailIcon name="conversation" /><span>대화</span></button>
+            onClick={() => showPanel(conversationPanel ? null : "conversation")}><WorkspaceIcon name="conversation" /><span>대화</span></button>
           <button className="editor-rail-action" title="사내 AI 검토" aria-label={`AI 검토 ${panel ? "닫기" : "열기"}`} aria-pressed={panel}
-            onClick={() => showPanel(panel ? null : "review")}><EditorRailIcon name="review" /><span>검토</span></button>
+            onClick={() => showPanel(panel ? null : "review")}><WorkspaceIcon name="review" /><span>검토</span></button>
         </div>
-        {blockUndoAvailable && <button className="editor-rail-action editor-undo" title="방금 삽입 취소" aria-label="방금 삽입 취소" disabled={blockHolding || status === "저장 중"} onClick={undoBlock}><EditorRailIcon name="undo" /><span>취소</span></button>}
+        {blockUndoAvailable && <button className="editor-rail-action editor-undo" title="방금 삽입 취소" aria-label="방금 삽입 취소" disabled={blockHolding || status === "저장 중"} onClick={undoBlock}><WorkspaceIcon name="undo" /><span>취소</span></button>}
           <details className="editor-menu editor-help" name="editor-overflow" ref={helpMenu}>
-            <summary className="editor-rail-action" aria-label="편집 안내 및 진단" title={`편집 안내${warnings ? " · 엔진 진단 있음" : ""}`}><EditorRailIcon name="help" /><span>안내</span></summary>
+            <summary className="editor-rail-action" aria-label="편집 안내 및 진단" title={`편집 안내${warnings ? " · 엔진 진단 있음" : ""}`}><WorkspaceIcon name="help" /><span>안내</span></summary>
             <div className="editor-menu-content editor-help-content">
               <strong>편집 및 저장 안내</strong>
               <p>왼쪽 저장 버튼과 20초 간격 자동 저장이 서버에 새 버전을 만듭니다.</p>
@@ -952,7 +916,7 @@ function Editor({
               {warnings && <details className="editor-diagnostics"><summary>엔진 열기 진단 / 호환성 안내</summary><pre>{warnings}</pre></details>}
             </div>
           </details>
-      </nav>
+      </WorkspaceNav>
       <div className="editor-notifications" aria-label="편집 알림">
       {error && (
         <div role="alert" className="error">

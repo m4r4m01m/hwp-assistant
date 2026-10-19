@@ -200,6 +200,15 @@ def packed(data, header, section):
 
 
 class TocBuilder(BlockBuilder):
+    def __init__(self, header, section, available):
+        super().__init__(header, section, available)
+        from .reference_report import toc_settings
+        self.reference_settings = toc_settings(header)
+        if self.reference_settings:
+            from .block_hwpx import MergeStyles
+            _, self.reference, _, self.formats = report_styles(visual_settings=self.reference_settings)
+            self.merge = MergeStyles(header, self.reference)
+
     def own_style(self, cid, pid, name, metadata=None):
         sid = self.merge.own_style(cid, pid, name)
         collection = self.merge.collection(self.merge.dest, "styles")
@@ -231,16 +240,28 @@ class TocBuilder(BlockBuilder):
         para.find(f"{{{HH}}}border").attrib.update(borderFillIDRef="1", offsetTop="0", offsetBottom="0", connect="0", ignoreMargin="0")
         left = 3500 if role == "minor" else 2000 if role == "major" else 0
         set_margins(para, left=left, right=2000 if role in ("major", "minor") else 0)
+        right = 2000
+        if self.reference_settings and role != "host":
+            from .reference_source import apply_character, apply_paragraph
+            reference_role = {"root": "toc_title", "major": "toc_major", "minor": "toc_minor"}[role]
+            apply_character(self.reference, char, reference_role, self.reference_settings)
+            from .reference_report import native_character
+            native_character(char)
+            apply_paragraph(para, reference_role, self.reference_settings)
+            left = round(self.reference_settings[reference_role + "_left_indent_pt"] * 100)
+            right = round(self.reference_settings[reference_role + "_right_indent_pt"] * 100)
         if role in ("major", "minor"):
             tab = E.Element(f"{{{HH}}}tabPr", dict(id=str(max(int(t.get("id")) for t in self.reference.iter(f"{{{HH}}}tabPr")) + 1), autoTabLeft="0", autoTabRight="0"))
             switch = E.SubElement(tab, f"{{{HP}}}switch")
-            position = self.available - 1020 - left - 2000
+            padding = round((self.reference_settings["toc_padding_left_mm"] + self.reference_settings["toc_padding_right_mm"]) * 7200 / 25.4) if self.reference_settings else 1020
+            position = self.available - padding - left - right
             case = E.SubElement(switch, f"{{{HP}}}case", {f"{{{HP}}}required-namespace":"http://www.hancom.co.kr/hwpml/2016/HwpUnitChar"})
             E.SubElement(case, f"{{{HH}}}tabItem", dict(pos=str(position), type="RIGHT", leader="DASH", unit="HWPUNIT"))
             fallback = E.SubElement(switch, f"{{{HP}}}default")
             E.SubElement(fallback, f"{{{HH}}}tabItem", dict(pos=str(position * 2), type="RIGHT", leader="DASH"))
             self.reference.find(f".//{{{HH}}}tabProperties").append(tab); para.set("tabPrIDRef", tab.get("id"))
-        for spacing in para.iter(f"{{{HH}}}lineSpacing"): spacing.set("value", "100" if role == "host" else "160")
+        if not self.reference_settings or role == "host":
+            for spacing in para.iter(f"{{{HH}}}lineSpacing"): spacing.set("value", "100" if role == "host" else "160")
         chars.append(char); paras.append(para)
         mapped_cid = self.merge.mapped("charProperties", cid); mapped_pid = self.merge.mapped("paraProperties", pid)
         return mapped_cid, mapped_pid, self.own_style(mapped_cid, mapped_pid, name)
@@ -261,6 +282,11 @@ class TocBuilder(BlockBuilder):
             if kind == "fillBrush": fill.remove(child)
             elif kind.endswith("Border"):
                 child.attrib.update(type="SOLID" if kind in ("leftBorder", "rightBorder") or kind == "topBorder" and first or kind == "bottomBorder" and last else "NONE", width="0.1 mm", color="#A0A0A0")
+                if self.reference_settings:
+                    if child.get("type") != "NONE":
+                        child.set("type", self.reference_settings.get("toc_border_style", "SOLID"))
+                    child.set("width", f"{self.reference_settings.get('toc_border_width_mm', .1):g} mm")
+                    child.set("color", self.reference_settings.get("toc_border_color", "#A0A0A0"))
             elif kind == "diagonal":
                 # Native writer header.rs write_diagonal omits type NONE.
                 # Match that representation only for newly created TOC borders.
@@ -275,7 +301,8 @@ class TocBuilder(BlockBuilder):
         size = E.SubElement(table, f"{{{HP}}}sz", dict(width=str(self.available), height="0", widthRelTo="ABSOLUTE", heightRelTo="ABSOLUTE", protect="0"))
         E.SubElement(table, f"{{{HP}}}pos", dict(treatAsChar="1", affectLSpacing="0", flowWithText="1", allowOverlap="0", holdAnchorAndSO="0", vertRelTo="PARA", horzRelTo="PARA", vertAlign="TOP", horzAlign="LEFT", vertOffset="0", horzOffset="0"))
         E.SubElement(table, f"{{{HP}}}outMargin", dict(left="0", right="0", top="0", bottom="700"))
-        E.SubElement(table, f"{{{HP}}}inMargin", dict(left="510", right="510", top="141", bottom="141"))
+        cell_padding = {side: str(round(self.reference_settings[f"toc_padding_{side}_mm"] * 7200 / 25.4)) for side in ("left", "right", "top", "bottom")} if self.reference_settings else dict(left="510", right="510", top="141", bottom="141")
+        E.SubElement(table, f"{{{HP}}}inMargin", cell_padding)
         rootp, root_sid = self.text_p("< 목 차 >", "root", PREFIX + "root:" + ident)
         paragraphs = [rootp] + [self.text_p(h["text"], "major" if h["level"]==1 else "minor", PREFIX + "entry:" + ident + ":" + h["id"], pages[h["id"]])[0] for h in headings]
         total = 0
@@ -285,11 +312,20 @@ class TocBuilder(BlockBuilder):
             sl = E.SubElement(tc, f"{{{HP}}}subList", dict(id="", textDirection="HORIZONTAL", lineWrap="BREAK", vertAlign="CENTER", linkListIDRef="0", linkListNextIDRef="0", textWidth="0", textHeight="0", hasTextRef="0", hasNumRef="0")); sl.append(p)
             text_length = len(plain_text(p)); point = 20 if row == 0 else 16 if headings[row-1]["level"] == 1 else 14
             estimated_lines = max(1, math.ceil(text_length * point * 80 / max(10000, self.available - 7520)))
-            height = math.ceil(estimated_lines * point * 160 + 282); total += height
+            if self.reference_settings:
+                reference_role = "toc_title" if row == 0 else "toc_major" if headings[row-1]["level"] == 1 else "toc_minor"
+                point = self.reference_settings[reference_role + "_size_pt"]
+                room = self.available - int(cell_padding["left"]) - int(cell_padding["right"]) - 100 * (self.reference_settings[reference_role + "_left_indent_pt"] + self.reference_settings[reference_role + "_right_indent_pt"])
+                estimated_lines = max(1, math.ceil(text_length * point * 80 / max(10000, room)))
+                height = math.ceil(estimated_lines * point * self.reference_settings[reference_role + "_line_percent"] + 100 * (
+                    self.reference_settings[reference_role + "_before_pt"] + self.reference_settings[reference_role + "_after_pt"])) + int(cell_padding["top"]) + int(cell_padding["bottom"])
+            else:
+                height = math.ceil(estimated_lines * point * 160 + 282)
+            total += height
             E.SubElement(tc, f"{{{HP}}}cellAddr", dict(colAddr="0", rowAddr=str(row)))
             E.SubElement(tc, f"{{{HP}}}cellSpan", dict(colSpan="1", rowSpan="1"))
             E.SubElement(tc, f"{{{HP}}}cellSz", dict(width=str(self.available), height=str(height)))
-            E.SubElement(tc, f"{{{HP}}}cellMargin", dict(left="510", right="510", top="141", bottom="141"))
+            E.SubElement(tc, f"{{{HP}}}cellMargin", cell_padding)
         size.set("height", str(total))
         return host, root_sid
 

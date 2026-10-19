@@ -39,8 +39,10 @@ def test_catalog_schema_and_synthetic_preview_do_not_publish_or_call_ai(secured,
     monkeypatch.setattr("app.reports.generate_report", lambda *_: (_ for _ in ()).throw(AssertionError("AI called")))
     before = {path: digest(path.read_bytes()) for path in visual.metadata.__globals__["ASSETS"].glob("*") if path.is_file()}
     catalog = client.get("/api/visual-standards").json()
-    assert catalog["items"] == [] and catalog["defaults"] == visual.DEFAULTS
-    assert {item["key"] for item in catalog["fields"]} == set(visual.DEFAULTS)
+    assert catalog["items"] == [] and catalog["legacy"]["2"]["defaults"] == visual.DEFAULTS
+    assert {item["key"] for item in catalog["legacy"]["2"]["fields"]} == set(visual.DEFAULTS)
+    assert catalog["legacy"]["1"]["defaults"] == visual.LEGACY_DEFAULTS
+    assert catalog["revision"] == 3 and len(catalog["presets"]) == 3
     body, first = preview(client)
     second = client.post("/api/visual-standards/preview", json=body).json()
     assert first == second
@@ -125,8 +127,9 @@ def test_registration_persists_immutable_file_and_owner_scoped_retry(secured, mo
         assert visual.validate_visual_selection(db, "alice", visual.VisualSelection.model_validate(snapshot), folder=folder) == snapshot
     # A completed registration is acknowledged from its frozen receipt even if
     # the current base assets later become unavailable. No preview is rebuilt.
-    monkeypatch.setattr(visual, "base_standard", lambda: (_ for _ in ()).throw(HTTPException(503, "unavailable")))
-    assert client.post("/api/visual-standards", json=body).json() == snapshot
+    with monkeypatch.context() as unavailable:
+        unavailable.setattr(visual, "base_standard", lambda: (_ for _ in ()).throw(HTTPException(503, "unavailable")))
+        assert client.post("/api/visual-standards", json=body).json() == snapshot
     assert len(list(folder.iterdir())) == 1
     changed = {**body, "name": "다른 이름"}
     assert client.post("/api/visual-standards", json=changed).status_code == 409

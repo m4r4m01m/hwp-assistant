@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, ApiError, jsonRequest, type Document, type Version } from "./api";
 import { EditorAdapter } from "./editor";
 import { previewSvg } from "./preview-svg";
+import { WorkspaceNav, WorkspaceIcon, type WorkspaceSection } from "./workspace-nav";
 
 type Template = {
   id: string;
@@ -179,12 +180,14 @@ export function TemplateMarket({
   onReport,
   onDesignStandard,
   registerDocument,
+  onNavigate,
 }: {
   onClose: () => void;
   onApply: (d: Document) => void;
   onReport: () => void;
   onDesignStandard?: () => void;
   registerDocument?: Document;
+  onNavigate?: (section: WorkspaceSection) => void;
 }) {
   const [catalog, setCatalog] = useState<Catalog>({
       items: [],
@@ -493,7 +496,12 @@ export function TemplateMarket({
     </>
   );
   return (
-    <main className="template-market">
+    <div className="workspace-shell market-shell">
+      <WorkspaceNav active="templates" onNavigate={onNavigate} onBack={onClose} backLabel="← 문서함" disabled={locked || registering || editing}>
+        <button className="primary workspace-nav-action" disabled={locked || registering || editing} onClick={registration}><WorkspaceIcon name="plus"/><span>+ 양식 등록</span></button>
+        <p className="workspace-nav-note">저장된 HWPX 버전을 양식으로 등록하고 새 문서에 재사용합니다.</p>
+      </WorkspaceNav>
+    <main className="template-market market-workspace" data-detail-open={!!selected || registering || standardOpen}>
       <header>
         <div>
           <small>저장된 HWPX · 문서 접근 권한 적용</small>
@@ -502,12 +510,7 @@ export function TemplateMarket({
             서식과 표를 미리 보고, 고정된 양식 버전으로 새 문서를 시작하세요.
           </p>
         </div>
-        <button disabled={locked} onClick={registration}>
-          + 양식 등록
-        </button>
-        <button disabled={locked} onClick={onClose}>
-          ← 문서함
-        </button>
+        <button className="market-mobile-back" disabled={locked || editing} onClick={() => { detailGeneration.current++; setSelected(null); setRegistering(false); setEditing(false); setStandardOpen(false); }}>양식 목록으로</button>
       </header>
       {error && (
         <p role="alert" className="error">
@@ -546,7 +549,7 @@ export function TemplateMarket({
             <p>파란 제목선 · □ ㅇ - 문단 · 표와 흐름도 · 핵심 강조</p>
             <small>새 AI 보고서는 항상 이 기준을 사용합니다.</small>
             <div className="market-actions">
-              {onDesignStandard && <button disabled={locked || registering || editing || !!selected} onClick={onDesignStandard}>문서 표준 편집</button>}
+              {onDesignStandard && <button disabled={locked || registering || editing || !!selected} onClick={onDesignStandard}>표준 설정 편집</button>}
               <button
                 disabled={locked || !standard}
                 onClick={() => {
@@ -912,12 +915,12 @@ export function TemplateMarket({
               <h2>양식을 선택하세요</h2>
               <p>실제 한글 엔진으로 서식과 표를 확인할 수 있습니다.</p>
               <small>
-                자동 목차와 사용자 양식을 이용한 AI 생성은 후속 구현 범위입니다.
+                보고서 작성에서는 검증된 자동 목차를 사용합니다. 사용자 양식으로 AI 초안을 생성하는 기능은 후속 범위입니다.
               </small>
             </div>
           )}
         </section>
       </div>
-    </main>
+    </main></div>
   );
 }

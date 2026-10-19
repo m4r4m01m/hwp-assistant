@@ -1,0 +1,42 @@
+.report-review { height: 100%; overflow: auto; overscroll-behavior: contain; padding: clamp(20px, 3vw, 40px); color: #263f55; background: #f6f8fb; }
+.report-review-heading { max-width: 1200px; margin: 0 auto 24px; }
+.report-review-heading h1 { margin: 9px 0; font-size: 26px; line-height: 1.4; overflow-wrap: anywhere; }
+.report-review-heading p { color: #65788c; font-size: 13px; }
+.report-review-heading small { color: #2d679b; font-size: 12px; }
+.report-editor-workspace .report-review .report-steps { flex-direction: row; flex-wrap: wrap; margin: 0 0 28px; }
+.report-review .report-steps li { min-width: 100px; }
+.report-format-chip { display: inline-block; font-size: 12px; border: 1px solid #dce6ef; background: white; border-radius: 20px; padding: 6px 12px; }
+.report-review-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(250px, 310px); align-items: start; gap: 24px; max-width: 1200px; margin: auto; }
+.report-review-content { min-width: 0; background: #fff; padding: clamp(20px, 3vw, 36px); border: 1px solid #e0e7ef; border-radius: 12px; line-height: 1.8; font-size: 14px; overflow-wrap: anywhere; }
+.report-review-content h2 { font-size: 17px; color: #203d57; margin: 0 0 16px; }
+.report-review-content h2 > span { display: inline-block; margin-right: 10px; color: #7f95a9; }
+.report-review-summary { border-bottom: 1px solid #e6ecf2; padding-bottom: 20px; }
+.report-review-section { margin-top: 28px; }
+.report-review-section > p { white-space: pre-wrap; }
+.report-review .report-visual { margin: 18px 0; }
+.report-feedback { position: sticky; top: 0; background: #fff; border: 1px solid #dce6ef; border-radius: 12px; padding: 22px; font-size: 13px; line-height: 1.7; }
+.report-feedback h2 { margin: 0 0 10px; font-size: 17px; }
+.report-feedback p, .report-feedback small { color: #687e92; }
+.report-feedback label { display: block; font-weight: 600; margin: 18px 0 7px; }
+.report-feedback textarea { box-sizing: border-box; width: 100%; resize: vertical; min-height: 140px; font: inherit; }
+.report-feedback button { width: 100%; white-space: normal; margin-top: 12px; }
+.report-review-next { margin-top: 26px; padding-top: 16px; border-top: 1px solid #e4eaf0; }
+.report-review-next small { display: block; margin-top: 10px; font-size: 11px; }
+.report-draft-content { margin: 20px auto; max-width: 820px; padding: 30px; color: #344b60; font: 14px/1.8 system-ui, sans-serif; background: white; border: 1px solid #e0e7ef; border-radius: 12px; }
+.report-draft-content p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.report-draft-content .live-title { font-size: 23px; font-weight: 700; }
+.report-draft-content .live-heading { margin-top: 28px; font-size: 17px; font-weight: 650; }
+.report-formatting-heading { position: sticky; top: 0; padding: 18px 24px; border-bottom: 1px solid #dce5ef; background: #f6f8fb; z-index: 1; }
+.report-formatting-heading strong { display: block; font-size: 16px; color: #254965; }
+.report-formatting-heading p { font-size: 12px; color: #667e94; margin: 7px 0 0; }
+.report-request-drawer details { margin: 18px 0; }
+.report-request-drawer details > summary { cursor: pointer; font-size: 12px; color: #506c86; padding: 7px 0; }
+.report-request-drawer .report-form-options { border-top: 1px solid #e5ebf1; margin-top: 20px; padding-top: 14px; }
+.report-request-drawer .report-form-options label { display: block; margin-top: 16px; }
+.report-request-drawer .report-form-options select { width: 100%; }
+.report-request-drawer .report-input > .primary { width: 100%; margin-top: 20px; }
+.report-current-format { font-size: 12px; padding: 12px; background: #f2f6fa; border-radius: 7px; }
+.report-cover-fields { display: grid; gap: 8px; }
+.report-cover-fields input { width: 100%; box-sizing: border-box; }
+@media (max-width: 1180px) { .report-review-body { grid-template-columns: minmax(0, 1fr); } .report-feedback { position: static; } }
+@media (max-width: 600px) { .report-review { padding: 16px; } .report-review-heading h1 { font-size: 22px; } .report-draft-content { padding: 20px; margin: 12px; } }

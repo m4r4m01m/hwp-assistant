@@ -94,7 +94,8 @@ def install_preview(app, publish, doc_dict, lock_report, decode):
                 if visual and visual["base_standard"] != {k:standard[k] for k in ("id", "reference_sha256", "profile_sha256")}:
                     raise HTTPException(409,"등록 표준의 원본 기준이 달라졌습니다. 기존 초안은 보존되어 있습니다.")
                 blocks = report_blocks(json.loads(row.draft), concise=True, rich=True,
-                                       visual_settings=visual["settings"] if visual else None)
+                                       visual_settings=visual["settings"] if visual else None,
+                                       cover=json.loads(row.input).get("cover"))
                 if len(blocks) > 180: raise HTTPException(422, "보고서가 너무 큽니다. 본문이나 표를 줄여 다시 요청하세요.")
                 # Each exact command runs in its own staging page. Final pagination
                 # is a later layout operation, without lowering the engine fence.
@@ -110,8 +111,10 @@ def install_preview(app, publish, doc_dict, lock_report, decode):
                            "name": json.loads(row.draft)["title"].replace("/", " ").replace("\\", " ") + ".hwpx",
                            "document_standard": standard, "outline_policy": "short-items-v1", "presentation_policy": POLICY, "scaffold_base64": base64.b64encode(data).decode(),
                            "plan": [{**p, "command_id": str(uuid.uuid5(value.id, str(i)))} for i, p in enumerate(plan)]}
-                if selection:
+                if selection and not (visual and visual.get("revision") == 3 and visual["settings"]["preset_id"] == "appendix-1"):
                     preview.update(toc_policy=TOC_POLICY,toc_verified=False,template=selection)
+                elif selection:
+                    preview["template"] = selection
                 if visual:
                     preview["visual_standard"] = visual
                 execution["preview"] = preview; row.execution = canonical(execution)

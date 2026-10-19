@@ -1,21 +1,22 @@
 import React, { useEffect, useRef, useState } from "react";
 import { api, ApiError, jsonRequest, fileUrl, downloadBytes, type Document } from "./api";
-import { EditorAdapter } from "./editor";
-import { ReportPreview } from "./report-preview";
+import { EditorAdapter, type ExportSnapshot } from "./editor";
+import { ReportPreview, type ReportRecovery } from "./report-preview";
 import { ReportWriting, ReportTiming, type LiveReport } from "./report-progress";
-import { ReportContent, ReportText, type Emphasis } from "./report-content";
+import { ReportContent, ReportText } from "./report-content";
+import { ReportReview, type ReportDraft as Draft } from "./report-review";
 import type { VisualSelection } from "./standard-designer";
+import { WorkspaceNav, WorkspaceIcon, type WorkspaceSection } from "./workspace-nav";
 import "./report-editor-workspace.css";
 
-type Draft = { title: string; summary: string; emphasis?: Emphasis[]; sections: { heading: string; paragraphs: string[];
-  tables?: { caption: string; columns: string[]; rows: string[][] }[]; diagrams?: { caption: string; steps: string[] }[] }[];
-  sources: { id: string; title: string; url: string; published: string }[]; limitations: string[] };
 type Template = { id: string; revision: number; standard_id: string; reference_sha256: string;
   standard_profile_sha256: string; profile_sha256: string;
   values: { name: string; description: string; writing_criteria: string[] } };
-type ReportInput = { id: string; prompt: string; research: boolean; template?: Template; visual_standard?: VisualSelection };
-type Job = { id: string; input: { prompt: string; research: boolean; template?: Template; visual_standard?: VisualSelection }; status: string; draft: Draft | null;
-  draft_sha256: string | null; error: string; created_at?: number; execution?: { progress?: LiveReport; timings?: Record<string, number | null> };
+type Cover = { date: string; department: string };
+type ReportInput = { id: string; prompt: string; research: boolean; template?: Template; visual_standard?: VisualSelection; cover?: Cover };
+type RevisionRequest = { sourceId: string; body: { id: string; draft_sha256: string; feedback: string } };
+type Job = { id: string; input: { prompt: string; research: boolean; template?: Template; visual_standard?: VisualSelection; cover?: Cover }; status: string; preview_id?: string | null; draft: Draft | null;
+  draft_sha256: string | null; error: string; created_at?: number; execution?: { progress?: LiveReport; timings?: Record<string, number | null>; revision_of?: string };
   approval: { id: string; document_id: string; saved_version?: string } | null };
 type Approved = { id: string; document_id: string; base_version: string; saved_version?: string; document: Document;
   scaffold_base64: string; plan: { paragraph: number; before: string; text: string; command_id: string }[] };
@@ -29,10 +30,15 @@ function encode(bytes: Uint8Array) {
   return btoa(parts.join(""));
 }
 function decode(value: string) { return Uint8Array.from(atob(value), c => c.charCodeAt(0)); }
+function selectionSnapshot(value: VisualSelection): VisualSelection {
+  const { id, revision, name, settings, settings_sha256, base_standard, preview_sha256 } = value;
+  return { id, revision, name, settings, settings_sha256, base_standard, preview_sha256 };
+}
 
-export function Reports({ onClose, onOpen, initialVisualStandard }: { onClose: () => void; onOpen: (doc: Document) => void; initialVisualStandard?: VisualSelection }) {
-  const [workspacePanel, setWorkspacePanel] = useState<"request" | "content" | null>("request");
+export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: { onClose: () => void; onOpen: (doc: Document) => void; initialVisualStandard?: VisualSelection; onNavigate?: (section: WorkspaceSection) => void }) {
+  const [workspacePanel, setWorkspacePanel] = useState<"request" | "content" | "history" | null>("request");
   const [previewTools, setPreviewTools] = useState<HTMLDivElement | null>(null);
+  const [previewDetails, setPreviewDetails] = useState<HTMLDivElement | null>(null);
   const [writingTools, setWritingTools] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     const close = (event: KeyboardEvent) => { if (event.key === "Escape") setWorkspacePanel(null); };
@@ -40,11 +46,20 @@ export function Reports({ onClose, onOpen, initialVisualStandard }: { onClose: (
     return () => document.removeEventListener("keydown", close);
   }, []);
   const [previewLocked, setPreviewLocked] = useState(false);
+  const [formattingTaskId, setFormattingTaskId] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState("");
+  const [pendingRevision, setPendingRevision] = useState<RevisionRequest | null>(null);
+  const [coverDate, setCoverDate] = useState(""), [coverDepartment, setCoverDepartment] = useState("");
+  const [restoreTaskId, setRestoreTaskId] = useState<string | null>(null), [restoreAttempt, setRestoreAttempt] = useState(0);
   const [templates, setTemplates] = useState<Template[]>([]), [templateId, setTemplateId] = useState("standard-business"),
     [savedWithUnsaved, setSavedWithUnsaved] = useState(false);
-  const [standard, setStandard] = useState<{ name: string; id: string; reference_url: string } | null>(null);
+  const recovery = useRef<ReportRecovery | null>(null);
+  const [recoverySnapshot, setRecoverySnapshot] = useState<ExportSnapshot | null>(null);
+  const [recoveryError, setRecoveryError] = useState("");
   const [visualStandards, setVisualStandards] = useState<VisualSelection[]>([]),
     [visualId, setVisualId] = useState(initialVisualStandard?.id || "");
+  const [visualCatalogReady, setVisualCatalogReady] = useState(false);
+  const visualCatalogInitialized = useRef(false);
   const [prompt, setPrompt] = useState(""), [research, setResearch] = useState(true), [job, setJob] = useState<Job | null>(null),
     [jobs, setJobs] = useState<Job[]>([]), [busy, setBusy] = useState(false), [saving, setSaving] = useState(false),
     [error, setError] = useState(""), [progress, setProgress] = useState(""), [saved, setSaved] = useState<Document | null>(null),
@@ -69,13 +84,27 @@ export function Reports({ onClose, onOpen, initialVisualStandard }: { onClose: (
       if (value.approval?.saved_version) {
         sessionStorage.removeItem("hwp-report-task"); // Keep new report creation reachable after saving.
       } else selectJob(value);
-    }).catch(() => sessionStorage.removeItem("hwp-report-task"));
+    }).catch(cause => {
+      if (stopped || active.current !== null) return;
+      if (cause instanceof ApiError && cause.status === 404) sessionStorage.removeItem("hwp-report-task");
+      else { setRestoreTaskId(id); setError("이전 보고서를 불러오지 못했습니다. 요청과 보완 의견은 보존되어 있습니다. " + String(cause)); }
+    });
     return () => { stopped = true; };
-  }, []);
-  useEffect(() => { void api<{ name: string; id: string; reference_url: string }>("/document-standard").then(setStandard).catch(e => setError(String(e))); }, []);
+  }, [restoreAttempt]);
+  function acceptVisualCatalog(value: { items: VisualSelection[]; presets?: VisualSelection[]; default_id?: string }) {
+    setVisualStandards([...(value.presets || []), ...value.items]);
+    if (!visualCatalogInitialized.current) {
+      visualCatalogInitialized.current = true;
+      setVisualId(current => current || (active.current !== null ? "" : value.default_id || ""));
+    }
+    setVisualCatalogReady(true);
+  }
+  async function loadVisualStandards() {
+    acceptVisualCatalog(await api<{ items: VisualSelection[]; presets?: VisualSelection[]; default_id?: string }>("/visual-standards"));
+  }
   useEffect(() => {
     let stopped = false;
-    void api<{ items: VisualSelection[] }>("/visual-standards").then(value => { if (!stopped) setVisualStandards(value.items); })
+    void api<{ items: VisualSelection[]; presets?: VisualSelection[]; default_id?: string }>("/visual-standards").then(value => { if (!stopped) acceptVisualCatalog(value); })
       .catch(e => { if (!stopped) setError(String(e)); });
     return () => { stopped = true; };
   }, []);
@@ -116,20 +145,29 @@ export function Reports({ onClose, onOpen, initialVisualStandard }: { onClose: (
     return () => clearInterval(timer);
   }, []);
   function selectJob(value: Job) {
+    setRestoreTaskId(null);
     sessionStorage.setItem("hwp-report-task", value.id);
     setJobs(values => values.map(item => item.id === value.id ? value : item));
     active.current = value.id; setJob(value); setPrompt(value.input.prompt); setResearch(value.input.research);
+    setFormattingTaskId(value.preview_id || sessionStorage.getItem("hwp-report-format-task") === value.id ? value.id : null);
+    setFeedback(sessionStorage.getItem(`hwp-report-feedback:${value.id}`) || "");
+    try { setPendingRevision(JSON.parse(sessionStorage.getItem(`hwp-report-revision:${value.id}`) || "null")); }
+    catch { setPendingRevision(null); }
+    setCoverDate(value.input.cover?.date || ""); setCoverDepartment(value.input.cover?.department || "");
     setVisualId(value.input.visual_standard?.id || "");
     setTemplateId(value.input.template?.id || "standard-business"); setSavedWithUnsaved(false);
+    recovery.current = null; setRecoverySnapshot(null); setRecoveryError("");
     setSaved(null); setError(""); setProgress(""); approval.current = null; approvalBody.current = null; output.current = null;
   }
   async function requestReport() {
     const template = templates.find(item => item.id === templateId);
     const visual = visualStandards.find(item => item.id === visualId);
     if (!pending && !template) { setError("보고서 템플릿을 확인한 뒤 요청하세요."); return; }
+    if (!pending && !visualCatalogReady) { setError("문서 표준을 확인한 뒤 요청하세요."); return; }
     if (!pending && visualId && !visual) { setError("선택한 문서 표준을 다시 확인하세요."); return; }
-    const frozen = pending || { id: crypto.randomUUID(), prompt, research, template, ...(visual ? { visual_standard: visual } : {}) };
-    setPending(frozen); active.current = frozen.id; setBusy(true); setError("");
+    const frozen = pending || { id: crypto.randomUUID(), prompt, research, template, ...(visual ? { visual_standard: selectionSnapshot(visual) } : {}),
+      ...(visual?.revision === 3 && ["appendix-2", "appendix-3"].includes(String(visual.settings.preset_id)) ? { cover: { date: coverDate.trim(), department: coverDepartment.trim() } } : {}) };
+    setPending(frozen); active.current = frozen.id; setRestoreTaskId(null); setBusy(true); setError("");
     sessionStorage.setItem("hwp-report-task", frozen.id);
     try { const result = await api<Job>("/report-tasks", jsonRequest("POST", frozen));
       if (active.current === frozen.id) { selectJob(result); setPending(null); void refresh(); }
@@ -137,6 +175,37 @@ export function Reports({ onClose, onOpen, initialVisualStandard }: { onClose: (
       if (e instanceof ApiError && e.status >= 400 && e.status < 500) setPending(null); setError(String(e));
     } }
     finally { if (active.current === frozen.id) setBusy(false); }
+  }
+  async function reviseDraft() {
+    if (!job?.draft_sha256 || (!pendingRevision && !feedback.trim())) return;
+    const request = pendingRevision || { sourceId: job.id, body: { id: crypto.randomUUID(), draft_sha256: job.draft_sha256, feedback: feedback.trim() } };
+    const sourceId = job.id;
+    sessionStorage.setItem(`hwp-report-revision:${sourceId}`, JSON.stringify(request));
+    setPendingRevision(request); setBusy(true); setError("");
+    try {
+      const result = await api<Job>(`/report-tasks/${request.sourceId}/revise`, jsonRequest("POST", request.body));
+      if (active.current === sourceId) {
+        sessionStorage.removeItem(`hwp-report-revision:${sourceId}`);
+        sessionStorage.removeItem(`hwp-report-feedback:${sourceId}`);
+        selectJob(result); setWorkspacePanel(null); void refresh();
+      }
+    } catch (cause) {
+      if (active.current === sourceId) {
+        if (cause instanceof ApiError && cause.status >= 400 && cause.status < 500) {
+          setPendingRevision(null); sessionStorage.removeItem(`hwp-report-revision:${sourceId}`);
+        }
+        setError(String(cause));
+      }
+    } finally { setBusy(false); }
+  }
+  function beginFormatting() {
+    if (!job?.draft || pendingRevision || busy || feedback.trim()) return;
+    sessionStorage.setItem("hwp-report-format-task", job.id);
+    setFormattingTaskId(job.id); setWorkspacePanel(null);
+  }
+  function changeFeedback(value: string) {
+    setFeedback(value);
+    if (job) sessionStorage.setItem(`hwp-report-feedback:${job.id}`, value);
   }
   async function makeDocument() {
     if (!job?.draft || !host.current) return;
@@ -195,11 +264,11 @@ export function Reports({ onClose, onOpen, initialVisualStandard }: { onClose: (
     } catch (e) { setError(String(e)); setProgress(output.current ? "출력은 유지 중입니다. 같은 저장 결과를 재확인할 수 있습니다." : "보고서 저장을 완료하지 못했습니다. 초안은 보존되어 있습니다."); }
     finally { setSaving(false); }
   }
-  const locked = busy || saving || !!lease.current || !!pending || previewLocked;
-  const hasPreview = !!job?.draft && !job.approval;
+  const locked = busy || saving || !!lease.current || !!pending || !!pendingRevision || previewLocked;
+  const hasPreview = !!job?.draft && !job.approval && formattingTaskId === job.id;
   useEffect(() => {
-    if (hasPreview) setWorkspacePanel(null);
-  }, [job?.id, hasPreview]);
+    if (job?.draft) setWorkspacePanel(null);
+  }, [job?.id, job?.draft_sha256, hasPreview]);
   useEffect(() => {
     if (saved) setWorkspacePanel("content");
   }, [saved?.id]);
@@ -208,70 +277,108 @@ export function Reports({ onClose, onOpen, initialVisualStandard }: { onClose: (
   }, [job?.id, job?.status]);
   const selectedVisual = visualStandards.find(item => item.id === visualId)
     || (initialVisualStandard?.id === visualId ? initialVisualStandard : undefined);
+  function downloadRecovery() {
+    setRecoveryError("");
+    try {
+      if (!recovery.current) throw new Error("복구용 출력을 준비한 편집기를 확인할 수 없습니다. 현재 초안을 유지합니다.");
+      setRecoverySnapshot(recovery.current.download());
+    } catch (cause) { setRecoverySnapshot(null); setRecoveryError(String(cause)); }
+  }
+  function openSaved() {
+    if (!saved) return;
+    if (savedWithUnsaved) {
+      try {
+        if (!recoverySnapshot || !recovery.current?.matches(recoverySnapshot)) {
+          setRecoverySnapshot(null);
+          setRecoveryError("다운로드한 출력 이후 편집 내용이 달라졌거나 복구 출력을 확인할 수 없습니다. 복구 파일을 다시 다운로드하세요.");
+          return;
+        }
+        if (!window.confirm("복구 파일을 실제로 저장하고 확인하셨나요? 확인하면 후속 미저장 편집을 닫고 서버에 저장된 보고서를 엽니다. 다운로드를 취소했거나 파일을 확인하지 못했다면 취소를 누르세요.")) return;
+        if (!recovery.current.matches(recoverySnapshot)) {
+          setRecoverySnapshot(null);
+          setRecoveryError("편집 내용이 다시 변경되었습니다. 현재 초안을 유지했으니 복구 파일을 다시 다운로드하세요.");
+          return;
+        }
+      } catch (cause) { setRecoverySnapshot(null); setRecoveryError(String(cause)); return; }
+    }
+    onOpen(saved);
+  }
+  const frozenVisual = job?.input.visual_standard;
+  const formatName = (visual?: VisualSelection) => visual?.name || "기존 기본 보고서 서식";
+  const formatDescription = (visual?: VisualSelection) => `항목 요약 말머리 ${visual?.settings.body_parenthetical_labels === false ? "숨김" : "표시"} · 핵심 요약 ${visual?.settings.show_core_summary === false ? "미포함" : "포함"}`;
   return <main className="report-workspace report-editor-workspace">
-    <nav className="report-workspace-rail" aria-label="보고서 작업 도구">
-      <button aria-label="← 문서 목록" disabled={busy || saving || !!lease.current || previewLocked} onClick={onClose} title="문서 목록으로 돌아가기">←<span>목록</span></button>
-      <button aria-label="작성 요청" title="보고서 작성 요청과 최근 요청" aria-expanded={workspacePanel === "request"} aria-controls="report-request-panel" onClick={() => setWorkspacePanel(value => value === "request" ? null : "request")}>☷<span>작성</span></button>
-      <button aria-label={job?.status === "running" ? "작성 진행" : "결과·출처"} title={job?.status === "running" ? "보고서 작성 진행 정보" : "보고서 결과와 출처"} aria-expanded={workspacePanel === "content"} aria-controls="report-content-panel" onClick={() => setWorkspacePanel(value => value === "content" ? null : "content")}>▤<span>{job?.status === "running" ? "진행" : "내용"}</span></button>
+    <WorkspaceNav active="reports" compact className="report-workspace-rail" label="보고서 작업 도구" onBack={onClose} onNavigate={onNavigate} disabled={locked || job?.status === "running"}>
+      <button aria-label="작성 요청" title="보고서 작성 요청과 최근 요청" aria-expanded={workspacePanel === "request"} aria-controls="report-request-panel" onClick={() => setWorkspacePanel(value => value === "request" ? null : "request")}><WorkspaceIcon name="rename" /><span>작성</span></button>
+      <button aria-label={job?.status === "running" ? "작성 진행" : "결과·출처"} title={job?.status === "running" ? "보고서 작성 진행 정보" : "보고서 결과와 출처"} aria-expanded={workspacePanel === "content"} aria-controls="report-content-panel" onClick={() => setWorkspacePanel(value => value === "content" ? null : "content")}><WorkspaceIcon name="documents" /><span>{job?.status === "running" ? "진행" : "내용"}</span></button>
+      <button aria-label="최근 보고서" title="이전 요청과 보완본" aria-expanded={workspacePanel === "history"} onClick={() => setWorkspacePanel(value => value === "history" ? null : "history")}><WorkspaceIcon name="history"/><span>최근 보고서</span></button>
       <div className="report-preview-tool-host" ref={setPreviewTools} />
-    </nav>
+    </WorkspaceNav>
+    <div className="report-preview-details-host" ref={setPreviewDetails} />
     <aside id="report-request-panel" className="report-workspace-drawer report-request-drawer" hidden={workspacePanel !== "request"} aria-label="보고서 작성 요청 도구">
-      <div className="report-drawer-heading"><div><small>Codex 보고서 작성</small><h1>주제에서 보고서까지</h1></div><button aria-label="작성 요청 도구 닫기" onClick={() => setWorkspacePanel(null)}>×</button></div>
-      <p className="hint">내용 작성 → 문서 입력 → 서식 적용 → 바로 편집. 초안 확정 시 새 HWPX 문서로 저장합니다.</p>
+      <div className="report-drawer-heading"><div><small>보고서 작성</small><h1>{job ? "새 보고서 요청" : "무엇을 정리할까요?"}</h1></div><button aria-label="작성 요청 도구 닫기" onClick={() => setWorkspacePanel(null)}><WorkspaceIcon name="close" size={18} /></button></div>
       <section className="report-input">
-      <h2>어떤 보고서가 필요한가요?</h2>
-      <p className="notice">{selectedVisual ? `등록 서식 적용: ${selectedVisual.name}` : `기본 서식 자동 적용: ${standard?.name || "문서작성 표준 확인 중"}`}<br />
-        제목의 파란 가로선과 □·ㅇ·- 항목의 들여쓰기를 적용합니다. □ 항목은 2~3줄 내외로 정리하고 비교·계획은 표, 절차는 흐름도로 표현합니다. 괄호 요약은 굵게, 핵심 문구는 굵기·파란색으로 강조합니다.
-        {standard && <> <a href={standard.reference_url} download>기준서 원본 보기</a></>}
-        {selectedVisual && <> · <a href={`/api/visual-standards/${selectedVisual.id}/file`} download>등록 표준 예시 보기</a></>}</p>
-      <label htmlFor="report-template">보고서 템플릿</label>
-      <select id="report-template" value={templateId} disabled={locked || !templates.length} onChange={e => setTemplateId(e.target.value)}>
-        {templates.map(item => <option key={item.id} value={item.id}>{item.values.name}</option>)}
-      </select>
-      <p className="hint">{templates.find(item => item.id === templateId)?.values.description || "보고서 템플릿 확인 중"} · 작성 목적과 내용 구성을 정합니다.</p>
-      <button disabled={locked} onClick={() => void refreshTemplates()}>템플릿 목록 다시 확인</button>
-      <label htmlFor="report-visual-standard">문서 서식 표준</label>
-      <select id="report-visual-standard" value={visualId} disabled={locked || job?.status === "running"} onChange={e => setVisualId(e.target.value)}>
-        <option value="">기본 문서작성 표준</option>
-        {visualStandards.map(item => <option key={item.id} value={item.id}>{item.name} · 등록 서식</option>)}
-      </select>
-      <p className="hint">등록한 제목·본문·표 서식은 새 요청에 적용됩니다. 이전 초안과 저장 문서는 그대로 유지됩니다.</p>
-      <button disabled={locked} onClick={() => void api<{ items: VisualSelection[] }>("/visual-standards").then(value => { setVisualStandards(value.items); setError(""); }).catch(e => setError(String(e)))}>문서 표준 목록 다시 확인</button>
-      <label htmlFor="report-prompt">보고서 작성 요청</label><textarea id="report-prompt" rows={9} maxLength={6000} value={prompt} disabled={locked}
-        onChange={e => setPrompt(e.target.value)} placeholder="금융권 해킹 문제에 대한 경영진 보고서를 만들어줘. 주요 사례와 대응 계획, 출처를 포함해줘." />
-      <div className="report-examples">{["금융권 해킹 대응", "외부 업체·클라우드 보안", "고객정보 유출 대응"].map((name, i) => <button key={name} disabled={locked} onClick={() => setPrompt(examples[i])}>{name}</button>)}</div>
-      <label className="check-label"><input type="checkbox" checked={research} disabled={locked} onChange={e => setResearch(e.target.checked)} />공개 웹 자료를 검색하고 출처 포함</label>
-      <p className="hint">입력한 요청은 기존 Codex 로그인으로 처리합니다. 공개자료 검색에는 검색어가 사용됩니다. 민감한 고객정보는 입력하지 마세요.</p>
-      <button className="primary" disabled={busy || saving || !!lease.current || previewLocked || (!pending && (prompt.trim().length < 5 || !templates.some(item => item.id === templateId))) || job?.status === "running"} onClick={() => void requestReport()}>
-        {busy ? "요청 확인 중…" : pending ? "같은 요청 접수 재확인" : "Codex로 보고서 초안 만들기"}</button>
-      {job?.status === "running" && <><p role="status">Codex가 보고서 초안을 작성하고 있습니다.</p><button disabled={busy} onClick={async () => {
-        const id = job.id; setBusy(true); try { const result = await api<Job>(`/report-tasks/${id}/cancel`, { method: "POST" }); if (active.current === id) setJob(result); }
-        catch (e) { setError(String(e)); } finally { setBusy(false); }
-      }}>결과 수신 중단</button><small>수신 중단 후 이 요청의 로컬 실행을 정리합니다.</small></>}
-      {job?.status === "cancelled" && <p>결과 수신을 중단했습니다. 새 지시로 다시 시작할 수 있습니다.</p>}
-      <h3>최근 보고서 요청</h3><button disabled={locked} onClick={() => void refresh()}>목록 새로고침</button>
+        {job && <p className="report-current-format" aria-label="현재 보고서 고정 서식"><strong>현재 초안: {formatName(frozenVisual)}</strong><br />{formatDescription(frozenVisual)}<br />아래 설정은 다음 보고서에 적용됩니다.</p>}
+        <label htmlFor="report-prompt">보고서 작성 요청</label>
+        <textarea id="report-prompt" rows={7} maxLength={6000} value={prompt} disabled={locked || job?.status === "running"} onChange={e => setPrompt(e.target.value)} placeholder="보고할 주제, 대상 독자, 반드시 포함할 사실과 요청 사항을 적어 주세요." />
+        <div className="report-form-options">
+          <label htmlFor="report-template">보고서 템플릿</label>
+          <select id="report-template" value={templateId} disabled={locked || !templates.length || job?.status === "running"} onChange={e => setTemplateId(e.target.value)}>{templates.map(item => <option key={item.id} value={item.id}>{item.values.name}</option>)}</select>
+          <p className="hint">{templates.find(item => item.id === templateId)?.values.description || "작성 목적 확인 중"}</p>
+          <label htmlFor="report-visual-standard">문서 서식 표준</label>
+          <select id="report-visual-standard" value={visualId} disabled={locked || job?.status === "running" || !visualCatalogReady} onChange={e => setVisualId(e.target.value)}>
+            <option value="">기존 기본 보고서 서식</option>
+            {visualStandards.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+          <p className="hint" aria-label="새 요청에 사용할 서식">{formatDescription(selectedVisual)}</p>
+          {selectedVisual?.revision === 3 && selectedVisual.settings.preset_id !== "appendix-1" && <div className="report-cover-fields">
+            <label htmlFor="report-cover-date">표지 작성일</label><input id="report-cover-date" value={coverDate} maxLength={60} disabled={locked || job?.status === "running"} placeholder="예: 2026. 10. 20." onChange={e => setCoverDate(e.target.value)} />
+            <label htmlFor="report-cover-department">표지 작성 부서</label><input id="report-cover-department" value={coverDepartment} maxLength={100} disabled={locked || job?.status === "running"} placeholder="예: 운영지원부 문서관리팀" onChange={e => setCoverDepartment(e.target.value)} />
+          </div>}
+          <label className="check-label"><input type="checkbox" checked={research} disabled={locked || job?.status === "running"} onChange={e => setResearch(e.target.checked)} />공개 웹 자료를 검색하고 출처 포함</label>
+        </div>
+        <button className="primary" disabled={busy || saving || !!lease.current || previewLocked || !!pendingRevision || (!pending && (!visualCatalogReady || prompt.trim().length < 5 || !templates.some(item => item.id === templateId))) || job?.status === "running"} onClick={() => void requestReport()}>{busy ? "요청 확인 중…" : pending ? "같은 요청 접수 재확인" : "Codex로 보고서 초안 만들기"}</button>
+        <p className="hint">초안을 확인하고 보완한 뒤 문서로 만듭니다.</p>
+        <details><summary>작성 예시와 기준</summary>
+          <div className="report-examples">{["금융권 해킹 대응", "외부 업체·클라우드 보안", "고객정보 유출 대응"].map((name, i) => <button key={name} disabled={locked || job?.status === "running"} onClick={() => setPrompt(examples[i])}>{name}</button>)}</div>
+          <button className="report-open-standard" disabled={locked || job?.status === "running" || !onNavigate} onClick={() => onNavigate?.("standards")}>문서작성 기준 열기</button>
+          <button disabled={locked} onClick={() => void refreshTemplates()}>템플릿 목록 다시 확인</button>
+          <button disabled={locked} onClick={() => void loadVisualStandards().then(() => setError("")).catch(e => setError(String(e)))}>문서 표준 목록 다시 확인</button>
+          <p className="hint">기존 Codex 로그인으로 처리합니다. 공개자료 검색에는 검색어가 사용됩니다.</p>
+        </details>
+      </section>
+    </aside>
+    <aside className="report-workspace-drawer" hidden={workspacePanel !== "history"} aria-label="최근 보고서 요청">
+      <div className="report-drawer-heading"><h2>최근 보고서</h2><button aria-label="최근 보고서 닫기" onClick={() => setWorkspacePanel(null)}><WorkspaceIcon name="close" size={18}/></button></div>
+      <button disabled={locked} onClick={() => void refresh()}>목록 새로고침</button>
       <ul className="report-history">{jobs.map(value => <li key={value.id}><button disabled={locked || job?.status === "running"} onClick={async () => {
         setBusy(true); setError(""); try { const current = await api<Job>(`/report-tasks/${value.id}`);
           if (current.approval?.saved_version) { const approved = await api<Approved>(`/report-tasks/${value.id}/approved`); onOpen(approved.document); }
           else selectJob(current);
         } catch (e) { setError(String(e)); } finally { setBusy(false); }
       }}>{value.draft?.title || value.input.prompt.slice(0, 55)}</button>
-        <small>{({ ready: "초안 준비", running: "작성 중", failed: "생성 실패", cancelled: "중단" } as Record<string, string>)[value.status]}{value.approval?.saved_version ? " · 저장됨" : ""}</small></li>)}</ul>
-    </section></aside>
+      <small>{value.execution?.revision_of ? "보완본 · " : ""}{({ ready: "초안 준비", running: "작성 중", failed: "생성 실패", cancelled: "중단" } as Record<string, string>)[value.status]}{value.approval?.saved_version ? " · 저장됨" : ""}</small></li>)}</ul>
+    </aside>
     <section className="report-preview report-workspace-canvas" aria-label="보고서 초안">
-      {error && <p className="report-workspace-error error" role="alert">{error}</p>}
+      {error && <p className="report-workspace-error error" role="alert">{error}{restoreTaskId && <button onClick={() => { setError(""); setRestoreAttempt(value => value + 1); }}>이전 요청 다시 열기</button>}</p>}
       {!error && job?.status === "failed" && <p className="report-workspace-error error" role="alert">{job.error}</p>}
       {job?.status === "running" || (!job?.draft && !!job?.execution?.progress?.blocks.length) ? <ReportWriting key={job.id} startedAt={job.created_at} progress={job.execution?.progress} stopped={job.status !== "running"} controlsHost={writingTools} /> : job?.draft ? <>
-        {!job.approval && <ReportPreview key={job.id} taskId={job.id} draftHash={job.draft_sha256!} onLock={setPreviewLocked} toolbarHost={previewTools}
+        {!job.approval && !hasPreview && <ReportReview draft={job.draft} formatName={formatName(frozenVisual)} feedback={feedback} onFeedback={changeFeedback} onRevise={() => void reviseDraft()} onFormat={beginFormatting} busy={busy} retry={!!pendingRevision} />}
+        {hasPreview && <ReportPreview key={job.id} taskId={job.id} draftHash={job.draft_sha256!} onLock={setPreviewLocked} toolbarHost={previewTools} detailsHost={previewDetails}
           workspacePanelOpen={workspacePanel !== null} onShowDetails={() => setWorkspacePanel(null)}
-          onSaved={(doc, options) => { setSaved(doc); setSavedWithUnsaved(!!options?.unsavedChanges); }} sourceBlocks={job.execution?.progress?.blocks}
-          onExit={() => { setPreviewLocked(false); setJob(null); setSaved(null); setSavedWithUnsaved(false); active.current = null; sessionStorage.removeItem("hwp-report-task"); setWorkspacePanel("request"); }} />}
+          onSaved={(doc, options) => { setSaved(doc); setSavedWithUnsaved(!!options?.unsavedChanges); recovery.current = options?.recovery || null; setRecoverySnapshot(null); setRecoveryError(""); }}
+          onRecoverySnapshot={snapshot => { setRecoverySnapshot(snapshot); setRecoveryError(""); }} sourceBlocks={job.execution?.progress?.blocks}
+          onExit={() => { setPreviewLocked(false); setJob(null); setSaved(null); setSavedWithUnsaved(false); active.current = null; sessionStorage.removeItem("hwp-report-task"); sessionStorage.removeItem("hwp-report-format-task"); setFormattingTaskId(null); setFeedback(""); setWorkspacePanel("request"); }} />}
         {job.approval && <div className="report-empty"><h2>{job.draft.title}</h2><p>결과·출처에서 저장 상태를 확인하고 보고서를 열 수 있습니다.</p><button onClick={() => setWorkspacePanel("content")}>보고서 결과 보기</button></div>}
       </> : <div className="report-empty"><h2>요청을 입력하면 이곳에 초안이 표시됩니다.</h2><p>핵심 요약, 본문, 출처를 함께 검토할 수 있습니다.</p><button onClick={() => setWorkspacePanel("request")}>작성 요청 열기</button></div>}
     </section>
     <aside id="report-content-panel" className="report-workspace-drawer report-content-drawer" hidden={workspacePanel !== "content"} aria-label="보고서 결과와 출처">
-      <div className="report-drawer-heading"><h2>결과·출처</h2><button aria-label="보고서 결과와 출처 닫기" onClick={() => setWorkspacePanel(null)}>×</button></div>
+      <div className="report-drawer-heading"><h2>결과·출처</h2><button aria-label="보고서 결과와 출처 닫기" onClick={() => setWorkspacePanel(null)}><WorkspaceIcon name="close" size={18} /></button></div>
       <div ref={setWritingTools} />
+      {job?.status === "running" && <button disabled={busy} onClick={async () => {
+        const id = job.id; setBusy(true); try { const result = await api<Job>(`/report-tasks/${id}/cancel`, { method: "POST" }); if (active.current === id) setJob(result); }
+        catch (cause) { setError(String(cause)); } finally { setBusy(false); }
+      }}>결과 수신 중단</button>}
+      {job?.status === "cancelled" && <p>작성을 중단했습니다. 새 요청으로 다시 시작할 수 있습니다.</p>}
       {job?.draft ? <><h1>{job.draft.title}</h1>
         {job.input.template && <p className="hint">작성 기준: {job.input.template.values.name}</p>}
         {job.input.visual_standard && <p className="hint">고정 서식: {job.input.visual_standard.name}</p>}
@@ -298,9 +405,13 @@ export function Reports({ onClose, onOpen, initialVisualStandard }: { onClose: (
         catch (e) { setError(String(e)); } finally { setBusy(false); }
       }}>문서 만들기 종료·초안 보존</button>}
       {!saving && !saved && !!output.current && <button onClick={() => downloadBytes(decode((output.current as { output_base64: string }).output_base64), (job?.draft?.title || "보고서") + " 복구용.hwpx")}>미확인 출력 복구용 다운로드</button>}
-      {saved && <div className="notice"><a className="button" href={fileUrl(saved)}>완성 보고서 다운로드</a><button onClick={() => {
-        if (!savedWithUnsaved || window.confirm("저장한 출력 이후의 편집은 아직 서버에 저장되지 않았습니다. 현재 초안을 다운로드한 뒤 저장된 문서를 열까요?")) onOpen(saved);
-      }}>보고서 편집하기</button></div>}
+      {saved && <div className="notice"><a className="button" href={fileUrl(saved)}>완성 보고서 다운로드</a>{savedWithUnsaved ? <div className="report-recovery-actions">
+        <p>후속 편집은 아직 서버에 저장되지 않았습니다. 복구 파일을 다운로드하고 실제 저장을 확인한 뒤 저장본을 여세요.</p>
+        <button onClick={downloadRecovery}>복구 파일 다운로드</button>
+        {recoverySnapshot && <p aria-live="polite">복구 파일 다운로드를 요청했습니다. 다운로드가 취소되거나 실패했다면 현재 초안을 유지하고 다시 다운로드하세요.</p>}
+        {recoveryError && <p className="error" role="alert">{recoveryError}</p>}
+        <button disabled={!recoverySnapshot} onClick={openSaved}>복구 파일 저장 확인·저장본 열기</button>
+      </div> : <button onClick={openSaved}>보고서 편집하기</button>}</div>}
     </aside><div ref={host} className="report-engine" aria-hidden="true" />
   </main>;
 }

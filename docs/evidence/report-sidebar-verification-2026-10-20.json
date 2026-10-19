@@ -1,0 +1,70 @@
+{
+  "date": "2026-10-20",
+  "scope": "Shared sidebar modes, route alignment, report/editor reflow and preserved editing",
+  "changes": {
+    "modes": {"expanded_px": 220, "icons_px": 64, "hidden_px": 0},
+    "preference_key": "hwp-workspace-sidebar-mode",
+    "preference_preserved_across_routes_reload_and_report_stages": true,
+    "shared_icons_and_route_groups": true,
+    "hidden_mode_restore_control": true,
+    "css_collision": "The report rail's generic button rule overrode shared mode button widths and route direction; editor rail alignment/padding also overrode shared navigation.",
+    "fix": "Shared workspace-nav CSS owns rail, mode control and route layout. Page rules retain only local stacking and current-tool active styling; mode buttons may shrink within their flex row."
+  },
+  "automated": {
+    "result": "passed",
+    "passed": 6,
+    "duration_seconds": 39.4,
+    "finished_at": "2026-10-19T16:32:10.8364055Z",
+    "run": ".cache/sidebar-css-final-20261020-b/run.json",
+    "pattern": "SIDEBAR (navigation|display mode|narrow desktop):|MOCK report workspace|MOCK report stream: received",
+    "cases": [
+      "Shared routes and contained surfaces at 1366px",
+      "Shared routes and contained surfaces at 400px",
+      "Persisted display modes and restore across all workspaces",
+      "876x704 report/editor mode buttons inside rail; icon and label on one row",
+      "Real rhwp with mock report: full-height editor, local drawer reflow, manual edit/save/reopen",
+      "Real rhwp with mock report stream: received text, reload and formatted handoff"
+    ],
+    "narrow_geometry_assertions": [
+      "Expanded navigation width equals 220px",
+      "Navigation scrollWidth does not exceed clientWidth",
+      "All three display buttons fit inside navigation bounds",
+      "Global route/editor-back labels follow their icons horizontally with vertical-center difference below 2px"
+    ],
+    "report_workspace_assertions": {
+      "outer_scroll": 0,
+      "viewports": ["1366x900", "800x760", "400x760"],
+      "explicit_sidebar_width_after_layout_px": 220,
+      "iframe_preserved_across_tools": true,
+      "sidebar_modes_preserve_unsaved_document": true,
+      "manual_edit_preserved_across_tools": true,
+      "saved_and_reopened": true
+    },
+    "typescript": "passed",
+    "diagnostic_built_app": "passed; 16 served files matched built entry graphs",
+    "real_engine": true,
+    "engine_wasm_sha256": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0",
+    "actual_model_calls": 0,
+    "remaining_test_listeners": [],
+    "earlier_attempt": {
+      "run": ".cache/sidebar-css-final-20261020/run.json",
+      "result": "interrupted by connection reset/refused; no sidebar geometry result",
+      "note": "Retained separately. A serial isolated rerun passed; the process interruption's cause was not established."
+    }
+  },
+  "visual": {
+    "agent_screenshot_review": true,
+    "viewport": "876x704",
+    "report": ".cache/sidebar-css-final-20261020-b/results/workspace-nav-SIDEBAR-narr-e0967--the-report-and-editor-rail/sidebar-report-876.png",
+    "editor": ".cache/sidebar-css-final-20261020-b/results/workspace-nav-SIDEBAR-narr-e0967--the-report-and-editor-rail/sidebar-editor-876.png",
+    "live_in_app_browser": {
+      "url": "http://127.0.0.1:15200/",
+      "runtime": ".cache/developer/runs/20261020-013052-a8b14da0/run.json",
+      "screenshot": ".cache/reference-review-2026-10-20/report-workspace-final.png",
+      "actions": ["icons", "hidden", "restore"],
+      "result": "Three mode controls visible; route icons and labels aligned horizontally without horizontal overflow."
+    },
+    "human_review": false,
+    "hancom_review": false
+  }
+}

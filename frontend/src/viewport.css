@@ -1,16 +1,16 @@
 /* Editor routes own the viewport. Library/market pages keep normal scrolling. */
-html:has(#root > :is(.workspace, .report-workspace, .standard-designer)),
-body:has(#root > :is(.workspace, .report-workspace, .standard-designer)) {
+html:has(#root > :is(.workspace, .report-workspace, .standard-designer, .workspace-shell)),
+body:has(#root > :is(.workspace, .report-workspace, .standard-designer, .workspace-shell)) {
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
 }
-#root:has(> :is(.workspace, .report-workspace, .standard-designer)) {
+#root:has(> :is(.workspace, .report-workspace, .standard-designer, .workspace-shell)) {
   height: 100dvh;
   min-height: 0;
   overflow: clip;
 }
-#root > :is(.workspace, .report-workspace, .standard-designer) {
+#root > :is(.workspace, .report-workspace, .standard-designer, .workspace-shell) {
   position: fixed;
   inset: 0;
   width: 100%;

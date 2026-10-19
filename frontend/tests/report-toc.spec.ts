@@ -51,6 +51,8 @@ async function typeEnd(page: Page, text: string) {
 async function begin(page: Page, prompt: string) {
   await page.goto("/");
   await page.getByRole("button", { name: "보고서 작성", exact: true }).click();
+  await expect(page.getByLabel("문서 서식 표준", { exact: true })).toBeEnabled();
+  await page.getByLabel("문서 서식 표준", { exact: true }).selectOption(""); // These tests preserve the existing native TOC contract.
   await page.getByLabel("보고서 작성 요청", { exact: true }).fill(prompt);
   await page.getByLabel("공개 웹 자료를 검색하고 출처 포함").uncheck();
   const posted = page.waitForResponse(
@@ -61,6 +63,7 @@ async function begin(page: Page, prompt: string) {
   await page
     .getByRole("button", { name: "Codex로 보고서 초안 만들기", exact: true })
     .click();
+  await page.getByRole("button", { name: "이 내용으로 문서 만들기", exact: true }).click();
   return (await (await posted).json()).id as string;
 }
 async function ready(page: Page, timeout = 90000) {
@@ -566,22 +569,42 @@ test("REAL rhwp + MOCK report TOC: saved response loss preserves frozen bytes an
     expect(saved).toEqual(approved);
     expect(xml(saved)).not.toContain("응답 유실 뒤 후속 미저장 편집");
     expect(await output(await frame(page))).toEqual(later);
+    const openRecovered = page.getByRole("button", { name: "복구 파일 저장 확인·저장본 열기", exact: true });
+    await expect(openRecovered).toBeDisabled();
+    // A failed download must leave the current buffer and frozen save intact.
+    await page.evaluate(() => {
+      (window as any).__originalRecoveryObjectUrl = URL.createObjectURL;
+      URL.createObjectURL = () => { throw new Error("합성 복구 다운로드 실패"); };
+    });
+    await page.getByRole("button", { name: "복구 파일 다운로드", exact: true }).click();
+    await expect(page.getByRole("alert")).toContainText("합성 복구 다운로드 실패");
+    await expect(openRecovered).toBeDisabled();
+    expect(await output(await frame(page))).toEqual(later);
+    await page.evaluate(() => { URL.createObjectURL = (window as any).__originalRecoveryObjectUrl; });
     const downloaded = page.waitForEvent("download");
     await page
-      .getByRole("button", { name: "후속 편집 복구용 다운로드", exact: true })
+      .getByRole("button", { name: "복구 파일 다운로드", exact: true })
       .click();
-    expect(await readFile((await (await downloaded).path())!)).toEqual(later);
+    const recoveryFile = (await (await downloaded).path())!;
+    expect(await readFile(recoveryFile)).toEqual(later);
+    await expect(openRecovered).toBeEnabled();
     await expect(
       page.getByLabel("보고서 템플릿", { exact: true }),
     ).toBeDisabled();
     page.once("dialog", (dialog) => dialog.dismiss());
-    await page
-      .getByRole("button", { name: "보고서 편집하기", exact: true })
-      .click();
+    await openRecovered.click();
     await expect(
       page.getByLabel("한글 초안 편집기", { exact: true }),
     ).toBeVisible();
     expect(await output(await frame(page))).toEqual(later);
+    page.once("dialog", dialog => dialog.accept());
+    await openRecovered.click();
+    await expect(page.getByRole("status")).toHaveText("저장 완료");
+    const reopened = page.frames().find(candidate => candidate.url().includes("/rhwp/"))!;
+    const reopenedBytes = Buffer.from(await reopened.evaluate(() => Array.from((window as any).hwpAssistantBridge.exportSnapshot().bytes) as number[]));
+    expect(reopenedBytes).toEqual(approved);
+    expect(await readFile(recoveryFile)).toEqual(later);
+    expect(saves[1]).toEqual(saves[0]);
     await proof(info, "frozen-save-proof.json", {
       real_engine: true,
       actual_model_calls: 0,
@@ -589,6 +612,9 @@ test("REAL rhwp + MOCK report TOC: saved response loss preserves frozen bytes an
       automated_approval: true,
       frozen_saved_sha256: sha(saved),
       later_unsaved_sha256: sha(later),
+      recovered_download_sha256: sha(await readFile(recoveryFile)),
+      recovery_failure_and_confirmation_cancel_preserve_editor: true,
+      confirmed_open_sha256: sha(reopenedBytes),
       same_save_input: saves[0].id === saves[1].id,
       saved_versions: (
         await (
@@ -682,6 +708,7 @@ test("REAL rhwp + MOCK report TOC: cancellation response loss and old completion
     await page
       .getByRole("button", { name: "Codex로 보고서 초안 만들기", exact: true })
       .click();
+    await page.getByRole("button", { name: "이 내용으로 문서 만들기", exact: true }).click();
     await ready(page);
     const second = await output(await frame(page));
     release();
@@ -726,7 +753,9 @@ test("REAL rhwp + MOCK report TOC: a frozen legacy preview keeps its original la
     .toBe("ready");
   await page.goto("/");
   await page.getByRole("button", { name: "보고서 작성", exact: true }).click();
+  await page.getByRole("button", { name: "최근 보고서", exact: true }).click();
   await page.locator(".report-history button").first().click();
+  await page.getByRole("button", { name: "이 내용으로 문서 만들기", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "초안 확정·서버 저장", exact: true }),
   ).toBeEnabled({ timeout: 90000 });
