@@ -70,7 +70,7 @@ LLM 추론은 시연 기간에 외부 API를 이용하되, 향후 사내 온프�
        v
 [기존 Ubuntu Nginx]
        |
-       | /hwp-assistant/
+       | /hwp-assistant/* → /* (접두 경로 제거)
        v
 [127.0.0.1:3000]
        |
@@ -96,7 +96,7 @@ LLM 추론은 시연 기간에 외부 API를 이용하되, 향후 사내 온프�
 
 외부 사용자는 Tailscale Funnel을 통한 HTTPS 주소로 접근한다.
 
-기존 Nginx는 `/hwp-assistant/` 요청을 내부 애플리케이션의 3000번 포트로 전달한다.
+기존 Ubuntu Nginx는 `/hwp-assistant/` 접두 경로를 `/`로 치환한 후 내부 애플리케이션의 3000번 포트로 전달한다. 이는 실제 공유된 설정의 `proxy_pass http://127.0.0.1:3000/;` 끝에 `/`가 있기 때문이다.
 
 애플리케이션 내부에서는 웹 컨테이너가 정적 리소스를 제공하고, API 요청을 FastAPI로 전달한다.
 
@@ -115,23 +115,37 @@ HWP Assistant는 도메인 루트(`/`)가 아니라 `/hwp-assistant/` 하위 경
 5. SPA 새로고침 및 직접 URL 접근 시에도 정상적으로 페이지를 반환한다.
 6. 로그인·문서 다운로드·리다이렉트·문서 편집기 워커 등의 경로를 검증한다.
 
-**프록시 경로 처리 기준**
+**프록시 경로 처리 기준 — 실제 호스트 설정 확인 (2026-10-22)**
 
-기존 Nginx에서 `/hwp-assistant/` 접두 경로를 유지한 채 3000번 포트로 전달하는 구성을 목표로 한다.
+Ubuntu 서버의 `/etc/nginx/sites-available/side`에 구성된 관련 설정은 다음과 같다.
 
-현재 Nginx가 실제로 접두 경로를 보존하는지 또는 제거하는지는 배포 전 설정 파일을 확인해야 한다.
+```nginx
+location /hwp-assistant/ {
+    proxy_pass http://127.0.0.1:3000/;
+    include /etc/nginx/proxy_params;
+    proxy_set_header X-Forwarded-Proto https;
+}
+```
 
-경로 보존 방식을 채택하면 애플리케이션의 웹 컨테이너가 다음 요청을 처리한다.
+Nginx의 `proxy_pass`에 **후행 슬래시(`/`)가 포함**되어 있으므로, 이 `location`에 일치한 `/hwp-assistant/` 접두사를 `/`로 치환한다. 즉, **브라우저에서는 하위 경로를 사용하지만 3000번 포트의 애플리케이션 웹 컨테이너는 루트 경로를 받는다.** 이 호스트 설정을 유지하며 앱의 외부 리소스 URL을 조정한다.
 
-| 외부 요청 | 내부 처리 |
-|---|---|
-| `/hwp-assistant/` | React 애플리케이션 |
-| `/hwp-assistant/assets/*` | 프런트엔드 정적 파일 |
-| `/hwp-assistant/rhwp/*` | 편집기 엔진·WASM·글꼴 |
-| `/hwp-assistant/api/*` | FastAPI `/api/*` |
-| 기타 프런트엔드 경로 | SPA `index.html` |
+| 브라우저에서 요청하는 외부 경로 | 호스트 Nginx가 3000번으로 전달하는 경로 | 내부 역할 |
+|---|---|---|
+| `/hwp-assistant/` | `/` | React HTML |
+| `/hwp-assistant/assets/*` | `/assets/*` | JS·CSS 정적 파일 |
+| `/hwp-assistant/rhwp/*` | `/rhwp/*` | 편집기 엔진·WASM·글꼴 |
+| `/hwp-assistant/api/*` | `/api/*` | 내부 웹 Nginx → FastAPI `/api/*` |
+| `/hwp-assistant/compare-renderer.html` | `/compare-renderer.html` | 비교 화면 |
 
-기존 Nginx와 애플리케이션 Nginx 사이에서 중복 경로가 발생하지 않도록 설정한다.
+**코드 연동 시 확인할 사항**
+
+- 현재 `frontend/vite.config.ts`는 외부 하위 경로용 `base`를 지정하지 않는다. 배포용 빌드는 `/hwp-assistant/` 기반의 JS/CSS/HTML 공개 URL을 생성하도록 수정한다.
+- 현재 `frontend/src/api.ts`의 `fetch("/api" + path)`와 파일 다운로드 URL은 절대 경로이다. 외부 `/hwp-assistant/api/*`로 요청하도록 조정하되, **내부 FastAPI 라우트는 기존 `/api/*`로 유지**한다.
+- 프런트엔드에서 직접 구성하는 `/rhwp/*`, WASM, 워커, 비교 화면, 폰트 경로도 확인한다. Vite의 `base` 변경만으로 모든 런타임 절대 경로가 자동 수정되지는 않는다.
+- 현재 `frontend/nginx.conf`는 API 프록시에서 `X-Forwarded-Proto $scheme`을 사용한다. Tailscale Funnel과 호스트 Nginx에서 외부 HTTPS를 처리하지만, 내부 웹 컨테이너의 `$scheme`은 HTTP일 수 있다. **원래 외부 HTTPS 정보를 보존해 FastAPI에 전달하는 방법**을 배포 시 검증한다.
+- 루트 `/api/*` 또는 `/assets/*`로 브라우저 요청이 새어나가지 않는지, SPA 직접 접근·로그인·저장·다운로드·Web Worker를 실제 외부 주소에서 확인한다.
+
+기존 호스트 Nginx의 다른 서비스 경로(`/banking-message-assistant/`, `/ubuntu-connection-test/`)는 이번 HWP Assistant 배포 변경 대상이 아니다.
 
 ## 3. 애플리케이션 배포 구조
 
@@ -292,7 +306,7 @@ Tailscale Funnel은 공개 접속 경로이므로 애플리케이션 자체 인�
 
 1. Ubuntu에 Docker Engine 및 Compose 구성
 2. GitHub `main` 기준 배포용 작업 브랜치 준비
-3. 기존 Nginx의 `/hwp-assistant/` 경로 전달 방식 확인
+3. 확인된 호스트 Nginx의 `/hwp-assistant/` → `/` 경로 치환을 배포 기준으로 반영
 4. 프런트엔드 하위 경로 설정 적용
 5. Compose의 웹 진입 포트를 3000번으로 변경
 6. 배포용 컨테이너 이미지 빌드 및 검증
