@@ -10,10 +10,10 @@ export type ReportDraft = {
   sources: { id: string; title: string; url: string; published: string }[]; limitations: string[];
 };
 
-export function ReportReview({ draft, formatName, feedback, onFeedback, onRevise, onFormat, busy, retry }: {
+export function ReportReview({ draft, formatName, feedback, onFeedback, onRevise, onFormat, busy, retry, revisionAvailable = true }: {
   draft: ReportDraft; formatName: string; feedback: string;
   onFeedback: (value: string) => void; onRevise: () => void; onFormat: () => void;
-  busy: boolean; retry: boolean;
+  busy: boolean; retry: boolean; revisionAvailable?: boolean;
 }) {
   return <div className="report-review" aria-label="초안 내용 검토">
     <header className="report-review-heading">
@@ -46,7 +46,7 @@ export function ReportReview({ draft, formatName, feedback, onFeedback, onRevise
         <textarea id="report-feedback" value={feedback} maxLength={6000} rows={7} disabled={busy || retry}
           placeholder="예: 추진 일정에 담당 부서를 추가하고, 대안별 장단점을 표로 비교해줘."
           onChange={event => onFeedback(event.target.value)} />
-        <button disabled={busy || (!retry && !feedback.trim())} onClick={onRevise}>{busy ? "보완 요청 확인 중…" : retry ? "같은 보완 요청 재확인" : "의견 반영해 다시 작성"}</button>
+        <button disabled={busy || (!retry && (!revisionAvailable || !feedback.trim()))} onClick={onRevise}>{busy ? "보완 요청 확인 중…" : retry ? "같은 보완 요청 재확인" : "의견 반영해 다시 작성"}</button>
         <div className="report-review-next"><p>내용이 준비되면 실제 한글 서식과 쪽수를 적용합니다.</p>
           {feedback.trim() && !retry && <p className="hint">작성한 의견을 먼저 반영하거나 지우고 진행하세요.</p>}
           <button className="primary" disabled={busy || retry || !!feedback.trim()} onClick={onFormat}>이 내용으로 문서 만들기</button>

@@ -16,7 +16,7 @@ function fixture(t) {
   mkdirSync(scripts, { recursive: true });
   mkdirSync(resolve(frontend, 'src'), { recursive: true });
   for (const name of ['build-frontend.mjs', 'engine-build-lib.mjs', 'engine-lock.json',
-    'check-engine-bundle.mjs', 'comparison-core.mjs', 'public-base.mjs'])
+    'check-engine-bundle.mjs', 'comparison-core.mjs', 'public-base.mjs', 'precompress-static.mjs'])
     cpSync(resolve(root, 'scripts', name), resolve(scripts, name));
   cpSync(resolve(root, 'scripts/patches'), resolve(scripts, 'patches'), { recursive: true });
   symlinkSync(resolve(root, 'frontend/node_modules'), resolve(frontend, 'node_modules'), 'junction');

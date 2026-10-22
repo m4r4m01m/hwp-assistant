@@ -57,7 +57,7 @@ export function useComparisonDialog(
       if (event.key !== "Tab") return;
       const items = Array.from(
         ref.current?.querySelectorAll<HTMLElement>(
-          'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), summary, [tabindex="0"]',
+          'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, [tabindex="0"]',
         ) || [],
       ).filter((e) => e.getClientRects().length);
       if (!items.length) return;
@@ -135,6 +135,7 @@ function DocumentPane({
   const [loaded, setLoaded] = useState(false),
     [pages, setPages] = useState(0),
     [page, setPage] = useState(0);
+  const [rendering, setRendering] = useState(true);
   const [error, setError] = useState(""),
     [location, setLocation] = useState<PageLocation | undefined>();
   useEffect(() => {
@@ -197,17 +198,19 @@ function DocumentPane({
   }, [pages, block]);
   useEffect(() => {
     if (!renderer.current || !pages) return;
-    try {
-      renderer.current.render(page, location, kind, zoom);
-    } catch (e) {
-      setError(String(e));
-    }
+    let alive = true;
+    setRendering(true);
+    void renderer.current.render(page, location, kind, zoom)
+      .then(() => { if (alive) setRendering(false); })
+      .catch((e) => { if (alive) setError(String(e)); });
+    return () => { alive = false; };
   }, [pages, page, location, kind, zoom]);
   return (
     <div
       className="comparison-pane"
       data-side={side}
-      data-render-ready={pages > 0 && !error}
+      data-render-ready={pages > 0 && !rendering && !error}
+      aria-busy={rendering && !error}
     >
       <div className="comparison-pane-head">
         <strong>{side === "left" ? "기준 문서" : "비교 문서"}</strong>

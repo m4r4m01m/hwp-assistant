@@ -5,6 +5,7 @@ import { root } from './engine-build-lib.mjs';
 import { checkBundle } from './check-engine-bundle.mjs';
 import { comparisonCorePlugin } from './comparison-core.mjs';
 import { normalizePublicBase } from './public-base.mjs';
+import { precompressStatic } from './precompress-static.mjs';
 
 const { values } = parseArgs({ options: {
   public: { type: 'string', default: 'frontend/public' },
@@ -25,4 +26,5 @@ await build({ root: resolve(root, 'frontend'), configFile: false, publicDir, bas
     app: resolve(root, 'frontend/index.html'), comparison: resolve(root, 'frontend/compare-renderer.html'),
   } } } });
 checkBundle(resolve(outDir, 'rhwp'), policy);
+console.log('Static gzip assets:', precompressStatic(outDir));
 console.log('Frontend + verified engine ready:', outDir);

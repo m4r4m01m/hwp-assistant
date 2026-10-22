@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
-import { api, type Document } from "./api";
+import { useEffect, useRef, useState } from "react";
+import { api, ApiError, errorMessage, isAbortError, type Document } from "./api";
 import type { Snapshot } from "./editor";
 import { ContextSnapshot, type FrozenWritingContext, type WritingContext } from "./context";
 import { CandidateText } from "./candidate-text";
+import { CapabilityNotice, useFeature } from "./capabilities";
+import { usePageVisible } from "./ui-state";
 
 export type RewriteTask = {
   id: string; document_id: string; base_version: string; requested_by: string;
@@ -18,13 +20,17 @@ type RewriteProvider = { provider: string; model: string | null; configured: boo
 export type PendingRewrite = { id: string; thread: string; instruction: string; contextRevision?: number };
 const providerLabel = (provider?: string) => provider === "llm" ? "로컬·사내 모델" : provider === "codex" ? "Codex" : "미확인 경로";
 
-export function RewritePanel({ thread, document: doc, context, contextDirty, requestRewrite, approveRewrite, cancelRewrite, getPendingRewrite }: {
+export function RewritePanel({ thread, document: doc, context, contextDirty, requestRewrite, approveRewrite, cancelRewrite, getPendingRewrite, active = true }: {
   thread: string; document: Document; context?: WritingContext; contextDirty?: boolean;
   requestRewrite?: (thread: string, instruction: string, contextRevision?: number) => Promise<void>;
   approveRewrite?: (task: string, candidate: string, application: string) => Promise<void>;
   cancelRewrite?: (task: string) => Promise<void>;
   getPendingRewrite?: () => PendingRewrite | null;
+  active?: boolean;
 }) {
+  const feature = useFeature("rewrite"), visible = usePageVisible();
+  const mounted = useRef(true), actionLock = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const [tasks, setTasks] = useState<RewriteTask[]>([]), [error, setError] = useState(""),
     [instruction, setInstruction] = useState("사실과 의미를 유지하면서 더 자연스럽고 명확한 업무 문체로 개선해 주세요."),
     [provider, setProvider] = useState<RewriteProvider | null>(null),
@@ -34,29 +40,55 @@ export function RewritePanel({ thread, document: doc, context, contextDirty, req
     [busy, setBusy] = useState(false);
   const contextReady = !!context?.confirmation && !context.stale && context.base_version === doc.current_version;
   const pendingRequest = getPendingRewrite?.();
-  const refresh = async () => {
+  const refresh = async (signal?: AbortSignal) => {
     const [history, settings] = await Promise.all([
-      api<RewriteTask[]>(`/threads/${thread}/rewrite-tasks`), api<RewriteProvider>("/rewrite-provider"),
+      api<RewriteTask[]>(`/threads/${thread}/rewrite-tasks`, { signal }), api<RewriteProvider>("/rewrite-provider", { signal }),
     ]);
-    setTasks(history); setProvider(settings);
+    if (mounted.current && !signal?.aborted) { setTasks(history); setProvider(settings); }
   };
   useEffect(() => {
-    let live = true;
-    setProvider(null);
-    void api<RewriteProvider>("/rewrite-provider").then(r => { if (live) setProvider(r); })
-      .catch(e => { if (live) setError(e.message); });
-    const load = () => api<RewriteTask[]>(`/threads/${thread}/rewrite-tasks`).then(r => { if (live) setTasks(r); }).catch(e => { if (live) setError(e.message); });
-    void load();
-    const timer = setInterval(load, 2000);
-    return () => { live = false; clearInterval(timer); };
-  }, [thread]);
-  async function run(fn: () => Promise<void>) {
+    if (!active || !visible) return;
+    const controller = new AbortController();
+    void refresh(controller.signal).catch(cause => {
+      if (!controller.signal.aborted && !isAbortError(cause)) setError(errorMessage(cause));
+    });
+    return () => controller.abort();
+  }, [thread, active, visible]);
+  const running = tasks.some(task => task.status === "running");
+  useEffect(() => {
+    if (!active || !visible || !running) return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>, delay = 2000;
+    const poll = async () => {
+      try {
+        const values = await api<RewriteTask[]>(`/threads/${thread}/rewrite-tasks`, { signal: controller.signal });
+        if (!controller.signal.aborted) { setTasks(values); delay = 2000; }
+      } catch (cause) {
+        if (!controller.signal.aborted && !isAbortError(cause)) {
+          setError(errorMessage(cause));
+          delay = Math.max(Math.min(30000, delay * 2), cause instanceof ApiError ? cause.retryAfterMs || 0 : 0);
+        }
+      } finally {
+        if (!controller.signal.aborted) timer = setTimeout(() => void poll(), delay);
+      }
+    };
+    timer = setTimeout(() => void poll(), delay);
+    return () => { controller.abort(); clearTimeout(timer); };
+  }, [thread, active, visible, running]);
+  async function run(fn: () => Promise<void>, refreshAfter = true) {
+    if (actionLock.current) return;
+    actionLock.current = true;
     setBusy(true); setError("");
-    try { await fn(); } catch(e) { setError(String(e)); }
-    finally { await refresh().catch(e => setError(e.message)); setBusy(false); }
+    try { await fn(); } catch(e) { if (mounted.current) setError(errorMessage(e)); }
+    finally {
+      if (mounted.current && refreshAfter) await refresh().catch(e => { if (mounted.current) setError(errorMessage(e)); });
+      actionLock.current = false;
+      if (mounted.current) setBusy(false);
+    }
   }
   return <section className="rewrite"><h2>선택 문단 수정 후보</h2>
     <p>요청 당시의 미저장 문단을 기준으로 후보 두 개를 만듭니다. 후보 생성만으로 문서를 변경하지 않습니다.</p>
+    <CapabilityNotice feature="rewrite" label="선택 문단 AI 교정" />
     <p data-testid="rewrite-provider">현재 생성 경로: {provider ? providerLabel(provider.provider) : "확인 중"}{provider?.model ? ` · ${provider.model}` : ""}</p>
     <p>{useContext ? `선택 문단·개선 요청과 저장된 작성 정보 리비전 ${context?.revision}을 전달합니다.` : "선택 문단과 개선 요청만 전달합니다."} 전체 대화는 자동으로 포함하지 않습니다.</p>
     {provider?.reason && <p role="alert">{provider.reason}</p>}
@@ -70,11 +102,11 @@ export function RewritePanel({ thread, document: doc, context, contextDirty, req
       {useContext && !contextReady && <p className="notice">아래 작성 정보를 확인하고, 확인 체크와 함께 저장하세요. 문서 기준이 바뀌었다면 다시 확인해야 합니다.</p>}
       {useContext && contextDirty && <p className="notice">작성 정보의 변경을 저장한 뒤 후보를 요청하세요.</p>}
       <label>문체 개선 요청<textarea aria-label="문체 개선 요청" value={instruction} onChange={e => setInstruction(e.target.value)} maxLength={2000} /></label>
-      <button disabled={busy || !provider?.configured || !provider.allowed || tasks.some(t => t.status === "running") || !instruction.trim() || useContext && (!contextReady || contextDirty)} onClick={() => void run(() => requestRewrite(thread, instruction, useContext ? context?.revision : undefined))}>
+      <button disabled={busy || !feature.available || !provider?.configured || !provider.allowed || tasks.some(t => t.status === "running") || !instruction.trim() || useContext && (!contextReady || contextDirty)} onClick={() => void run(() => requestRewrite(thread, instruction, useContext ? context?.revision : undefined))}>
         {provider?.provider === "codex" ? "실제 Codex로 후보 2개 요청" : "로컬·사내 모델로 후보 2개 요청"}
       </button>
     </>}
-    <button disabled={busy} onClick={() => void run(refresh)}>후보·적용 이력 새로고침</button>
+    <button disabled={busy} onClick={() => void run(() => refresh(), false)}>후보·적용 이력 새로고침</button>
     <label className="check-label"><input type="checkbox" checked={highlight} onChange={e => setHighlight(e.target.checked)} />후보 변경 부분 강조</label>
     {error && <p role="alert" className="error">{error}</p>}
     {tasks.map(task => <article key={task.id} data-task-id={task.id}>

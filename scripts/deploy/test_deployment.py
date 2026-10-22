@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, str(Path(__file__).parent))
 from app.production import validate_environment
-from config import check_env, read_env
+from config import DEFAULT_ALLOWED_HOSTS, check_env, read_env
 spec = importlib.util.spec_from_file_location("deploy_init", Path(__file__).with_name("init.py"))
 init = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(init)
@@ -21,7 +21,7 @@ class ProductionSettingsTests(unittest.TestCase):
     def good(self):
         return {"HWP_AUTH_TOKENS": json.dumps({"owner": "a" * 48}),
                 "DATABASE_URL": "postgresql+psycopg://hwp_assistant:" + "b" * 64 + "@db:5432/hwp_assistant",
-                "STORAGE_DIR": "/data/files"}
+                "STORAGE_DIR": "/data/files", "HWP_ALLOWED_HOSTS": DEFAULT_ALLOWED_HOSTS}
 
     def test_valid(self):
         self.assertEqual(list(validate_environment(self.good())), ["owner"])
@@ -37,7 +37,9 @@ class ProductionSettingsTests(unittest.TestCase):
                 validate_environment({**self.good(), "HWP_AUTH_TOKENS": json.dumps(users)})
 
     def test_no_sqlite_or_unmounted_path(self):
-        for key, value in (("DATABASE_URL", "sqlite:///data/test.db"), ("STORAGE_DIR", "./data/files")):
+        for key, value in (("DATABASE_URL", "sqlite:///data/test.db"), ("STORAGE_DIR", "./data/files"),
+                           ("HWP_ALLOWED_HOSTS", ""), ("HWP_ALLOWED_HOSTS", "*"),
+                           ("HWP_ALLOWED_HOSTS", "https://example.com")):
             with self.assertRaises(ValueError):
                 validate_environment({**self.good(), key: value})
 
@@ -48,6 +50,20 @@ class ProductionSettingsTests(unittest.TestCase):
             values = check_env(path)
             self.assertIn("yoseob", json.loads(values["HWP_AUTH_TOKENS"]))
             self.assertEqual(len(values["POSTGRES_PASSWORD"]), 64)
+            self.assertEqual(values["HWP_ALLOWED_HOSTS"], DEFAULT_ALLOWED_HOSTS)
+            self.assertEqual(values["HWP_AUTH_SESSION_TTL_SECONDS"], "28800")
+            self.assertEqual(values["HWP_AUTH_SESSION_IDLE_SECONDS"], "1800")
+            self.assertEqual(values["HWP_AUTH_SESSION_MAX_PER_USER"], "20")
+            self.assertEqual(values["HWP_AI_REQUESTS_PER_MINUTE"], "20")
+            self.assertEqual(values["HWP_LLM_ALLOWED_USERS"], "yoseob")
+            # Existing deployments can keep their private env file unchanged.
+            legacy = "\n".join(line for line in path.read_text().splitlines()
+                               if not line.startswith(("HWP_ALLOWED_HOSTS=", "HWP_LLM_ALLOWED_USERS="))) + "\n"
+            for suffix in ("", "HWP_ALLOWED_HOSTS=\nHWP_LLM_ALLOWED_USERS=\n"):
+                path.write_text(legacy + suffix)
+                compatible = check_env(path)
+                self.assertEqual(compatible["HWP_ALLOWED_HOSTS"], DEFAULT_ALLOWED_HOSTS)
+                self.assertEqual(compatible.get("HWP_LLM_ALLOWED_USERS", ""), "")
             if sys.platform != "win32":
                 path.chmod(0o644)
                 with self.assertRaises(ValueError): read_env(path)
@@ -69,6 +85,18 @@ class ProductionSettingsTests(unittest.TestCase):
         self.assertNotIn('"8000:8000"', text)
         self.assertIn('command: ["python", "-m", "app.production"]', text)
         self.assertIn('HWP_REWRITE_PROVIDER: llm', text)
+        self.assertIn('${HWP_ALLOWED_HOSTS:-' + DEFAULT_ALLOWED_HOSTS + '}', text)
+        for key, default in (("HWP_AUTH_SESSION_TTL_SECONDS", "28800"),
+                             ("HWP_AUTH_SESSION_IDLE_SECONDS", "1800"),
+                             ("HWP_AUTH_SESSION_MAX_PER_USER", "20"),
+                             ("HWP_AI_REQUESTS_PER_MINUTE", "20"),
+                             ("HWP_LLM_ALLOWED_USERS", "")):
+            self.assertIn('${' + key + ':-' + default + '}', text)
+        postgres = 'postgres:17.11-alpine@sha256:1bcc18d81671b02906296aad470ec9778a6b71016ce953092024b680bad007b0'
+        self.assertIn(postgres, text)
+        self.assertIn(postgres, (ROOT / "compose.yaml").read_text())
+        self.assertIn('nginx:1.30.6-alpine@sha256:c59d1f8b1e0e42da75be973424cd72e23f7f8adfb54e982f4d1cd0216a5a5576',
+                      (ROOT / "compose.ci-gateway.yaml").read_text())
 
     def test_cookie_and_proxy_contract(self):
         text = (ROOT / "deploy/nginx.hwp-assistant.conf").read_text()
@@ -90,6 +118,25 @@ class ProductionSettingsTests(unittest.TestCase):
             text = (ROOT / "scripts/deploy" / name).read_text()
             for forbidden in ("down -v", "volume rm", "system prune", "reset --hard"):
                 self.assertNotIn(forbidden, text)
+
+    def test_database_replacement_follows_consistent_backup(self):
+        text = (ROOT / "scripts/deploy/deploy.sh").read_text()
+        keep_old = text.index('dc up -d --no-build --no-recreate --pull never --wait --wait-timeout 180 db')
+        backup = text.index('HWP_BACKUP_RESTART=0 bash "$ROOT/scripts/deploy/backup.sh"')
+        replace_db = text.index('if ! dc up -d --no-build --pull never --wait --wait-timeout 180 db; then')
+        replace_app = text.index('if ! dc up -d --no-build --pull never --wait --wait-timeout 180 api web; then')
+        self.assertLess(text.index('dc pull db'), keep_old)
+        self.assertLess(keep_old, backup)
+        self.assertLess(backup, replace_db)
+        self.assertLess(replace_db, replace_app)
+        failure = text[replace_db:replace_app]
+        self.assertIn('Application writers remain stopped.', failure)
+        self.assertIn('No automatic DB downgrade was attempted.', failure)
+        self.assertIn('exit 1', failure)
+        self.assertNotIn('dc start', failure)
+        backup_script = (ROOT / "scripts/deploy/backup.sh").read_text()
+        self.assertIn('|| (( ! completed ))', backup_script)
+        self.assertIn('dc start "${running[@]}"', backup_script)
 
 
 if __name__ == "__main__":

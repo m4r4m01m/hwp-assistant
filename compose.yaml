@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:17.6-alpine
+    image: postgres:17.11-alpine@sha256:1bcc18d81671b02906296aad470ec9778a6b71016ce953092024b680bad007b0
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-hwp_assistant}
       POSTGRES_USER: ${POSTGRES_USER:-hwp_assistant}
@@ -27,6 +27,12 @@ services:
       SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-120}
       HWP_AUTH_TOKENS: ${HWP_AUTH_TOKENS:-}
       HWP_LEGACY_OWNER: ${HWP_LEGACY_OWNER:-}
+      HWP_ALLOWED_HOSTS: ${HWP_ALLOWED_HOSTS:-}
+      HWP_AUTH_SESSION_TTL_SECONDS: ${HWP_AUTH_SESSION_TTL_SECONDS:-28800}
+      HWP_AUTH_SESSION_IDLE_SECONDS: ${HWP_AUTH_SESSION_IDLE_SECONDS:-1800}
+      HWP_AUTH_SESSION_MAX_PER_USER: ${HWP_AUTH_SESSION_MAX_PER_USER:-20}
+      HWP_AI_REQUESTS_PER_MINUTE: ${HWP_AI_REQUESTS_PER_MINUTE:-20}
+      HWP_LLM_ALLOWED_USERS: ${HWP_LLM_ALLOWED_USERS:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

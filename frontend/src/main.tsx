@@ -8,6 +8,9 @@ import {
   upload,
   fileUrl,
   downloadBytes,
+  downloadFile,
+  errorMessage,
+  isAbortError,
   deltaBody,
   jsonRequest,
   type Document,
@@ -16,14 +19,27 @@ import {
 import "./style.css";
 import "./viewport.css";
 import { AccessPanel, CollaborationPanel } from "./collaboration";
-import { Reports } from "./reports";
-import { TemplateMarket } from "./template-market";
-import { StandardDesigner, type VisualSelection } from "./standard-designer";
-import { BlockInsert, BlockFenceError, blockJson, type BlockCapture, type PreparedBlock } from "./block-insert";
+import type { VisualSelection } from "./standard-designer";
+const Reports = React.lazy(() => import("./reports").then(module => ({ default: module.Reports })));
+const TemplateMarket = React.lazy(() => import("./template-market").then(module => ({ default: module.TemplateMarket })));
+const StandardDesigner = React.lazy(() => import("./standard-designer").then(module => ({ default: module.StandardDesigner })));
+import { BlockInsert, BlockFenceError, blockJson, verifyBlockLayout, type BlockCapture, type PreparedBlock } from "./block-insert";
+import type { BodyLayoutEvidence } from "./block-layout";
 import { TocPanel, type TocCapture, type PreparedToc } from "./toc";
 import "./editor-workspace.css";
 import { WorkspaceNav, WorkspaceIcon, type WorkspaceSection } from "./workspace-nav";
 import "./workspace-shell.css";
+import { CapabilitiesProvider, CapabilityNotice, useFeature } from "./capabilities";
+import { useDebouncedValue, useMobileDrawerCanvas } from "./ui-state";
+
+class WorkspaceLoadBoundary extends React.Component<{ children: React.ReactNode; onBack: () => void }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() {
+    if (this.state.failed) return <main className="drive"><h1>화면을 열지 못했습니다.</h1><p role="alert">연결을 확인한 뒤 다시 열어주세요.</p><button onClick={this.props.onBack}>문서함으로 돌아가기</button><button onClick={() => location.reload()}>페이지 다시 불러오기</button></main>;
+    return this.props.children;
+  }
+}
 
 function App({
   account,
@@ -47,18 +63,23 @@ function App({
     [reportStandard, setReportStandard] = useState<VisualSelection | undefined>(),
     [registerTemplate, setRegisterTemplate] = useState<Document | undefined>(),
     [reports, setReports] = useState(false);
-  const listGeneration = useRef(0);
+  const listGeneration = useRef(0), listController = useRef<AbortController | null>(null);
+  const [searchQuery, flushSearch] = useDebouncedValue(query);
+  const incomingLock = useRef(false), incomingPending = useRef<{ file: File; id: string; key: string; bytes?: Uint8Array } | null>(null);
+  const [uploading, setUploading] = useState(false);
   const sortedDocs = [...docs].sort((a, b) => sort === "name" ? a.name.localeCompare(b.name, "ko", { numeric: true }) || a.id.localeCompare(b.id)
     : sort === "oldest" ? a.created_at - b.created_at || a.id.localeCompare(b.id) : b.created_at - a.created_at || a.id.localeCompare(b.id));
   const refresh = () => {
     const generation = ++listGeneration.current;
+    listController.current?.abort();
+    const controller = new AbortController(); listController.current = controller;
     setLoading(true);
-    api<Document[]>(`/documents?q=${encodeURIComponent(query)}`)
+    api<Document[]>(`/documents?q=${encodeURIComponent(searchQuery)}`, { signal: controller.signal })
       .then(rows => { if (generation === listGeneration.current) setDocs(rows); })
-      .catch((e) => { if (generation === listGeneration.current) setError(e.message); })
+      .catch((e) => { if (generation === listGeneration.current && !isAbortError(e)) setError(errorMessage(e)); })
       .finally(() => { if (generation === listGeneration.current) setLoading(false); });
   };
-  useEffect(refresh, [query]);
+  useEffect(() => { refresh(); return () => { listController.current?.abort(); listGeneration.current++; }; }, [searchQuery]);
   function navigate(section: WorkspaceSection) {
     setActive(null); setCreating(false); setHistory(null); setSharing(null);
     setRegisterTemplate(undefined); setReportStandard(undefined);
@@ -85,26 +106,34 @@ function App({
     } finally { setCopying(false); }
   }
   async function incoming(file: File) {
-    try {
-      setError("");
-      if (!file.name.toLowerCase().endsWith(".hwpx"))
-        throw new Error("HWPX 파일만 업로드하세요.");
-      if (file.size > 30 * 1024 * 1024)
-        throw new Error("30MB 이하 파일만 업로드하세요.");
-      await upload(new Uint8Array(await file.arrayBuffer()), file.name);
-      refresh();
-    } catch (e) {
-      setError(String(e));
+    if (incomingLock.current) return;
+    if (incomingPending.current && incomingPending.current.file !== file) {
+      setError("결과가 확인되지 않은 업로드가 있습니다. 보관한 업로드부터 다시 확인하세요."); return;
     }
+    incomingLock.current = true; setUploading(true); setError("");
+    try {
+      if (!file.name.toLowerCase().endsWith(".hwpx")) throw new Error("HWPX 파일만 업로드하세요.");
+      if (file.size > 30 * 1024 * 1024) throw new Error("30MB 이하 파일만 업로드하세요.");
+      const frozen = incomingPending.current || { file, id: crypto.randomUUID(), key: crypto.randomUUID() };
+      incomingPending.current = frozen;
+      frozen.bytes ||= new Uint8Array(await file.arrayBuffer());
+      await upload(frozen.bytes, file.name, frozen.id, frozen.key);
+      incomingPending.current = null; refresh();
+    } catch (cause) {
+      if (cause instanceof ApiError && cause.status >= 400 && cause.status < 500) incomingPending.current = null;
+      setError(errorMessage(cause));
+    } finally { incomingLock.current = false; setUploading(false); }
   }
-  if (standardDesigner) return <StandardDesigner onNavigate={navigate} onClose={() => { setStandardDesigner(false); refresh(); }}
-    onReport={standard => { setReportStandard(standard); setStandardDesigner(false); setReports(true); }} />;
-  if (reports) return <Reports onNavigate={navigate} initialVisualStandard={reportStandard} onClose={() => { setReports(false); setReportStandard(undefined); refresh(); }} onOpen={doc => { setReports(false); setReportStandard(undefined); setActive(doc); }} />;
-  if (templates) return <TemplateMarket onNavigate={navigate} registerDocument={registerTemplate}
+  const workspace = (child: React.ReactNode, key: string) => <WorkspaceLoadBoundary key={key} onBack={() => navigate("documents")}><React.Suspense fallback={<main className="drive"><p role="status">화면을 불러오는 중…</p></main>}>{child}</React.Suspense></WorkspaceLoadBoundary>;
+
+  if (standardDesigner) return workspace(<StandardDesigner onNavigate={navigate} onClose={() => { setStandardDesigner(false); refresh(); }}
+    onReport={standard => { setReportStandard(standard); setStandardDesigner(false); setReports(true); }} />, "standards");
+  if (reports) return workspace(<Reports onNavigate={navigate} initialVisualStandard={reportStandard} onClose={() => { setReports(false); setReportStandard(undefined); refresh(); }} onOpen={doc => { setReports(false); setReportStandard(undefined); setActive(doc); }} />, "reports");
+  if (templates) return workspace(<TemplateMarket onNavigate={navigate} registerDocument={registerTemplate}
     onClose={() => { setTemplates(false); setRegisterTemplate(undefined); refresh(); }}
     onApply={doc => { setTemplates(false); setRegisterTemplate(undefined); setActive(doc); }}
     onDesignStandard={() => { setTemplates(false); setRegisterTemplate(undefined); setStandardDesigner(true); }}
-    onReport={() => { setTemplates(false); setRegisterTemplate(undefined); setReports(true); }} />;
+    onReport={() => { setTemplates(false); setRegisterTemplate(undefined); setReports(true); }} />, "templates");
   if (active?.role === "reader")
     return (
       <div className="workspace-shell"><WorkspaceNav active="documents" onNavigate={navigate} onBack={() => { setActive(null); refresh(); }} />
@@ -133,9 +162,9 @@ function App({
     );
   return (
     <div className="workspace-shell library-shell">
-      <WorkspaceNav active="documents" onNavigate={navigate} disabled={copying} footer={<><strong>{account.user_id}</strong><small>{account.authentication_required ? "문서 권한 적용" : "개인 개발 문서함"}</small>{account.authentication_required && <button onClick={async () => { await api("/auth/logout", { method: "POST" }); location.reload(); }}>로그아웃</button>}</>}>
+      <WorkspaceNav active="documents" onNavigate={navigate} disabled={copying || uploading} footer={<><strong>{account.user_id}</strong><small>{account.authentication_required ? "문서 권한 적용" : "개인 개발 문서함"}</small>{account.authentication_required && <button onClick={async () => { await api("/auth/logout", { method: "POST" }); location.reload(); }}>로그아웃</button>}</>}>
         <button className="primary workspace-nav-action" onClick={() => setCreating(true)}><WorkspaceIcon name="plus"/><span>+ 새 문서</span></button>
-        <label className="button workspace-nav-action" title="HWPX 업로드"><WorkspaceIcon name="upload"/><span>HWPX 업로드</span><input aria-label="HWPX 업로드" type="file" accept=".hwpx" onChange={event => { if (event.target.files?.[0]) void incoming(event.target.files[0]); event.target.value = ""; }} /></label>
+        <label className="button workspace-nav-action" title="HWPX 업로드"><WorkspaceIcon name="upload"/><span>HWPX 업로드</span><input aria-label="HWPX 업로드" disabled={uploading} type="file" accept=".hwpx" onChange={event => { if (event.target.files?.[0]) void incoming(event.target.files[0]); event.target.value = ""; }} /></label>
         <p className="workspace-nav-note">문서를 만들거나 기존 HWPX를 가져와 작업하세요.</p>
       </WorkspaceNav>
     <main className="drive drive-workspace">
@@ -160,12 +189,17 @@ function App({
         placeholder="파일명 검색"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={event => { if (event.key === "Enter") flushSearch(); }}
       />
       <label className="document-sort">문서 정렬 <select aria-label="문서 정렬" value={sort} onChange={e => setSort(e.target.value)}>
         <option value="newest">최근 등록순</option><option value="oldest">오래된 등록순</option><option value="name">이름순</option>
       </select></label>
       <button disabled={loading} onClick={refresh}>문서 목록 새로고침</button>
       </div>
+      {incomingPending.current && <div className="notice">{incomingPending.current.file.name} 업로드 결과를 확인하고 있습니다.
+        <button disabled={uploading} onClick={() => { if (incomingPending.current) void incoming(incomingPending.current.file); }}>{uploading ? "업로드 확인 중…" : "보관한 업로드 결과 재확인"}</button>
+      </div>}
+      {loading && docs.length > 0 && <p role="status">문서 목록을 갱신하는 중…</p>}
       {copyPending && <div className="notice">{copyPending.source.name}의 저장본 복제를 확인 중입니다.
         <button disabled={copying} onClick={() => void copySaved(copyPending.source)}>{copying ? "복제 중…" : "같은 사본 생성 결과 재확인"}</button>
       </div>}
@@ -177,8 +211,8 @@ function App({
           {error}
         </div>
       )}
-      {loading ? (
-        <p>문서 목록을 불러오는 중…</p>
+      {loading && docs.length === 0 ? (
+        <p role="status">문서 목록을 불러오는 중…</p>
       ) : docs.length === 0 ? (
         <div className="empty">
           문서가 없습니다. HWPX를 업로드하거나 새 문서를 만드세요.
@@ -343,6 +377,9 @@ function Editor({
   history: Document | null;
   closeHistory: () => void;
 }) {
+  const workspaceRoot = useRef<HTMLDivElement>(null);
+  useMobileDrawerCanvas(workspaceRoot, ".editor-row > .editor", ".editor-row > aside:not([hidden])");
+  const reviewFeature = useFeature("review");
   const mount = useRef<HTMLDivElement>(null),
     adapter = useRef<EditorAdapter | null>(null),
     doc = useRef<Document | null>(initial),
@@ -366,7 +403,7 @@ function Editor({
   const onContextDirty = React.useCallback((value: boolean) => { contextDraftDirty.current = value; }, []);
   const applied = useRef<{id: string; snapshot: ExportSnapshot; receipt: unknown} | null>(null);
   const [holdingReview, setHoldingReview] = useState(false);
-  const [name] = useState(initial?.name || "새 문서.hwpx"),
+  const [name, setName] = useState(initial?.name || "새 문서.hwpx"),
     [status, setStatus] = useState("편집기 로딩 중"),
     [error, setError] = useState(""),
     [ready, setReady] = useState(false),
@@ -489,8 +526,13 @@ function Editor({
       throw new BlockFenceError("문서 식별 또는 편집 리비전이 바뀌었습니다. 다시 확인하세요.");
     if (source.contentLoss.count) throw new BlockFenceError("엔진의 내용 손실 경고가 있어 블록을 준비할 수 없습니다. 복구용 다운로드를 확인하세요.");
     if (source.bytes.length > 10 * 1024 * 1024) throw new BlockFenceError("블록 삽입은 10MB 이하의 문서를 지원합니다.");
+    let layout: ReturnType<EditorAdapter["bodyLayout"]>;
+    try { layout = instance.bodyLayout(); }
+    catch (cause) { throw new BlockFenceError(errorMessage(cause)); }
+    if (layout.epoch !== source.epoch || layout.revision !== source.revision)
+      throw new BlockFenceError("배치 검증 중 문서가 바뀌었습니다. 현재 문단에서 다시 준비하세요.");
     dropBlockUndo();
-    const captured = { adapter: instance, document: { ...document }, token: token.current, selection, source };
+    const captured = { adapter: instance, document: { ...document }, token: token.current, selection, source, layout };
     blockHold.current = captured; setBlockHolding(true);
     return captured;
   }
@@ -546,6 +588,18 @@ function Editor({
       const staged = prepared.adapter.exportHwpx();
       if (staged.epoch !== prepared.output.epoch || staged.revision !== prepared.output.revision || staged.contentLoss.count || !equalBytes(staged.bytes, prepared.output.bytes))
         throw new BlockFenceError("검증한 미리보기 내용이 바뀌었습니다. 다시 준비하세요.");
+      if (check === "block-check") {
+        if (!("layout" in captured) || !("layout" in prepared)) throw new BlockFenceError("본문 배치 검증 정보가 없습니다. 다시 준비하세요.");
+        let currentLayout: BodyLayoutEvidence, stagedLayout: BodyLayoutEvidence;
+        try { currentLayout = captured.adapter.bodyLayout(); stagedLayout = prepared.adapter.bodyLayout(); }
+        catch (cause) { throw new BlockFenceError(errorMessage(cause)); }
+        if (currentLayout.revision !== output.revision || currentLayout.epoch !== output.epoch || currentLayout.export_sha256 !== captured.layout.export_sha256 ||
+            stagedLayout.revision !== staged.revision || stagedLayout.epoch !== staged.epoch || stagedLayout.export_sha256 !== prepared.outputSha256)
+          throw new BlockFenceError("본문 배치 검증과 현재 문서가 일치하지 않습니다. 다시 준비하세요.");
+        verifyBlockLayout(captured.layout, currentLayout);
+        verifyBlockLayout(prepared.layout, stagedLayout);
+        verifyBlockLayout(currentLayout, stagedLayout, prepared.plan);
+      }
       const nextHost = blockHosts.current.findIndex(host => host === prepared.adapter.sdk.element.parentElement);
       if (!mount.current || nextHost < 0 || !prepared.adapter.sdk.element.isConnected)
         throw new BlockFenceError("편집기 컨테이너를 확인할 수 없습니다.");
@@ -579,46 +633,63 @@ function Editor({
   useEffect(() => {
     editorAlive.current = true;
     let disposed = false;
-    let instance: EditorAdapter | null = null;
+    const controller = new AbortController();
+    const instance: { current: EditorAdapter | null } = { current: null };
+    let openingLease: { id: string; token: string } | null = null;
+    const releaseOpeningLease = () => {
+      const owned = openingLease; openingLease = null;
+      if (!owned) return;
+      if (token.current === owned.token) token.current = "";
+      void api(`/documents/${owned.id}/session`, { method: "DELETE", headers: { "X-Edit-Session": owned.token }, keepalive: true }).catch(() => {});
+    };
     (async () => {
       try {
         if (initial) {
+          setStatus("편집 권한을 확인하는 중…");
+          // Do not abort this write: a late lease response contains the token
+          // needed to release exactly the lease acquired by this mount.
           const lease = await api<{ token: string; document: Document }>(
-            `/documents/${initial.id}/session`,
-            { method: "POST" },
+            `/documents/${initial.id}/session`, { method: "POST" },
           );
-          token.current = lease.token;
-          doc.current = lease.document;
+          openingLease = { id: lease.document.id, token: lease.token };
+          if (disposed) { releaseOpeningLease(); return; }
+          token.current = lease.token; doc.current = lease.document; setName(lease.document.name);
         }
         if (disposed) return;
-        instance = await EditorAdapter.mount(blockHosts.current[0]!);
-        if (disposed) {
-          instance.destroy();
-          return;
-        }
-        adapter.current = instance;
-        if (doc.current) {
-          const response = await fetch(fileUrl(doc.current));
-          if (!response.ok) throw new Error("문서 다운로드 실패");
-          const bytes = await response.arrayBuffer();
+        const pinned = doc.current ? { ...doc.current } : null;
+        setStatus("문서와 한글 엔진을 불러오는 중…");
+        const mounted = EditorAdapter.mount(blockHosts.current[0]!, { signal: controller.signal }).then(value => {
+          if (disposed || controller.signal.aborted) { value.destroy(); throw new DOMException("취소됨", "AbortError"); }
+          instance.current = value; return value;
+        });
+        const [opened, bytes] = await Promise.all([
+          mounted,
+          pinned ? downloadFile(fileUrl(pinned, pinned.current_version), { signal: controller.signal }) : Promise.resolve(null),
+        ]);
+        if (disposed || controller.signal.aborted) { opened.destroy(); return; }
+        adapter.current = opened;
+        if (pinned && bytes) {
+          setStatus("한글 엔진에서 문서를 여는 중…");
           baseBytes.current = new Uint8Array(bytes);
-          await instance.load(bytes, doc.current.name);
-        } else await instance.bridge.newDocument();
-        // Studio creates its genuine blank HWP document on startup; export is engine serialization.
-        const state = await instance.sdk.getDocumentState();
-        if (disposed) return;
+          await opened.load(bytes, pinned.name);
+        } else await opened.bridge.newDocument();
+        const state = await opened.sdk.getDocumentState();
+        if (disposed || controller.signal.aborted) return;
         epoch.current = state.documentEpoch;
-        savedRevision.current = initial ? instance.bridge.revision() : -1;
+        savedRevision.current = initial ? opened.bridge.revision() : -1;
         setDirty(!initial);
         setStatus(initial ? "저장 완료" : "저장되지 않은 변경 있음");
         setReady(true);
-        const warning = instance.bridge.warnings();
-        if (warning && (warning as { count?: number }).count)
-          setWarnings(JSON.stringify(warning));
-        watchAdapter(instance);
-      } catch (e) {
-        setError(`열기 실패: ${String(e)}`);
-        setStatus("열기 실패");
+        const warning = opened.bridge.warnings();
+        if (warning && (warning as { count?: number }).count) setWarnings(JSON.stringify(warning));
+        watchAdapter(opened);
+      } catch (cause) {
+        controller.abort(); instance.current?.destroy();
+        if (adapter.current === instance.current) adapter.current = null;
+        releaseOpeningLease();
+        if (!disposed && !isAbortError(cause)) {
+          setError(`열기 실패: ${errorMessage(cause)}`); setStatus("열기 실패");
+        }
       }
     })();
     const heartbeat = setInterval(() => {
@@ -641,18 +712,20 @@ function Editor({
     window.addEventListener("beforeunload", guard);
     return () => {
       disposed = true;
+      controller.abort();
       editorAlive.current = false;
       adapterOff.current();
       clearInterval(heartbeat);
       window.removeEventListener("beforeunload", guard);
       adapter.current?.destroy();
       dropBlockUndo(); blockHold.current = null;
-      if (doc.current && token.current)
+      if (openingLease) releaseOpeningLease();
+      else if (doc.current && token.current) {
+        const currentToken = token.current; token.current = "";
         void api(`/documents/${doc.current.id}/session`, {
-          method: "DELETE",
-          headers: { "X-Edit-Session": token.current },
-          keepalive: true,
+          method: "DELETE", headers: { "X-Edit-Session": currentToken }, keepalive: true,
         }).catch(() => {});
+      }
     };
   }, []);
   async function save(force = false) {
@@ -757,6 +830,7 @@ function Editor({
     return () => clearInterval(timer);
   }, []);
   async function review() {
+    if (!reviewFeature.available) { setAiError(reviewFeature.message); return; }
     if (blockHold.current) { setAiError("블록 삽입 준비를 먼저 마무리하세요."); return; }
     if (!adapter.current || !doc.current) {
       setAiError("먼저 문서를 서버에 저장하세요.");
@@ -801,7 +875,7 @@ function Editor({
     }
   }
   return (
-    <div className="workspace editor-workspace">
+    <div ref={workspaceRoot} className="workspace editor-workspace">
       <WorkspaceNav active="documents" compact className="editor-rail" label="문서 작업">
         <button
           className="editor-rail-action editor-back"
@@ -824,7 +898,7 @@ function Editor({
         <details className="editor-menu editor-document-menu" name="editor-overflow" ref={documentMenu}>
           <summary className="editor-rail-action" aria-label="문서 정보" title={`${name} · ${status}`}>
             <WorkspaceIcon name="document" /><span>문서</span>
-            <span role="status" className={`editor-save-state${status.includes("실패") ? " bad" : ""}${dirty ? " unsaved" : ""}`}>
+            <span aria-hidden="true" className={`editor-save-state${status.includes("실패") ? " bad" : ""}${dirty ? " unsaved" : ""}`}>
               <span className="editor-visually-hidden">{status}</span>
             </span>
           </summary>
@@ -917,6 +991,9 @@ function Editor({
             </div>
           </details>
       </WorkspaceNav>
+      <header className="editor-current-document" aria-label="현재 문서와 저장 상태">
+        <strong title={name}>{name}</strong><span role="status" className={status.includes("실패") ? "bad" : dirty ? "unsaved" : ""}>{status}</span>
+      </header>
       <div className="editor-notifications" aria-label="편집 알림">
       {error && (
         <div role="alert" className="error">
@@ -957,6 +1034,7 @@ function Editor({
             <button className="panel-close" aria-label="대화 패널 닫기" onClick={() => showPanel(null)}>닫기</button>
             <CollaborationPanel
               document={doc.current}
+              active={conversationPanel}
               capture={() => adapter.current!.selection()}
               onContextDirty={onContextDirty}
               getPendingRewrite={() => rewriteRequest.current}
@@ -1065,13 +1143,14 @@ function Editor({
           <aside className="review-panel" aria-label="문단 AI 검토 패널">
             <button className="panel-close" aria-label="검토 패널 닫기" onClick={() => showPanel(null)}>닫기</button>
             <h2>문단 AI 검토</h2>
+            <CapabilityNotice feature="review" label="문단 AI 검토" />
             <p className="hint">이 패널은 별도 로컬·사내 모델 연결용입니다. 기본 Codex 후보 생성은 대화 · AI에서 사용할 수 있습니다.</p>
             <button disabled={!doc.current} onClick={() => showPanel("conversation")}>대화의 후보 생성으로 이동</button>
             <p>
               검토할 본문 문단에 커서를 놓으세요. 승인 전에는 문서를 변경하지
               않습니다.
             </p>
-            <button disabled={!ready || aiBusy} onClick={() => void review()}>
+            <button disabled={!ready || aiBusy || !reviewFeature.available} onClick={() => void review()}>
               {aiBusy ? "검토 중…" : "현재 문단 검토"}
             </button>
             <button
@@ -1158,9 +1237,7 @@ function Editor({
                 },
               );
               doc.current = { ...d, current_version: restored.id };
-              const bytes = await (
-                await fetch(fileUrl(doc.current))
-              ).arrayBuffer();
+              const bytes = await downloadFile(fileUrl(doc.current));
               const state = await adapter.current!.load(bytes, name);
               baseBytes.current = new Uint8Array(bytes);
               epoch.current = state.documentEpoch;
@@ -1181,49 +1258,40 @@ function Editor({
   );
 }
 function AuthGate() {
-  const [account, setAccount] = useState<{
-      user_id: string;
-      authentication_required: boolean;
-    } | null>(null),
-    [loading, setLoading] = useState(true),
-    [error, setError] = useState(""),
-    [token, setToken] = useState("");
+  const [account, setAccount] = useState<{ user_id: string; authentication_required: boolean } | null>(null),
+    [loading, setLoading] = useState(true), [error, setError] = useState(""),
+    [token, setToken] = useState(""), [loggingIn, setLoggingIn] = useState(false), [attempt, setAttempt] = useState(0);
+  const loginLock = useRef(false);
   useEffect(() => {
-    api<NonNullable<typeof account>>("/auth/me")
-      .then(setAccount)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
-  if (loading) return <main className="drive">문서함 연결 중…</main>;
-  if (account) return <App account={account} />;
-  return (
-    <main className="drive">
-      <h1>HWPX 문서함 로그인</h1>
-      <p>관리자가 발급한 사용자별 토큰을 입력하세요.</p>
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setError("");
-          try {
-            await api("/auth/login", jsonRequest("POST", { token }));
-            setToken("");
-            setAccount(await api("/auth/me"));
-          } catch (err) {
-            setError(String(err));
-          }
-        }}
-      >
-        <input
-          aria-label="인증 토큰"
-          type="password"
-          autoComplete="off"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-        />
-        <button type="submit">로그인</button>
-      </form>
-      {error && <p role="alert">{error}</p>}
-    </main>
-  );
+    const controller = new AbortController();
+    setLoading(true); setError("");
+    api<NonNullable<typeof account>>("/auth/me", { signal: controller.signal, timeoutMs: 12000 })
+      .then(value => { if (!controller.signal.aborted) setAccount(value); })
+      .catch(cause => {
+        if (!controller.signal.aborted && !(cause instanceof ApiError && cause.status === 401)) setError(errorMessage(cause));
+      }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [attempt]);
+  if (loading) return <main className="drive"><p role="status">문서함 연결 중…</p></main>;
+  if (account) return <CapabilitiesProvider><App account={account} /></CapabilitiesProvider>;
+  return <main className="drive auth-screen">
+    <h1>HWPX 문서함 로그인</h1><p>관리자가 발급한 사용자별 토큰을 입력하세요.</p>
+    <form onSubmit={async event => {
+      event.preventDefault();
+      if (loginLock.current || !token.trim()) return;
+      loginLock.current = true; setLoggingIn(true); setError("");
+      try {
+        await api("/auth/login", { ...jsonRequest("POST", { token }), timeoutMs: 20000 });
+        setToken("");
+        setAccount(await api("/auth/me", { timeoutMs: 12000 }));
+      } catch (cause) { setError(errorMessage(cause)); }
+      finally { loginLock.current = false; setLoggingIn(false); }
+    }}>
+      <input aria-label="인증 토큰" type="password" autoComplete="off" value={token} disabled={loggingIn} onChange={event => setToken(event.target.value)} />
+      <button type="submit" disabled={loggingIn || !token.trim()}>{loggingIn ? "로그인 확인 중…" : "로그인"}</button>
+    </form>
+    {error && <div className="error" role="alert"><p>{error}</p><button disabled={loggingIn} onClick={() => setAttempt(value => value + 1)}>연결 다시 확인</button></div>}
+  </main>;
 }
+
 createRoot(document.getElementById("root")!).render(<AuthGate />);

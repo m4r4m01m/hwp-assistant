@@ -1,11 +1,11 @@
 .workspace-shell > main { grid-column: 2; grid-row: 1; min-width: 0; min-height: 0; width: 100%; height: 100%; margin: 0; max-width: none; overflow: auto; overscroll-behavior: contain; }
 .drive.drive-workspace { padding: 32px clamp(20px, 3.5vw, 54px); }
 .library-heading { min-height: 98px; margin-bottom: 20px; justify-content: space-between; }
-.library-heading small { font-size: 11px; color: #8493a2; }
+.library-heading small { font-size: 11px; color: #526a80; }
 .library-heading h1 { margin: 9px 0 6px; font-size: 27px; letter-spacing: -.05em; }
-.library-heading p { margin: 0; color: #748699; font-size: 13px; }
+.library-heading p { margin: 0; color: #526a80; font-size: 13px; }
 .library-document-count { flex: 0 0 auto; padding: 7px 12px; border-radius: 20px; background: #e9eff6; color: #657e97; font-size: 12px; }
-.library-account-note { margin: 0 0 18px; font-size: 11px; color: #7f90a1; }
+.library-account-note { margin: 0 0 18px; font-size: 11px; color: #526a80; }
 .library-account-note summary { cursor: pointer; }
 .library-account-note .notice { margin: 10px 0 0; }
 .library-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 20px; }
@@ -15,13 +15,13 @@
 .library-toolbar > button { padding: 10px; font-size: 11px; color: #6c8297; }
 .library-table-wrap { overflow-x: auto; border: 1px solid #dee6ee; border-radius: 10px; background: white; }
 .library-table { min-width: 620px; }
-.library-table th { padding: 14px 18px; font-size: 11px; color: #7d8c9c; font-weight: 550; background: #f9fbfd; }
+.library-table th { padding: 14px 18px; font-size: 11px; color: #526a80; font-weight: 550; background: #f9fbfd; }
 .library-table td { padding: 17px 18px; font-size: 12px; }
 .library-table tbody tr:last-child td { border-bottom: 0; }
 .library-table tbody tr:hover { background: #fbfdff; }
 .library-table th:first-child { width: 48%; }
 .library-table th:nth-child(2) { width: 24%; }
-.library-table td:nth-child(2) { color: #8a97a6; font-size: 11px; white-space: nowrap; }
+.library-table td:nth-child(2) { color: #526a80; font-size: 11px; white-space: nowrap; }
 .library-document-name .link { display: flex; align-items: center; gap: 12px; padding: 0; margin: 0; max-width: 100%; text-align: left; white-space: normal; color: #334e69; font-size: 13px; font-weight: 550; line-height: 1.65; }
 .library-document-name svg { color: #7290af; flex: 0 0 auto; }
 .library-document-name span { overflow-wrap: anywhere; }
@@ -63,6 +63,16 @@
   .library-heading p { max-width: 300px; }
   .library-document-count { display: none; }
   .library-toolbar .search { flex-basis: 100%; max-width: none; }
+  .library-toolbar :is(input, select, button) { min-height: 44px; }
+  .library-table-wrap { overflow-x: visible; }
+  .library-table { min-width: 0; width: 100%; }
+  .library-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .library-table tbody, .library-table tr, .library-table td { display: block; width: 100%; }
+  .library-table tbody tr { padding: 14px; border-bottom: 1px solid #dee6ee; }
+  .library-table tbody tr:last-child { border-bottom: 0; }
+  .library-table td { padding: 4px 0; border: 0; }
+  .library-table .library-document-actions { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; margin-top: 6px; white-space: normal; }
+  .library-document-actions :is(button, .button) { width: 42px; min-width: 42px; height: 44px; padding: 8px; margin: 0; }
 }
 @media (max-width: 460px) {
   .drive.drive-workspace, .market-workspace.template-market { padding: 20px 14px; }

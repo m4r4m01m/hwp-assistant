@@ -1,4 +1,5 @@
 import { publicPath } from "./public-path";
+import type { BodyLayoutEvidence } from "./block-layout";
 import {
   createEditor,
   type RhwpEditor,
@@ -45,6 +46,7 @@ type Bridge = {
   documentState(): DocumentState;
   exportSnapshot(): ExportSnapshot;
   layoutEvidence(headings: LayoutHeading[]): LayoutEvidence;
+  bodyLayoutEvidence?(): BodyLayoutEvidence;
   paragraphPage(section: number, paragraph: number): number;
   warnings(): unknown;
   acknowledge(revision: number, epoch: number, name: string): Promise<boolean>;
@@ -64,10 +66,46 @@ export class EditorAdapter {
     readonly sdk: RhwpEditor,
     readonly bridge: Bridge,
   ) {}
-  static async mount(container: HTMLElement) {
-    const sdk = await createEditor(container, {
+  static async mount(container: HTMLElement, options: { signal?: AbortSignal; timeoutMs?: number } = {}) {
+    const signal = options.signal;
+    if (signal?.aborted) throw new DOMException("편집기 준비를 취소했습니다.", "AbortError");
+    const existing = new Set(container.children);
+    let abandoned = false;
+    const creating = createEditor(container, {
       studioUrl: new URL(publicPath("rhwp/index.html?chrome=embed"), location.origin).href,
     });
+    // createEditor appends its iframe before waiting for its load event. Its
+    // initial load wait has no timeout, so own that lifecycle here as well.
+    const ownedFrames = Array.from(container.children).filter(node => !existing.has(node) && node instanceof HTMLIFrameElement);
+    const removeFrames = () => ownedFrames.forEach(frame => frame.remove());
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let cancel = () => {};
+    const stopped = new Promise<never>((_resolve, reject) => {
+      cancel = () => {
+        abandoned = true;
+        removeFrames();
+        reject(new DOMException("편집기 준비를 취소했습니다.", "AbortError"));
+      };
+      signal?.addEventListener("abort", cancel, { once: true });
+      timeout = setTimeout(() => {
+        abandoned = true;
+        removeFrames();
+        reject(new Error("한글 편집기 준비 시간이 길어졌습니다. 연결 상태를 확인한 뒤 다시 열어 주세요."));
+      }, options.timeoutMs ?? 180_000);
+    });
+    let sdk: RhwpEditor;
+    try {
+      sdk = await Promise.race([
+        creating.then(value => {
+          if (abandoned) { value.destroy(); throw new DOMException("편집기 준비를 취소했습니다.", "AbortError"); }
+          return value;
+        }),
+        stopped,
+      ]);
+    } finally {
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", cancel);
+    }
     const bridge = (
       sdk.element.contentWindow as unknown as { hwpAssistantBridge: Bridge }
     ).hwpAssistantBridge;
@@ -85,6 +123,11 @@ export class EditorAdapter {
   }
   exportHwpx() {
     return this.bridge.exportSnapshot();
+  }
+  bodyLayout() {
+    if (!this.bridge.bodyLayoutEvidence)
+      throw new Error("본문 배치 검증 기능을 사용할 수 없습니다. 현재 편집 내용을 저장하거나 복구용으로 내려받은 뒤 페이지를 다시 열어 주세요. 계속되면 관리자에게 문의하세요. 기존 편집 내용은 그대로입니다.");
+    return this.bridge.bodyLayoutEvidence();
   }
   selection() {
     return this.bridge.snapshot();

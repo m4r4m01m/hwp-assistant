@@ -1,7 +1,7 @@
 FROM node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d AS dependencies
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
+RUN npm ci --no-audit --fund=false
 
 FROM rust:1.93.1-bookworm@sha256:7c4ae649a84014c467d79319bbf17ce2632ae8b8be123ac2fb2ea5be46823f31 AS core-build
 RUN apt-get update && apt-get install -y --no-install-recommends python3 git ca-certificates curl \
@@ -31,13 +31,14 @@ ARG HWP_PUBLIC_BASE_PATH=/
 ENV HWP_PUBLIC_BASE_PATH=${HWP_PUBLIC_BASE_PATH}
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY scripts /app/scripts
+COPY frontend/src/block-layout.ts /app/frontend/src/block-layout.ts
 COPY --from=core-build /app/.cache/rhwp-core-release/pkg /app/.cache/rhwp-core-release/pkg
 RUN node --test /app/scripts/public-base.test.mjs && npm run engine
 COPY frontend/index.html frontend/compare-renderer.html frontend/tsconfig.json frontend/vite.config.ts ./
 COPY frontend/src ./src
 RUN node /app/scripts/audit-public-paths.mjs && npm run build
 
-FROM nginx:1.28.0-alpine@sha256:30f1c0d78e0ad60901648be663a710bdadf19e4c10ac6782c235200619158284
+FROM nginx:1.30.6-alpine@sha256:c59d1f8b1e0e42da75be973424cd72e23f7f8adfb54e982f4d1cd0216a5a5576
 ARG HWP_REVISION=development
 LABEL org.opencontainers.image.revision=${HWP_REVISION}
 ARG HWP_NGINX_CONF=frontend/nginx.conf

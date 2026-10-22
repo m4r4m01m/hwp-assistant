@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, jsonRequest, type Document } from "./api";
 import { EditorAdapter, type ExportSnapshot, type Snapshot } from "./editor";
+import { assertBodyLayoutPreserved, type BodyLayoutEvidence, type BlockInsertionPlan } from "./block-layout";
 
 type Block = {
   id: string;
@@ -27,6 +28,7 @@ export type BlockCapture = {
   token: string;
   selection: Snapshot;
   source: ExportSnapshot;
+  layout: BodyLayoutEvidence;
 };
 export type PreparedBlock = {
   capture: BlockCapture;
@@ -34,8 +36,14 @@ export type PreparedBlock = {
   output: ExportSnapshot;
   outputSha256: string;
   requestId: string;
+  layout: BodyLayoutEvidence;
+  plan: BlockInsertionPlan;
 };
 export class BlockFenceError extends Error {}
+export function verifyBlockLayout(before: BodyLayoutEvidence, after: BodyLayoutEvidence, plan?: BlockInsertionPlan) {
+  try { assertBodyLayoutPreserved(before, after, plan); }
+  catch (cause) { throw new BlockFenceError(cause instanceof Error ? cause.message : String(cause)); }
+}
 type Preview = {
   request_id: string;
   input_sha256: string;
@@ -45,6 +53,7 @@ type Preview = {
   block: { id: string; revision: number; sha256: string };
   standard_reference_sha256: string;
   standard_profile_sha256: string;
+  plan: BlockInsertionPlan;
 };
 type Frozen = {
   capture: BlockCapture;
@@ -219,6 +228,8 @@ export function BlockInsert({
         frozen.current = task;
         const sourceSha = await blockHash(source.source.bytes);
         owner(task);
+        if (source.layout.export_sha256 !== sourceSha || source.layout.revision !== source.source.revision || source.layout.epoch !== source.source.epoch)
+          throw new BlockFenceError("원문과 본문 배치 검증 정보가 일치하지 않습니다. 현재 문단에서 다시 준비하세요.");
         task.body = {
           request_id: task.requestId,
           base_version: source.document.current_version,
@@ -261,7 +272,9 @@ export function BlockInsert({
           preview.standard_reference_sha256 !==
             task.catalog.standard_reference_sha256 ||
           preview.standard_profile_sha256 !==
-            task.catalog.standard_profile_sha256
+            task.catalog.standard_profile_sha256 ||
+          preview.plan?.insert_after !== task.capture.selection.selection.target!.paragraph ||
+          !Number.isSafeInteger(preview.plan?.top_level_count) || preview.plan.top_level_count < 1
         )
           throw new BlockFenceError(
             "블록 기준 또는 준비 결과가 일치하지 않습니다. 다시 준비하세요.",
@@ -277,7 +290,7 @@ export function BlockInsert({
       if (!task.prepared) {
         staging.current?.destroy();
         staging.current = null;
-        const instance = await EditorAdapter.mount(getStagingHost());
+        const instance = await EditorAdapter.mount(getStagingHost(), { signal: controller.signal });
         try {
           owner(task);
         } catch (e) {
@@ -297,14 +310,24 @@ export function BlockInsert({
             throw new BlockFenceError(
               "한글 엔진이 내용 손실을 보고했습니다. 기존 편집은 그대로 보존했습니다.",
             );
+          let layout: BodyLayoutEvidence;
+          try { layout = instance.bodyLayout(); }
+          catch (cause) { throw new BlockFenceError(cause instanceof Error ? cause.message : String(cause)); }
+          if (layout.revision !== output.revision || layout.epoch !== output.epoch)
+            throw new BlockFenceError("미리보기의 문서 식별 또는 편집 리비전이 바뀌었습니다. 다시 준비하세요.");
           const outputSha256 = await blockHash(output.bytes);
           owner(task);
+          if (layout.export_sha256 !== outputSha256)
+            throw new BlockFenceError("미리보기 배치 검증과 출력 파일이 일치하지 않습니다. 다시 준비하세요.");
+          verifyBlockLayout(task.capture.layout, layout, task.preview.plan);
           task.prepared = {
             capture: task.capture,
             adapter: instance,
             output,
             outputSha256,
             requestId: task.requestId,
+            layout,
+            plan: { ...task.preview.plan },
           };
         } catch (e) {
           if (staging.current === instance) {

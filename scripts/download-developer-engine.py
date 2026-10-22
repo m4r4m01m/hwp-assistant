@@ -22,6 +22,21 @@ if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repository):
     raise SystemExit('Invalid developer engine repository lock.')
 if not re.fullmatch(r'[a-f0-9]{64}', expected) or '/' in asset_name or '\\' in asset_name:
     raise SystemExit('Invalid developer engine archive lock.')
+
+def require_matching_bridge(root, engine_lock):
+    """Refuse stale kits before consulting credentials or downloading an archive."""
+    bridge_hash = hashlib.sha256((root / 'scripts/assistant-bridge.ts.txt').read_bytes()).hexdigest()
+    if engine_lock.get('bridge_sha256') != bridge_hash:
+        raise SystemExit(
+            'The pinned developer engine does not match this checkout\'s bridge. '
+            'No engine download or credential lookup was attempted. '
+            'Use a matching verified kit, or build the current sources with '
+            'scripts/dev.ps1 -EnginePublic .cache/developer/source-engine/public -BuildEngine Docker '
+            '(fixed native toolchain: -BuildEngine Native). '
+            'Preserve existing engine caches and document data. See docs/developer-quickstart.md.'
+        )
+
+require_matching_bridge(ROOT, lock)
 folder = (ROOT / args.out).resolve()
 if not folder.is_relative_to((ROOT / '.cache').resolve()) or folder == (ROOT / '.cache').resolve():
     raise SystemExit('Downloads must use a dedicated directory under .cache.')

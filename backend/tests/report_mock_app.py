@@ -1,5 +1,5 @@
 """Isolated test entry point. Never import this module in the product server."""
-from app import reports
+from app import reports, codex_runner
 from app.main import create_app
 import json
 import os
@@ -40,6 +40,15 @@ def generate(value, settings, progress=lambda value: None, active=lambda: True):
     return draft, {"executor": "synthetic-report-fixture", "completed": True, "web_search_calls": 0, "actual_model_calls": 0}
 
 
+def synthetic_settings():
+    # This test entry point uses only the recorded/synthetic runner above.
+    # Do not read a real Codex login or configuration to advertise capabilities.
+    return codex_runner.CodexSettings(sys.executable, 'synthetic-test-model',
+                                     'http://127.0.0.1:8000', ())
+
+
+reports.capture_settings = synthetic_settings
+codex_runner.capture_settings = synthetic_settings
 reports.generate_report = generate
 app = create_app()
 

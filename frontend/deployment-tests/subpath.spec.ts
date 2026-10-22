@@ -25,6 +25,7 @@ test("HTTPS subpath login, real Studio and immutable comparison renderer", async
   expect(cookie?.path).toBe("/hwp-assistant/api");
   expect(cookie?.httpOnly).toBe(true);
   expect(cookie?.secure).toBe(true);
+  expect(cookie?.value).not.toBe(token);
 
   await page.getByRole("button", { name: "deployment-smoke-synthetic.hwpx", exact: true }).click();
   await expect.poll(() => page.frames().some(frame => frame.url().includes("/hwp-assistant/rhwp/index.html"))).toBe(true);
@@ -44,9 +45,23 @@ test("HTTPS subpath login, real Studio and immutable comparison renderer", async
   const result = await page.evaluate(async ({ bytes, hash }) => {
     const renderer = (window as any).hwpComparisonRenderer;
     await renderer.ready;
-    return renderer.open(new Uint8Array(bytes), hash);
+    const fontsBefore = performance.getEntriesByType("resource").filter(entry => entry.name.includes("/rhwp/fonts/")).length;
+    const opened = await renderer.open(new Uint8Array(bytes), hash);
+    await renderer.render(0);
+    const svg = document.querySelector("#page svg");
+    return {
+      ...opened, fontsBefore,
+      fontsAfter: performance.getEntriesByType("resource").filter(entry => entry.name.includes("/rhwp/fonts/")).length,
+      fontErrors: [...document.fonts].filter(font => font.status === "error").length,
+      visible: !!svg && getComputedStyle(svg).visibility === "visible" && svg.getBoundingClientRect().width > 0,
+    };
   }, { bytes: stored, hash: receipt.sha256 });
   expect(result.pages).toBeGreaterThan(0);
+  expect(result.fontsBefore).toBe(0);
+  expect(result.fontsAfter).toBeGreaterThan(0);
+  expect(result.fontsAfter).toBeLessThan(14);
+  expect(result.fontErrors).toBe(0);
+  expect(result.visible).toBe(true);
   expect(escaped).toEqual([]);
   expect(errors).toEqual([]);
   await page.goto(base);

@@ -37,7 +37,14 @@ button.primary,
   color: #fff;
 }
 input[type="file"] {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 header {
   display: flex;
@@ -351,10 +358,21 @@ article small {
 }
 button:focus-visible,
 a:focus-visible,
-summary:focus-visible {
+summary:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+label:has(input[type="file"]):focus-within {
   outline: 3px solid #4c91c9;
   outline-offset: 2px;
 }
+.capability-notice { margin: 14px 0; padding: 14px; border: 1px solid #c8d9ec; border-radius: 6px; background: #eef5fc; color: #355b7d; font-size: 13px; line-height: 1.65; }
+.capability-notice strong { font-weight: 500; }
+.capability-notice p { margin: 4px 0 12px; }
+.capability-notice button { white-space: normal; font-size: 12px; }
+.auth-screen { max-width: 680px; }
+.auth-screen form { display: flex; flex-wrap: wrap; gap: 10px; }
+.auth-screen input { min-width: 180px; flex: 1; padding: 10px; }
 .collaboration textarea {
   display: block;
   width: 100%;

@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 import httpx
 import pytest
 from sqlalchemy import event, select
+from app import llm
 from app.db import Application, Document, RewriteCandidate, RewriteTask, transaction
 from app.hwpx import digest
 from app.llm import OpenAICompatible
@@ -244,10 +245,10 @@ def test_transport_failure_has_one_call_no_fallback_and_no_secrets(local_jobs, m
     # Exercise HTTP exception sanitization, not just a prebuilt error fixture.
     monkeypatch.setattr(OpenAICompatible, "request", REAL_REQUEST)
     calls = []
-    async def fail(*args, **kwargs):
-        calls.append(kwargs)
+    async def fail(request):
+        calls.append(request.method)
         raise exception
-    monkeypatch.setattr(httpx.AsyncClient, "request", fail)
+    monkeypatch.setattr(llm, "pooled_client", lambda: httpx.AsyncClient(transport=httpx.MockTransport(fail)))
     assert submit(local_jobs).status_code == 200
     task = execute(local_jobs)
     assert task["status"] == "failed" and task["execution"]["error_status"] == status

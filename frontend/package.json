@@ -9,7 +9,9 @@
     "engine": "node ../scripts/build-engine.mjs",
     "engine:core": "node ../scripts/export-release-core.mjs",
     "test:engine-build": "node --test ../scripts/engine-build.test.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:unit": "node --test unit/*.test.mjs",
+    "test:ui": "playwright test --config playwright.ui.config.ts"
   },
   "dependencies": {
     "@rhwp/core": "0.8.6",
