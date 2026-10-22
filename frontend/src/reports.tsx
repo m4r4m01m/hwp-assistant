@@ -162,7 +162,7 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
   async function requestReport() {
     const template = templates.find(item => item.id === templateId);
     const visual = visualStandards.find(item => item.id === visualId);
-    if (!pending && !template) { setError("보고서 템플릿을 확인한 뒤 요청하세요."); return; }
+    if (!pending && !template) { setError("내용 구성을 선택한 뒤 요청하세요."); return; }
     if (!pending && !visualCatalogReady) { setError("문서 표준을 확인한 뒤 요청하세요."); return; }
     if (!pending && visualId && !visual) { setError("선택한 문서 표준을 다시 확인하세요."); return; }
     const frozen = pending || { id: crypto.randomUUID(), prompt, research, template, ...(visual ? { visual_standard: selectionSnapshot(visual) } : {}),
@@ -304,13 +304,13 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
     onOpen(saved);
   }
   const frozenVisual = job?.input.visual_standard;
-  const formatName = (visual?: VisualSelection) => visual?.name || "기존 기본 보고서 서식";
+  const formatName = (visual?: VisualSelection) => visual?.name || "이전 기본 서식 (호환용)";
   const formatDescription = (visual?: VisualSelection) => `항목 요약 말머리 ${visual?.settings.body_parenthetical_labels === false ? "숨김" : "표시"} · 핵심 요약 ${visual?.settings.show_core_summary === false ? "미포함" : "포함"}`;
   return <main className="report-workspace report-editor-workspace">
     <WorkspaceNav active="reports" compact className="report-workspace-rail" label="보고서 작업 도구" onBack={onClose} onNavigate={onNavigate} disabled={locked || job?.status === "running"}>
-      <button aria-label="작성 요청" title="보고서 작성 요청과 최근 요청" aria-expanded={workspacePanel === "request"} aria-controls="report-request-panel" onClick={() => setWorkspacePanel(value => value === "request" ? null : "request")}><WorkspaceIcon name="rename" /><span>작성</span></button>
+      <button aria-label="작성 요청" title="새 보고서의 주제와 양식 선택" aria-expanded={workspacePanel === "request"} aria-controls="report-request-panel" onClick={() => setWorkspacePanel(value => value === "request" ? null : "request")}><WorkspaceIcon name="rename" /><span>작성 요청</span></button>
       <button aria-label={job?.status === "running" ? "작성 진행" : "결과·출처"} title={job?.status === "running" ? "보고서 작성 진행 정보" : "보고서 결과와 출처"} aria-expanded={workspacePanel === "content"} aria-controls="report-content-panel" onClick={() => setWorkspacePanel(value => value === "content" ? null : "content")}><WorkspaceIcon name="documents" /><span>{job?.status === "running" ? "진행" : "내용"}</span></button>
-      <button aria-label="최근 보고서" title="이전 요청과 보완본" aria-expanded={workspacePanel === "history"} onClick={() => setWorkspacePanel(value => value === "history" ? null : "history")}><WorkspaceIcon name="history"/><span>최근 보고서</span></button>
+      <button aria-label="최근 보고서" title="이전 요청과 보완본 이어보기" aria-expanded={workspacePanel === "history"} aria-controls="report-history-panel" onClick={() => setWorkspacePanel(value => value === "history" ? null : "history")}><WorkspaceIcon name="history"/><span>최근 보고서</span></button>
       <div className="report-preview-tool-host" ref={setPreviewTools} />
     </WorkspaceNav>
     <div className="report-preview-details-host" ref={setPreviewDetails} />
@@ -319,16 +319,17 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
       <section className="report-input">
         {job && <p className="report-current-format" aria-label="현재 보고서 고정 서식"><strong>현재 초안: {formatName(frozenVisual)}</strong><br />{formatDescription(frozenVisual)}<br />아래 설정은 다음 보고서에 적용됩니다.</p>}
         <label htmlFor="report-prompt">보고서 작성 요청</label>
-        <textarea id="report-prompt" rows={7} maxLength={6000} value={prompt} disabled={locked || job?.status === "running"} onChange={e => setPrompt(e.target.value)} placeholder="보고할 주제, 대상 독자, 반드시 포함할 사실과 요청 사항을 적어 주세요." />
+        <textarea id="report-prompt" rows={5} maxLength={6000} value={prompt} disabled={locked || job?.status === "running"} onChange={e => setPrompt(e.target.value)} placeholder="보고할 주제, 대상 독자, 반드시 포함할 사실과 요청 사항을 적어 주세요." />
         <div className="report-form-options">
-          <label htmlFor="report-template">보고서 템플릿</label>
+          <label htmlFor="report-template">내용 구성</label>
           <select id="report-template" value={templateId} disabled={locked || !templates.length || job?.status === "running"} onChange={e => setTemplateId(e.target.value)}>{templates.map(item => <option key={item.id} value={item.id}>{item.values.name}</option>)}</select>
           <p className="hint">{templates.find(item => item.id === templateId)?.values.description || "작성 목적 확인 중"}</p>
-          <label htmlFor="report-visual-standard">문서 서식 표준</label>
+          <label htmlFor="report-visual-standard">문서 양식</label>
           <select id="report-visual-standard" value={visualId} disabled={locked || job?.status === "running" || !visualCatalogReady} onChange={e => setVisualId(e.target.value)}>
-            <option value="">기존 기본 보고서 서식</option>
             {visualStandards.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            <optgroup label="이전 서식"><option value="">이전 기본 서식 (호환용)</option></optgroup>
           </select>
+          <p className="hint">내용 구성은 글의 흐름을, 문서 양식은 표지·목차와 글꼴·여백을 정합니다.</p>
           <p className="hint" aria-label="새 요청에 사용할 서식">{formatDescription(selectedVisual)}</p>
           {selectedVisual?.revision === 3 && selectedVisual.settings.preset_id !== "appendix-1" && <div className="report-cover-fields">
             <label htmlFor="report-cover-date">표지 작성일</label><input id="report-cover-date" value={coverDate} maxLength={60} disabled={locked || job?.status === "running"} placeholder="예: 2026. 10. 20." onChange={e => setCoverDate(e.target.value)} />
@@ -336,20 +337,26 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
           </div>}
           <label className="check-label"><input type="checkbox" checked={research} disabled={locked || job?.status === "running"} onChange={e => setResearch(e.target.checked)} />공개 웹 자료를 검색하고 출처 포함</label>
         </div>
-        <button className="primary" disabled={busy || saving || !!lease.current || previewLocked || !!pendingRevision || (!pending && (!visualCatalogReady || prompt.trim().length < 5 || !templates.some(item => item.id === templateId))) || job?.status === "running"} onClick={() => void requestReport()}>{busy ? "요청 확인 중…" : pending ? "같은 요청 접수 재확인" : "Codex로 보고서 초안 만들기"}</button>
-        <p className="hint">초안을 확인하고 보완한 뒤 문서로 만듭니다.</p>
-        <details><summary>작성 예시와 기준</summary>
+        <details><summary>요청 예시</summary>
           <div className="report-examples">{["금융권 해킹 대응", "외부 업체·클라우드 보안", "고객정보 유출 대응"].map((name, i) => <button key={name} disabled={locked || job?.status === "running"} onClick={() => setPrompt(examples[i])}>{name}</button>)}</div>
+        </details>
+        <details><summary>양식 관리·연결 정보</summary>
           <button className="report-open-standard" disabled={locked || job?.status === "running" || !onNavigate} onClick={() => onNavigate?.("standards")}>문서작성 기준 열기</button>
-          <button disabled={locked} onClick={() => void refreshTemplates()}>템플릿 목록 다시 확인</button>
+          <button disabled={locked} onClick={() => void refreshTemplates()}>내용 구성 목록 다시 확인</button>
           <button disabled={locked} onClick={() => void loadVisualStandards().then(() => setError("")).catch(e => setError(String(e)))}>문서 표준 목록 다시 확인</button>
           <p className="hint">기존 Codex 로그인으로 처리합니다. 공개자료 검색에는 검색어가 사용됩니다.</p>
         </details>
       </section>
+      <div className="report-request-submit">
+        <button className="primary" disabled={busy || saving || !!lease.current || previewLocked || !!pendingRevision || (!pending && (!visualCatalogReady || prompt.trim().length < 5 || !templates.some(item => item.id === templateId))) || job?.status === "running"} onClick={() => void requestReport()}>{busy ? "요청 확인 중…" : pending ? "같은 요청 접수 재확인" : "초안 작성하기"}</button>
+        <p className="hint">초안을 확인하고 보완한 뒤 문서로 만듭니다.</p>
+      </div>
     </aside>
-    <aside className="report-workspace-drawer" hidden={workspacePanel !== "history"} aria-label="최근 보고서 요청">
+    <aside id="report-history-panel" className="report-workspace-drawer" hidden={workspacePanel !== "history"} aria-label="최근 보고서 요청">
       <div className="report-drawer-heading"><h2>최근 보고서</h2><button aria-label="최근 보고서 닫기" onClick={() => setWorkspacePanel(null)}><WorkspaceIcon name="close" size={18}/></button></div>
+      <p className="hint">요청한 초안과 보완본을 이어서 확인합니다. 저장한 보고서는 문서함에서도 열 수 있습니다.</p>
       <button disabled={locked} onClick={() => void refresh()}>목록 새로고침</button>
+      {!jobs.length && <p className="hint">아직 작성한 보고서가 없습니다.</p>}
       <ul className="report-history">{jobs.map(value => <li key={value.id}><button disabled={locked || job?.status === "running"} onClick={async () => {
         setBusy(true); setError(""); try { const current = await api<Job>(`/report-tasks/${value.id}`);
           if (current.approval?.saved_version) { const approved = await api<Approved>(`/report-tasks/${value.id}/approved`); onOpen(approved.document); }
@@ -362,7 +369,7 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
       {error && <p className="report-workspace-error error" role="alert">{error}{restoreTaskId && <button onClick={() => { setError(""); setRestoreAttempt(value => value + 1); }}>이전 요청 다시 열기</button>}</p>}
       {!error && job?.status === "failed" && <p className="report-workspace-error error" role="alert">{job.error}</p>}
       {job?.status === "running" || (!job?.draft && !!job?.execution?.progress?.blocks.length) ? <ReportWriting key={job.id} startedAt={job.created_at} progress={job.execution?.progress} stopped={job.status !== "running"} controlsHost={writingTools} /> : job?.draft ? <>
-        {!job.approval && !hasPreview && <ReportReview draft={job.draft} formatName={formatName(frozenVisual)} feedback={feedback} onFeedback={changeFeedback} onRevise={() => void reviseDraft()} onFormat={beginFormatting} busy={busy} retry={!!pendingRevision} />}
+        {!job.approval && !hasPreview && <ReportReview draft={job.draft} formatName={formatName(frozenVisual)} includesSummary={frozenVisual?.settings.show_core_summary !== false} feedback={feedback} onFeedback={changeFeedback} onRevise={() => void reviseDraft()} onFormat={beginFormatting} busy={busy} retry={!!pendingRevision} />}
         {hasPreview && <ReportPreview key={job.id} taskId={job.id} draftHash={job.draft_sha256!} onLock={setPreviewLocked} toolbarHost={previewTools} detailsHost={previewDetails}
           workspacePanelOpen={workspacePanel !== null} onShowDetails={() => setWorkspacePanel(null)}
           onSaved={(doc, options) => { setSaved(doc); setSavedWithUnsaved(!!options?.unsavedChanges); recovery.current = options?.recovery || null; setRecoverySnapshot(null); setRecoveryError(""); }}
@@ -380,13 +387,13 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
       }}>결과 수신 중단</button>}
       {job?.status === "cancelled" && <p>작성을 중단했습니다. 새 요청으로 다시 시작할 수 있습니다.</p>}
       {job?.draft ? <><h1>{job.draft.title}</h1>
-        {job.input.template && <p className="hint">작성 기준: {job.input.template.values.name}</p>}
-        {job.input.visual_standard && <p className="hint">고정 서식: {job.input.visual_standard.name}</p>}
+        {job.input.template && <p className="hint">내용 구성: {job.input.template.values.name}</p>}
+        {job.input.visual_standard && <p className="hint">문서 양식: {job.input.visual_standard.name}</p>}
         <ReportTiming timings={job.execution?.timings} />
         {job.approval?.saved_version && !saved && <button className="primary" onClick={async () => {
           try { const value = await api<Approved>(`/report-tasks/${job.id}/approved`); onOpen(value.document); } catch (e) { setError(String(e)); }
         }}>저장된 보고서 편집하기</button>}
-        <details className="report-text-details"><summary>생성 원문·출처 보기</summary><h2>핵심 요약</h2><p><ReportText text={job.draft.summary} emphasis={job.draft.emphasis} /></p>
+        <details className="report-text-details"><summary>AI 생성 원문·출처</summary><p className="hint">처음 생성한 내용입니다. 문서 편집기에서 수정한 내용은 여기에 반영되지 않습니다.</p><h2>내용 요약</h2><p><ReportText text={job.draft.summary} emphasis={job.draft.emphasis} /></p>
         {job.draft.sections.map((section, i) => <section key={i}><h2>{i + 1}. {section.heading}</h2><ReportContent blocks={[
           ...section.paragraphs.map(text => ({ text, kind: "body", emphasis: job.draft!.emphasis })),
           ...(section.tables || []).map(t => ({ text: t.caption, kind: "table", ...t, emphasis: job.draft!.emphasis })),

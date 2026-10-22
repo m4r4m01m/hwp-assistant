@@ -116,7 +116,7 @@ for (const composition of compositions) {
     await page.getByRole("button", { name: "보고서 작성", exact: true }).click();
     // Opening an optional settings disclosure is UI navigation, not a bypass of
     // any generation, content review, approval or storage fence.
-    const standard = page.getByLabel("문서 서식 표준", { exact: true });
+    const standard = page.getByLabel("문서 양식", { exact: true });
     if (!(await standard.isVisible())) {
       for (const summary of await page.locator("details > summary").all()) {
         if (!(await standard.isVisible())) await summary.click();
@@ -130,10 +130,10 @@ for (const composition of compositions) {
     }
     await page.getByLabel("보고서 작성 요청", { exact: true }).fill(record.input.prompt);
     await page.getByLabel("공개 웹 자료를 검색하고 출처 포함").uncheck();
-    const template = page.getByLabel("보고서 템플릿", { exact: true });
+    const template = page.getByLabel("내용 구성", { exact: true });
     if (await template.count()) await template.selectOption(record.input.template.id);
     const posted = page.waitForResponse(value => value.request().method() === "POST" && new URL(value.url()).pathname === "/api/report-tasks");
-    await page.getByRole("button", { name: "Codex로 보고서 초안 만들기", exact: true }).click();
+    await page.getByRole("button", { name: "초안 작성하기", exact: true }).click();
     const response = await posted, job = await response.json();
     expect(response.ok(), JSON.stringify(job)).toBeTruthy();
     expect(response.request().postDataJSON().visual_standard).toEqual(selection);

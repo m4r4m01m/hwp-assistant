@@ -24,7 +24,7 @@ test("REVIEW flow: read before layout, frozen feedback retry, stable sidebar and
   await page.getByLabel("보고서 작성 요청", { exact: true }).fill("[RICH] 문서함 정비 계획: 원본 보존과 담당자 확인 절차를 포함해줘.");
   await page.getByLabel("공개 웹 자료를 검색하고 출처 포함").uncheck();
   const post = page.waitForResponse(r => r.url().endsWith("/api/report-tasks") && r.request().method() === "POST");
-  await page.getByRole("button", { name: "Codex로 보고서 초안 만들기", exact: true }).click();
+  await page.getByRole("button", { name: "초안 작성하기", exact: true }).click();
   const originalId = (await (await post).json()).id;
   await expect(page.getByLabel("초안 내용 검토", { exact: true })).toBeVisible({ timeout: 30000 });
   expect(prepares).toBe(0);

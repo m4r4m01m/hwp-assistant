@@ -52,8 +52,8 @@ test("REAL rhwp + MOCK report workspace: full height editor, local drawers and p
   await page.getByRole("button", { name: "보고서 작성", exact: true }).click();
   await page.getByRole("button", { name: "사이드바 펼침", exact: true }).click();
   const requestedNavWidth = (await page.getByRole("navigation", { name: "보고서 작업 도구", exact: true }).boundingBox())!.width;
-  await expect(page.getByLabel("문서 서식 표준", { exact: true })).toBeEnabled();
-  await page.getByLabel("문서 서식 표준", { exact: true }).selectOption(""); // Exercise the existing legacy TOC contract explicitly.
+  await expect(page.getByLabel("문서 양식", { exact: true })).toBeEnabled();
+  await page.getByLabel("문서 양식", { exact: true }).selectOption(""); // Exercise the existing legacy TOC contract explicitly.
   const prompt = "[RICH] 전체 높이 보고서 편집 화면과 도구 전환 보존 확인";
   await page.getByLabel("보고서 작성 요청", { exact: true }).fill(prompt);
   await page.getByLabel("공개 웹 자료를 검색하고 출처 포함").uncheck();
@@ -64,7 +64,7 @@ test("REAL rhwp + MOCK report workspace: full height editor, local drawers and p
   await expect(page.getByLabel("보고서 작성 요청", { exact: true })).toHaveValue(prompt);
   await expect(page.getByLabel("공개 웹 자료를 검색하고 출처 포함")).not.toBeChecked();
   const posted = page.waitForResponse(response => response.url().endsWith("/api/report-tasks") && response.request().method() === "POST");
-  await page.getByRole("button", { name: "Codex로 보고서 초안 만들기", exact: true }).click();
+  await page.getByRole("button", { name: "초안 작성하기", exact: true }).click();
   const id = (await (await posted).json()).id as string;
   await page.getByRole("button", { name: "이 내용으로 문서 만들기", exact: true }).click({ timeout: 90000 });
   await expect(page.locator(".formatted-report-surface")).toHaveAttribute("data-ready", "true", { timeout: 90000 });

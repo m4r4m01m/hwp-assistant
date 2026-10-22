@@ -33,6 +33,7 @@ function App({
   const [docs, setDocs] = useState<Document[]>([]),
     [query, setQuery] = useState(""),
     [sort, setSort] = useState("newest"),
+    [expandedDocument, setExpandedDocument] = useState<string | null>(null),
     [copying, setCopying] = useState(false),
     [copyNotice, setCopyNotice] = useState<Document | null>(null),
     [copyPending, setCopyPending] = useState<{ source: Document; body: { document_id: string; source_version: string; request_id: string; name: string } } | null>(null),
@@ -133,26 +134,19 @@ function App({
     );
   return (
     <div className="workspace-shell library-shell">
-      <WorkspaceNav active="documents" onNavigate={navigate} disabled={copying} footer={<><strong>{account.user_id}</strong><small>{account.authentication_required ? "문서 권한 적용" : "개인 개발 문서함"}</small>{account.authentication_required && <button onClick={async () => { await api("/auth/logout", { method: "POST" }); location.reload(); }}>로그아웃</button>}</>}>
-        <button className="primary workspace-nav-action" onClick={() => setCreating(true)}><WorkspaceIcon name="plus"/><span>+ 새 문서</span></button>
+      <WorkspaceNav active="documents" onNavigate={navigate} disabled={copying} footer={<><strong>{account.authentication_required ? account.user_id : "개인 작업 공간"}</strong><details className="library-account-note"><summary>이용 안내</summary><p>{account.authentication_required ? "문서별 열람·편집·소유자 권한과 대화 공개 범위가 적용됩니다." : "현재 이 컴퓨터의 개인 문서함입니다. 사용자 간 공유는 서버 인증 설정 후 사용할 수 있습니다."}</p><p>저장본은 이전 버전을 보존합니다. 한컴 호환성은 실제 파일로 확인하세요.</p></details>{account.authentication_required && <button onClick={async () => { await api("/auth/logout", { method: "POST" }); location.reload(); }}>로그아웃</button>}</>}>
+        <button className="primary workspace-nav-action" aria-label="빈 문서 만들기" onClick={() => setCreating(true)}><WorkspaceIcon name="plus"/><span>빈 문서 만들기</span></button>
         <label className="button workspace-nav-action" title="HWPX 업로드"><WorkspaceIcon name="upload"/><span>HWPX 업로드</span><input aria-label="HWPX 업로드" type="file" accept=".hwpx" onChange={event => { if (event.target.files?.[0]) void incoming(event.target.files[0]); event.target.value = ""; }} /></label>
         <p className="workspace-nav-note">문서를 만들거나 기존 HWPX를 가져와 작업하세요.</p>
       </WorkspaceNav>
     <main className="drive drive-workspace">
       <header className="library-heading">
         <div>
-          <small>내 작업 공간</small>
           <h1>HWPX 문서함</h1>
-          <p>원본을 보존하며 문서를 편집하고, 새 버전으로 저장합니다.</p>
+          <p>문서 이름을 눌러 열고 편집하세요.</p>
         </div>
         <span className="library-document-count">{docs.length}개 문서</span>
       </header>
-      <details className="library-account-note"><summary>문서 보관 및 권한 안내</summary><div className="notice">
-        {account.authentication_required
-          ? "문서별 열람·편집·소유자 권한과 대화 공개 범위가 적용됩니다."
-          : "인증 미설정: 한 명의 local 사용자로 동작합니다. 사용자별 공유는 서버 인증을 설정해야 사용할 수 있습니다."}{" "}
-        한글 왕복 호환성은 별도 검증이 필요합니다.
-      </div></details>
       <div className="library-toolbar">
       <input
         className="search"
@@ -164,7 +158,7 @@ function App({
       <label className="document-sort">문서 정렬 <select aria-label="문서 정렬" value={sort} onChange={e => setSort(e.target.value)}>
         <option value="newest">최근 등록순</option><option value="oldest">오래된 등록순</option><option value="name">이름순</option>
       </select></label>
-      <button disabled={loading} onClick={refresh}>문서 목록 새로고침</button>
+      <button aria-label="문서 목록 새로고침" title="문서 목록 새로고침" disabled={loading} onClick={refresh}><WorkspaceIcon name="refresh" size={18}/></button>
       </div>
       {copyPending && <div className="notice">{copyPending.source.name}의 저장본 복제를 확인 중입니다.
         <button disabled={copying} onClick={() => void copySaved(copyPending.source)}>{copying ? "복제 중…" : "같은 사본 생성 결과 재확인"}</button>
@@ -181,7 +175,7 @@ function App({
         <p>문서 목록을 불러오는 중…</p>
       ) : docs.length === 0 ? (
         <div className="empty">
-          문서가 없습니다. HWPX를 업로드하거나 새 문서를 만드세요.
+          {query ? "검색 결과가 없습니다. 다른 이름으로 검색해 보세요." : "아직 저장한 문서가 없습니다. 보고서를 작성하거나 HWPX 파일을 가져오세요."}
         </div>
       ) : (
         <div className="library-table-wrap"><table className="library-table">
@@ -194,7 +188,7 @@ function App({
           </thead>
           <tbody>
             {sortedDocs.map((d) => (
-              <tr key={d.id}>
+              <React.Fragment key={d.id}><tr>
                 <td className="library-document-name">
                   <button className="link" onClick={() => setActive(d)}>
                     <WorkspaceIcon name="documents"/><span>{d.name}</span>
@@ -202,6 +196,16 @@ function App({
                 </td>
                 <td>{new Date(d.created_at * 1000).toLocaleString("ko-KR")}</td>
                 <td className="library-document-actions">
+                  <a className="button" href={fileUrl(d)} aria-label="다운로드" title="저장본 다운로드"><WorkspaceIcon name="download" size={17}/><span>다운로드</span></a>
+                  <button aria-label="버전 기록" title="버전 기록" onClick={() => setHistory(d)}><WorkspaceIcon name="history" size={17}/><span>버전 기록</span></button>
+                  <button id={`document-more-${d.id}`} aria-label={`${d.name} 더보기`} title="더보기" aria-expanded={expandedDocument === d.id} aria-controls={`document-actions-${d.id}`}
+                    onClick={() => setExpandedDocument(expandedDocument === d.id ? null : d.id)}><WorkspaceIcon name="more" size={17}/><span>더보기</span></button>
+                </td>
+              </tr>
+              {expandedDocument === d.id && <tr className="library-expanded-actions"><td colSpan={3}>
+                <div className="library-secondary-actions" id={`document-actions-${d.id}`} role="group" aria-label={`${d.name} 추가 작업`} onKeyDown={event => {
+                  if (event.key === "Escape") { setExpandedDocument(null); document.getElementById(`document-more-${d.id}`)?.focus(); }
+                }}>
                   <button aria-label="이름 변경" title="이름 변경"
                     disabled={d.role === "reader"}
                     onClick={async () => {
@@ -219,15 +223,11 @@ function App({
                         }
                     }}
                   >
-                    <WorkspaceIcon name="rename" size={17}/>
+                    <WorkspaceIcon name="rename" size={17}/><span>이름 변경</span>
                   </button>
-                  <a className="button" href={fileUrl(d)} aria-label="다운로드" title="저장본 다운로드">
-                    <WorkspaceIcon name="download" size={17}/>
-                  </a>
-                  <button aria-label="저장본 복제" title="저장본 복제" disabled={copying || !!copyPending} onClick={() => void copySaved(d)}><WorkspaceIcon name="copy" size={17}/></button>
-                  <button aria-label="버전 기록" title="버전 기록" onClick={() => setHistory(d)}><WorkspaceIcon name="history" size={17}/></button>
+                  <button aria-label="저장본 복제" title="저장본 복제" disabled={copying || !!copyPending} onClick={() => void copySaved(d)}><WorkspaceIcon name="copy" size={17}/><span>저장본 복제</span></button>
                   <label className="button" title="새 버전 업로드">
-                    <WorkspaceIcon name="upload" size={17}/>
+                    <WorkspaceIcon name="upload" size={17}/><span>새 버전 업로드</span>
                     <input
                       type="file"
                       disabled={d.role === "reader"}
@@ -270,18 +270,19 @@ function App({
                       }}
                     />
                   </label>
-                  {d.role === "owner" && (
-                    <button aria-label="공유 권한" title="공유 권한" onClick={() => setSharing(d)}><WorkspaceIcon name="share" size={17}/></button>
+                  {account.authentication_required && d.role === "owner" && (
+                    <button aria-label="공유 권한" title="공유 권한" onClick={() => setSharing(d)}><WorkspaceIcon name="share" size={17}/><span>공유 권한</span></button>
                   )}
                   {d.role !== "reader" && (
                     <button aria-label="양식 등록" title="양식 등록"
                       onClick={() => { setRegisterTemplate(d); setTemplates(true); }}
                     >
-                      <WorkspaceIcon name="templates" size={17}/>
+                      <WorkspaceIcon name="templates" size={17}/><span>양식으로 등록</span>
                     </button>
                   )}
-                </td>
-              </tr>
+                </div>
+              </td></tr>}
+              </React.Fragment>
             ))}
           </tbody>
         </table></div>
@@ -376,6 +377,8 @@ function Editor({
     [conversationMounted, setConversationMounted] = useState(false),
     [aiBusy, setAiBusy] = useState(false),
     [aiError, setAiError] = useState(""),
+    [aiConnection, setAiConnection] = useState<{ configured_model: string; models: string[]; model_available: boolean } | null>(null),
+    [aiConnectionChecking, setAiConnectionChecking] = useState(false),
     [proposal, setProposal] = useState<{
       snapshot: Snapshot;
       replacement: string;
@@ -393,9 +396,9 @@ function Editor({
     [blockUndoAvailable, setBlockUndoAvailable] = useState(false), [activeBlockHost, setActiveBlockHost] = useState(0);
   const [tocPanel, setTocPanel] = useState(false), [tocStatus, setTocStatus] = useState<"unknown" | "none" | "recorded" | "current" | "stale" | "damaged">("unknown");
   const tocKnown = useRef(false);
-  const fileMenu = useRef<HTMLDetailsElement>(null), helpMenu = useRef<HTMLDetailsElement>(null), documentMenu = useRef<HTMLDetailsElement>(null);
+  const fileMenu = useRef<HTMLDetailsElement>(null), helpMenu = useRef<HTMLDetailsElement>(null), documentMenu = useRef<HTMLDetailsElement>(null), toolsMenu = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
-    const menus = [fileMenu, helpMenu, documentMenu];
+    const menus = [fileMenu, helpMenu, documentMenu, toolsMenu];
     let frameFocusTimer: ReturnType<typeof setTimeout> | undefined;
     const dismiss = (event: PointerEvent) => menus.forEach(menu => {
       if (menu.current && !menu.current.contains(event.target as Node)) menu.current.open = false;
@@ -425,6 +428,12 @@ function Editor({
       window.removeEventListener("blur", frameFocus);
     };
   }, []);
+  async function checkReviewConnection() {
+    setAiConnectionChecking(true); setAiConnection(null); setAiError("");
+    try { setAiConnection(await api("/ai/models")); }
+    catch { setAiError("별도 AI에 연결할 수 없습니다. 연결 설정을 확인하거나 AI 문장 다듬기를 이용하세요."); }
+    finally { setAiConnectionChecking(false); }
+  }
   function showPanel(next: "block" | "toc" | "review" | "conversation" | null) {
     // A prepared preview belongs to its panel until it is explicitly applied or cancelled.
     if (blockHold.current && next !== null && ((blockPanel && next !== "block") || (tocPanel && next !== "toc"))) {
@@ -432,7 +441,7 @@ function Editor({
       return;
     }
     if (conversationPanel && next === null && contextDraftDirty.current) {
-      if (!confirm("저장하지 않은 작성 정보가 있습니다. 패널을 닫으면 입력이 사라집니다. 계속할까요?")) return;
+      if (!confirm("저장하지 않은 작성 정보나 메모가 있습니다. 패널을 닫으면 입력이 사라집니다. 계속할까요?")) return;
       contextDraftDirty.current = false;
     }
     // Switching tools hides this panel without losing unsent messages or writing inputs.
@@ -845,7 +854,7 @@ function Editor({
         </button>
         {doc.current && (
           <a className="button editor-rail-action editor-download" aria-label="저장본 다운로드" title="서버에 저장된 버전 다운로드" href={fileUrl(doc.current)}>
-            <WorkspaceIcon name="download" /><span>받기</span>
+            <WorkspaceIcon name="download" /><span>저장본 다운로드</span>
           </a>
         )}
         <details className="editor-menu" name="editor-overflow" ref={fileMenu}>
@@ -895,15 +904,20 @@ function Editor({
         </details>
         <div className="editor-rail-group" role="group" aria-label="문서 구성">
           <button className="editor-rail-action" disabled={!ready} title="블록 삽입" aria-label={`블록 삽입 ${blockPanel ? "닫기" : "열기"}`} aria-pressed={blockPanel}
-            onClick={() => showPanel(blockPanel ? null : "block")}><WorkspaceIcon name="block" /><span>블록</span></button>
+            onClick={() => showPanel(blockPanel ? null : "block")}><WorkspaceIcon name="block" /><span>표·블록 삽입</span></button>
           {doc.current?.role !== "reader" && <button className="editor-rail-action editor-toc-state" disabled={!ready} data-state={tocStatus} title={`목차 관리 · ${tocLabel} · ${tocDescription}`} aria-label={`목차 ${tocPanel ? "닫기" : "관리"}`} aria-pressed={tocPanel}
             onClick={() => showPanel(tocPanel ? null : "toc")}><WorkspaceIcon name="toc" /><span>목차</span><i className="editor-toc-dot" aria-hidden="true" /><span className="editor-visually-hidden" aria-label="목차 상태">{tocLabel}</span></button>}
         </div>
         <div className="editor-rail-group" role="group" aria-label="AI 및 대화">
-          <button className="editor-rail-action" disabled={!doc.current} title="대화 · AI" aria-label={`대화 · AI ${conversationPanel ? "닫기" : "열기"}`} aria-pressed={conversationPanel}
-            onClick={() => showPanel(conversationPanel ? null : "conversation")}><WorkspaceIcon name="conversation" /><span>대화</span></button>
-          <button className="editor-rail-action" title="사내 AI 검토" aria-label={`AI 검토 ${panel ? "닫기" : "열기"}`} aria-pressed={panel}
-            onClick={() => showPanel(panel ? null : "review")}><WorkspaceIcon name="review" /><span>검토</span></button>
+          <button className="editor-rail-action" disabled={!doc.current} title="AI 문장 다듬기 · 작성 정보와 메모" aria-label={`AI 문장 다듬기 ${conversationPanel ? "닫기" : "열기"}`} aria-pressed={conversationPanel}
+            onClick={() => showPanel(conversationPanel ? null : "conversation")}><WorkspaceIcon name="conversation" /><span>AI 문장 다듬기</span></button>
+          <details className="editor-menu" name="editor-overflow" ref={toolsMenu}>
+            <summary className="editor-rail-action" aria-label="추가 도구" title="추가 도구"><WorkspaceIcon name="more"/><span>추가 도구</span></summary>
+            <div className="editor-menu-content">
+              <strong>별도 AI 연결 기능</strong><p>사내·로컬 모델을 따로 연결한 환경에서 사용합니다.</p>
+              <button aria-label={`AI 검토 ${panel ? "닫기" : "열기"}`} onClick={() => { showPanel(panel ? null : "review"); if (toolsMenu.current) toolsMenu.current.open = false; }}>별도 AI 문단 검토</button>
+            </div>
+          </details>
         </div>
         {blockUndoAvailable && <button className="editor-rail-action editor-undo" title="방금 삽입 취소" aria-label="방금 삽입 취소" disabled={blockHolding || status === "저장 중"} onClick={undoBlock}><WorkspaceIcon name="undo" /><span>취소</span></button>}
           <details className="editor-menu editor-help" name="editor-overflow" ref={helpMenu}>
@@ -1064,34 +1078,23 @@ function Editor({
         {panel && (
           <aside className="review-panel" aria-label="문단 AI 검토 패널">
             <button className="panel-close" aria-label="검토 패널 닫기" onClick={() => showPanel(null)}>닫기</button>
-            <h2>문단 AI 검토</h2>
-            <p className="hint">이 패널은 별도 로컬·사내 모델 연결용입니다. 기본 Codex 후보 생성은 대화 · AI에서 사용할 수 있습니다.</p>
-            <button disabled={!doc.current} onClick={() => showPanel("conversation")}>대화의 후보 생성으로 이동</button>
+            <h2>별도 AI 문단 검토</h2>
+            <p className="hint">사내·로컬 모델의 연결 상태를 확인한 뒤 사용할 수 있습니다.</p>
+            <button disabled={!doc.current} onClick={() => showPanel("conversation")}>AI 문장 다듬기로 이동</button>
             <p>
               검토할 본문 문단에 커서를 놓으세요. 승인 전에는 문서를 변경하지
               않습니다.
             </p>
-            <button disabled={!ready || aiBusy} onClick={() => void review()}>
+            <button disabled={!ready || aiBusy || !aiConnection?.model_available || aiConnectionChecking} onClick={() => void review()}>
               {aiBusy ? "검토 중…" : "현재 문단 검토"}
             </button>
             <button
-              onClick={async () => {
-                try {
-                  const r = await api<{
-                    models: string[];
-                    configured_model: string;
-                    model_available: boolean;
-                  }>("/ai/models");
-                  setAiError(
-                    `설정 모델: ${r.configured_model} / 서버 제공: ${r.models.join(", ")} / 일치: ${r.model_available ? "예" : "아니오"}`,
-                  );
-                } catch (e) {
-                  setAiError(String(e));
-                }
-              }}
+              disabled={aiConnectionChecking}
+              onClick={() => void checkReviewConnection()}
             >
-              AI 연결·모델 확인
+              {aiConnectionChecking ? "연결 확인 중…" : "AI 연결 확인"}
             </button>
+            {aiConnection && <p role="status">{aiConnection.model_available ? `${aiConnection.configured_model} 연결됨` : "설정한 모델을 사용할 수 없습니다. 서버의 모델 설정을 확인하세요."}</p>}
             {aiError && <p role="alert">{aiError}</p>}
             {proposal && (
               <>

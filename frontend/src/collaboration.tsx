@@ -47,9 +47,12 @@ export function CollaborationPanel({
     [contextDirty, setContextDirty] = useState(false),
     [message, setMessage] = useState(""),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [checkingConnection, setCheckingConnection] = useState(false),
+    [separateAi, setSeparateAi] = useState<{ ready: boolean; model: string; error: string } | null>(null);
   const generation = useRef(0);
-  const dirtyChanged = useCallback((dirty: boolean) => { setContextDirty(dirty); onContextDirty?.(dirty); }, [onContextDirty]);
+  const dirtyChanged = useCallback((dirty: boolean) => { setContextDirty(dirty); }, []);
+  useEffect(() => { onContextDirty?.(contextDirty || message.length > 0); }, [contextDirty, message, onContextDirty]);
   const writable = doc.role !== "reader";
   async function list() {
     const rows = await api<Thread[]>(`/documents/${doc.id}/threads`);
@@ -91,18 +94,27 @@ export function CollaborationPanel({
       setBusy(false);
     }
   }
+  async function checkSeparateAi() {
+    setCheckingConnection(true);
+    setSeparateAi(null);
+    try {
+      const value = await api<{ configured_model: string; model_available: boolean }>("/ai/models");
+      setSeparateAi({ ready: value.model_available, model: value.configured_model,
+        error: value.model_available ? "" : "설정한 모델을 연결된 서버에서 찾지 못했습니다." });
+    } catch (cause) {
+      setSeparateAi({ ready: false, model: "", error: String(cause) });
+    } finally { setCheckingConnection(false); }
+  }
   return (
     <section className="collaboration">
-      <h2>문서 대화 · 컨텍스트</h2>
-      <p>
-        문서 접근 권한자는 작성자와 관계없이 이 문서의 모든 대화·후보·적용 이력을 볼 수 있습니다. 편집 권한은 별도로 적용됩니다.
-      </p>
+      <h2>문장 수정과 검토 기록</h2>
+      <p className="hint">검토별로 수정 후보와 메모를 보관합니다. 이 문서에 접근할 수 있는 사용자에게 공유됩니다.</p>
       <select
         aria-label="대화 선택"
         value={selected}
         onChange={(e) => {
-          if (contextDirty && !confirm("저장하지 않은 작성 정보가 있습니다. 대화를 바꾸면 입력이 사라집니다. 계속할까요?")) return;
-          dirtyChanged(false); setSelected(e.target.value);
+          if ((contextDirty || message.length > 0) && !confirm("저장하지 않은 작성 정보나 메모가 있습니다. 대화를 바꾸면 입력이 사라집니다. 계속할까요?")) return;
+          dirtyChanged(false); setMessage(""); setSelected(e.target.value);
         }}
         disabled={busy}
       >
@@ -120,7 +132,7 @@ export function CollaborationPanel({
             disabled={busy}
             onClick={() =>
               void run(async () => {
-                if (contextDirty && !confirm("저장하지 않은 작성 정보가 있습니다. 새 대화를 열까요?")) return;
+                if ((contextDirty || message.length > 0) && !confirm("저장하지 않은 작성 정보나 메모가 있습니다. 새 대화를 열면 입력이 사라집니다. 계속할까요?")) return;
                 const title = prompt(
                   "대화 제목",
                   "문서 검토",
@@ -135,7 +147,7 @@ export function CollaborationPanel({
                   }),
                 );
                 await list();
-                dirtyChanged(false); setSelected(row.id);
+                dirtyChanged(false); setMessage(""); setSelected(row.id);
               })
             }
           >
@@ -160,14 +172,14 @@ export function CollaborationPanel({
       )}
       {detail && (
         <>
-          <small>
-            대화 ID: <code>{detail.id}</code>
-          </small>
           <RewritePanel key={detail.id} thread={detail.id} document={doc} context={detail.context} contextDirty={contextDirty}
             requestRewrite={requestRewrite} approveRewrite={approveRewrite} cancelRewrite={cancelRewrite} getPendingRewrite={getPendingRewrite} />
+          <details><summary>추가 작성 정보 · 선택 사항</summary>
           <WritingContextEditor key={`context-${detail.id}`} thread={detail.id} context={detail.context}
             baseVersion={doc.current_version} writable={writable} capture={capture} onSaved={() => load(detail.id)} onDirty={dirtyChanged} />
-          <p className="hint">작성 정보와 대화는 이 앱에 저장됩니다. 후보 생성에는 선택한 작성 정보만 사용하며 전체 대화를 자동 전달하지 않습니다.</p>
+          </details>
+          <h3>검토 메모</h3>
+          <p className="hint">메모는 이 앱에 보관됩니다. 수정 후보에 필요한 내용은 추가 작성 정보에 입력하세요.</p>
           <div className="messages" aria-label="저장된 대화">
             {detail.messages.map((m) => (
               <article key={m.id}>
@@ -176,7 +188,7 @@ export function CollaborationPanel({
                   {m.source === "model"
                     ? "설정된 AI"
                     : m.source === "codex"
-                      ? "Codex/MCP"
+                      ? "Codex"
                       : "사용자"}
                 </small>
                 <p className="text">{m.content}</p>
@@ -187,6 +199,7 @@ export function CollaborationPanel({
             <>
               <textarea
                 aria-label="대화 메시지"
+                placeholder="문서에 대한 의견이나 검토 내용을 남기세요."
                 value={message}
                 disabled={busy}
                 onChange={(e) => setMessage(e.target.value)}
@@ -208,10 +221,15 @@ export function CollaborationPanel({
                   })
                 }
               >
-                메시지 저장
+                메모 저장
               </button>
+              <details>
+                <summary>별도 AI 연결</summary>
+                <p className="hint">관리자가 연결한 로컬·사내 모델에 질문하는 기능입니다. Codex 연결만으로는 사용할 수 없습니다. 질문할 때 저장된 작성 정보와 최근 대화가 전달됩니다.</p>
+                <button disabled={busy || checkingConnection} onClick={() => void checkSeparateAi()}>{checkingConnection ? "연결 확인 중…" : "별도 AI 연결 확인"}</button>
+                {separateAi && <p role={separateAi.ready ? "status" : "alert"}>{separateAi.ready ? `연결됨 · ${separateAi.model}` : separateAi.error}</p>}
               <button
-                disabled={busy || !message.trim()}
+                disabled={busy || checkingConnection || !separateAi?.ready || !message.trim()}
                 onClick={() =>
                   void run(async () => {
                     const row = await api<{ id: string }>(
@@ -234,8 +252,9 @@ export function CollaborationPanel({
                   })
                 }
               >
-                설정된 AI에 질문
+                메모 내용으로 별도 AI에 질문
               </button>
+              </details>
             </>
           )}
           {proposals.map((p) => (
@@ -261,6 +280,7 @@ export function CollaborationPanel({
               )}
             </article>
           ))}
+          <details><summary>연결 정보</summary><p>대화 ID: <code>{detail.id}</code></p></details>
         </>
       )}
     </section>
@@ -353,117 +373,6 @@ export function AccessPanel({
         >
           권한 저장
         </button>
-        {error && <p role="alert">{error}</p>}
-      </section>
-    </div>
-  );
-}
-
-export function Templates({
-  onClose,
-  onApply,
-}: {
-  onClose: () => void;
-  onApply: (d: Document) => void;
-}) {
-  const [query, setQuery] = useState(""),
-    [rows, setRows] = useState<
-      {
-        id: string;
-        name: string;
-        description: string;
-        reason: string;
-        version_id: string;
-      }[]
-    >([]),
-    [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
-  const pending = useRef<{ id: string; body: object } | null>(null);
-  useEffect(() => {
-    let live = true;
-    api<typeof rows>(`/templates?q=${encodeURIComponent(query)}`)
-      .then((r) => {
-        if (live) setRows(r);
-      })
-      .catch((e) => {
-        if (live) setError(e.message);
-      });
-    return () => {
-      live = false;
-    };
-  }, [query]);
-  return (
-    <div className="modal">
-      <section>
-        <button className="close" onClick={onClose}>
-          닫기
-        </button>
-        <h2>템플릿 추천 · 적용</h2>
-        <p>
-          접근 가능한 양식을 이름·설명·태그로 추천합니다. 적용하면 표·서식을
-          포함한 해당 HWPX 버전으로 새 문서를 만듭니다.
-        </p>
-        <input
-          aria-label="템플릿 검색"
-          placeholder="회의록, 보고서, 계획 등"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        {!rows.length && (
-          <p>
-            추천할 양식이 없습니다. 문서 목록에서 저장된 문서를 양식으로
-            등록하세요.
-          </p>
-        )}
-        {rows.map((t) => (
-          <article key={t.id}>
-            <h3>{t.name}</h3>
-            <p>{t.description}</p>
-            <small>
-              {t.reason} · 기준 {t.version_id}
-            </small>
-            <button
-              disabled={
-                busy || (!!pending.current && pending.current.id !== t.id)
-              }
-              onClick={async () => {
-                if (!pending.current) {
-                  const name = prompt(
-                    "양식으로 만들 문서 이름",
-                    t.name + ".hwpx",
-                  );
-                  if (!name) return;
-                  pending.current = {
-                    id: t.id,
-                    body: {
-                      document_id: crypto.randomUUID(),
-                      request_id: crypto.randomUUID(),
-                      name,
-                    },
-                  };
-                }
-                setBusy(true);
-                setError("");
-                try {
-                  const d = await api<Document>(
-                    `/templates/${t.id}/apply`,
-                    jsonRequest("POST", pending.current.body),
-                  );
-                  pending.current = null;
-                  onApply(d);
-                } catch (e) {
-                  setError(
-                    String(e) + " 같은 양식 버튼으로 재시도할 수 있습니다.",
-                  );
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              이 양식으로 새 문서
-            </button>
-          </article>
-        ))}
         {error && <p role="alert">{error}</p>}
       </section>
     </div>

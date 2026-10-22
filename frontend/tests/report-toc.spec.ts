@@ -53,8 +53,8 @@ async function typeEnd(page: Page, text: string) {
 async function begin(page: Page, prompt: string, visualStandard = "") {
   await page.goto("/");
   await page.getByRole("button", { name: "보고서 작성", exact: true }).click();
-  await expect(page.getByLabel("문서 서식 표준", { exact: true })).toBeEnabled();
-  await page.getByLabel("문서 서식 표준", { exact: true }).selectOption(visualStandard); // Empty selection retains the legacy native TOC contract.
+  await expect(page.getByLabel("문서 양식", { exact: true })).toBeEnabled();
+  await page.getByLabel("문서 양식", { exact: true }).selectOption(visualStandard); // Empty selection retains the legacy native TOC contract.
   await page.getByLabel("보고서 작성 요청", { exact: true }).fill(prompt);
   await page.getByLabel("공개 웹 자료를 검색하고 출처 포함").uncheck();
   const posted = page.waitForResponse(
@@ -63,7 +63,7 @@ async function begin(page: Page, prompt: string, visualStandard = "") {
       response.request().method() === "POST",
   );
   await page
-    .getByRole("button", { name: "Codex로 보고서 초안 만들기", exact: true })
+    .getByRole("button", { name: "초안 작성하기", exact: true })
     .click();
   await page.getByRole("button", { name: "이 내용으로 문서 만들기", exact: true }).click();
   return (await (await posted).json()).id as string;
@@ -708,7 +708,7 @@ test("REAL rhwp + MOCK report TOC: saved response loss preserves frozen bytes an
     expect(await readFile(recoveryFile)).toEqual(later);
     await expect(openRecovered).toBeEnabled();
     await expect(
-      page.getByLabel("보고서 템플릿", { exact: true }),
+      page.getByLabel("내용 구성", { exact: true }),
     ).toBeDisabled();
     page.once("dialog", (dialog) => dialog.dismiss());
     await openRecovered.click();
@@ -825,7 +825,7 @@ test("REAL rhwp + MOCK report TOC: cancellation response loss and old completion
       .getByLabel("보고서 작성 요청", { exact: true })
       .fill("[RICH] 두 번째 보고서의 독립 목차 상태 확인");
     await page
-      .getByRole("button", { name: "Codex로 보고서 초안 만들기", exact: true })
+      .getByRole("button", { name: "초안 작성하기", exact: true })
       .click();
     await page.getByRole("button", { name: "이 내용으로 문서 만들기", exact: true }).click();
     await ready(page);

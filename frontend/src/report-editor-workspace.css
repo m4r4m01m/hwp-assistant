@@ -101,6 +101,15 @@
   overflow-wrap: anywhere;
 }
 .report-editor-workspace .report-workspace-drawer[hidden] { display: none; }
+.report-editor-workspace .report-request-drawer {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+.report-request-drawer > .report-input { min-height: 0; overflow: auto; padding-right: 4px; overscroll-behavior: contain; }
+.report-request-submit { padding-top: 12px; border-top: 1px solid #e1e8ef; background: #fff; }
+.report-request-submit > button { width: 100%; min-height: 42px; }
+.report-request-submit > .hint { margin: 7px 0 0; font-size: 11px; line-height: 1.5; }
 .report-editor-workspace .report-preview-details-host {
   grid-column: 2;
   grid-row: 1;

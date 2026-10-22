@@ -20,21 +20,22 @@ test("REAL rhwp: saved document copy recovers a lost response, sorts, edits inde
   });
   try {
     page.once("dialog", d => d.accept(copyName));
-    await sourceRow.getByRole("button", { name: "저장본 복제", exact: true }).click();
+    await sourceRow.getByRole("button", { name: `${sourceName} 더보기`, exact: true }).click();
+    await page.getByRole("group", { name: `${sourceName} 추가 작업`, exact: true }).getByRole("button", { name: "저장본 복제", exact: true }).click();
     await expect(page.getByRole("button", { name: "같은 사본 생성 결과 재확인", exact: true })).toBeEnabled();
     await page.getByRole("button", { name: "같은 사본 생성 결과 재확인", exact: true }).click();
     await expect(page.getByRole("button", { name: "사본 열기", exact: true })).toBeVisible();
     expect(sent).toHaveLength(2); expect(sent[1]).toEqual(sent[0]);
     await page.getByLabel("파일명 검색", { exact: true }).fill(prefix);
-    await expect(page.locator("tbody tr")).toHaveCount(2);
+    await expect(page.locator("tbody tr:not(.library-expanded-actions)")).toHaveCount(2);
     const copyRow = page.getByRole("row").filter({ has: page.getByRole("button", { name: copyName, exact: true }) });
     const copyUrl = (await copyRow.getByRole("link", { name: "다운로드", exact: true }).getAttribute("href"))!;
     expect(copyUrl).not.toBe(sourceUrl);
     expect(await (await request.get(copyUrl)).body()).toEqual(original);
     await page.getByLabel("문서 정렬", { exact: true }).selectOption("oldest");
-    await expect(page.locator("tbody tr").first().locator("td").first()).toHaveText(sourceName);
+    await expect(page.locator("tbody tr:not(.library-expanded-actions)").first().locator("td").first()).toHaveText(sourceName);
     await page.getByLabel("문서 정렬", { exact: true }).selectOption("name");
-    await expect(page.locator("tbody tr").first().locator("td").first()).toHaveText(copyName);
+    await expect(page.locator("tbody tr:not(.library-expanded-actions)").first().locator("td").first()).toHaveText(copyName);
     await page.screenshot({ path: info.outputPath("document-copy.png"), fullPage: true });
     await page.getByRole("button", { name: "사본 열기", exact: true }).click();
     await expect(page.getByRole("status")).toHaveText("저장 완료");

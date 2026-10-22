@@ -51,7 +51,7 @@ test("REAL rhwp, NO AI: three save/download/reupload/reopen cycles preserve tabl
     if (/^https?:/.test(r.url()) && new URL(r.url()).origin !== new URL(baseURL!).origin) external.push(r.url());
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "+ 새 문서", exact: true }).click();
+  await page.getByRole("button", { name: "빈 문서 만들기", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("저장되지 않은 변경 있음");
   let frame = page.frames().find(f => f.url().includes("/rhwp/"))!;
   await frame.locator("#scroll-container canvas").first().click({ position: { x: 160, y: 150 }, force: true });

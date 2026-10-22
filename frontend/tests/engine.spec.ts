@@ -17,7 +17,7 @@ test("REAL rhwp: create, Korean edit, save, original upload, edit version, downl
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
-  await page.getByRole("button", { name: "+ 새 문서" }).click();
+  await page.getByRole("button", { name: "빈 문서 만들기" }).click();
   await expect(page.getByRole("status")).toHaveText("저장되지 않은 변경 있음", {
     timeout: 90000,
   });
@@ -67,9 +67,12 @@ test("REAL rhwp: create, Korean edit, save, original upload, edit version, downl
   await page.keyboard.press("Control+End");
   await page.keyboard.insertText(" 웹 수정 확인");
   await expect(page.getByRole("status")).toHaveText("저장되지 않은 변경 있음");
+  await page.getByLabel("추가 도구", { exact: true }).click();
   await page.getByRole("button", { name: "AI 검토 열기" }).click();
-  await page.getByRole("button", { name: "현재 문단 검토" }).click();
-  await expect(page.getByRole("alert")).toContainText("AI 미설정");
+  await expect(page.getByRole("button", { name: "현재 문단 검토" })).toBeDisabled();
+  await page.getByRole("button", { name: "AI 연결 확인", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("별도 AI에 연결할 수 없습니다");
+  await expect(page.getByRole("button", { name: "현재 문단 검토" })).toBeDisabled();
   await page.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("저장 완료");
   const editedUrl = await page
@@ -108,7 +111,7 @@ test("REAL engine: character/paragraph formatting and table cells survive reload
   request,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "+ 새 문서" }).click();
+  await page.getByRole("button", { name: "빈 문서 만들기" }).click();
   await expect(page.getByRole("status")).toHaveText("저장되지 않은 변경 있음", {
     timeout: 90000,
   });
@@ -182,7 +185,7 @@ test("REAL engine + MOCK AI transport: approval, stale proposal and undo", async
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "+ 새 문서" }).click();
+  await page.getByRole("button", { name: "빈 문서 만들기" }).click();
   await expect(page.getByRole("status")).toHaveText("저장되지 않은 변경 있음", {
     timeout: 90000,
   });
@@ -202,6 +205,7 @@ test("REAL engine + MOCK AI transport: approval, stale proposal and undo", async
   const original = await frame.evaluate(
     () => (window as any).hwpAssistantBridge.snapshot().evidence.text,
   );
+  await page.route("**/api/ai/models", route => route.fulfill({ json: { configured_model: "synthetic", models: ["synthetic"], model_available: true } }));
   await page.route("**/api/ai/review", async (route) => {
     const data = route.request().postDataJSON();
     await route.fulfill({
@@ -215,7 +219,9 @@ test("REAL engine + MOCK AI transport: approval, stale proposal and undo", async
       },
     });
   });
+  await page.getByLabel("추가 도구", { exact: true }).click();
   await page.getByRole("button", { name: "AI 검토 열기" }).click();
+  await page.getByRole("button", { name: "AI 연결 확인", exact: true }).click();
   await page.getByRole("button", { name: "현재 문단 검토" }).click();
   await expect(
     page.getByRole("button", { name: "승인하고 적용" }),
@@ -250,6 +256,7 @@ test("REAL engine + MOCK AI transport: approval, stale proposal and undo", async
       ),
     )
     .toBe("회의 내용을 명확히 검토합니다.");
+  await page.getByRole("button", { name: "AI 연결 확인", exact: true }).click();
   await page.getByRole("button", { name: "현재 문단 검토" }).click();
   await expect(
     page.getByRole("button", { name: "승인하고 적용" }),
@@ -270,7 +277,7 @@ test("REAL engine: in-flight edit stays dirty, lost response retries once", asyn
   request,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "+ 새 문서" }).click();
+  await page.getByRole("button", { name: "빈 문서 만들기" }).click();
   await expect(page.getByRole("status")).toHaveText("저장되지 않은 변경 있음", {
     timeout: 90000,
   });

@@ -43,7 +43,8 @@ test("REAL engine template market: frozen registration, pinned preview, metadata
   const beforeVersions = await (
     await request.get(docPath(source.url) + "/versions")
   ).json();
-  await source.row
+  await source.row.getByRole("button", { name: `${name}.hwpx 더보기`, exact: true }).click();
+  await page.getByRole("group", { name: `${name}.hwpx 추가 작업`, exact: true })
     .getByRole("button", { name: "양식 등록", exact: true })
     .click();
   await page.getByLabel("양식 이름", { exact: true }).fill(name);
@@ -70,12 +71,12 @@ test("REAL engine template market: frozen registration, pinned preview, metadata
     } else await route.fulfill({ response });
   });
   await expect(
-    page.getByRole("button", { name: "고정 버전으로 양식 등록" }),
+    page.getByRole("button", { name: "이 저장본을 양식으로 등록" }),
   ).toBeEnabled();
-  await page.getByRole("button", { name: "고정 버전으로 양식 등록" }).click();
+  await page.getByRole("button", { name: "이 저장본을 양식으로 등록" }).click();
   await expect(page.getByRole("alert")).toContainText("같은 입력으로 재확인");
   await expect(
-    page.getByRole("button", { name: "← 문서함", exact: true }),
+    page.getByRole("button", { name: "문서함", exact: true }),
   ).toBeDisabled();
   await expect(page.getByLabel("양식 이름", { exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "같은 요청 재확인" }).click();
@@ -137,7 +138,7 @@ test("REAL engine template market: frozen registration, pinned preview, metadata
   expect(await (await request.get(source.url)).body()).toEqual(
     await readFile(sample),
   );
-  await page.getByLabel("템플릿 검색").fill(name);
+  await page.getByLabel("양식 검색").fill(name);
   const card = page
     .locator(".market-card")
     .filter({ has: page.getByRole("heading", { name, exact: true }) });
@@ -149,7 +150,7 @@ test("REAL engine template market: frozen registration, pinned preview, metadata
     card.getByRole("button", { name: `${name} 즐겨찾기`, exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await page.getByLabel("즐겨찾기만", { exact: true }).check();
-  await page.getByLabel("템플릿 분류 필터").selectOption("회의록");
+  await page.getByLabel("양식 분류 필터").selectOption("회의록");
   await expect(card).toBeVisible();
   await page
     .getByRole("button", { name: "양식 정보 편집", exact: true })
@@ -206,7 +207,7 @@ test("REAL engine template market: frozen registration, pinned preview, metadata
     .click();
   await expect(page.getByRole("alert")).toContainText("같은 입력으로 재확인");
   await expect(
-    page.getByRole("button", { name: "← 문서함", exact: true }),
+    page.getByRole("button", { name: "문서함", exact: true }),
   ).toBeDisabled();
   await page.getByRole("button", { name: "같은 요청 재확인" }).click();
   await expect(page.getByRole("status")).toHaveText("저장 완료", {
@@ -252,9 +253,9 @@ test("template market: paging and current source permissions reject stale apply 
     expect(response.ok()).toBeTruthy();
     templateIds.push((await response.json()).id);
   }
-  await page.getByRole("button", { name: "템플릿 마켓", exact: true }).click();
-  await page.getByLabel("템플릿 검색").fill(prefix);
-  await page.getByLabel("템플릿 정렬").selectOption("name");
+  await page.getByRole("button", { name: "양식 보관함", exact: true }).click();
+  await page.getByLabel("양식 검색").fill(prefix);
+  await page.getByLabel("양식 정렬").selectOption("name");
   await expect(page.locator(".market-card")).toHaveCount(24);
   await page.getByRole("button", { name: "다음", exact: true }).click();
   await expect(page.locator(".market-card")).toHaveCount(1);
@@ -269,7 +270,7 @@ test("template market: paging and current source permissions reject stale apply 
   await page
     .locator(".market-card")
     .first()
-    .getByRole("button", { name: "미리보기 · 사용" })
+    .getByRole("button", { name: "양식 보기" })
     .click();
   await expect(
     page.getByRole("img", { name: "양식 미리보기 1쪽" }),
@@ -292,14 +293,14 @@ test("template market: paging and current source permissions reject stale apply 
     page.getByRole("img", { name: "양식 미리보기 1쪽" }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "← 문서함", exact: true }),
+    page.getByRole("button", { name: "문서함", exact: true }),
   ).toBeEnabled();
   expect(await (await request.get("/api/documents")).json()).toHaveLength(
     beforeDocs.length,
   );
 });
 
-test("REAL engine template market: pinned standard preview and report entry create no document or generation", async ({
+test("REAL engine template market: standard editor and report entry create no document or generation", async ({
   page,
   request,
 }) => {
@@ -318,23 +319,15 @@ test("REAL engine template market: pinned standard preview and report entry crea
     )
       posts.push(request.url());
   });
-  await page.getByRole("button", { name: "템플릿 마켓", exact: true }).click();
-  await page
-    .getByRole("button", { name: "기준 미리보기", exact: true })
-    .click();
+  await page.getByRole("button", { name: "양식 보관함", exact: true }).click();
+  await page.getByText("AI 보고서의 양식을 바꾸려면", { exact: true }).click();
+  await page.getByRole("button", { name: "표준 설정 편집", exact: true }).click();
+  await expect(page.getByRole("img", { name: "문서 표준 예시 1쪽" })).toBeVisible({ timeout: 90000 });
+  await page.getByRole("button", { name: "양식 보관함", exact: true }).click();
+  await page.getByText("AI 보고서의 양식을 바꾸려면", { exact: true }).click();
+  await page.getByRole("button", { name: "보고서 작성으로", exact: true }).click();
   await expect(
-    page.getByRole("img", { name: "양식 미리보기 1쪽" }),
-  ).toBeVisible({ timeout: 90000 });
-  await expect(page.locator(".market-preview")).not.toContainText("외부");
-  await page.screenshot({
-    path: "test-results/template-market-standard.png",
-    fullPage: true,
-  });
-  await page
-    .getByRole("button", { name: "이 기준으로 보고서 작성", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "주제에서 보고서까지", exact: true }),
+    page.getByRole("heading", { name: "무엇을 정리할까요?", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByLabel("보고서 작성 요청", { exact: true }),

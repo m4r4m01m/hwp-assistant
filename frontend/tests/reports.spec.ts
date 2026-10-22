@@ -4,9 +4,10 @@ import { unzipSync, strFromU8 } from "fflate";
 import { expectNativeTitleRules } from "./report-format-proof";
 
 async function legacyReport(page: Page) {
-  await expect(page.getByLabel("문서 서식 표준", { exact: true })).toBeEnabled();
-  await page.getByLabel("문서 서식 표준", { exact: true }).selectOption("");
-  await page.getByText("작성 예시와 기준", { exact: true }).click();
+  await expect(page.getByLabel("문서 양식", { exact: true })).toBeEnabled();
+  await page.getByLabel("문서 양식", { exact: true }).selectOption("");
+  await page.getByText("요청 예시", { exact: true }).click();
+  await page.getByText("양식 관리·연결 정보", { exact: true }).click();
 }
 
 test("REAL rhwp + MOCK report: prompt, approval, exact commands, save retry and reopen", async ({ page, request }, info) => {
@@ -29,7 +30,7 @@ test("REAL rhwp + MOCK report: prompt, approval, exact commands, save retry and 
     await legacyReport(page);
     await expect(page.getByRole("button", { name: "문서작성 기준 열기", exact: true })).toBeEnabled();
     await page.getByRole("button", { name: "금융권 해킹 대응", exact: true }).click();
-    await page.getByRole("button", { name: "Codex로 보고서 초안 만들기", exact: true }).click();
+    await page.getByRole("button", { name: "초안 작성하기", exact: true }).click();
     await page.getByRole("button", { name: "같은 요청 접수 재확인", exact: true }).click();
     await expect(page.getByRole("heading", { name: "금융권 해킹 대응 보고서 — 합성 시험", exact: true })).toBeVisible();
     expect(sent).toHaveLength(2); expect(sent[1]).toEqual(sent[0]);
@@ -98,7 +99,7 @@ test("REAL rhwp + RECORDED report: long-title formatted preview without prematur
   await legacyReport(page);
   await page.getByRole("button", { name: "금융권 해킹 대응", exact: true }).click();
   const accepted = page.waitForResponse(r => r.url().endsWith('/api/report-tasks') && r.request().method() === 'POST');
-  await page.getByRole("button", { name: "Codex로 보고서 초안 만들기", exact: true }).click();
+  await page.getByRole("button", { name: "초안 작성하기", exact: true }).click();
   const job = await (await accepted).json();
   await page.getByRole('button', { name: '이 내용으로 문서 만들기', exact: true }).click();
   await page.getByRole('button', { name: '한글 초안 준비 재시도', exact: true }).click({ timeout: 60000 });
@@ -158,7 +159,7 @@ test("REAL rhwp + MOCK report: live stages, short items and formatted preview af
     await page.getByRole('button', { name: '보고서 작성', exact: true }).click();
     await legacyReport(page);
     await page.getByRole('button', { name: '금융권 해킹 대응', exact: true }).click();
-    await page.getByRole('button', { name: 'Codex로 보고서 초안 만들기', exact: true }).click();
+    await page.getByRole('button', { name: '초안 작성하기', exact: true }).click();
     await expect(page.getByText('Codex 응답 준비 중…', { exact: true })).toBeVisible();
     expect(await (await request.get('/api/documents')).json()).toHaveLength(before);
     releaseWriting();
@@ -202,7 +203,7 @@ for (const [name, prompt] of [["vendor", "금융회사 외부 업체·클라우�
     await legacyReport(page);
     await page.getByLabel("보고서 작성 요청", { exact: true }).fill(prompt);
     const posted = page.waitForResponse(r => r.url().endsWith("/api/report-tasks") && r.request().method() === "POST");
-    await page.getByRole("button", { name: "Codex로 보고서 초안 만들기", exact: true }).click();
+    await page.getByRole("button", { name: "초안 작성하기", exact: true }).click();
     const accepted = await (await posted).json();
     await page.getByRole("button", { name: "이 내용으로 문서 만들기", exact: true }).click();
     await expect(page.getByRole("button", { name: "초안 확정·서버 저장", exact: true })).toBeVisible({ timeout: 60000 });
