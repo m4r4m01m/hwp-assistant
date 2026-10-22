@@ -33,8 +33,8 @@ else
 fi
 [[ -n "$image" ]] || { echo 'No API image available for file backup.' >&2; exit 1; }
 docker run --rm --network none --read-only \
-  --mount type=volume,src=hwp-assistant-prod-documents,dst=/documents,readonly \
-  --entrypoint tar "$image" -C /documents -czf - . > "$work/documents.tar.gz"
+  --mount type=volume,src=hwp-assistant-prod-documents,dst=/data/files,readonly \
+  --entrypoint tar "$image" -C /data/files -czf - . > "$work/documents.tar.gz"
 dc exec -T db pg_restore --list < "$work/database.dump" >/dev/null
 tar -tzf "$work/documents.tar.gz" >/dev/null
 (cd "$work" && sha256sum database.dump documents.tar.gz > SHA256SUMS)

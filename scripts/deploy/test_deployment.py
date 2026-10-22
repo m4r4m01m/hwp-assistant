@@ -79,6 +79,12 @@ class ProductionSettingsTests(unittest.TestCase):
         self.assertIn("proxy_pass http://127.0.0.1:23000/;", host)
         self.assertNotIn("include /etc/nginx/proxy_params;", host)
 
+    def test_first_backup_mounts_the_image_storage_path(self):
+        text = (ROOT / "scripts/deploy/backup.sh").read_text()
+        self.assertIn("dst=/data/files,readonly", text)
+        self.assertIn("-C /data/files -czf - .", text)
+        self.assertNotIn("dst=/documents", text)
+
     def test_no_destructive_update_command(self):
         for name in ("deploy.sh", "backup.sh"):
             text = (ROOT / "scripts/deploy" / name).read_text()

@@ -37,10 +37,16 @@ jobs:
     container: node:24.15.0-bookworm-slim
     timeout-minutes: 15
     steps:
+      - name: Install Git required by engine preservation tests
+        run: apt-get update && apt-get install -y --no-install-recommends git ca-certificates
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
       - run: npm ci
+        working-directory: frontend
+      - name: Report dependency advisories (no automatic lockfile changes)
+        continue-on-error: true
+        run: npm audit --json
         working-directory: frontend
       - run: npm exec tsc -- --noEmit
         working-directory: frontend
