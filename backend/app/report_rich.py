@@ -138,6 +138,30 @@ class RichLayout:
         p.set("paraPrIDRef", pid)
         return gap
 
+    def align_local_note(self, p, item):
+        """Place a new local explanation under its text/table, with hanging text."""
+        if not self.reference or not item.get("note_source_id"):
+            return
+        role = item["style_kind"]
+        settings = self.visual_settings
+        # Explicit registered note indents own their geometry.
+        if any(settings.get(role + suffix) for suffix in ("_left_indent_pt", "_right_indent_pt", "_first_line_indent_pt")):
+            return
+        right = 0
+        if role == "table_source":
+            percent = settings["table_width_percent"] if item.get("note_visual_kind") == "table" else 100
+            left = self.page_width * (1 - percent / 100) / 2
+            right = left
+        else:
+            parent = item["note_parent_role"].removesuffix("_continuation")
+            left = settings.get(parent + "_left_indent_pt", 0) + max(0, -settings.get(parent + "_first_line_indent_pt", 0))
+        from .reference_source import apply_paragraph
+        para = copy.deepcopy(self.para_map[p.get("paraPrIDRef")])
+        hanging = width(item["note_marker"] + " ") * settings[role + "_size_pt"]
+        apply_paragraph(para, role, {role + "_left_indent_pt": left, role + "_right_indent_pt": right,
+                                    role + "_first_line_indent_pt": -hanging})
+        p.set("paraPrIDRef", self.append(self.paras, para))
+
     def text(self, p, item, *, style=None, limit=None, strong=False):
         cid = p.find(f"{{{HP}}}run").get("charPrIDRef")
         if style:
@@ -293,6 +317,8 @@ def layout_rich_report(data, plan, *, visual_settings=None):
                 index = end
             else:
                 p = original[item["paragraph"]]
+                if plan[0].get("local_notes") == "reference-local-notes-v1":
+                    layout.align_local_note(p, item)
                 previous = prepared[-1][1] if prepared else None
                 if not item.get("visual_caption"):
                     layout.space_body(p, item, previous)
@@ -320,10 +346,28 @@ def layout_rich_report(data, plan, *, visual_settings=None):
                     # prose block when it fits; a middle heading alone is not
                     # useful on the preceding page.
                     following = 0
-                    for _, next_item, next_cost in prepared[i + 1:]:
+                    for next_index in range(i + 1, len(prepared)):
+                        _, next_item, next_cost = prepared[next_index]
                         following += next_cost
                         if report_role(next_item) not in heading_roles:
+                            scope = next_item.get("note_scope") if plan[0].get("local_notes") == "reference-local-notes-v1" else None
+                            if scope:
+                                for _, grouped_item, grouped_cost in prepared[next_index + 1:]:
+                                    if grouped_item.get("note_scope") != scope:
+                                        break
+                                    following += grouped_cost
                             break
+            if plan[0].get("local_notes") == "reference-local-notes-v1":
+                # Reserve the logical paragraph/visual and its explanations
+                # together when they fit. Larger groups retain normal flow.
+                scope = item.get("note_scope")
+                if scope:
+                    local_following = 0
+                    for _, next_item, next_cost in prepared[i + 1:]:
+                        if next_item.get("note_scope") != scope:
+                            break
+                        local_following += next_cost
+                    following = max(following, local_following)
             needed = cost + following if cost + following <= page_budget else cost
             is_cover = cover_layout and (item["kind"] == "title" or item.get("style_kind") in ("cover_date", "cover_department"))
             first_body = cover_layout and not is_cover and not body_started

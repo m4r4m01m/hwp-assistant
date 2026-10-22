@@ -24,6 +24,11 @@ def test_reference_subheading_guidance_reaches_each_purpose_without_changing_fro
     assert "9 paragraphs and 1500 characters per section" in prompt
     assert "preserving important facts, conditions and citations" in prompt
     assert "without adding automatic table/figure numbers" in prompt
+    assert "Write new summaries, body items and limitations in concise Korean business-report prose" in prompt
+    assert "Do not mechanically append '함' to every sentence" in prompt
+    assert "a conditional action remains conditional" in prompt
+    assert "source IDs and exact quotations" in prompt
+    assert "not by rewriting a frozen draft or formatted document" in prompt
     assert ("automatic TOC limit of 30 headings in total" in prompt) == (preset != "appendix-1")
     assert report_hash(value) == original_hash
 
@@ -35,6 +40,26 @@ def test_numbered_body_does_not_receive_a_second_conflicting_numbered_hierarchy(
     assert "'가. ...', '나. ...'" not in prompt
     assert writing_prompt({}) == PROMPT
     assert writing_prompt({"visual_standard": {"revision": 2, "settings": {}}}) == PROMPT
+
+
+def test_reference_style_and_review_feedback_do_not_mutate_the_frozen_source_draft():
+    value = {
+        "visual_standard": {"revision": 3, "settings": defaults()},
+        "revision": {
+            "draft": {"title": "미확인 자료 검토", "sections": [{"paragraphs": [
+                "담당자 확인 후에만 자료 6건을 2026. 11. 13.까지 배포할 예정입니다. [S1]",
+                "자료에는 ‘승인 전 배포 금지’라고 명시되어 있습니다. [S1]",
+            ]}]},
+            "feedback": "보고서 문체로 다듬어 주세요.",
+        },
+    }
+    frozen = copy.deepcopy(value)
+    prompt = writing_prompt(value)
+
+    assert "a plan must not become a completed action" in prompt
+    assert "Keep every existing source entry exactly" in prompt
+    assert "The previous draft and any formatted or saved document remain unchanged" in prompt
+    assert value == frozen
 
 
 def test_explicit_subheadings_use_existing_roles_and_preserve_facts_and_citations():

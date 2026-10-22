@@ -1,0 +1,105 @@
+{
+  "date": "2026-10-23",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "base_commit": "d92fc60beb5ad293cd07fbf4b56c31bddf990e84",
+  "result": "passed_with_scope_limits",
+  "request": "Place explanations below their paragraph or table, restart note markers for each unit, improve report prose, use full body-width tables and hanging indents.",
+  "changes": {
+    "policy": "reference-local-notes-v1",
+    "scope": "New reference ReportDraft layout plans, before fenced application; no post-edit document rewrite.",
+    "notes": "One logical prose paragraph or one caption plus complete table/diagram is a scope. Repeated source IDs reuse a marker. Each new scope starts from the first marker. Adjacent markers are separated. Canonical source IDs, title, date and URL remain intact.",
+    "unused_sources": "Retained as references without a local marker; limitations retained separately.",
+    "pagination": "Keep parent and explanations together when the group fits one page; oversized groups flow normally. Heading reservation includes the first paragraph's note scope.",
+    "new_default_table_width_percent": 100,
+    "width_basis": "Available paper body width within margins; original example's 62.060593% remains provenance, and explicitly registered/frozen widths are retained.",
+    "new_default_first_line_indent_pt": {"square": -21, "circle": -21, "dash": -14},
+    "indent_basis": "Preserve original hierarchical marker positions and align continuation lines with first-line text. Explicit registered/frozen indents are retained.",
+    "prose": "New revision-3 generation instructions request natural concise Korean report endings and parallel table phrases while preserving facts, qualifications, plans and source IDs. Legacy/frozen drafts are not rewritten."
+  },
+  "tests": {
+    "counts_overlap_do_not_sum": true,
+    "focused_compatibility": {
+      "passed": 76,
+      "files": ["test_report_local_notes.py", "test_reference_report.py", "test_reference_body_spacing.py", "test_reference_toc_preflight.py", "test_report_rich.py", "test_report_compatibility.py"],
+      "note": "Before final plain-scaffold visual grouping metadata addition; final rich output subsequently verified byte-identical in native replay."
+    },
+    "final_contracts": {
+      "passed": 50,
+      "files": ["test_report_local_notes.py", "test_reference_standard.py", "test_reference_standard_api.py", "test_visual_report_integration.py", "test_reference_prompt_structure.py"],
+      "note": "Includes all 10 local-note tests, plain-scaffold grouping, long logical paragraph chunks, narrow table note margins and heading boundary reservation."
+    },
+    "width_indent_agent_suite_passed": 23,
+    "prompt_agent_suite_passed": 12,
+    "full_suite_docker_or_engine_rebuild": false
+  },
+  "actual_model": {
+    "calls": 1,
+    "model": "gpt-6.1-sol",
+    "elapsed_ms": 40283,
+    "prompt_sha256": "259154ab8ce81110a85a5a176b2966f8ae610c7552ca765c58113f1e9c77ec23",
+    "schema_validation": "passed",
+    "agent_wording_review": "passed",
+    "tables": 2,
+    "diagrams": 1,
+    "sources": 0,
+    "research_calls": 0,
+    "paid_fallback": false,
+    "review": "Concise natural report prose; supplied quantities, trial dates, ownership conditions and original/version preservation requirements retained. No fabricated sources. This one source-free result does not verify note placement or guarantee all model outputs.",
+    "local_evidence": ".cache/report-local-notes-20261023/model/wording-review.json"
+  },
+  "actual_rhwp": {
+    "engine_wasm_sha256": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0",
+    "bridge_sha256": "1c72afaab4cdeb936db935e87470bf0335b5c09f535b2f85db9c3d7579f9ce3b",
+    "unique_report_replays": 2,
+    "total_replay_executions": 3,
+    "model_calls_in_replays": 0,
+    "user_draft": {
+      "before_pages": 5,
+      "after_pages": 6,
+      "local_note_scopes": 8,
+      "notes": 11,
+      "placement": "All explanations below their parent on the same rendered page; scope markers restart; table notes below the table.",
+      "content_loss": 0,
+      "saved_and_reopened": true,
+      "saved_sha256": "ddb4b74f05d09e2001b8e3709435fc3982cc7e4b90ef3f1759719e66ca1ea84c",
+      "page_count_reason": "Original draft wording retained; locally repeated source explanations add length."
+    },
+    "actual_model_draft": {
+      "pages": 4,
+      "content_loss": 0,
+      "saved_and_reopened": true,
+      "saved_sha256": "a0901575de877966bb3973e012f1c402bfd95a7f0c57be0279c24e42a7e33d29"
+    },
+    "rendered_table_width_px": 642.529541015625,
+    "available_body_width_px": 642.5333333333333,
+    "synthetic_hanging_indent_alignment_error_px": {"square": 0, "circle": 0, "dash": 0.06666666666666288},
+    "reviewer": "Codex agent visual inspection of rendered page images; not human acceptance or Hancom verification.",
+    "local_evidence": [".cache/report-local-notes-20261023/native-replay-review.json", ".cache/table-indent-20261023/proof.json"],
+    "review_artifacts": [".cache/report-local-notes-20261023/review/user-appendix-1.hwpx", ".cache/report-local-notes-20261023/review/user-table-page.png", ".cache/report-local-notes-20261023/review/model-appendix-1.hwpx"]
+  },
+  "preservation": {
+    "reference_sha256": "6c68b50656867f1fc724c50549e60e1109e2f7a00219f2928ef58de0a45711f1",
+    "original_profile_and_long_title_fixture_changed": false,
+    "user_frozen_preview_rewritten": false,
+    "user_browser_reloaded": false,
+    "user_storage_audit": "passed before and after replay and after local app restart",
+    "documents": 8,
+    "versions": 11,
+    "verified_blobs": 13,
+    "verified_bytes": 224748,
+    "registered_visual_standards": 2,
+    "local_audit": ".cache/report-local-notes-20261023/storage-final.json",
+    "replay_storage": "Isolated test stores; no generated comparison published into the user's database."
+  },
+  "local_ui_check": {
+    "url": "http://127.0.0.1:15201/",
+    "source_fingerprint": "fc28c59323f72839af78706969481139819242da4d4c67732e48f5e0b882a488",
+    "runtime_identity": "Host-level read-only verification matched source fingerprint, process start times, listener ports, API health and served assets. Sandbox-only process visibility cannot verify the host run.",
+    "observation": "Fresh independent browser tab displayed 8 documents. Document standard editor completed its native one-page preview and showed new table width default 100%. The inspection tab was closed; existing user tabs left intact."
+  },
+  "limits": [
+    "Hancom 2018 and human acceptance were not performed for this change.",
+    "Existing frozen previews and previously registered explicit settings retain their saved behavior. New generation uses the updated instructions and defaults.",
+    "Native report replays cover appendix 1. Prompt delivery covers all three profiles and appendix presets; broader unrelated regression was not repeated."
+  ]
+}

@@ -90,6 +90,19 @@ def writing_prompt(value):
         prompt = prompt.replace("Where useful, begin square points with a short parenthesized label such as (배경), (차이점), (조치), or (제안).",
                                 "Do not add parenthesized lead labels. Preserve genuine parenthetical facts, conditions and explanations.")
     rules = [f"{key}: {text}" for key, text in settings.items() if key.endswith("_rule") and isinstance(text, str)]
+    prompt += ("\nWrite new summaries, body items and limitations in concise Korean business-report prose. "
+               "Use natural outline endings such as '~함', '~임', '~필요', '~예정', or a clear action noun, "
+               "chosen to preserve the original meaning and tense. State the responsible actor, action, "
+               "result or decision directly; avoid conversational endings such as '~합니다/~해요', "
+               "reader-addressed advice, explanatory lead-ins such as '살펴보겠습니다', and repeated "
+               "conclusions. Do not mechanically append '함' to every sentence or replace useful "
+               "verbs with vague nouns. Keep facts, analysis, proposals, plans and unresolved questions "
+               "distinct: an unverified claim remains unverified, a conditional action remains conditional, "
+               "and a plan must not become a completed action. Preserve important names, figures, dates, "
+               "conditions, qualifications, source IDs and exact quotations; the prose style never permits "
+               "inventing certainty or dropping information. Write table cells as short parallel phrases "
+               "while retaining the same factual meaning. Apply this guidance only while composing the "
+               "new ReportDraft, not by rewriting a frozen draft or formatted document.\n")
     prompt += ("\nIn this request, □/ㅇ/-/․ at the beginning of a paragraph are canonical structural tokens. "
                "The renderer uses the frozen numbered or bullet hierarchy and selected glyphs. Do not manually "
                "duplicate their displayed numbering. The chosen hierarchy is " + settings["numbering_style"] + ".\n")

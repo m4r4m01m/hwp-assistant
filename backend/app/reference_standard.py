@@ -26,6 +26,14 @@ PRESETS = {
 }
 MAX_PAGES = 32
 WIDTHS = (.1, .12, .15, .2, .25, .3, .4, .5, .6, .7, 1., 1.5, 2., 3., 4., 5.)
+# New editable defaults requested after reviewing generated appendix reports.
+# Keep these distinct from the source extractor: the example's geometry is
+# evidence, while registered settings and frozen requests own their exact values.
+REPORT_DEFAULT_OVERRIDES = {
+    "square_first_line_indent_pt": -21,
+    "circle_first_line_indent_pt": -21,
+    "dash_first_line_indent_pt": -14,
+}
 ROLE_LABELS = {
     "title": "본문 문서 제목", "heading": "대제목 · 첫째 항목", "subheading": "중제목 · 둘째 항목",
     "minor_heading": "소제목 · 셋째 항목", "body": "일반 본문", "source": "참고·출처", "note": "본문 주석",
@@ -99,12 +107,15 @@ def source_metadata():
     profile, _ = load_standard()
     return dict(name=profile["name"], reference_sha256=profile["reference_sha256"],
                 profile_sha256=profile["profile_sha256"], raw_endpoint_internal=True,
-                default_precedence="규정표에 명시된 값 우선, 미명시 값은 원문 예시 XML에서 추출",
+                default_precedence="규정표에 명시된 값 우선, 미명시 값은 원문 예시 XML에서 추출. 새 표 폭·기호 내어쓰기의 사용자 요청 기본값은 structural_provenance에 별도 기록",
                 preview_presentation="별첨의 본문 문구는 보존하며 번호·기호·주석 표식은 선택한 표시 설정에 연결합니다. 원문의 혼합 주석 표식과 달라질 수 있습니다.",
                 provenance=source.source_profile()["roles"],
                 structural_provenance={
                     "table_width_percent": dict(part="Contents/section0.xml", top_level_index=99, table_id="1872749261", source_width=29907,
-                        basis="폭의 수치 규정이 없어 원문 표 폭29907과 본문 폭48190에서 추출"),
+                        source_percent=round(29907 / 48190 * 100, 6), default_percent=100,
+                        basis="원문 예시 표 폭은 본문 폭의 약 62%입니다. 2026-10-23 사용자 검수 요청에 따라 새 기본값은 용지 좌우 여백 안의 본문 폭 100%이며 저장한 사용자 너비는 유지합니다."),
+                    "bullet_hanging_indents": dict(defaults=dict(REPORT_DEFAULT_OVERRIDES),
+                        basis="2026-10-23 사용자 검수 요청에 따라 새 기본값은 원문 기호의 계층 위치를 유지하고 후속 줄을 기호 뒤 본문 위치에 맞춥니다. 원문 추출값·기존 등록·동결된 들여쓰기 값은 유지합니다."),
                     "citation_links": [dict(id="S1", inline_ordinal=407, description_ordinal=421, original="*"),
                         dict(id="S2", inline_ordinal=411, description_ordinal=419, original="주1)"),
                         dict(id="S3", inline_ordinal=412, description_ordinal=420, original="주2)")],
@@ -137,7 +148,7 @@ def _catalog():
             if key not in role_values:
                 raise ValueError("Original role extraction is missing " + key)
             item = dict(key=key, label=name, group=label, type=kind, min=minimum, max=maximum,
-                        step=step, unit=unit, default=role_values[key])
+                        step=step, unit=unit, default=REPORT_DEFAULT_OVERRIDES.get(key, role_values[key]))
             if suffix == "font":
                 item.update(min_length=1, max_length=80)
             elif suffix == "underline":
@@ -161,7 +172,8 @@ def _catalog():
         *[_numeric("table_padding_" + side + "_mm", label, "표 구조", value, 0, 20, .1, "mm")
           for side, label, value in (("left", "셀 왼쪽 여백", 1.8), ("right", "셀 오른쪽 여백", 1.8), ("top", "셀 위 여백", .5), ("bottom", "셀 아래 여백", .5))],
         _numeric("table_min_row_height_mm", "최소 셀 높이", "표 구조", 7, 3, 80, .1, "mm"),
-        _numeric("table_width_percent", "본문 폭 대비 표 너비", "표 구조", round(29907 / 48190 * 100, 6), 20, 100, 1, "%"),
+        _numeric("table_width_percent", "본문 폭 대비 표 너비", "표 구조", 100, 20, 100, 1, "%",
+                 help="기본값 100%는 용지 좌우 여백 안의 본문 폭을 채웁니다. 원하는 너비를 직접 지정할 수 있습니다."),
         dict(key="table_repeat_header", label="다음 쪽에 첫 행 반복", group="표 구조", type="boolean", unit="", default=True),
         _numeric("title_frame_height_mm", "본문 제목 상자 높이", "제목 상자", 15, 5, 60, .1, "mm"),
         _choice("title_rule_width_mm", "본문 제목 상하선 두께", "제목 상자", 1., [(value, f"{value:g} mm") for value in WIDTHS]),
