@@ -1,0 +1,70 @@
+{
+  "date": "2026-10-22",
+  "scope": "Apply compatible main updates and continue local QA/UI work on a separate branch",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "base_main": "4afb48d5aa65733b28a4ce4438dc4d371d8bdbe6",
+  "upstream_decision": {
+    "main": "Applied by fast-forward; deployment/public-base changes are compatible with the existing local engine",
+    "improve/responsiveness-security-ui": "Not merged: requires a different engine bridge and upgraded dependencies; matching developer kit and Windows validation are not available"
+  },
+  "changes": {
+    "scripts/desktop-launch-lib.ps1": "Scope local frontend builds to public base /, restore the inherited environment on success/failure, and fingerprint public-base.mjs",
+    "scripts/start-local.ps1": "Use the scoped root-path build helper for local frontend builds only",
+    "scripts/desktop-launch.test.ps1": "Cover helper-only source invalidation and child-process environment propagation/restoration"
+  },
+  "validation": {
+    "incoming_main_public_base_and_cli_checks": { "passed": 30 },
+    "incoming_main_deployment_configuration_checks": { "passed": 11 },
+    "windows_powershell_5_1_launcher_checks": { "passed": 20 },
+    "typescript_and_actual_frontend_build": "passed",
+    "isolated_built_app_e2e": {
+      "passed": 3,
+      "skipped": 1,
+      "passed_scenarios": [
+        "Real rhwp report workspace: full-height editor, manual edit, TOC update, server save and editor reopen",
+        "Real rhwp standard designer: original rules, appendix 1/2/3 previews, full reference and revision-3 registration",
+        "Real engine template market: frozen registration, pinned preview, metadata, favorites and lost apply response"
+      ],
+      "skip_reason": "Automated arbitrary-version comparison requires the separate alice/bob/reader account fixture",
+      "engine": "real rhwp diagnostic build",
+      "report_text": "mock",
+      "actual_model_calls": 0,
+      "evidence": ".cache/local-ui-qa-update-20261022/run.json"
+    },
+    "actual_browser": {
+      "qa_app": "Loaded and opened in the in-app browser",
+      "version_comparison": "Read-only comparison of copied existing versions 1 and 4: both renderers loaded, 8 pages each, 2 changes; no document write or restore",
+      "screenshots": [
+        ".cache/local-ui-qa-update-20261022/qa-ready.png",
+        ".cache/local-ui-qa-update-20261022/comparison-verified.png"
+      ]
+    }
+  },
+  "runtime": {
+    "url": "http://127.0.0.1:15201/",
+    "manifest": ".cache/developer/runs/20261022-232327-58da6248/run.json",
+    "source_fingerprint": "bb51a76740402220432f7fa25ecdaa7f9c903c3c43e4cf3d38923d78dd985fad",
+    "engine_bridge_sha256": "1c72afaab4cdeb936db935e87470bf0335b5c09f535b2f85db9c3d7579f9ce3b",
+    "served_asset_verification": "16 files matched",
+    "desktop_entry": "Existing shortcut wrapper now resolves/reuses this QA run; previous wrapper retained"
+  },
+  "storage": {
+    "original": ".cache/main-review-2026-10-19/data",
+    "independent_qa_copy": ".cache/local-ui-qa-2026-10-22/data",
+    "copy_method": "SQLite backup from a read-only connection plus immutable blob copy",
+    "future_qa_saves": "Independent of the original store; no automatic synchronization",
+    "before_and_after_audits": "Both original and QA copy passed without issues or unreferenced files",
+    "documents": 6,
+    "versions": 9,
+    "registered_visual_standards": 2,
+    "verified_blobs": 11,
+    "verified_bytes": 187522,
+    "original_app": "Preserved at port 15200",
+    "approval_review": "Concurrent launch against the original shared store was rejected for potential write conflicts. Resolved using the independent QA copy; shared-store launch was not performed."
+  },
+  "limits": [
+    "No actual AI generation, Hancom or Docker deployment validation in this update",
+    "Read-only browser comparison does not replace the skipped multi-user automated scenario",
+    "Existing diagnostic engine reused; deployment optimization remains outside this local QA scope"
+  ]
+}

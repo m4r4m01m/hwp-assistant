@@ -45,8 +45,10 @@ Copy-Item -LiteralPath $engineSource -Destination (Join-Path $runRoot 'public') 
 if ($LASTEXITCODE -ne 0) { throw 'TypeScript failed; no servers started.' }
 $buildArguments = @((Join-Path $PSScriptRoot 'build-frontend.mjs'),'--public',(Join-Path $runRoot 'public'),'--out',(Join-Path $runRoot 'app-dist'))
 if ($diagnostic) { $buildArguments += '--diagnostic' }
-& $node @buildArguments
-if ($LASTEXITCODE -ne 0) { throw 'Diagnostic app build failed; no servers started.' }
+Invoke-HwpLocalRootBuild {
+  & $node @buildArguments
+  if ($LASTEXITCODE -ne 0) { throw 'Diagnostic app build failed; no servers started.' }
+}
 if ((Get-HwpSourceContext $projectRoot).fingerprint -ne $sourceContext.fingerprint) { throw 'Application source changed during build. Rerun to build a consistent app; no servers started.' }
 
 $environmentNames = @('DATABASE_URL','STORAGE_DIR','HWP_AUTH_TOKENS','HWP_LEGACY_OWNER','HWP_REWRITE_PROVIDER','HWP_CODEX_USER','HWP_CODEX_API_URL','LLM_PROVIDER')

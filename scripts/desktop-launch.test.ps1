@@ -59,4 +59,46 @@ $tokens=$null; $parseErrors=$null
 [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'start-desktop.ps1'),[ref]$tokens,[ref]$parseErrors)
 Assert-Identity (@($parseErrors).Count -eq 0) $true 'desktop entry parses under Windows PowerShell 5.1'
 Assert-Identity (Test-HwpExactStart @{started_at=$start} ([datetime]$start)) $true 'DateTime JSON values retain exact fractional start ticks'
-Write-Host "$checks desktop identity fixture checks passed; no service was started or stopped."
+
+# A helper-only update must invalidate a previously built app. Use a minimal
+# disposable checkout so this never edits source files in the working tree.
+$sourceFixture = Join-Path $runDirectory 'source-fixture'
+foreach ($folder in @('frontend/src','backend/app','scripts')) {
+    New-Item -ItemType Directory -Path (Join-Path $sourceFixture $folder) -Force | Out-Null
+}
+foreach ($name in @('frontend/index.html','frontend/compare-renderer.html','frontend/package-lock.json',
+    'scripts/assistant-bridge.ts.txt','scripts/engine-lock.json','scripts/build-frontend.mjs','scripts/comparison-core.mjs',
+    'scripts/start-local.ps1','scripts/desktop-launch-lib.ps1','scripts/public-base.mjs')) {
+    [IO.File]::WriteAllText((Join-Path $sourceFixture $name), 'fixture version 1')
+}
+$beforeHelperChange = Get-HwpSourceContext $sourceFixture
+[IO.File]::WriteAllText((Join-Path $sourceFixture 'scripts/public-base.mjs'), 'fixture version 2')
+$afterHelperChange = Get-HwpSourceContext $sourceFixture
+Assert-Identity ($beforeHelperChange.fingerprint -ne $afterHelperChange.fingerprint) $true 'public base helper changes invalidate an existing app build'
+
+# Exercise the environment inherited by a real child, including failure and an
+# initially absent value. The normal deployment build remains outside this guard.
+$node = (Get-Command node -ErrorAction Stop).Source
+$originalPublicBase = [Environment]::GetEnvironmentVariable('HWP_PUBLIC_BASE_PATH', 'Process')
+try {
+    [Environment]::SetEnvironmentVariable('HWP_PUBLIC_BASE_PATH', '/deployment/', 'Process')
+    $seenBase = Invoke-HwpLocalRootBuild { & $node -e 'process.stdout.write(process.env.HWP_PUBLIC_BASE_PATH)' }
+    Assert-Identity ($seenBase -eq '/') $true 'local build child receives root path despite deployment environment'
+    Assert-Identity ($env:HWP_PUBLIC_BASE_PATH -eq '/deployment/') $true 'successful local build restores deployment environment'
+    $buildFailure = $null
+    try {
+        Invoke-HwpLocalRootBuild {
+            & $node -e 'process.exit(process.env.HWP_PUBLIC_BASE_PATH === String.fromCharCode(47) ? 7 : 8)'
+            if ($LASTEXITCODE -ne 0) { throw "Local fixture build failed: $LASTEXITCODE" }
+        }
+    } catch { $buildFailure = $_.Exception.Message }
+    Assert-Identity ($buildFailure -eq 'Local fixture build failed: 7') $true 'failed build receives root path and propagates its original error'
+    Assert-Identity ($env:HWP_PUBLIC_BASE_PATH -eq '/deployment/') $true 'failed local build restores deployment environment'
+    [Environment]::SetEnvironmentVariable('HWP_PUBLIC_BASE_PATH', $null, 'Process')
+    $seenBase = Invoke-HwpLocalRootBuild { & $node -e 'process.stdout.write(process.env.HWP_PUBLIC_BASE_PATH)' }
+    Assert-Identity ($seenBase -eq '/') $true 'local build also supplies root path when environment was absent'
+    Assert-Identity ($null -eq [Environment]::GetEnvironmentVariable('HWP_PUBLIC_BASE_PATH', 'Process')) $true 'local build restores an initially absent environment value'
+} finally {
+    [Environment]::SetEnvironmentVariable('HWP_PUBLIC_BASE_PATH', $originalPublicBase, 'Process')
+}
+Write-Host "$checks desktop launcher fixture checks passed; no service was started or stopped."
