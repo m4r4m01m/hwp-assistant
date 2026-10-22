@@ -11,6 +11,9 @@ from .auth import require_access, require_lease_owner
 from .db import Access, ChangeSet, Context, Conversation, Document, LeaseOwner, Message, Proposal, Template, TemplateCatalog, Version, transaction
 from .hwpx import digest
 from .llm import OpenAICompatible
+from .ai_requests import AIRequest, reserve_chat, finish_chat
+from .capabilities import require_llm_access
+from .rewrite_capacity import ExecutionSlot
 from .rewrite_context import ConfirmedFactInput, confirmed_content
 from .template_market import Category, install_template_market, registration_hash, source_version, verified_bytes
 
@@ -296,34 +299,55 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
     class Chat(Input):
         message_id: str
 
+    def chat_question(db, thread_id, message_id, user, *, lock=False):
+        thread, doc = thread_access(db, thread_id, user, "editor", lock=lock)
+        message = db.get(Message, message_id)
+        if not message or message.conversation_id != thread_id or message.author_id != user or message.role != "user":
+            raise HTTPException(404, "질문을 찾을 수 없습니다.")
+        existing = db.scalar(select(Message).where(Message.conversation_id == thread_id,
+                                                 Message.request_id == "ai:" + message.id))
+        return thread, doc, message, existing
+
     @app.post("/api/threads/{thread_id}/chat")
     async def chat(thread_id: str, value: Chat, request: Request):
+        require_llm_access(request.state.user)
+        # Reading a completed response consumes no model capacity or execution quota.
+        # Repeat every access/author check, including when a previous caller had access.
         with Session(engine) as db:
-            thread, doc = thread_access(db, thread_id, request.state.user, "editor")
-            message = db.get(Message, value.message_id)
-            if not message or message.conversation_id != thread_id or message.author_id != request.state.user or message.role != "user":
-                raise HTTPException(404, "질문을 찾을 수 없습니다.")
-            existing = db.scalar(select(Message).where(Message.conversation_id == thread_id,
-                                                     Message.request_id == "ai:" + message.id))
+            _, _, _, existing = chat_question(db, thread_id, value.message_id, request.state.user)
             if existing:
                 return fields(existing, "id", "content", "source")
-            ctx = context_value(db, thread, doc)
-            if ctx["stale"]:
-                raise HTTPException(409, "컨텍스트가 오래되었습니다. 최신 기준으로 저장하세요.")
-            history = messages_value(db, thread_id, 20)
-            base = doc.current_version
-        answer = await OpenAICompatible().chat(ctx, history)
-        with transaction(engine) as db:
-            thread, doc = thread_access(db, thread_id, request.state.user, "editor", lock=True)
-            current = context_value(db, thread, doc)
-            if doc.current_version != base or current["revision"] != ctx["revision"]:
-                raise HTTPException(409, "응답 중 문서/컨텍스트가 바뀌었습니다. 다시 질문하세요.")
-            old = db.scalar(select(Message).where(Message.conversation_id == thread_id,
-                                                  Message.request_id == "ai:" + value.message_id))
-            row = old or append_message(db, thread_id, request.state.user,
-                  NewMessage(request_id="ai:" + value.message_id, content=answer), "model", "assistant")
-            result = fields(row, "id", "content", "source")
-        return result
+        with app.state.ai_budget.reserve(request.state.user), ExecutionSlot(app.state.rewrite_capacity) as slot:
+            slot.reserve()
+            with transaction(engine) as db:
+                thread, doc, message, existing = chat_question(db, thread_id, value.message_id, request.state.user, lock=True)
+                if existing:
+                    return fields(existing, "id", "content", "source")
+                ctx = context_value(db, thread, doc)
+                if ctx["stale"]:
+                    raise HTTPException(409, "컨텍스트가 오래되었습니다. 최신 기준으로 저장하세요.")
+                history = messages_value(db, thread_id, 20)
+                base = doc.current_version
+                provider = OpenAICompatible()
+                key = digest((thread_id + ":" + message.id).encode())
+                reserve_chat(db, key, request.state.user)
+            try:
+                answer = await provider.chat(ctx, history)
+                with transaction(engine) as db:
+                    thread, doc = thread_access(db, thread_id, request.state.user, "editor", lock=True)
+                    current = context_value(db, thread, doc)
+                    if doc.current_version != base or current["revision"] != ctx["revision"]:
+                        raise HTTPException(409, "응답 중 문서/컨텍스트가 바뀌었습니다. 다시 질문하세요.")
+                    row = append_message(db, thread_id, request.state.user,
+                          NewMessage(request_id="ai:" + value.message_id, content=answer), "model", "assistant")
+                    claim = db.get(AIRequest, key)
+                    claim.status, claim.finished_at = "completed", time.time()
+                    result = fields(row, "id", "content", "source")
+                return result
+            except BaseException:
+                # Do not automatically repeat a model call whose outcome is uncertain.
+                finish_chat(engine, key, "failed")
+                raise
 
     @app.post("/api/threads/{thread_id}/proposals")
     def propose(thread_id: str, value: NewProposal, request: Request):

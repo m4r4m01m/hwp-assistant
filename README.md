@@ -23,6 +23,8 @@ HWP Assistant는 HWPX 파일을 열고, 편집하고, AI 수정안을 비교해 
 
 현재 구현 범위, 남은 문제와 직접 확인할 순서는 **[구현 현황·사용자 검수 안내 · 2026-10-18](docs/implementation-status-and-user-review-2026-10-18.md)**에서 확인할 수 있습니다. 기능별 상태, 우선 검수 9개·추가 검수 6개, 개발 우선순위와 Codex 실행 프롬프트를 모았습니다.
 
+**2026-10-22 개선:** [홈서버 반응성·보안·UI 변경](docs/responsiveness-security-2026-10-22.md)에 정적 압축·캐시, 문서 열기/검색, 만료·폐기 가능한 로그인 세션, AI 미설정 안내, 모바일 패널과 검증 범위를 정리했습니다. 블록 삽입의 기존 본문 배치 보호는 포함하지만 엔진의 일반 HWPX 왕복 결함 해결이나 실제 홈서버 배포 완료를 뜻하지 않습니다.
+
 후속으로 [원문 양식과 내용 검토·보완](docs/report-review-workflow-2026-10-20.md), [문서 표준 편집 설정](docs/visual-standard-controls-2026-10-18.md), [전체 높이 편집 화면](docs/editor-viewport-2026-10-18.md), [Windows 원클릭 개발 환경](docs/developer-quickstart.md)을 추가했습니다. 해당 문서에서 새 기능과 검증 범위를 확인할 수 있습니다.
 
 ## 주요 기능

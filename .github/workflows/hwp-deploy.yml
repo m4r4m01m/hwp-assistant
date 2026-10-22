@@ -30,6 +30,7 @@ jobs:
           persist-credentials: false
       - run: pip install -r backend/requirements.lock.txt -r backend/requirements-mcp.lock.txt
       - run: python scripts/deploy/test_deployment.py
+      - run: python scripts/developer-download.test.py
       - run: python -m pytest -q
 
   frontend-checks:
@@ -46,7 +47,9 @@ jobs:
         working-directory: frontend
       - run: npm exec tsc -- --noEmit
         working-directory: frontend
-      - run: node --test scripts/public-base.test.mjs scripts/engine-build.test.mjs scripts/comparison-core.test.mjs
+      - run: npm run test:unit
+        working-directory: frontend
+      - run: node --test scripts/public-base.test.mjs scripts/engine-build.test.mjs scripts/comparison-core.test.mjs scripts/precompress-static.test.mjs scripts/developer-engine-kit.test.mjs
       - run: node scripts/audit-public-paths.mjs
       - run: bash -n scripts/deploy/common.sh scripts/deploy/backup.sh scripts/deploy/deploy.sh
       - name: Report dependency advisories (bounded; no automatic lockfile changes)
@@ -54,11 +57,31 @@ jobs:
         run: timeout 45s npm audit --json --fetch-timeout=15000 --fetch-retries=0
         working-directory: frontend
 
+  ui-lifecycle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.15.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --fund=false
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - name: Mocked login, search, mobile and preview lifecycle checks
+        run: npm run test:ui
+        working-directory: frontend
+
   # Heavy Rust/WASM build is explicitly requested, not repeated on every push.
   # PR code never runs on the home server and never receives package write access.
   build-verify-publish:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
-    needs: [python-checks, frontend-checks]
+    needs: [python-checks, frontend-checks, ui-lifecycle]
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:

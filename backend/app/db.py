@@ -16,6 +16,18 @@ class Base(DeclarativeBase):
     pass
 
 
+class AuthSession(Base):
+    """Browser sessions are revocable and never persist a usable credential."""
+    __tablename__ = "auth_sessions"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(80), index=True)
+    credential_hash: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[float] = mapped_column(Float)
+    expires_at: Mapped[float] = mapped_column(Float, index=True)
+    last_seen_at: Mapped[float] = mapped_column(Float)
+    revoked_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
 class Document(Base):
     __tablename__ = "documents"
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
