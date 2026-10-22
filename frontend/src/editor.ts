@@ -1,3 +1,4 @@
+import { publicPath } from "./public-path";
 import {
   createEditor,
   type RhwpEditor,
@@ -65,7 +66,7 @@ export class EditorAdapter {
   ) {}
   static async mount(container: HTMLElement) {
     const sdk = await createEditor(container, {
-      studioUrl: new URL("/rhwp/index.html?chrome=embed", location.origin).href,
+      studioUrl: new URL(publicPath("rhwp/index.html?chrome=embed"), location.origin).href,
     });
     const bridge = (
       sdk.element.contentWindow as unknown as { hwpAssistantBridge: Bridge }

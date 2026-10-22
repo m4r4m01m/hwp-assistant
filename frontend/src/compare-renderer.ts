@@ -8,6 +8,7 @@ import type {
   Rect,
 } from "./comparison-types";
 import "./compare-renderer.css";
+import { publicPath } from "./public-path";
 
 const target = document.getElementById("page")!;
 let native: typeof import("@rhwp/core");
@@ -21,16 +22,19 @@ const sha = async (bytes: Uint8Array) =>
     (b) => b.toString(16).padStart(2, "0"),
   ).join("");
 const ready = (async () => {
-  const response = await fetch("/comparison-engine.json");
+  const response = await fetch(publicPath("comparison-engine.json"));
   if (!response.ok)
     throw Error("검증된 비교 엔진이 없습니다. 프런트엔드를 다시 빌드하세요.");
   const manifest = await response.json();
+  const wasmPrefix = publicPath("rhwp/assets/");
   if (
-    !/^\/rhwp\/assets\/rhwp_bg-[\w-]+\.wasm$/.test(manifest.wasm) ||
+    typeof manifest.wasm !== "string" ||
+    !manifest.wasm.startsWith(wasmPrefix) ||
+    !/^rhwp_bg-[\w-]+\.wasm$/.test(manifest.wasm.slice(wasmPrefix.length)) ||
     !/^[a-f0-9]{64}$/.test(manifest.wasm_sha256)
   )
     throw Error("비교 엔진의 검증 정보가 올바르지 않습니다.");
-  const moduleUrl = "/comparison-core.js";
+  const moduleUrl = publicPath("comparison-core.js");
   native = await import(/* @vite-ignore */ moduleUrl);
   const wasm = new Uint8Array(await (await fetch(manifest.wasm)).arrayBuffer());
   if ((await sha(wasm)) !== manifest.wasm_sha256)
@@ -52,7 +56,7 @@ const ready = (async () => {
       ["Regular", "Bold"].map(async (weight) => {
         const face = new FontFace(
           family,
-          `url(/rhwp/fonts/${file}-${weight}.woff2)`,
+          `url(${publicPath(`rhwp/fonts/${file}-${weight}.woff2`)})`,
           { weight: weight === "Bold" ? "700" : "400" },
         );
         document.fonts.add(await face.load());

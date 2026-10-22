@@ -14,6 +14,8 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { root, lock, ensureSource, validateCore, assertStudioBridge, validateInstalledDependencies, hashFile } from "./engine-build-lib.mjs";
 import { checkBundle } from "./check-engine-bundle.mjs";
+import { normalizePublicBase, withPublicBase } from "./public-base.mjs";
+const studioBase = withPublicBase(normalizePublicBase(process.env.HWP_PUBLIC_BASE_PATH || "/"), "rhwp/");
 const { values } = parseArgs({ options: {
   "core-dir": { type: "string" },
   out: { type: "string", default: "frontend/public/rhwp" },
@@ -77,8 +79,8 @@ cpSync(resolve(repo, "assets/fonts"), resolve(studio, "public/fonts"), {
 });
 if (!installed) run("npm", ["ci"], studio);
 run(installed ? process.execPath : "npm", installed
-  ? [installed.vite, "build", "--base=/rhwp/"]
-  : ["exec", "vite", "build", "--", "--base=/rhwp/"], studio, {
+  ? [installed.vite, "build", `--base=${studioBase}`]
+  : ["exec", "vite", "build", "--", `--base=${studioBase}`], studio, {
   RHWP_DISABLE_EXTERNAL_WEBFONTS: "1",
   RHWP_SUBSECOND: "0",
 });
@@ -97,7 +99,7 @@ for (const name of ["LICENSE", "THIRD_PARTY_LICENSES.md"])
 writeFileSync(
   resolve(out, "build-info.json"),
   JSON.stringify(
-    { version: lock.version, commit, externalWebFonts: false, diagnostic: values.diagnostic,
+    { version: lock.version, commit, publicBase: studioBase, externalWebFonts: false, diagnostic: values.diagnostic,
       bridge_sha256: hashFile(resolve(root, "scripts/assistant-bridge.ts.txt")), bundle, coreBuild,
       ...(installed ? { dependencyReuse: { package_lock_sha256: installed.package_lock_sha256,
         installed_lock_sha256: installed.installed_lock_sha256, installation_performed: false } } : {}) },

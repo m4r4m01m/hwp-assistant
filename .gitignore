@@ -51,3 +51,7 @@ playwright-report/
 .coverage
 htmlcov/
 *.log
+# Production credentials, receipts, backups and CI certificates remain local.
+production.env
+.deploy/
+backups/

@@ -1,0 +1,184 @@
+name: HWP deployment
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Deploy after verification (requires the hwp-deploy self-hosted runner and production env)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hwp-deployment-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  python-checks:
+    runs-on: ubuntu-24.04
+    container: python:3.14.0-slim
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: pip install -r backend/requirements.lock.txt -r backend/requirements-mcp.lock.txt
+      - run: python scripts/deploy/test_deployment.py
+      - run: python -m pytest -q
+
+  frontend-checks:
+    runs-on: ubuntu-24.04
+    container: node:24.15.0-bookworm-slim
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: npm ci
+        working-directory: frontend
+      - run: npm exec tsc -- --noEmit
+        working-directory: frontend
+      - run: node --test scripts/public-base.test.mjs scripts/engine-build.test.mjs scripts/comparison-core.test.mjs
+      - run: node scripts/audit-public-paths.mjs
+      - run: bash -n scripts/deploy/common.sh scripts/deploy/backup.sh scripts/deploy/deploy.sh
+
+  # Heavy Rust/WASM build is explicitly requested, not repeated on every push.
+  # PR code never runs on the home server and never receives package write access.
+  build-verify-publish:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: [python-checks, frontend-checks]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ github.sha }}
+    env:
+      HWP_IMAGE_TAG: ${{ github.sha }}
+      HWP_ENV_FILE: /tmp/hwp-ci-${{ github.run_id }}/production.env
+      HWP_CI_CERT_DIR: /tmp/hwp-ci-${{ github.run_id }}/certs
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - name: Generate isolated CI credentials, volumes and TLS certificate
+        run: |
+          python3 scripts/deploy/init.py --env-file "$HWP_ENV_FILE" --owner ci
+          mkdir -p "$HWP_CI_CERT_DIR"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout "$HWP_CI_CERT_DIR/key.pem" -out "$HWP_CI_CERT_DIR/cert.pem" \
+            -subj '/CN=localhost' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null
+      - name: Build API
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: ghcr.io/m4r4m01m/hwp-assistant-api:${{ github.sha }}
+          build-args: HWP_REVISION=${{ github.sha }}
+          labels: org.opencontainers.image.source=https://github.com/m4r4m01m/hwp-assistant
+          cache-from: type=gha,scope=hwp-api
+          cache-to: type=gha,mode=max,scope=hwp-api
+      - name: Build the verified Studio and web image for /hwp-assistant/
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: frontend/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: ghcr.io/m4r4m01m/hwp-assistant-web:${{ github.sha }}
+          build-args: |
+            HWP_PUBLIC_BASE_PATH=/hwp-assistant/
+            HWP_NGINX_CONF=deploy/nginx.hwp-assistant.conf
+            HWP_REVISION=${{ github.sha }}
+          labels: org.opencontainers.image.source=https://github.com/m4r4m01m/hwp-assistant
+          cache-from: type=gha,scope=hwp-web
+          cache-to: type=gha,mode=max,scope=hwp-web
+      - name: Start the real PostgreSQL/API/web and HTTPS gateway
+        run: |
+          docker compose --env-file "$HWP_ENV_FILE" -f compose.deploy.yaml -f compose.ci-gateway.yaml config --quiet
+          docker compose --env-file "$HWP_ENV_FILE" -f compose.deploy.yaml -f compose.ci-gateway.yaml up -d --no-build --wait --wait-timeout 180
+      - name: HTTPS authentication, upload, and persisted bytes
+        run: |
+          python3 scripts/deploy/smoke.py --url https://localhost:24443/hwp-assistant/ \
+            --insecure-localhost --env-file "$HWP_ENV_FILE" --upload-sample
+          docker compose --env-file "$HWP_ENV_FILE" -f compose.deploy.yaml restart api web
+          docker compose --env-file "$HWP_ENV_FILE" -f compose.deploy.yaml up -d --no-build --wait --wait-timeout 180
+          python3 scripts/deploy/smoke.py --url https://localhost:24443/hwp-assistant/ \
+            --insecure-localhost --env-file "$HWP_ENV_FILE" --verify-receipt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.15.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Real browser, editor and comparison under the public subpath
+        working-directory: frontend
+        env:
+          HWP_DEPLOY_ENV_FILE: ${{ env.HWP_ENV_FILE }}
+          HWP_CI_TLS: '1'
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npx playwright test --config playwright.deploy.config.ts
+      - name: Authenticate to GHCR only after verification
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish commit-SHA image tags
+        run: |
+          docker push "ghcr.io/m4r4m01m/hwp-assistant-api:$HWP_IMAGE_TAG"
+          docker push "ghcr.io/m4r4m01m/hwp-assistant-web:$HWP_IMAGE_TAG"
+          printf 'Verified source commit: `%s`\n' "$HWP_IMAGE_TAG" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Image publication is not a successful home-server deployment.\n' >> "$GITHUB_STEP_SUMMARY"
+      - name: Stop isolated CI services (never delete production volumes)
+        if: always()
+        run: |
+          if test -f "$HWP_ENV_FILE"; then
+            docker compose --env-file "$HWP_ENV_FILE" -f compose.deploy.yaml -f compose.ci-gateway.yaml down || true
+          fi
+
+  deploy-home:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.deploy
+    needs: build-verify-publish
+    runs-on: [self-hosted, linux, x64, hwp-deploy]
+    environment: hwp-production
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+    concurrency:
+      group: hwp-home-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Pull, back up and deploy the verified release
+        env:
+          HWP_ENV_FILE: /opt/hwp-assistant/production.env
+          HWP_IMAGE_TAG: ${{ github.sha }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCKER_CONFIG: ${{ runner.temp }}/hwp-ghcr-${{ github.run_id }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$DOCKER_CONFIG"
+          chmod 700 "$DOCKER_CONFIG"
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true; rm -rf -- "$DOCKER_CONFIG"' EXIT
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          bash scripts/deploy/deploy.sh pull
+      - name: Check the public Funnel route without sending login credentials
+        run: |
+          python3 scripts/deploy/smoke.py \
+            --url https://pseudowasabi-svr.taile7b6c4.ts.net/hwp-assistant/

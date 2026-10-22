@@ -11,6 +11,7 @@ import type {
 } from "./comparison-types";
 import { textDifference } from "./text-diff";
 import "./version-history.css";
+import { publicPath } from "./public-path";
 
 export const causeLabel = (cause: string) =>
   ({
@@ -242,7 +243,7 @@ function DocumentPane({
         <iframe
           ref={frame}
           title={`${side === "left" ? "기준" : "비교"} 버전 읽기 전용 페이지`}
-          src="/compare-renderer.html"
+          src={publicPath("compare-renderer.html")}
           tabIndex={-1}
           onLoad={() => setLoaded(true)}
         />

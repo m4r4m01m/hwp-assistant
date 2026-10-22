@@ -1,9 +1,11 @@
 import { defineConfig } from "vite";
 import { resolve } from "node:path";
 import { comparisonCorePlugin } from "../scripts/comparison-core.mjs";
+import { normalizePublicBase } from "../scripts/public-base.mjs";
 const publicDir = resolve(process.env.HWP_PUBLIC_DIR || "public");
 export default defineConfig({
   publicDir,
+  base: normalizePublicBase(process.env.HWP_PUBLIC_BASE_PATH || "/"),
   plugins: [
     comparisonCorePlugin({
       publicDir,
