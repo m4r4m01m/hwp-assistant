@@ -30,6 +30,7 @@ jobs:
           persist-credentials: false
       - run: pip install -r backend/requirements.lock.txt -r backend/requirements-mcp.lock.txt
       - run: python scripts/deploy/test_deployment.py
+      - run: python -I -S -B scripts/deploy/test_host_preflight.py
       - run: python scripts/developer-download.test.py
       - run: python -m pytest -q
 
