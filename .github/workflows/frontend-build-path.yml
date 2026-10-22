@@ -1,0 +1,29 @@
+name: Frontend build path regression
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-build-path-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  programmatic-vite-build:
+    runs-on: ubuntu-24.04
+    container: node:24.15.0-bookworm-slim
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: npm ci --no-audit --fund=false
+        working-directory: frontend
+      # Real Vite/CLI, tiny frontend + diagnostic engine fixtures. No Rust build,
+      # real engine execution, credentials, production data or home-server access.
+      - run: node --test scripts/build-frontend.test.mjs
