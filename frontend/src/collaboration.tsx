@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, jsonRequest, type Document } from "./api";
+import { api, ApiError, jsonRequest, type Document } from "./api";
 import type { Snapshot } from "./editor";
 import { RewritePanel, type PendingRewrite } from "./rewrite";
 import { WritingContextEditor, type WritingContext } from "./context";
+import { DocumentAssistantPanel, type AssistantActions } from "./document-assistant";
+import { WorkspaceIcon } from "./workspace-nav";
 
 type Thread = { id: string; title: string; visibility: "document" | "private" };
 type Message = {
@@ -30,11 +32,12 @@ export function CollaborationPanel({
   cancelRewrite,
   onContextDirty,
   getPendingRewrite,
-}: {
+  captureDocument, sendAssistant, onAssistantActive,
+}: AssistantActions & {
   document: Document;
   capture?: () => Snapshot;
   approve?: (thread: string, proposal: string) => Promise<void>;
-  requestRewrite?: (thread: string, instruction: string, contextRevision?: number) => Promise<void>;
+  requestRewrite?: (thread: string, instruction: string, contextRevision?: number, expectedSelection?: Snapshot) => Promise<void>;
   approveRewrite?: (task: string, candidate: string, application: string) => Promise<void>;
   cancelRewrite?: (task: string) => Promise<void>;
   onContextDirty?: (dirty: boolean) => void;
@@ -48,11 +51,21 @@ export function CollaborationPanel({
     [message, setMessage] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
+    [creating, setCreating] = useState(false),
+    [newTitle, setNewTitle] = useState("문서 검토"),
+    [titleDirty, setTitleDirty] = useState(false),
+    [createPending, setCreatePending] = useState(false),
+    [switchRequest, setSwitchRequest] = useState<{ id: string; label: string } | null>(null),
+    [discardNew, setDiscardNew] = useState(false),
     [checkingConnection, setCheckingConnection] = useState(false),
     [separateAi, setSeparateAi] = useState<{ ready: boolean; model: string; error: string } | null>(null);
   const generation = useRef(0);
+  const [assistantDirty, setAssistantDirty] = useState(false), [assistantActive, setAssistantActive] = useState(false), [showRewrite, setShowRewrite] = useState(false);
+  const assistantDirtyChanged = useCallback((dirty: boolean) => setAssistantDirty(dirty), []);
+  const assistantActiveChanged = useCallback((active: boolean) => { setAssistantActive(active); onAssistantActive?.(active); }, [onAssistantActive]);
+  const pendingCreate = useRef<{ id: string; title: string; visibility: "document" } | null>(null);
   const dirtyChanged = useCallback((dirty: boolean) => { setContextDirty(dirty); }, []);
-  useEffect(() => { onContextDirty?.(contextDirty || message.length > 0); }, [contextDirty, message, onContextDirty]);
+  useEffect(() => { onContextDirty?.(contextDirty || message.length > 0 || titleDirty || createPending || assistantDirty); }, [contextDirty, message, titleDirty, createPending, assistantDirty, onContextDirty]);
   const writable = doc.role !== "reader";
   async function list() {
     const rows = await api<Thread[]>(`/documents/${doc.id}/threads`);
@@ -72,7 +85,15 @@ export function CollaborationPanel({
 
   }
   useEffect(() => {
-    void list().catch((e) => setError(e.message));
+    let live = true;
+    void api<Thread[]>(`/documents/${doc.id}/threads`).then(rows => {
+      if (!live) return;
+      setThreads(rows);
+      // The API returns conversations in creation order. Reopen the newest one.
+      if (rows.length) setSelected(rows[rows.length - 1].id);
+      else if (writable) setCreating(true);
+    }).catch((e) => { if (live) setError(e.message); });
+    return () => { live = false; };
   }, [doc.id]);
   useEffect(() => {
     setDetail(null);
@@ -105,18 +126,61 @@ export function CollaborationPanel({
       setSeparateAi({ ready: false, model: "", error: String(cause) });
     } finally { setCheckingConnection(false); }
   }
+  function selectThread(id: string) {
+    if (id === selected) return;
+    if (assistantActive) return;
+    if (contextDirty || message.length > 0 || titleDirty || assistantDirty) {
+      setSwitchRequest({ id, label: threads.find(row => row.id === id)?.title || "선택한 대화" });
+      return;
+    }
+    changeThread(id);
+  }
+  function changeThread(id: string) {
+    dirtyChanged(false); setMessage(""); setSelected(id); setCreating(false); setShowRewrite(false);
+    setNewTitle("문서 검토"); setTitleDirty(false); setSwitchRequest(null); setDiscardNew(false);
+  }
+  async function createThread() {
+    if (!pendingCreate.current) {
+      const title = newTitle.trim();
+      if (!title) return;
+      pendingCreate.current = { id: crypto.randomUUID(), title, visibility: "document" };
+    }
+    const frozen = pendingCreate.current;
+    setCreatePending(true);
+    let row: Thread;
+    try {
+      row = await api<Thread>(`/documents/${doc.id}/threads`, jsonRequest("POST", frozen));
+    } catch (cause) {
+      if (cause instanceof ApiError && cause.status >= 400 && cause.status < 500) {
+        pendingCreate.current = null; setCreatePending(false);
+        throw cause;
+      }
+      throw new Error(`${String(cause)} · 대화 이름과 요청을 보관했습니다. ‘대화 생성 결과 재확인’으로 같은 요청을 확인하세요.`);
+    }
+    // The committed conversation can be opened even if refreshing the list fails.
+    pendingCreate.current = null; setCreatePending(false);
+    setThreads(rows => rows.some(item => item.id === row.id) ? rows : [...rows, row]);
+    changeThread(row.id);
+    try { await list(); }
+    catch { setError("대화를 만들었습니다. 목록을 새로 불러오지 못했지만 이 대화는 계속 사용할 수 있습니다."); }
+  }
+  function beginCreate() {
+    if (assistantActive) return;
+    if (!createPending && (contextDirty || message.length > 0 || assistantDirty)) {
+      setSwitchRequest({ id: "__new__", label: "새 대화" });
+      return;
+    }
+    void run(createThread);
+  }
   return (
     <section className="collaboration">
-      <h2>문장 수정과 검토 기록</h2>
-      <p className="hint">검토별로 수정 후보와 메모를 보관합니다. 이 문서에 접근할 수 있는 사용자에게 공유됩니다.</p>
-      <select
+      <h2>문서 AI 대화</h2>
+      <p className="hint">이 문서의 수정 후보와 검토 내용을 함께 보관합니다. 대화는 문서 접근 권한이 있는 사용자와 공유됩니다.</p>
+      <div className="conversation-switcher"><select
         aria-label="대화 선택"
         value={selected}
-        onChange={(e) => {
-          if ((contextDirty || message.length > 0) && !confirm("저장하지 않은 작성 정보나 메모가 있습니다. 대화를 바꾸면 입력이 사라집니다. 계속할까요?")) return;
-          dirtyChanged(false); setMessage(""); setSelected(e.target.value);
-        }}
-        disabled={busy}
+        onChange={(e) => selectThread(e.target.value)}
+        disabled={busy || createPending || assistantActive}
       >
         <option value="">대화를 선택하세요</option>
         {threads.map((t) => (
@@ -125,55 +189,48 @@ export function CollaborationPanel({
           </option>
         ))}
       </select>
-      {writable &&
-        (["document"] as const).map((visibility) => (
-          <button
-            key={visibility}
-            disabled={busy}
-            onClick={() =>
-              void run(async () => {
-                if ((contextDirty || message.length > 0) && !confirm("저장하지 않은 작성 정보나 메모가 있습니다. 새 대화를 열면 입력이 사라집니다. 계속할까요?")) return;
-                const title = prompt(
-                  "대화 제목",
-                  "문서 검토",
-                );
-                if (!title) return;
-                const row = await api<Thread>(
-                  `/documents/${doc.id}/threads`,
-                  jsonRequest("POST", {
-                    id: crypto.randomUUID(),
-                    title,
-                    visibility,
-                  }),
-                );
-                await list();
-                dirtyChanged(false); setMessage(""); setSelected(row.id);
-              })
-            }
-          >
-            공유 대화 만들기
-          </button>
-        ))}
-      <button
-        disabled={busy}
-        onClick={() =>
-          void run(async () => {
-            await list();
-            await load();
-          })
-        }
-      >
-        대화 새로고침
-      </button>
+      {writable && !creating && <button disabled={busy || assistantActive} onClick={() => { setCreating(true); setSwitchRequest(null); }}>새 대화</button>}
+      <button aria-label="대화 새로고침" title="대화 새로고침" disabled={busy} onClick={() => void run(async () => { await list(); await load(); })}><WorkspaceIcon name="refresh" size={17}/></button>
+      </div>
+      {writable && creating && <form aria-label="새 대화 만들기" onSubmit={event => { event.preventDefault(); beginCreate(); }}>
+        <label>대화 이름<input aria-label="대화 이름" value={newTitle} maxLength={120} disabled={busy || createPending}
+          onChange={event => { setNewTitle(event.target.value); setTitleDirty(true); }} autoFocus /></label>
+        <button type="submit" disabled={busy || assistantActive || !newTitle.trim()}>{busy ? "대화 여는 중…" : createPending ? "대화 생성 결과 재확인" : "AI와 대화 시작"}</button>
+        {selected && <button type="button" disabled={busy || createPending} onClick={() => {
+          if (titleDirty) setDiscardNew(true);
+          else setCreating(false);
+        }}>새 대화 취소</button>}
+        {createPending && <p role="status">같은 이름과 요청으로 결과를 확인합니다. 중복 대화를 만들지 않습니다.</p>}
+      </form>}
+      {discardNew && <div role="group" aria-label="새 대화 입력 취소 확인">
+        <p>입력한 대화 이름을 버릴까요?</p>
+        <button disabled={busy} onClick={() => { setCreating(false); setTitleDirty(false); setNewTitle("문서 검토"); setDiscardNew(false); }}>대화 이름 버리기</button>
+        <button onClick={() => setDiscardNew(false)}>계속 작성</button>
+      </div>}
+      {switchRequest && <div role="group" aria-label="대화 전환 확인">
+        <p>저장하지 않은 입력이 있습니다. 입력을 버리고 ‘{switchRequest.label}’로 이동할까요?</p>
+        <button disabled={busy || assistantActive || createPending} onClick={() => {
+          if (assistantActive || createPending) return;
+          const next = switchRequest.id; setSwitchRequest(null);
+          if (next === "__new__") void run(createThread);
+          else changeThread(next);
+        }}>입력 버리고 이동</button>
+        <button disabled={busy} onClick={() => setSwitchRequest(null)}>현재 대화 유지</button>
+      </div>}
       {error && (
         <p role="alert" className="error">
           {error}
         </p>
       )}
       {detail && (
-        <>
+        <div className="conversation-content" inert={createPending}>
+          <DocumentAssistantPanel key={`assistant-${detail.id}`} thread={detail.id} document={doc} captureDocument={captureDocument} sendAssistant={sendAssistant}
+            onDirty={assistantDirtyChanged} onActive={assistantActiveChanged} requestRewrite={requestRewrite} onShowRewrite={() => setShowRewrite(true)} />
+          <details className="assistant-secondary-tools" open={showRewrite} onToggle={event => setShowRewrite(event.currentTarget.open)}><summary>문단 수정 후보 · 직접 요청</summary>
           <RewritePanel key={detail.id} thread={detail.id} document={doc} context={detail.context} contextDirty={contextDirty}
             requestRewrite={requestRewrite} approveRewrite={approveRewrite} cancelRewrite={cancelRewrite} getPendingRewrite={getPendingRewrite} />
+          </details>
+          <details className="assistant-secondary-tools"><summary>작성 정보·검토 메모</summary>
           <details><summary>추가 작성 정보 · 선택 사항</summary>
           <WritingContextEditor key={`context-${detail.id}`} thread={detail.id} context={detail.context}
             baseVersion={doc.current_version} writable={writable} capture={capture} onSaved={() => load(detail.id)} onDirty={dirtyChanged} />
@@ -185,7 +242,7 @@ export function CollaborationPanel({
               <article key={m.id}>
                 <small>
                   {m.author_id} ·{" "}
-                  {m.source === "model"
+                  {m.role === "assistant" && m.source === "document_ai" ? "문서 AI" : m.source === "model"
                     ? "설정된 AI"
                     : m.source === "codex"
                       ? "Codex"
@@ -281,7 +338,8 @@ export function CollaborationPanel({
             </article>
           ))}
           <details><summary>연결 정보</summary><p>대화 ID: <code>{detail.id}</code></p></details>
-        </>
+          </details>
+        </div>
       )}
     </section>
   );

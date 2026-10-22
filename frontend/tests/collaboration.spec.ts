@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { unzipSync, strFromU8 } from "fflate";
+import { startConversation } from "./conversation-helpers";
 
 test("REAL HWPX template: register, recommend, apply, edit delta, preserve pinned source", async ({
   page,
@@ -112,9 +113,8 @@ test("REAL engine + external proposal fixture: persisted context, explicit appro
     .getByRole("link", { name: "저장본 다운로드" })
     .getAttribute("href"))!;
   const docPath = fileUrl.split("/versions/")[0];
-  await page.getByRole("button", { name: "AI 문장 다듬기 열기" }).click();
-  page.on("dialog", (d) => d.accept("문서 공동 검토"));
-  await page.getByRole("button", { name: "공유 대화 만들기" }).click();
+  await page.getByRole("button", { name: "문서 AI 대화 열기" }).click();
+  await startConversation(page, "문서 공동 검토");
   await page.getByText("추가 작성 정보 · 선택 사항", { exact: true }).click();
   await page.getByLabel("작성 목적").fill("명확한 회의록");
   await page.getByLabel("작성 기준", { exact: true }).fill("결정된 날짜만 사용");

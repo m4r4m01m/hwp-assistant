@@ -193,6 +193,24 @@ class ReportTask(Base):
     created_at: Mapped[float] = mapped_column(Float)
 
 
+class ConversationTurn(Base):
+    """Frozen live-editor question; no document mutation or approval capability."""
+    __tablename__ = "document_assistant_turns"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"), index=True)
+    document_id: Mapped[str] = mapped_column(ForeignKey("documents.id"), index=True)
+    requested_by: Mapped[str] = mapped_column(String(80))
+    base_version: Mapped[str] = mapped_column(ForeignKey("versions.id"))
+    input: Mapped[str] = mapped_column(Text)
+    input_sha256: Mapped[str] = mapped_column(String(64))
+    request_sha256: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(16))
+    response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    execution: Mapped[str] = mapped_column(Text)
+    error: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[float] = mapped_column(Float)
+
+
 class Application(Base):
     __tablename__ = "rewrite_applications"
     __table_args__ = (UniqueConstraint("task_id"),)

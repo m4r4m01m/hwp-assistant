@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { startConversation } from "./conversation-helpers";
 import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 
@@ -104,9 +105,8 @@ test("REAL rhwp workspace: one visible panel preserves unsent conversation and w
   const state = await openSample(page);
   const before = await state.frame.evaluate(() => ({ state: (window as any).hwpAssistantBridge.documentState(),
     bytes: Array.from((window as any).hwpAssistantBridge.exportSnapshot().bytes) as number[] }));
-  await page.getByRole("button", { name: "AI 문장 다듬기 열기", exact: true }).click();
-  page.once("dialog", dialog => dialog.accept("합성 화면 검증 대화"));
-  await page.getByRole("button", { name: "공유 대화 만들기", exact: true }).click();
+  await page.getByRole("button", { name: "문서 AI 대화 열기", exact: true }).click();
+  await startConversation(page, "합성 화면 검증 대화");
   await page.getByText("추가 작성 정보 · 선택 사항", { exact: true }).click();
   await page.getByRole("textbox", { name: "작성 목적", exact: true }).fill("아직 저장하지 않은 화면 검증 입력");
   await page.getByRole("textbox", { name: "대화 메시지", exact: true }).fill("아직 전송하지 않은 대화 입력");
@@ -114,20 +114,20 @@ test("REAL rhwp workspace: one visible panel preserves unsent conversation and w
   await page.getByRole("button", { name: "AI 검토 열기", exact: true }).click();
   await expect(page.getByLabel("문단 AI 검토 패널", { exact: true })).toBeVisible();
   await expect(page.locator(".editor-row > aside:visible")).toHaveCount(1);
-  await page.getByRole("button", { name: "AI 문장 다듬기 열기", exact: true }).click();
+  await page.getByRole("button", { name: "문서 AI 대화 열기", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "작성 목적", exact: true })).toHaveValue("아직 저장하지 않은 화면 검증 입력");
   await expect(page.getByRole("textbox", { name: "대화 메시지", exact: true })).toHaveValue("아직 전송하지 않은 대화 입력");
-  page.once("dialog", dialog => dialog.dismiss());
-  await page.getByRole("button", { name: "AI 문장 다듬기 닫기", exact: true }).click();
+  await page.getByRole("button", { name: "문서 AI 대화 닫기", exact: true }).click();
+  await page.getByRole("alertdialog", { name: "미저장 입력 확인", exact: true }).getByRole("button", { name: "계속 편집", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "작성 목적", exact: true })).toHaveValue("아직 저장하지 않은 화면 검증 입력");
   await expect(page.getByLabel("문단 AI 검토 패널", { exact: true })).toHaveCount(0);
   page.once("dialog", dialog => dialog.accept());
   await page.getByRole("button", { name: "작성 정보 편집 취소", exact: true }).click();
   // A message alone must also keep the close guard, even after context is reset.
-  page.once("dialog", dialog => dialog.dismiss());
-  await page.getByRole("button", { name: "AI 문장 다듬기 닫기", exact: true }).click();
+  await page.getByRole("button", { name: "문서 AI 대화 닫기", exact: true }).click();
+  await page.getByRole("alertdialog", { name: "미저장 입력 확인", exact: true }).getByRole("button", { name: "계속 편집", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "대화 메시지", exact: true })).toHaveValue("아직 전송하지 않은 대화 입력");
-  for (const button of ["AI 검토 열기", "목차 관리", "블록 삽입 열기", "AI 문장 다듬기 열기"]) {
+  for (const button of ["AI 검토 열기", "목차 관리", "블록 삽입 열기", "문서 AI 대화 열기"]) {
     if (button === "AI 검토 열기") await page.getByLabel("추가 도구", { exact: true }).click();
     await page.getByRole("button", { name: button, exact: true }).click();
     await expect(page.locator(".editor-row > aside:visible")).toHaveCount(1);

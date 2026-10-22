@@ -1,4 +1,4 @@
-"""002/003: additive tables, preserving existing documents, versions and all blob keys."""
+"""Additive tables, including frozen assistant turns; preserve documents, versions and blob keys."""
 import os
 from sqlalchemy import select, update
 from .db import Base, Access, Conversation, Document, VisualStandard, transaction

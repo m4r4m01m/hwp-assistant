@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { unzipSync, strFromU8 } from "fflate";
+import { openConversationTools, startConversation } from "./conversation-helpers";
 
 test.use({ baseURL: process.env.HWP_E2E_LOCAL_URL || "http://127.0.0.1:15212" });
 test.skip(!process.env.HWP_E2E_LOCAL_URL || !process.env.HWP_E2E_MOCK_URL,
@@ -24,9 +25,8 @@ async function setup(page: Page) {
   const originalUrl = (await page.getByRole("link", { name: "저장본 다운로드" }).getAttribute("href"))!;
   const docPath = originalUrl.split("/versions/")[0];
   const original = await (await page.request.get(originalUrl)).body();
-  await page.getByRole("button", { name: "AI 문장 다듬기 열기" }).click();
-  page.once("dialog", d => d.accept("MOCK 로컬 후보 시험"));
-  await page.getByRole("button", { name: "공유 대화 만들기", exact: true }).click();
+  await page.getByRole("button", { name: "문서 AI 대화 열기" }).click();
+  await startConversation(page, "MOCK 로컬 후보 시험");
   await expect(page.getByRole("button", { name: "수정 후보 2개 만들기" })).toBeEnabled();
   await expect(page.getByTestId("rewrite-provider")).toContainText("hwp-synthetic-fixture");
   await frame.locator("#scroll-container canvas").first().click({ position: { x: 160, y: 150 }, force: true });
@@ -53,6 +53,7 @@ async function requestCandidates(page: Page) {
 }
 
 async function openWritingContext(page: Page) {
+  await openConversationTools(page);
   const summary = page.getByText("추가 작성 정보 · 선택 사항", { exact: true });
   if (await summary.locator("..").getAttribute("open") === null) await summary.click();
 }
@@ -97,8 +98,8 @@ test("REAL rhwp + MOCK provider: confirmed writing context reaches the model and
   await expect(article.getByTestId("frozen-writing-context")).toContainText("운영팀에 지출 현황을 보고");
   expect(await (await request.get(state.docPath + "/versions")).json()).toHaveLength(1);
   expect(await state.frame.evaluate(() => (window as any).hwpAssistantBridge.snapshot())).toEqual(state.snapshot);
-  await page.getByRole("button", { name: "AI 문장 다듬기 닫기", exact: true }).click();
-  await page.getByRole("button", { name: "AI 문장 다듬기 열기", exact: true }).click();
+  await page.getByRole("button", { name: "문서 AI 대화 닫기", exact: true }).click();
+  await page.getByRole("button", { name: "문서 AI 대화 열기", exact: true }).click();
   const tid = new URL(job.request.url()).pathname.split("/")[3];
   await page.getByLabel("대화 선택").selectOption(tid);
   await openWritingContext(page);
@@ -152,8 +153,8 @@ test("REAL rhwp + MOCK provider: context draft survives message refresh and conc
   await page.getByRole("button", { name: "대화 새로고침", exact: true }).click();
   await expect(page.getByLabel("작성 목적", { exact: true })).toHaveValue("저장 전 내 작성 목적");
   await expect(page.getByRole("button", { name: "작성 정보 저장", exact: true })).toBeDisabled();
-  page.once("dialog", d => d.dismiss());
-  await page.getByRole("button", { name: "AI 문장 다듬기 닫기", exact: true }).click();
+  await page.getByRole("button", { name: "문서 AI 대화 닫기", exact: true }).click();
+  await page.getByRole("alertdialog", { name: "미저장 입력 확인", exact: true }).getByRole("button", { name: "계속 편집", exact: true }).click();
   await expect(page.getByLabel("작성 목적", { exact: true })).toHaveValue("저장 전 내 작성 목적");
   page.once("dialog", d => d.accept());
   await page.getByRole("button", { name: "작성 정보 편집 취소", exact: true }).click();
@@ -521,8 +522,8 @@ test("REAL rhwp + MOCK provider: late document A generation response cannot alte
   try {
     await page.getByRole("button", { name: "수정 후보 2개 만들기" }).click();
     await Promise.race([accepted, new Promise((_, reject) => setTimeout(() => reject(Error("response barrier timed out")), 5000))]);
-    page.once("dialog", d => d.accept());
     await page.getByRole("button", { name: "← 문서 목록", exact: true }).click();
+    await page.getByRole("alertdialog", { name: "미저장 입력 확인", exact: true }).getByRole("button", { name: "저장하지 않고 목록으로", exact: true }).click();
     await page.getByRole("button", { name: "빈 문서 만들기", exact: true }).click();
     await expect(page.getByRole("status")).toHaveText("저장되지 않은 변경 있음");
     const b = page.frames().find(f => f.url().includes("/rhwp/"))!;
@@ -539,9 +540,8 @@ test("REAL rhwp + MOCK provider: late document A generation response cannot alte
     await expect(page.locator(`[data-task-id="${oldTask}"]`)).toHaveCount(0);
     await page.getByRole("button", { name: "저장", exact: true }).click();
     await expect(page.getByRole("status")).toHaveText("저장 완료");
-    await page.getByRole("button", { name: "AI 문장 다듬기 열기" }).click();
-    page.once("dialog", d => d.accept("문서 B"));
-    await page.getByRole("button", { name: "공유 대화 만들기", exact: true }).click();
+    await page.getByRole("button", { name: "문서 AI 대화 열기" }).click();
+    await startConversation(page, "문서 B");
     await expect(page.locator("[data-task-id]")).toHaveCount(0);
     expect(hash(await (await request.get(state.originalUrl)).body())).toBe(hash(state.original));
   } finally { release(); }
@@ -596,10 +596,11 @@ test(`REAL rhwp + MOCK provider: same-document late ${lateResponse} response pre
     expect((await (await request.get(path)).json())[0].status).toBe("running");
     stages.push("A model gate entered; still running");
     // Same Editor instance and document; only the conversation panel is remounted.
-    await page.getByRole("button", { name: "AI 문장 다듬기 닫기" }).click();
-    await page.getByRole("button", { name: "AI 문장 다듬기 열기" }).click();
+    await page.getByRole("button", { name: "문서 AI 대화 닫기" }).click();
+    await page.getByRole("button", { name: "문서 AI 대화 열기" }).click();
     await expect(page.locator(`select[aria-label="대화 선택"] option[value="${thread}"]`)).toHaveCount(1);
     await page.getByRole("combobox", { name: "대화 선택" }).selectOption(thread);
+    await openConversationTools(page);
     const articleA = page.locator(`[data-task-id="${posted[0].id}"]`);
     await articleA.getByRole("button", { name: "이 작업 결과 수신 중단" }).click();
     await expect(articleA).toContainText("cancelled");

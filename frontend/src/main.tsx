@@ -24,6 +24,8 @@ import { TocPanel, type TocCapture, type PreparedToc } from "./toc";
 import "./editor-workspace.css";
 import { WorkspaceNav, WorkspaceIcon, type WorkspaceSection } from "./workspace-nav";
 import "./workspace-shell.css";
+import { assistantDocumentContext } from "./document-assistant-context";
+import type { AssistantTurn } from "./document-assistant";
 
 function App({
   account,
@@ -361,6 +363,9 @@ function Editor({
       applicationId?: string;
     } | null>(null);
   const reviewHold = useRef(false);
+  const assistantHold = useRef(false);
+  const onAssistantActive = React.useCallback((value: boolean) => { assistantHold.current = value; }, []);
+  const [discardTarget, setDiscardTarget] = useState<"panel" | "document" | null>(null);
   const rewriteRequest = useRef<{thread: string; instruction: string; id: string; snapshot: Snapshot;
     base: string; previousHold: boolean; contextRevision?: number} | null>(null);
   const contextDraftDirty = useRef(false);
@@ -431,7 +436,7 @@ function Editor({
   async function checkReviewConnection() {
     setAiConnectionChecking(true); setAiConnection(null); setAiError("");
     try { setAiConnection(await api("/ai/models")); }
-    catch { setAiError("별도 AI에 연결할 수 없습니다. 연결 설정을 확인하거나 AI 문장 다듬기를 이용하세요."); }
+    catch { setAiError("별도 AI에 연결할 수 없습니다. 연결 설정을 확인하거나 문서 AI 대화를 이용하세요."); }
     finally { setAiConnectionChecking(false); }
   }
   function showPanel(next: "block" | "toc" | "review" | "conversation" | null) {
@@ -440,10 +445,8 @@ function Editor({
       setError("준비한 블록·목차를 반영하거나 해당 패널에서 취소한 뒤 다른 도구를 여세요.");
       return;
     }
-    if (conversationPanel && next === null && contextDraftDirty.current) {
-      if (!confirm("저장하지 않은 작성 정보나 메모가 있습니다. 패널을 닫으면 입력이 사라집니다. 계속할까요?")) return;
-      contextDraftDirty.current = false;
-    }
+    if (conversationPanel && next === null && assistantHold.current) { setError("AI 응답을 확인하거나 수신을 중단한 뒤 대화를 닫으세요."); return; }
+    if (conversationPanel && next === null && contextDraftDirty.current) { setDiscardTarget("panel"); return; }
     // Switching tools hides this panel without losing unsent messages or writing inputs.
     // Its explicit close action retains the existing discard/reopen behavior.
     if (next === "conversation") setConversationMounted(true);
@@ -642,7 +645,7 @@ function Editor({
         );
     }, 30000);
     const guard = (e: BeforeUnloadEvent) => {
-      if (dirtyRef.current || busy.current || contextDraftDirty.current || blockHold.current) {
+      if (dirtyRef.current || busy.current || contextDraftDirty.current || blockHold.current || assistantHold.current) {
         e.preventDefault();
         e.returnValue = "";
       }
@@ -761,7 +764,7 @@ function Editor({
   saveRef.current = save;
   useEffect(() => {
     const timer = setInterval(() => {
-      if (dirtyRef.current && !pending.current && !reviewHold.current && !blockHold.current) void saveRef.current();
+      if (dirtyRef.current && !pending.current && !reviewHold.current && !assistantHold.current && !blockHold.current) void saveRef.current();
     }, 20000);
     return () => clearInterval(timer);
   }, []);
@@ -811,6 +814,16 @@ function Editor({
   }
   return (
     <div className="workspace editor-workspace">
+      {discardTarget && <div className="editor-discard-dialog" role="alertdialog" aria-modal="true" aria-label="미저장 입력 확인">
+        <section><h2>미저장 입력 확인</h2><p>{discardTarget === "panel" ? "아직 보내거나 저장하지 않은 대화 입력이 있습니다. 입력을 버리고 대화 패널을 닫을까요?" : "저장하지 않은 문서 변경이나 대화 입력이 있습니다. 저장하지 않고 문서 목록으로 돌아갈까요?"}</p>
+          <button autoFocus onClick={() => setDiscardTarget(null)}>계속 편집</button>
+          <button onClick={() => {
+            const target = discardTarget; setDiscardTarget(null);
+            if (target === "document") onClose();
+            else { contextDraftDirty.current = false; setConversationPanel(false); setConversationMounted(false); }
+          }}>{discardTarget === "panel" ? "입력 버리고 닫기" : "저장하지 않고 목록으로"}</button>
+        </section>
+      </div>}
       <WorkspaceNav active="documents" compact className="editor-rail" label="문서 작업">
         <button
           className="editor-rail-action editor-back"
@@ -818,14 +831,10 @@ function Editor({
           aria-label="← 문서 목록"
           onClick={() => {
             if (blockHold.current) { setError("블록 준비를 삽입하거나 취소한 뒤 문서 목록으로 돌아가세요."); return; }
-            if (
-              !busy.current &&
-              (!(dirtyRef.current || contextDraftDirty.current) ||
-                confirm(
-                  "저장하지 않은 변경사항이 있습니다. 문서 목록으로 돌아갈까요?",
-                ))
-            )
-              onClose();
+            if (assistantHold.current) { setError("AI 응답을 확인하거나 수신을 중단한 뒤 문서 목록으로 돌아가세요."); return; }
+            if (busy.current) return;
+            if (dirtyRef.current || contextDraftDirty.current) { setDiscardTarget("document"); return; }
+            onClose();
           }}
         >
           <WorkspaceIcon name="back" /><span>목록</span>
@@ -909,8 +918,8 @@ function Editor({
             onClick={() => showPanel(tocPanel ? null : "toc")}><WorkspaceIcon name="toc" /><span>목차</span><i className="editor-toc-dot" aria-hidden="true" /><span className="editor-visually-hidden" aria-label="목차 상태">{tocLabel}</span></button>}
         </div>
         <div className="editor-rail-group" role="group" aria-label="AI 및 대화">
-          <button className="editor-rail-action" disabled={!doc.current} title="AI 문장 다듬기 · 작성 정보와 메모" aria-label={`AI 문장 다듬기 ${conversationPanel ? "닫기" : "열기"}`} aria-pressed={conversationPanel}
-            onClick={() => showPanel(conversationPanel ? null : "conversation")}><WorkspaceIcon name="conversation" /><span>AI 문장 다듬기</span></button>
+          <button className="editor-rail-action" disabled={!doc.current} title="현재 문서를 보며 AI와 대화" aria-label={`문서 AI 대화 ${conversationPanel ? "닫기" : "열기"}`} aria-pressed={conversationPanel}
+            onClick={() => showPanel(conversationPanel ? null : "conversation")}><WorkspaceIcon name="conversation" /><span>문서 AI 대화</span></button>
           <details className="editor-menu" name="editor-overflow" ref={toolsMenu}>
             <summary className="editor-rail-action" aria-label="추가 도구" title="추가 도구"><WorkspaceIcon name="more"/><span>추가 도구</span></summary>
             <div className="editor-menu-content">
@@ -972,9 +981,33 @@ function Editor({
             <CollaborationPanel
               document={doc.current}
               capture={() => adapter.current!.selection()}
+              onAssistantActive={onAssistantActive}
+              captureDocument={async () => {
+                const instance = adapter.current, document = doc.current;
+                if (!ready || !instance || !document || !epoch.current) throw new Error("문서를 먼저 열고 저장한 뒤 대화를 시작하세요.");
+                if (blockHold.current || busy.current || pending.current || applied.current || rewriteRequest.current) throw new Error("진행 중인 저장·수정 적용을 먼저 마무리하세요.");
+                const source = instance.exportHwpx();
+                let selection: Snapshot | null = null;
+                try {
+                  const candidate = instance.selection();
+                  if (candidate.evidence.text && Array.from(candidate.evidence.text).length <= 4000 && candidate.selection.target?.kind === "body_paragraph") selection = candidate;
+                } catch { /* Document questions also work in unsupported edit selections. */ }
+                const document_context = await assistantDocumentContext(source);
+                if (adapter.current !== instance || doc.current?.current_version !== document.current_version || instance.bridge.revision() !== source.revision || epoch.current !== source.epoch)
+                  throw new Error("읽는 동안 문서가 바뀌었습니다. 현재 내용으로 다시 요청하세요.");
+                return { base_version: document.current_version, document_context, selection };
+              }}
+              sendAssistant={async (thread, request) => {
+                if (!ready || !adapter.current || !doc.current || busy.current || pending.current || applied.current || blockHold.current || rewriteRequest.current)
+                  throw new Error("진행 중인 저장·수정 적용을 먼저 마무리하세요.");
+                assistantHold.current = true;
+                return api<AssistantTurn>(`/threads/${thread}/assistant-turns`, {
+                  ...jsonRequest("POST", request), headers: { "Content-Type": "application/json", "X-Edit-Session": token.current },
+                });
+              }}
               onContextDirty={onContextDirty}
               getPendingRewrite={() => rewriteRequest.current}
-              requestRewrite={async (thread, instruction, contextRevision) => {
+              requestRewrite={async (thread, instruction, contextRevision, expectedSelection) => {
                 if (blockHold.current) throw new Error("블록 삽입 준비를 먼저 마무리하세요.");
                 if (applied.current) throw new Error("승인 적용의 저장 연결이 미해결입니다. 같은 후보로 저장 확인을 먼저 완료하세요. 새 지시는 보관됩니다.");
                 if (busy.current || pending.current) throw new Error("진행 중인 저장을 먼저 완료하세요.");
@@ -984,6 +1017,7 @@ function Editor({
                 if (!previous) {
                   // Capture before pausing autosave: an unsupported selection can throw here.
                   const snapshot = adapter.current!.selection();
+                  if (expectedSelection && blockJson(snapshot) !== blockJson(expectedSelection)) throw new Error("질문 이후 문서나 선택 문단이 바뀌었습니다. 현재 문단에서 AI에게 다시 요청하세요.");
                   rewriteRequest.current = {thread, instruction, id: crypto.randomUUID(), snapshot,
                     base: doc.current!.current_version, previousHold: reviewHold.current, contextRevision};
                 }
@@ -1080,7 +1114,7 @@ function Editor({
             <button className="panel-close" aria-label="검토 패널 닫기" onClick={() => showPanel(null)}>닫기</button>
             <h2>별도 AI 문단 검토</h2>
             <p className="hint">사내·로컬 모델의 연결 상태를 확인한 뒤 사용할 수 있습니다.</p>
-            <button disabled={!doc.current} onClick={() => showPanel("conversation")}>AI 문장 다듬기로 이동</button>
+            <button disabled={!doc.current} onClick={() => showPanel("conversation")}>문서 AI 대화로 이동</button>
             <p>
               검토할 본문 문단에 커서를 놓으세요. 승인 전에는 문서를 변경하지
               않습니다.
