@@ -3,6 +3,7 @@ import importlib.util
 import json
 from pathlib import Path
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -70,6 +71,28 @@ class ProductionSettingsTests(unittest.TestCase):
 
     def test_settings_never_reuse_secrets(self):
         self.assertNotEqual(init.settings("owner"), init.settings("owner"))
+
+    def test_host_preflight_needs_only_python_standard_library(self):
+        # deploy/backup invoke host python3 before Docker; API packages are only
+        # installed inside the image. -I -S removes env/user/site-package access.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "production.env"
+            configured = init.settings("owner")
+            for hosts, expected in ((DEFAULT_ALLOWED_HOSTS, 0), ("https://invalid.example", 1)):
+                with self.subTest(hosts=hosts):
+                    path.write_text(configured.replace("HWP_ALLOWED_HOSTS=" + DEFAULT_ALLOWED_HOSTS,
+                                                       "HWP_ALLOWED_HOSTS=" + hosts))
+                    path.chmod(0o600)
+                    result = subprocess.run(
+                        [sys.executable, "-I", "-S", "-B", str(Path(__file__).with_name("config.py")), str(path)],
+                        capture_output=True, text=True, timeout=15,
+                    )
+                    self.assertEqual(result.returncode, expected, result.stderr)
+                    if expected == 0:
+                        self.assertIn("Production configuration validated", result.stdout)
+                    else:
+                        self.assertIn("HWP_ALLOWED_HOSTS", result.stderr)
+                        self.assertNotIn("Traceback", result.stderr)
 
     def test_env_is_data_not_shell(self):
         with tempfile.TemporaryDirectory() as tmp:

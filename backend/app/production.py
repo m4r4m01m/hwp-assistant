@@ -38,7 +38,7 @@ def validate_environment(env):
         raise ValueError("Use a generated URL-safe DB password (32+ characters)")
     if env.get("STORAGE_DIR") != "/data/files":
         raise ValueError("Production requires the persistent /data/files mount")
-    from .auth import allowed_hosts
+    from .host_validation import allowed_hosts
     if not allowed_hosts(env.get("HWP_ALLOWED_HOSTS", "")):
         raise ValueError("Production requires an explicit HWP_ALLOWED_HOSTS allowlist")
     return users

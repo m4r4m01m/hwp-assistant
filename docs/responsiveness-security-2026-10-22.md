@@ -1,6 +1,6 @@
 # 홈서버 점검 후 반응성·보안·UI 개선
 
-기준 소스는 main `4afb48d5aa65733b28a4ce4438dc4d371d8bdbe6`이다. 코드 검증, Docker 배포 검증, 실제 홈서버의 체감 시간은 구분한다. 구현 과정의 임시 작업 경로 초기화 후 소스를 복구하고 검증을 다시 실행했다. 서버 핵심 변경은 원격 체크포인트에서, 엔진 bridge와 일부 UI 회귀는 원래 바이트에서 복구했다. 다시 구성한 화면·배포 코드는 최종 소스로 회귀를 재실행하며 이전 통과 기록만으로 완료 판정을 하지 않는다.
+기준 소스는 main `4afb48d5aa65733b28a4ce4438dc4d371d8bdbe6`이다. 코드 검증, Docker 배포 검증, 실제 홈서버의 체감 시간은 구분한다. 구현 과정의 임시 작업 경로 초기화 후 소스를 복구하고 검증을 다시 실행했다. 서버 핵심 변경은 원격 체크포인트에서, 엔진 bridge와 일부 UI 회귀는 원래 바이트에서 복구했다. 다시 구성한 화면·배포 코드도 통합 후 회귀를 재실행했다.
 
 ## 1. 사용자가 체감하는 변경
 
@@ -48,9 +48,11 @@
 
 FastAPI/Starlette는 `0.136.3`/`1.3.1`, Vite는 `7.3.7`, Nginx는 `1.30.6-alpine`, PostgreSQL은 `17.11-alpine`로 맞추고 확인한 이미지 digest를 고정했다. 전체 의존성에 알려진 취약점이 전혀 없다는 판정은 아니다.
 
-첫 PR CI의 참고용 npm audit에서 Vite 7.3.6 관련 경고가 확인되어 공식 수정 버전 7.3.7로 정확히 고정했다. [Windows editor 실행 관련 권고](https://github.com/vitejs/launch-editor/security/advisories/GHSA-587h-7wmj-h5pm)와 [개발 서버 파일 허용 경계 권고](https://github.com/vitejs/vite/security/advisories/GHSA-rq7h-c2jc-7f22)에 해당한다. 운영 프런트엔드는 Nginx 정적 제공이므로 이를 운영 Vite 서버의 취약점으로 해석하지 않는다. 수정 후 로컬 npm audit의 알려진 권고는 총 0개였으며, 실제 Vite 빌드와 UI·native 엔진 브라우저 회귀를 다시 검사한다. 이 결과는 당시 npm 의존성 권고 데이터에 대한 검사이며 전체 서비스 보안 인증은 아니다.
+첫 PR CI의 참고용 npm audit에서 Vite 7.3.6 관련 경고가 확인되어 공식 수정 버전 7.3.7로 정확히 고정했다. [Windows editor 실행 관련 권고](https://github.com/vitejs/launch-editor/security/advisories/GHSA-587h-7wmj-h5pm)와 [개발 서버 파일 허용 경계 권고](https://github.com/vitejs/vite/security/advisories/GHSA-rq7h-c2jc-7f22)에 해당한다. 운영 프런트엔드는 Nginx 정적 제공이므로 이를 운영 Vite 서버의 취약점으로 해석하지 않는다. 수정 후 로컬과 CI npm audit의 알려진 권고는 총 0개였으며, 실제 Vite 빌드와 Mock UI 10개·native 엔진 브라우저 16개 회귀도 다시 통과했다. 이 결과는 당시 npm 의존성 권고 데이터에 대한 검사이며 전체 서비스 보안 인증은 아니다.
 
 배포 스크립트는 기존 DB 컨테이너를 교체하기 전에 앱 쓰기를 멈추고 기존 DB와 문서 파일을 일관된 세트로 백업한다. 백업 실패 시 기존 앱을 재개하고 교체를 중단한다. 백업 후 DB 교체 실패 시 쓰기를 중단한 상태에서 명시적 복구를 요구하고 자동 DB downgrade를 시도하지 않는다.
+
+호스트의 배포 사전검사는 Python 표준 라이브러리만 사용한다. Host 파서를 별도 모듈로 분리해 FastAPI·SQLAlchemy를 호스트에 설치하지 않아도 설정 검사와 백업 준비가 가능하게 했다. 외부 패키지를 차단한 `python -I -S`로 실제 설정 검사 CLI의 정상 입력과 잘못된 Host 거부를 검증했다.
 
 ## 4. LLM 연결 준비
 
@@ -89,7 +91,7 @@ npx playwright install chromium
 npm run test:ui
 ```
 
-복구·통합 후 전체 Python 686개, 프런트엔드 단위 18개, Mock UI 10개, Node 정적/엔진/실제 Vite 경로 회귀 52개, 배포 도구 12개, 개발 kit 다운로드 사전검사 6개가 통과했다. 실제 Chromium과 native 엔진의 블록 삽입 4개·왕복 저장 1개·편집 화면 2개·양식 3개·문서 비교 6개도 통과했다. TypeScript 검사와 최종 native 진단 프런트엔드 빌드도 통과했다. Nginx 1.30.6의 실제 응답 42개에서 압축·캐시·보안 헤더 등 266개 조건을 재검증했다. 마지막 의존성 수정 후 재실행 결과와 최종 head의 CI는 PR 본문에 기록한다.
+복구·통합 후 전체 Python 686개, 프런트엔드 단위 18개, Mock UI 10개, Node 정적/엔진/실제 Vite 경로 회귀 52개, 배포 도구 13개, 개발 kit 다운로드 사전검사 6개가 통과했다. 실제 Chromium과 native 엔진의 블록 삽입 4개·왕복 저장 1개·편집 화면 2개·양식 3개·문서 비교 6개도 통과했다. TypeScript 검사와 최종 native 진단 프런트엔드 빌드도 통과했다. Nginx 1.30.6의 실제 응답 42개에서 압축·캐시·보안 헤더 등 266개 조건을 재검증했다. 마지막 의존성 수정 후 재실행 결과와 최종 head의 CI는 PR 본문에 기록한다.
 
 `test:ui`는 Mock API/Mock editor를 사용하는 로그인·검색·모바일·미리보기·polling 회귀다. 실제 엔진의 provenance나 렌더링·저장 검증을 대체하지 않는다. 실제 Chromium과 native 진단 엔진의 저장·비교·블록 삽입은 별도로 검사한다. 모델 모의 응답을 실제 LLM 검증으로 계산하지 않는다.
 
