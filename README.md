@@ -85,9 +85,11 @@ flowchart LR
 
 ## Windows에서 API·웹 개발 실행
 
-**빠른 시작:** clone 후 루트의 **`Start HWP Assistant.cmd`를 더블클릭**하면 잠금 의존성 설치 → 해시로 고정한 개발 엔진 준비 → 분리된 로컬 문서함/API/웹 실행을 진행합니다. Git·Node·Python이 필요하며, AI에는 각 개발자의 Codex CLI와 본인 ChatGPT 로그인을 사용합니다. 기존 문서·다른 실행 서버·인증 파일을 복사하거나 변경하지 않습니다. [첫 실행·도구 검사·엔진 kit·소스 빌드 안내](docs/developer-quickstart.md)
+**현재 변경본의 준비 상태:** 새 bridge와 일치하는 엔진 kit는 아직 GitHub release에 게시하지 않았습니다. 기존 2026-10-18 kit를 사용하는 기본 더블클릭 설치는 호환성 검사에서 중단하므로, [개발자 빠른 시작](docs/developer-quickstart.md)의 소스 빌드 또는 별도로 제공한 새 진단 ZIP 수동 설치를 먼저 사용하세요. 기존 엔진 cache와 문서 데이터는 보존합니다.
 
-검증 환경은 Windows, Node **24.15.0**, Python **3.14.4**, Chrome입니다. React **19.2.0**, TypeScript **5.9.3**, FastAPI **0.121.0**, SQLAlchemy **2.0.44**를 사용합니다. 로컬 DB는 SQLite이며 PostgreSQL 실행 결과로 대체해 표현하지 않습니다.
+현재 checkout과 호환되는 kit가 게시된 버전에서는 루트의 **`Start HWP Assistant.cmd`를 더블클릭**해 잠금 의존성 설치 → 해시로 고정한 개발 엔진 준비 → 분리된 로컬 문서함/API/웹 실행을 진행합니다. Git·Node·Python이 필요하며, AI에는 각 개발자의 Codex CLI와 본인 ChatGPT 로그인을 사용합니다. [첫 실행·도구 검사·엔진 kit·소스 빌드 안내](docs/developer-quickstart.md)
+
+이전 Windows 검증 환경은 Node **24.15.0**, Python **3.14.4**, Chrome입니다. 현재 의존성은 React **19.2.0**, TypeScript **5.9.3**, FastAPI **0.136.3**, Starlette **1.3.1**, SQLAlchemy **2.0.44**입니다. 이번 변경의 Linux native 진단 엔진·Chromium 회귀와 남은 Windows·Docker·PostgreSQL 검증 범위는 [개선 기록](docs/responsiveness-security-2026-10-22.md)에 구분했습니다. 로컬 DB는 SQLite입니다.
 
 ### 1. 의존성 준비
 
