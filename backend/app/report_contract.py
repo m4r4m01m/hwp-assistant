@@ -237,6 +237,15 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
         return result
     emphasis = [{**item.model_dump(), "text": present(item.text, body=True)} for item in draft.emphasis]
     blocks = [(draft.title, "title", False, {})]
+    if reference:
+        from .reference_report import BODY_SPACING_POLICY, TITLE_OVERFLOW_POLICY
+        # New plans opt in explicitly; a previously frozen plan/layout is never
+        # restyled merely because the application code has been updated.
+        blocks[0][3]["body_spacing"] = BODY_SPACING_POLICY
+        blocks[0][3]["title_overflow"] = TITLE_OVERFLOW_POLICY
+        if settings["preset_id"] in ("appendix-2", "appendix-3"):
+            from .reference_report import TOC_LAYOUT_POLICY
+            blocks[0][3]["toc_layout"] = TOC_LAYOUT_POLICY
     if reference and settings["preset_id"] == "appendix-1":
         from .reference_report import TITLE_LAYOUT_POLICY
         blocks[0][3]["title_layout"] = TITLE_LAYOUT_POLICY
@@ -262,7 +271,12 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
                 # bullet with a numbered marker; (1)/(가) are structural text.
                 prose = presentation_text(prose, {**settings, "citation_style": "BRACKET_S"}, source_ids, body=True)
                 text, reference_role = body_item(prose, settings, counters)
-                blocks.append((present(text), "body", False, {"style_kind": reference_role}))
+                item_meta = {"style_kind": reference_role}
+                # A numbered display of a square body item is still prose.
+                # Only an explicit subordinate title joins the native TOC.
+                if reference_role == "subheading" and re.match(r"^[가-하]\.\s", prose):
+                    item_meta["toc_level"] = 2
+                blocks.append((present(text), "body", False, item_meta))
         else:
             blocks.append((f"{i}. {section.heading}", "heading", True, {}))
             blocks.extend((present(p, body=True), "body", False, {}) for p in section.paragraphs)
@@ -273,7 +287,10 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
             number = table_number if is_table else diagram_number
             kind = "table" if is_table else "diagram"
             # All cell/label/connector text is staged through the same fenced commands.
-            blocks.append((f"{'표' if is_table else '그림'} {number}. {present(visual.caption)}", "source", False,
+            # The reference example uses the supplied caption itself. Keep
+            # legacy numbering, but do not add an unrequested prefix in V3.
+            caption = present(visual.caption) if reference else f"{'표' if is_table else '그림'} {number}. {present(visual.caption)}"
+            blocks.append((caption, "source", False,
                            {"visual_caption": kind} if rich else {}))
             rows = [visual.columns, *visual.rows] if is_table else [[part for j, step in enumerate(visual.steps) for part in (["→", step] if j else [step])]]
             for y, row in enumerate(rows):

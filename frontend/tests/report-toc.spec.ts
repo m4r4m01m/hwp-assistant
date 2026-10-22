@@ -9,6 +9,8 @@ import {
 import { createHash, randomUUID } from "node:crypto";
 import { writeFile, readFile } from "node:fs/promises";
 import { unzipSync, strFromU8 } from "fflate";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const sha = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 const xml = (bytes: Buffer) =>
@@ -48,11 +50,11 @@ async function typeEnd(page: Page, text: string) {
   await expect.poll(async () => xml(await output(engine))).toContain(text);
   return engine;
 }
-async function begin(page: Page, prompt: string) {
+async function begin(page: Page, prompt: string, visualStandard = "") {
   await page.goto("/");
   await page.getByRole("button", { name: "보고서 작성", exact: true }).click();
   await expect(page.getByLabel("문서 서식 표준", { exact: true })).toBeEnabled();
-  await page.getByLabel("문서 서식 표준", { exact: true }).selectOption(""); // These tests preserve the existing native TOC contract.
+  await page.getByLabel("문서 서식 표준", { exact: true }).selectOption(visualStandard); // Empty selection retains the legacy native TOC contract.
   await page.getByLabel("보고서 작성 요청", { exact: true }).fill(prompt);
   await page.getByLabel("공개 웹 자료를 검색하고 출처 포함").uncheck();
   const posted = page.waitForResponse(
@@ -383,6 +385,123 @@ test("REAL rhwp + MOCK report TOC: long Korean titles and ten actual pages survi
       reopened_evidence: reopenedEvidence, saved_sha256: sha(saved),
       convergence_passes: phases.length, painted_canvas_count: count, saved_versions: 1, ...evidence,
     });
+  } finally {
+    await page.unrouteAll({ behavior: "wait" });
+  }
+});
+
+test("REAL rhwp + MOCK reference TOC: source frame preserves long-title pagination and saved identity", async ({ page, request }, info) => {
+  test.setTimeout(240000);
+  const catalog = await (await request.get("/api/visual-standards")).json();
+  const preset = catalog.presets.find((item: any) => item.settings.preset_id === "appendix-2");
+  const phases: any[] = [];
+  await page.route("**/api/report-tasks/*/preview/toc-verify", async route => {
+    const response = await route.fetch();
+    phases.push({ input: route.request().postDataJSON().layout_evidence, status: response.status(), result: await response.json() });
+    await proof(info, "reference-long-toc-phases.json", phases);
+    await route.fulfill({ response });
+  });
+  try {
+    // Reuse the unchanged original long-title fixture; only the selected standard differs.
+    const id = await begin(page, "[LONG-TOC] 원문 별첨 2 긴 제목 경계시험", preset.id);
+    await ready(page, 180000);
+    const frozen = await preview(request, id), current = await checkNative(page, frozen);
+    expect(frozen.toc.headings.filter((heading: any) => heading.text.length >= 90)).toHaveLength(6);
+    expect(current.evidence.page_count).toBeGreaterThanOrEqual(10);
+    expect(phases.length).toBeGreaterThanOrEqual(2);
+    expect(phases.length).toBeLessThanOrEqual(3);
+    expect(phases.every(phase => phase.status === 200)).toBe(true);
+    expect(phases.at(-1).result.converged).toBe(true);
+    const laboratory = await page.context().newPage();
+    const projectRoot = fileURLToPath(new URL("../../", import.meta.url));
+    await laboratory.route("**/reference-long-render/**", async route => {
+      const name = new URL(route.request().url()).pathname.split("/").pop()!;
+      if (name.endsWith(".js") && /^[a-z-]+\.js$/.test(name))
+        return route.fulfill({ contentType: "application/javascript", body: await readFile(resolve(projectRoot, "frontend/node_modules/@rhwp/editor", name)) });
+      return route.fulfill({ contentType: "text/html", body: '<html><body style="margin:0"><div id="editor" style="height:100vh"></div></body></html>' });
+    });
+    await laboratory.goto(new URL("/reference-long-render/", page.url()).href);
+    const svgs = await laboratory.evaluate(async encoded => {
+      const { createEditor } = await import(/* @vite-ignore */ "/reference-long-render/index.js");
+      const sdk = await createEditor("#editor", { studioUrl: location.origin + "/rhwp/index.html?chrome=embed" });
+      await sdk.loadFile(Uint8Array.from(atob(encoded), char => char.charCodeAt(0)).buffer, "boundary.hwpx", { suppressDialogs: true });
+      const pages: string[] = [];
+      for (let i = 0; i < await sdk.pageCount(); i++) pages.push(await sdk.getPageSvg(i));
+      sdk.destroy();
+      return pages;
+    }, current.bytes.toString("base64"));
+    const pageTextSizes: number[] = [], renderedTexts: string[] = [];
+    for (const [index, svg] of svgs.entries()) {
+      await writeFile(info.outputPath(`reference-long-page-${index + 1}.svg`), svg);
+      await laboratory.setContent(`<html><body style="margin:0;background:white">${svg}</body></html>`);
+      const text = await laboratory.evaluate(() => Array.from(document.querySelectorAll("svg text")).map(node => node.textContent || "").join("").replace(/\s/g, ""));
+      pageTextSizes.push(text.length);
+      renderedTexts.push(text);
+      if (index < 4) await laboratory.locator("svg").screenshot({ path: info.outputPath(`reference-long-page-${index + 1}.png`) });
+      if (index === 0) {
+        const clearance = await laboratory.evaluate(title => {
+          const glyphs = Array.from(document.querySelectorAll("svg text"));
+          const normalized = (text: string) => text.replace(/\s/g, "");
+          const full = glyphs.map(node => normalized(node.textContent || "")).join("");
+          const target = normalized(title), start = full.indexOf(target);
+          if (start < 0) throw new Error("Full long title is not visible");
+          let offset = 0;
+          const boxes = glyphs.filter(node => {
+            const length = normalized(node.textContent || "").length;
+            const match = offset < start + target.length && offset + length > start;
+            offset += length;
+            return match;
+          }).map(node => node.getBoundingClientRect());
+          const rules = Array.from(document.querySelectorAll("svg line")).filter(line =>
+            line.getAttribute("stroke")?.toLowerCase() === "#107fb5" && line.getBoundingClientRect().width > 500)
+            .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+          return { rules: rules.length, top: Math.min(...boxes.map(box => box.top)), bottom: Math.max(...boxes.map(box => box.bottom)),
+            inner_top: rules[0].getBoundingClientRect().top + Number(rules[0].getAttribute("stroke-width")) / 2,
+            inner_bottom: rules[1].getBoundingClientRect().top - Number(rules[1].getAttribute("stroke-width")) / 2 };
+        }, frozen.plan[0].text);
+        expect(clearance.rules).toBe(2);
+        expect(clearance.top).toBeGreaterThan(clearance.inner_top);
+        expect(clearance.bottom).toBeLessThan(clearance.inner_bottom);
+        await proof(info, "reference-long-title-clearance.json", clearance);
+      }
+      expect(text.replace(/-\d+-$/, ""), `Page ${index + 1} must contain more than a page number`).not.toBe("");
+    }
+    await laboratory.close();
+    const firstBodyPage = Math.min(...current.evidence.headings.map((heading: any) => heading.page));
+    const visibleToc = renderedTexts.slice(1, firstBodyPage - 1).join("");
+    for (const heading of frozen.toc.headings)
+      expect(visibleToc).toContain(heading.text.replace(/\s/g, "") + String(frozen.toc.pages[heading.id]));
+    const parts = unzipSync(current.bytes);
+    expect(strFromU8(parts["Contents/header.xml"])).toContain("reference-toc-frame-v2");
+    const content = await page.evaluate(section => {
+      const doc = new DOMParser().parseFromString(section, "application/xml");
+      return Array.from(doc.getElementsByTagNameNS("*", "t")).map(node => node.textContent || "").join("").replace(/\s/g, "");
+    }, strFromU8(parts["Contents/section0.xml"]));
+    for (const item of frozen.plan) expect(content).toContain(item.text.replace(/\s/g, ""));
+    const canvases = current.engine.locator("#scroll-container canvas");
+    for (const [index, canvas] of (await canvases.all()).entries()) {
+      await canvas.scrollIntoViewIfNeeded();
+      const png = await canvas.evaluate(element => (element as HTMLCanvasElement).toDataURL("image/png"));
+      await writeFile(info.outputPath(`reference-long-canvas-${index + 1}.png`), Buffer.from(png.split(",")[1], "base64"));
+    }
+    await page.getByRole("button", { name: "초안 확정·서버 저장", exact: true }).click();
+    await expect(page.getByRole("status")).toHaveText("HWPX 서버 저장 완료");
+    const href = (await page.getByRole("link", { name: "완성 보고서 다운로드", exact: true }).getAttribute("href"))!;
+    const saved = await (await request.get(href)).body();
+    expect(saved).toEqual(current.bytes);
+    await writeFile(info.outputPath("reference-long-title.hwpx"), saved);
+    await page.getByRole("button", { name: "보고서 편집하기", exact: true }).click();
+    await expect(page.getByRole("status")).toHaveText("저장 완료");
+    const reopened = await (await page.locator(".block-editor-slot.active iframe").elementHandle())!.contentFrame();
+    expect(await output(reopened!)).toEqual(saved);
+    const reopenedEvidence = await reopened!.evaluate(headings => (window as any).hwpAssistantBridge.layoutEvidence(headings),
+      frozen.toc.headings.map(({ id, section, paragraph, length, text_sha256 }: any) => ({ id, section, paragraph, length, text_sha256 })));
+    expect(reopenedEvidence.headings).toEqual(current.evidence.headings);
+    expect(reopenedEvidence.page_count).toBe(current.evidence.page_count);
+    await proof(info, "reference-long-toc-proof.json", { real_engine: true, actual_model_calls: 0,
+      original_long_fixture_unchanged: true, source_frame: true, human_approval: false, automated_save: true,
+      convergence_passes: phases.length, initial_evidence: current.evidence, reopened_evidence: reopenedEvidence,
+      saved_sha256: sha(saved), page_text_sizes: pageTextSizes, content_loss: 0 });
   } finally {
     await page.unrouteAll({ behavior: "wait" });
   }

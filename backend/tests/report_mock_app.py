@@ -34,7 +34,10 @@ def generate(value, settings, progress=lambda value: None, active=lambda: True):
             with patch.object(report_stream, 'stream_command', lambda *args_: args):
                 return report_stream.generate_stream(value, replace(settings, model='test-model'), directory, 'synthetic', 'test', progress, active)
     if os.getenv("HWP_REPORT_FIXTURES"):
-        name = "vendor" if "클라우드" in value["prompt"] else "customer" if "고객정보" in value["prompt"] else "executive"
+        preset = (value.get("visual_standard") or {}).get("settings", {}).get("preset_id")
+        name = {"appendix-1": "executive", "appendix-2": "vendor", "appendix-3": "customer"}.get(preset)
+        if name is None:
+            name = "vendor" if "클라우드" in value["prompt"] else "customer" if "고객정보" in value["prompt"] else "executive"
         record = json.loads((Path(os.environ["HWP_REPORT_FIXTURES"]) / f"actual-{name}.json").read_text(encoding="utf-8"))
         return record["draft"], {**record["evidence"], "delivery": "recorded-result-replay", "actual_model_calls_this_run": 0}
     return draft, {"executor": "synthetic-report-fixture", "completed": True, "web_search_calls": 0, "actual_model_calls": 0}

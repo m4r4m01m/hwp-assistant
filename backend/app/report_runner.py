@@ -93,6 +93,31 @@ def writing_prompt(value):
     prompt += ("\nIn this request, □/ㅇ/-/․ at the beginning of a paragraph are canonical structural tokens. "
                "The renderer uses the frozen numbered or bullet hierarchy and selected glyphs. Do not manually "
                "duplicate their displayed numbering. The chosen hierarchy is " + settings["numbering_style"] + ".\n")
+    prompt += ("\nThe reference layout displays each table or diagram caption as supplied, without adding "
+               "automatic table/figure numbers. Refer to its meaningful caption or relative position; "
+               "do not assume an app-generated number. Preserve explicit identifiers required by the supplied material.\n")
+    if settings["numbering_style"] == "BULLETS":
+        prompt += ("\nUse the reference standard's distinction between short numbered subheadings and bullet prose. "
+                   "When a section has two or more distinct subtopics that benefit from grouping, put concise "
+                   "'가. ...', '나. ...' subheadings as separate entries in section.paragraphs, restarting at 가. "
+                   "for each section. When one subtopic genuinely needs two or more subdivisions, use short "
+                   "'(1) ...', '(2) ...' headings and restart those numbers within their parent subtopic. "
+                   "Keep substantive □/ㅇ/- prose beneath these headings; the heading is a short label, not "
+                   "a long body item. Do not prepend a bullet to a numbered subheading or put numbering in "
+                   "section.heading. Do not duplicate the section heading, force empty or single-child "
+                   "groups, or add hierarchy merely to resemble an example. With no useful subdivision, "
+                   "keep bullet prose directly under the section heading. These subheading entries count "
+                   "toward the existing maximum of 9 paragraphs and 1500 characters per section. Use only "
+                   "the structure that fits those limits while preserving important facts, conditions and "
+                   "citations; do not omit meaning to make room for labels. Spacing and indentation are "
+                   "applied by the renderer: do not add blank entries, tabs or leading spaces.\n")
+    if settings["preset_id"] in ("appendix-2", "appendix-3"):
+        prompt += ("\nThis report uses the existing automatic TOC limit of 30 headings in total. Count all "
+                   "section headings, explicit 가./나. subheadings, the optional displayed core-summary "
+                   "heading and the source/limitations heading. Plan useful groups within that limit; "
+                   "preserve important explanations, facts, conditions and citations in body prose rather "
+                   "than creating unnecessary extra subheadings. Never omit substantive content or "
+                   "silently remove an existing heading to meet the limit.\n")
     prompt += "\nFrozen document-writing rules from the selected reference standard:\n" + "\n".join(rules) + (
         "\nKeep canonical [S1] source IDs in JSON. The document renderer applies the selected note marks and superscripts. "
         "Formatting rules never permit inventing or changing facts, figures, names, dates or citations.\n")

@@ -14,7 +14,7 @@ from .report_hwpx import scaffold
 from .report_layout import layout_report
 from .report_output import verify_output
 from .report_rich import POLICY, layout_rich_report
-from .report_toc import POLICY as TOC_POLICY, install_report_toc, normalize_generated_layout
+from .report_toc import POLICY as TOC_POLICY, heading_level, install_report_toc, normalize_generated_layout
 
 
 class PreparePreview(ReportValue):
@@ -97,6 +97,12 @@ def install_preview(app, publish, doc_dict, lock_report, decode):
                                        visual_settings=visual["settings"] if visual else None,
                                        cover=json.loads(row.input).get("cover"))
                 if len(blocks) > 180: raise HTTPException(422, "보고서가 너무 큽니다. 본문이나 표를 줄여 다시 요청하세요.")
+                needs_toc = bool(selection and not (visual and visual.get("revision") == 3 and visual["settings"]["preset_id"] == "appendix-1"))
+                if needs_toc:
+                    count = sum(heading_level(item, blocks) is not None for item in blocks)
+                    if not 1 <= count <= 30:
+                        raise HTTPException(422, f"자동 목차는 큰제목·중제목·요약·출처를 합해 1~30개를 지원합니다. 현재 {count}개입니다. "
+                                            "초안은 보존되어 있습니다. 중요한 설명은 본문에 유지하면서 제목 구성을 보완한 뒤 다시 문서로 만들어 주세요.")
                 # Each exact command runs in its own staging page. Final pagination
                 # is a later layout operation, without lowering the engine fence.
                 for block in blocks: block["page_break"] = True
@@ -111,7 +117,7 @@ def install_preview(app, publish, doc_dict, lock_report, decode):
                            "name": json.loads(row.draft)["title"].replace("/", " ").replace("\\", " ") + ".hwpx",
                            "document_standard": standard, "outline_policy": "short-items-v1", "presentation_policy": POLICY, "scaffold_base64": base64.b64encode(data).decode(),
                            "plan": [{**p, "command_id": str(uuid.uuid5(value.id, str(i)))} for i, p in enumerate(plan)]}
-                if selection and not (visual and visual.get("revision") == 3 and visual["settings"]["preset_id"] == "appendix-1"):
+                if needs_toc:
                     preview.update(toc_policy=TOC_POLICY,toc_verified=False,template=selection)
                 elif selection:
                     preview["template"] = selection

@@ -1,0 +1,427 @@
+{
+  "date": "2026-10-23",
+  "timezone": "Asia/Seoul",
+  "kind": "reference appendix report fidelity",
+  "recorded_at_utc": "2026-10-22T15:51:21.658766+00:00",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "base_head": "0d036ca126ed4fae10777bfc71c90fe0668cb7dd",
+  "source_state": "Uncommitted implementation at evidence creation; final commit is separate.",
+  "protected_assets": {
+    "backend/app/assets/document-standard/reference.hwpx": {
+      "sha256": "6c68b50656867f1fc724c50549e60e1109e2f7a00219f2928ef58de0a45711f1",
+      "git_normalized_content_identical_to_base_head": true
+    },
+    "backend/app/assets/document-standard/profile.json": {
+      "sha256": "7b2a0cb0fd540a83fea952abd891b8fc3e535ed3ac92a5affa6898313d7e4271",
+      "git_normalized_content_identical_to_base_head": true
+    },
+    "backend/tests/report_toc_fixture.py": {
+      "sha256": "ded73ca2f28087e5502a3fea21cc8cfb878dacd79749ffd24c1c0e1fa9f4143a",
+      "git_normalized_content_identical_to_base_head": true
+    }
+  },
+  "scope": [
+    "source-derived body and TOC separation",
+    "meaningful subordinate headings",
+    "heading style isolated from body emphasis",
+    "source caption without app-added numbering",
+    "source TOC frame with strict shape validation and pageable rows",
+    "existing 30-entry preflight",
+    "custom after-spacing on continuation paragraphs",
+    "long-title ink clearance without text or font reduction"
+  ],
+  "final_real_engine_runs": {
+    "cases_passed": 6,
+    "groups": [
+      {
+        "run": "replay-user-final",
+        "passed": 3,
+        "real_engine": true,
+        "actual_model_calls_this_run": 0,
+        "started_at": "2026-10-22T15:36:33.0782384Z",
+        "finished_at": "2026-10-22T15:38:35.5828654Z",
+        "commands": [
+          {
+            "built_app": true,
+            "pattern": "RECORDED reference sample",
+            "exit_code": 0,
+            "command": "Playwright E2E"
+          }
+        ],
+        "local_evidence": ".cache/appendix-fidelity-20261022/replay-user-final/run.json"
+      },
+      {
+        "run": "replay-model-final",
+        "passed": 1,
+        "real_engine": true,
+        "actual_model_calls_this_run": 0,
+        "started_at": "2026-10-22T15:37:07.8853176Z",
+        "finished_at": "2026-10-22T15:38:44.6589304Z",
+        "commands": [
+          {
+            "exit_code": 0,
+            "pattern": "RECORDED reference sample: appendix-2",
+            "built_app": true,
+            "command": "Playwright E2E"
+          }
+        ],
+        "local_evidence": ".cache/appendix-fidelity-20261022/replay-model-final/run.json"
+      },
+      {
+        "run": "long-final",
+        "passed": 2,
+        "real_engine": true,
+        "actual_model_calls_this_run": 0,
+        "started_at": "2026-10-22T15:36:33.6399776Z",
+        "finished_at": "2026-10-22T15:39:19.2028470Z",
+        "commands": [
+          {
+            "built_app": true,
+            "exit_code": 0,
+            "command": "Playwright E2E",
+            "pattern": "long Korean titles|source frame preserves long-title"
+          }
+        ],
+        "local_evidence": ".cache/appendix-fidelity-20261022/long-final/run.json"
+      }
+    ],
+    "actual_model_calls_in_replays": 0,
+    "engine_scope": "Pinned diagnostic rhwp reused; isolated databases and automated approval/save."
+  },
+  "samples": [
+    {
+      "run": "replay-user-final",
+      "preset": "appendix-1",
+      "recorded_draft_sha256": "843c6aeffd2aacdab2628d12b5bcc6a2e75918590319d33621674a5cc3338c74",
+      "saved_sha256": "e850779e99babee736ee90f43f16bfb643f2572b51ce7e4833daaabe3802c722",
+      "pages": 5,
+      "before_pages": 4,
+      "toc_page": null,
+      "first_body_page": 1,
+      "toc_entries": 0,
+      "rendered_heading_body_gap_px": [
+        47.0,
+        47.0,
+        46.0,
+        46.0,
+        46.0
+      ],
+      "saved_and_reopened": true,
+      "ordinary_editor_edit_refresh_save_reopen": false,
+      "content_loss_count": 0,
+      "real_engine": true,
+      "actual_model_calls_this_replay": 0,
+      "local_evidence": ".cache/appendix-fidelity-20261022/replay-user-final/results/reference-live-report-REAL-27b96-xact-format-save-and-reopen/reference-live-proof.json"
+    },
+    {
+      "run": "replay-user-final",
+      "preset": "appendix-2",
+      "recorded_draft_sha256": "d47bb04be00fa564ccdf30c58461ab8739f353dbd7f8d07ba101ddf09ac14411",
+      "saved_sha256": "4e2cb50d85042ed88fbd733a9969807a826ee0bbbbb3ce6b0659165e4ead6537",
+      "pages": 7,
+      "before_pages": 7,
+      "toc_page": 2,
+      "first_body_page": 3,
+      "toc_entries": 6,
+      "rendered_heading_body_gap_px": [
+        46.0,
+        46.0,
+        42.0,
+        46.0,
+        46.0
+      ],
+      "saved_and_reopened": true,
+      "ordinary_editor_edit_refresh_save_reopen": false,
+      "content_loss_count": 0,
+      "real_engine": true,
+      "actual_model_calls_this_replay": 0,
+      "local_evidence": ".cache/appendix-fidelity-20261022/replay-user-final/results/reference-live-report-REAL-516b6-xact-format-save-and-reopen/reference-live-proof.json"
+    },
+    {
+      "run": "replay-user-final",
+      "preset": "appendix-3",
+      "recorded_draft_sha256": "9152602ee2820aaad0f60dffae1e4fa57903a702c74b020d8bc9bb37a1584934",
+      "saved_sha256": "452970d4208e24f96306c0c2787af9d9667faf12f4e0e59fed4d0da778b7efa0",
+      "pages": 3,
+      "before_pages": null,
+      "toc_page": 1,
+      "first_body_page": 2,
+      "toc_entries": 4,
+      "rendered_heading_body_gap_px": [],
+      "saved_and_reopened": true,
+      "ordinary_editor_edit_refresh_save_reopen": false,
+      "content_loss_count": 0,
+      "real_engine": true,
+      "actual_model_calls_this_replay": 0,
+      "local_evidence": ".cache/appendix-fidelity-20261022/replay-user-final/results/reference-live-report-REAL-791a4-xact-format-save-and-reopen/reference-live-proof.json"
+    },
+    {
+      "run": "replay-model-final",
+      "preset": "appendix-2",
+      "recorded_draft_sha256": "c7b36bc9f5e257200c7e95ee1da635a672a39fcb5611b4b00ca434836bad9e7d",
+      "saved_sha256": "28d7faa9acf89cae7654aa994bc4593daf5e77518df35c012e1c38b681eca7c6",
+      "pages": 5,
+      "before_pages": null,
+      "toc_page": 2,
+      "first_body_page": 3,
+      "toc_entries": 9,
+      "rendered_heading_body_gap_px": [
+        46.0,
+        39.733,
+        40.733,
+        40.733,
+        39.733,
+        46.0,
+        46.0
+      ],
+      "saved_and_reopened": true,
+      "ordinary_editor_edit_refresh_save_reopen": true,
+      "content_loss_count": 0,
+      "real_engine": true,
+      "actual_model_calls_this_replay": 0,
+      "local_evidence": ".cache/appendix-fidelity-20261022/replay-model-final/results/reference-live-report-REAL-516b6-xact-format-save-and-reopen/reference-live-proof.json"
+    }
+  ],
+  "replay_materials": {
+    "replay-user-final": "Existing user appendix-1/2 drafts and a historical synthetic appendix-3 draft. Historical model calls are not new calls in this task.",
+    "replay-model-final": "The one new synthetic Codex result was generated for appendix-1 and replayed with appendix-2 formatting."
+  },
+  "long_title_boundaries": {
+    "fixture_unchanged": true,
+    "legacy": {
+      "pages": 20,
+      "convergence_passes": 2,
+      "saved_and_reopened": true,
+      "rendered_heading_pages": [
+        3,
+        3,
+        6,
+        9,
+        12,
+        15,
+        18,
+        20
+      ],
+      "saved_sha256": "43e271193911f282a89e7e77f9c0c6b64a803842eb5e1cca73bc64e2670c7ef2",
+      "saved_versions": 1,
+      "local_evidence": ".cache/appendix-fidelity-20261022/long-final/results/report-toc-REAL-rhwp-MOCK--d943a--generation-save-and-reopen/long-toc-proof.json"
+    },
+    "reference": {
+      "preset": "appendix-2",
+      "pages": 17,
+      "convergence_passes": 2,
+      "toc_pages": [
+        2,
+        3
+      ],
+      "first_body_page": 4,
+      "saved_and_reopened": true,
+      "content_loss_count": 0,
+      "blank_pages_after_excluding_page_numbers": [],
+      "page_text_sizes_excluding_page_numbers": [
+        46,
+        433,
+        12,
+        559,
+        596,
+        504,
+        596,
+        479,
+        600,
+        546,
+        603,
+        479,
+        593,
+        409,
+        551,
+        594,
+        67
+      ],
+      "title_rules": 2,
+      "title_top_clearance_px": 3.189795,
+      "title_bottom_clearance_px": 3.789954,
+      "clearance_method": "Rendered SVG text bounding boxes against inner rule edges including half the stroke width.",
+      "saved_sha256": "6708e206aa180f148f11562a2e693bb2878f808d5a5e62c21a613f9ec9f5b0f4",
+      "local_evidence": ".cache/appendix-fidelity-20261022/long-final/results/report-toc-REAL-rhwp-MOCK--ea36d-gination-and-saved-identity/reference-long-toc-proof.json",
+      "local_clearance_evidence": ".cache/appendix-fidelity-20261022/long-final/results/report-toc-REAL-rhwp-MOCK--ea36d-gination-and-saved-identity/reference-long-title-clearance.json"
+    }
+  },
+  "actual_model": {
+    "actual_calls_this_task": 1,
+    "generation_attempts": 1,
+    "executor": "codex-app-server",
+    "model": "gpt-6.1-sol",
+    "generation_preset": "appendix-1",
+    "final_engine_replay_preset": "appendix-2",
+    "schema_validation": "passed",
+    "generated_subheading_count": 4,
+    "tables": 1,
+    "diagrams": 1,
+    "supplied_fact_groups_checked": 8,
+    "fact_preservation_agent_review": "passed",
+    "research_calls": 0,
+    "user_database_writes": false,
+    "human_review": false,
+    "recorded_prompt_sha256": "65cdf57bc1d66cb6b5d09b7a5b3ad38a8a258ec87ee87b56a56d84208b8348b2",
+    "current_prompt_sha256": "0127080f5ac4bee9e9ad6a459dd0ddfc9775b3d2627fd12e6d785afa27fafa2c",
+    "final_prompt_is_identical_to_executed_prompt": false,
+    "prompt_scope_note": "The real call checked subordinate-heading guidance and factual retention. The final 30-entry and caption-reference instructions were technically tested without another model call. Later rendering changes were checked by recorded-result replay.",
+    "local_model_evidence": ".cache/appendix-fidelity-20261022/model/actual-appendix1.json",
+    "local_wording_review": ".cache/appendix-fidelity-20261022/model/wording-review.json",
+    "raw_prompt_and_draft_committed": false
+  },
+  "focused_technical_tests": {
+    "aggregate_total": null,
+    "aggregation_note": "Overlapping suites and reruns are not added together; no full regression claim.",
+    "runs": [
+      {
+        "scope": "body spacing, title overflow, cover and frozen preview API retry",
+        "files": [
+          "backend/tests/test_reference_title_overflow.py",
+          "backend/tests/test_reference_body_spacing.py",
+          "backend/tests/test_report_cover.py"
+        ],
+        "passed": 30,
+        "failed": 0,
+        "duration_seconds": 9.17,
+        "reported_by": "fidelity agent"
+      },
+      {
+        "scope": "TOC frame/spacing, report mapping, document TOC and generated report TOC",
+        "files": [
+          "backend/tests/test_reference_toc_frame.py",
+          "backend/tests/test_reference_toc_spacing.py",
+          "backend/tests/test_reference_report.py",
+          "backend/tests/test_document_toc.py",
+          "backend/tests/test_report_toc.py"
+        ],
+        "confirmed_cases": 114,
+        "initial_attempt": {
+          "passed": 111,
+          "failed": 3,
+          "reason": "Transient missing math import during concurrent title implementation."
+        },
+        "post_fix_rerun": {
+          "passed": 3,
+          "failed": 0
+        },
+        "single_complete_post_fix_suite_run_claimed": false,
+        "reported_by": "root and TOC agent"
+      },
+      {
+        "scope": "final prompt delivery and TOC count preflight",
+        "command": ".venv/Scripts/python -m pytest -q backend/tests/test_reference_prompt_structure.py backend/tests/test_reference_toc_preflight.py --basetemp=.cache/pytest-fidelity-prompt-final-20261023",
+        "passed": 16,
+        "failed": 0,
+        "duration_seconds": 3.18,
+        "reported_by": "root"
+      }
+    ],
+    "full_pytest_repeated": false,
+    "human_acceptance": false
+  },
+  "preservation": {
+    "before": {
+      "kind": "read-only SQLite/blob audit",
+      "result": "passed",
+      "started_at": 1792680790.727791,
+      "finished_at": 1792680790.9903777,
+      "documents": 8,
+      "versions": 11,
+      "verified_blobs": 13,
+      "verified_bytes": 224748,
+      "visual_standards": 2,
+      "verified_visual_standard_blobs": 2,
+      "issues": [],
+      "unreferenced_files": 0,
+      "unreferenced_note": "Not deleted. May include quarantined, interrupted or concurrent writes.",
+      "limits": [
+        "SQLite metadata snapshot; blobs are read afterwards and expected immutable",
+        "No HWPX layout/content semantics, real model, PostgreSQL or backup/restore validation"
+      ]
+    },
+    "final": {
+      "kind": "read-only SQLite/blob audit",
+      "result": "passed",
+      "started_at": 1792683879.9520435,
+      "finished_at": 1792683880.014485,
+      "documents": 8,
+      "versions": 11,
+      "verified_blobs": 13,
+      "verified_bytes": 224748,
+      "visual_standards": 2,
+      "verified_visual_standard_blobs": 2,
+      "issues": [],
+      "unreferenced_files": 0,
+      "unreferenced_note": "Not deleted. May include quarantined, interrupted or concurrent writes.",
+      "limits": [
+        "SQLite metadata snapshot; blobs are read afterwards and expected immutable",
+        "No HWPX layout/content semantics, real model, PostgreSQL or backup/restore validation"
+      ]
+    },
+    "counts_and_verified_bytes_unchanged": true,
+    "local_before_audit": ".cache/appendix-fidelity-20261022/storage-before.json",
+    "local_final_audit": ".cache/appendix-fidelity-20261022/storage-final.json",
+    "original_and_historical_blob_integrity_audits": "passed",
+    "user_document_publication_or_update_by_tests": false,
+    "existing_frozen_previews": {
+      "targeted_for_rewrite": false,
+      "compatibility_verified": "Explicit new plan policies; absent-policy and V1 layout compatibility and retries covered by focused tests.",
+      "all_live_preview_rows_individually_compared": false
+    },
+    "save_scope": "Final isolated synthetic-model sample exercised ordinary editor edit/explicit TOC refresh/save/reopen. Focused TOC suites also cover lost responses and subsequent unsaved edits."
+  },
+  "review_artifacts": [
+    {
+      "path": ".cache/appendix-fidelity-20261022/review/appendix-1.hwpx",
+      "sha256": "e850779e99babee736ee90f43f16bfb643f2572b51ce7e4833daaabe3802c722",
+      "source": ".cache/appendix-fidelity-20261022/replay-user-final/results/reference-live-report-REAL-27b96-xact-format-save-and-reopen/appendix-1.hwpx",
+      "commit": false
+    },
+    {
+      "path": ".cache/appendix-fidelity-20261022/review/appendix-1-page-1.png",
+      "sha256": "667d3e6c1d92654700c11c7b0b3cc11f739e819723ec2773d4d79c53624f60aa",
+      "source": ".cache/appendix-fidelity-20261022/replay-user-final/results/reference-live-report-REAL-27b96-xact-format-save-and-reopen/page-1.png",
+      "commit": false
+    },
+    {
+      "path": ".cache/appendix-fidelity-20261022/review/appendix-2.hwpx",
+      "sha256": "4e2cb50d85042ed88fbd733a9969807a826ee0bbbbb3ce6b0659165e4ead6537",
+      "source": ".cache/appendix-fidelity-20261022/replay-user-final/results/reference-live-report-REAL-516b6-xact-format-save-and-reopen/appendix-2.hwpx",
+      "commit": false
+    },
+    {
+      "path": ".cache/appendix-fidelity-20261022/review/appendix-2-page-2.png",
+      "sha256": "6338ccfc1d3b4b7ea63a7e463d14b0072d3a0b5d9d7540ac17ec062351074204",
+      "source": ".cache/appendix-fidelity-20261022/replay-user-final/results/reference-live-report-REAL-516b6-xact-format-save-and-reopen/page-2.png",
+      "commit": false
+    }
+  ],
+  "final_agent_visual_review": [
+    "user appendix-1 page 1",
+    "user appendix-2 page 2",
+    "model appendix-2 page 3",
+    "long reference cover and TOC pages"
+  ],
+  "privacy": {
+    "raw_user_reports_or_full_prompts_in_this_json": false,
+    "credentials_included": false,
+    "raw_reports_screenshots_and_model_records": "Kept under ignored .cache only; not part of this committed evidence."
+  },
+  "limits": [
+    "Human acceptance and Hancom rendering were not performed in this task.",
+    "One actual synthetic model sample is not a general writing-quality guarantee.",
+    "Existing user facts were preserved, not researched or revalidated.",
+    "Replay and automated saves are not model generation or human approval.",
+    "No Docker, production engine rebuild, PostgreSQL deployment or general deployment verification."
+  ],
+  "runtime": {
+    "web_url": "http://127.0.0.1:15201",
+    "source_fingerprint": "e0230f72efbcea967cce4a507e8eea1f21da5e643d14f3ff173eb1d90301cd4d",
+    "engine_wasm_sha256": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0",
+    "engine_bridge_sha256": "1c72afaab4cdeb936db935e87470bf0335b5c09f535b2f85db9c3d7579f9ce3b",
+    "windows_desktop_launcher_reuse_verified": true,
+    "browser_reload_document_count": 8,
+    "local_screenshot": ".cache/appendix-fidelity-20261022/runtime-final.png"
+  }
+}
