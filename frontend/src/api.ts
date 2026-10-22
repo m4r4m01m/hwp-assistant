@@ -1,3 +1,5 @@
+import { publicPath } from "./public-path";
+
 export type Document = {
   id: string;
   name: string;
@@ -22,7 +24,7 @@ export class ApiError extends Error {
   }
 }
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch("/api" + path, init);
+  const response = await fetch(publicPath("api" + path), init);
   if (!response.ok) {
     const value = await response
       .json()
@@ -78,7 +80,7 @@ export async function deltaBody(before: Uint8Array, after: Uint8Array) {
   });
 }
 export const fileUrl = (d: Document, v = d.current_version) =>
-  `/api/documents/${d.id}/versions/${v}/file`;
+  publicPath(`api/documents/${d.id}/versions/${v}/file`);
 export async function upload(
   bytes: Uint8Array,
   name: string,

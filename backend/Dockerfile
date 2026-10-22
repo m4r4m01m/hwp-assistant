@@ -1,4 +1,6 @@
 FROM python:3.14.0-slim
+ARG HWP_REVISION=development
+LABEL org.opencontainers.image.revision=${HWP_REVISION}
 WORKDIR /app
 COPY backend/requirements.lock.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt

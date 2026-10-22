@@ -1,5 +1,16 @@
 .git
 .env
+.env.*
+**/.env
+**/.env.*
+**/production.env
+.codex
+**/auth.json
+**/credentials.json
+**/*.pem
+**/*.key
+.deploy
+backups
 .venv
 .research
 .cache

@@ -3,6 +3,7 @@ import { api, ApiError, jsonRequest, type Document, type Version } from "./api";
 import { EditorAdapter } from "./editor";
 import { previewSvg } from "./preview-svg";
 import { WorkspaceNav, WorkspaceIcon, type WorkspaceSection } from "./workspace-nav";
+import { publicPath } from "./public-path";
 
 type Template = {
   id: string;
@@ -95,8 +96,8 @@ function PinnedPreview({
     async function load() {
       if (!host.current || (!item && !standard)) return;
       const url = item
-        ? `/api/template-market/${item.id}/file`
-        : standard!.reference_url;
+        ? publicPath(`api/template-market/${item.id}/file`)
+        : publicPath(standard!.reference_url);
       const response = await fetch(url, { signal: controller.signal });
       if (!response.ok)
         throw new Error(

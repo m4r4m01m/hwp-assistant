@@ -4,8 +4,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { checkBundle } from './check-engine-bundle.mjs';
 import { root, hashFile } from './engine-build-lib.mjs';
+import { normalizePublicBase, withPublicBase } from './public-base.mjs';
 
-export function comparisonAssets(publicDir, diagnostic = false) {
+export function comparisonAssets(publicDir, diagnostic = false, base = '/') {
   const info = checkBundle(resolve(publicDir, 'rhwp'), { deployment: !diagnostic });
   const binding = resolve(root, 'frontend/node_modules/@rhwp/core/rhwp.js');
   if (hashFile(binding) !== info.coreBuild.binding_sha256)
@@ -13,19 +14,19 @@ export function comparisonAssets(publicDir, diagnostic = false) {
   const wasm = Object.keys(info.bundle).find(name => /^assets\/rhwp_bg-.*\.wasm$/.test(name));
   return {
     'comparison-core.js': readFileSync(binding, 'utf8'),
-    'comparison-engine.json': JSON.stringify({ commit: info.commit, wasm: '/rhwp/' + wasm,
+    'comparison-engine.json': JSON.stringify({ commit: info.commit, wasm: withPublicBase(base, 'rhwp/' + wasm),
       wasm_sha256: info.coreBuild.wasm_sha256, binding_sha256: info.coreBuild.binding_sha256 }),
   };
 }
 
 export function comparisonCorePlugin({ publicDir = resolve(root, 'frontend/public'), diagnostic = false } = {}) {
-  let build = false;
+  let build = false, base = '/';
   return {
     name: 'verified-comparison-core',
-    configResolved(config) { build = config.command === 'build'; },
+    configResolved(config) { build = config.command === 'build'; base = normalizePublicBase(config.base); },
     buildStart() {
       if (!build) return;
-      for (const [fileName, source] of Object.entries(comparisonAssets(publicDir, diagnostic)))
+      for (const [fileName, source] of Object.entries(comparisonAssets(publicDir, diagnostic, base)))
         this.emitFile({ type: 'asset', fileName, source });
     },
     configureServer(server) {
@@ -33,7 +34,7 @@ export function comparisonCorePlugin({ publicDir = resolve(root, 'frontend/publi
         const name = (req.url || '').split('?')[0].slice(1);
         if (!['comparison-core.js', 'comparison-engine.json'].includes(name)) return next();
         try {
-          const assets = comparisonAssets(publicDir, diagnostic);
+          const assets = comparisonAssets(publicDir, diagnostic, base);
           res.setHeader('Content-Type', name.endsWith('.js') ? 'text/javascript' : 'application/json');
           res.setHeader('Cache-Control', 'no-store'); res.end(assets[name]);
         } catch (error) { res.statusCode = 503; res.end(String(error)); }

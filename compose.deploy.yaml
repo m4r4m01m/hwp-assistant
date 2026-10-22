@@ -1,0 +1,113 @@
+# Standalone production compose: do NOT combine with the development compose.yaml.
+# External volumes must be created explicitly by scripts/deploy/init.py.
+name: hwp-assistant-prod
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    image: postgres:17.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hwp_assistant
+      POSTGRES_USER: hwp_assistant
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run scripts/deploy/init.py first}
+    volumes:
+      - metadata:/var/lib/postgresql/data
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    logging: *logging
+
+  api:
+    image: ${HWP_IMAGE_PREFIX:-ghcr.io/m4r4m01m/hwp-assistant}-api:${HWP_IMAGE_TAG:?Set an immutable source commit SHA}
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        HWP_REVISION: ${HWP_IMAGE_TAG}
+    command: ["python", "-m", "app.production"]
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 40s
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,size=128m
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://hwp_assistant:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/hwp_assistant
+      STORAGE_DIR: /data/files
+      HWP_AUTH_TOKENS: ${HWP_AUTH_TOKENS:?Set individual user tokens}
+      HWP_LEGACY_OWNER: ${HWP_LEGACY_OWNER:-}
+      # No personal Codex credentials/CLI are copied into this deployment.
+      HWP_REWRITE_PROVIDER: llm
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-60}
+      HWP_REWRITE_MAX_ACTIVE: ${HWP_REWRITE_MAX_ACTIVE:-2}
+      SESSION_TTL_SECONDS: "120"
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - documents:/data/files
+    networks: [app, data]
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.production", "--check"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging: *logging
+
+  web:
+    image: ${HWP_IMAGE_PREFIX:-ghcr.io/m4r4m01m/hwp-assistant}-web:${HWP_IMAGE_TAG:?Set an immutable source commit SHA}
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        HWP_REVISION: ${HWP_IMAGE_TAG}
+        HWP_PUBLIC_BASE_PATH: /hwp-assistant/
+        HWP_NGINX_CONF: deploy/nginx.hwp-assistant.conf
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:23000:80"
+    networks: [app]
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/healthz"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *logging
+
+networks:
+  app: {}
+  data:
+    internal: true
+
+# A routine `down -v` cannot remove external volumes. Do not delete them manually.
+volumes:
+  metadata:
+    external: true
+    name: hwp-assistant-prod-metadata
+  documents:
+    external: true
+    name: hwp-assistant-prod-documents
