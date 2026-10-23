@@ -66,6 +66,6 @@ export type ComparisonRenderer = {
     location?: PageLocation,
     kind?: string,
     zoom?: number,
-  ): void;
+  ): Promise<void>;
   dispose(): void;
 };

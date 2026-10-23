@@ -234,7 +234,9 @@ test("template market: paging and current source permissions reject stale apply 
   page,
   request,
 }) => {
-  const prefix = `목록검증 ${Date.now()}`;
+  // Catalog search matches any query term. A single unique term keeps repeated
+  // runs isolated without deleting templates produced by earlier tests.
+  const prefix = `목록검증-${Date.now()}`;
   const source = await uploadSource(page, `${prefix}.hwpx`);
   const templateIds: string[] = [];
   for (let index = 0; index < 25; index++) {
@@ -334,7 +336,7 @@ test("REAL engine template market: pinned standard preview and report entry crea
     .getByRole("button", { name: "이 기준으로 보고서 작성", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "주제에서 보고서까지", exact: true }),
+    page.getByRole("heading", { name: "무엇을 정리할까요?", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByLabel("보고서 작성 요청", { exact: true }),

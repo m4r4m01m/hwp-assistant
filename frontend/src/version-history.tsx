@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { api, fileUrl, type Document, type Version } from "./api";
+import { api, errorMessage, fileUrl, type Document, type Version } from "./api";
 import {
   VersionComparison,
   authorLabel,
@@ -20,6 +20,8 @@ export function History({
   const dialog = useRef<HTMLElement>(null);
   const [rows, setRows] = useState<Version[]>([]),
     [error, setError] = useState(""),
+    [loading, setLoading] = useState(true),
+    [attempt, setAttempt] = useState(0),
     [busy, setBusy] = useState(false);
   const [selection, setSelection] = useState<{ ids: string[]; error: string }>({
       ids: [],
@@ -50,19 +52,23 @@ export function History({
     });
   useEffect(() => {
     const abort = new AbortController();
+    setLoading(true);
+    setError("");
+    setRows([]);
     setSelection({ ids: [], error: "" });
     api<Version[]>(`/documents/${d.id}/versions`, { signal: abort.signal })
       .then((items) => {
-        setRows(items);
+        if (!abort.signal.aborted) setRows(items);
       })
       .catch((e) => {
-        if (!abort.signal.aborted) setError(e.message);
-      });
+        if (!abort.signal.aborted) setError(errorMessage(e));
+      })
+      .finally(() => { if (!abort.signal.aborted) setLoading(false); });
     return () => {
       abort.abort();
       detailRequest.current++;
     };
-  }, [d.id]);
+  }, [d.id, attempt]);
   // The compare view owns its own focus trap; do not install two nested traps.
   if (pair)
     return (
@@ -83,10 +89,11 @@ export function History({
         두 버전을 순서대로 선택하세요. 첫 번째는 기준, 두 번째는 비교
         대상입니다. 복원은 과거 이력을 유지한 채 새 버전을 만듭니다.
       </p>
-      {error && <p role="alert">{error}</p>}
+      {loading && <p role="status">버전 기록을 불러오는 중…</p>}
+      {error && <div role="alert"><p>{error}</p><button disabled={loading} onClick={() => setAttempt(value => value + 1)}>버전 기록 다시 불러오기</button></div>}
       <div className="history-compare-bar">
         <span>
-          {rows.length < 2
+          {loading ? "저장 버전을 확인하고 있습니다." : rows.length < 2
             ? "비교하려면 저장 버전이 두 개 이상 필요합니다."
             : selection.ids.length === 0
               ? "기준으로 삼을 버전을 먼저 선택하세요. (0/2)"
@@ -96,7 +103,7 @@ export function History({
         </span>
         <button
           className="primary"
-          disabled={selection.ids.length !== 2 || busy}
+          disabled={loading || selection.ids.length !== 2 || busy}
           onClick={() => {
             const a = rows.find((v) => v.id === selection.ids[0]),
               b = rows.find((v) => v.id === selection.ids[1]);

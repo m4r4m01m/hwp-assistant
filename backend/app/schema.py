@@ -2,6 +2,7 @@
 import os
 from sqlalchemy import select, update
 from .db import Base, Access, Conversation, Document, VisualStandard, transaction
+from .ai_requests import AIRequest  # Register additive reservation table before create_all.
 
 
 def migrate(engine, users):

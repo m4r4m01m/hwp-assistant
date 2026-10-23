@@ -31,11 +31,20 @@ for image in $(dc config --images | grep -E -- '-(api|web):'); do
     echo 'Image revision label does not match the checkout; refusing deployment.' >&2; exit 1;
   }
 done
-# Pull DB separately, keeping the reviewed major/minor from the Compose file.
+# Download the reviewed DB image without replacing a running database yet.
 dc pull db
-dc up -d --no-build --wait --wait-timeout 180 db
+# Keep an existing DB container/image for pg_dump. On a fresh install this starts
+# the pinned image before backing up the still-empty application volumes.
+dc up -d --no-build --no-recreate --pull never --wait --wait-timeout 180 db
 # Backup failure aborts before replacement; it restarts the previously running app.
 HWP_BACKUP_RESTART=0 bash "$ROOT/scripts/deploy/backup.sh"
+# A successful backup leaves app writers stopped. Only now replace the DB image.
+if ! dc up -d --no-build --pull never --wait --wait-timeout 180 db; then
+  echo 'Database replacement did not become healthy. Application writers remain stopped.' >&2
+  echo 'Inspect DB logs and the verified backup, then explicitly recover before restarting the app.' >&2
+  echo 'No automatic DB downgrade was attempted.' >&2
+  exit 1
+fi
 if ! dc up -d --no-build --pull never --wait --wait-timeout 180 api web; then
   echo 'Deployment did not become healthy. DB/files were not deleted.' >&2
   echo 'Inspect compose logs and the latest backup. No automatic DB downgrade was attempted.' >&2

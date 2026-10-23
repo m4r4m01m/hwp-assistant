@@ -7,14 +7,23 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException, Header, Query
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 from .db import Access, ChangeSet, Document, Version, VersionAuthor, make_engine, transaction
 from .version_compare import author_dict, install_version_compare
 from .hwpx import validate, digest, loss_warnings, MAX_FILE
-from .llm import OpenAICompatible
-from .auth import COOKIE, authenticate, credentials, require_access, bind_lease, require_lease_owner
+from .llm import OpenAICompatible, pooled_client
+from .ai_budget import UserAIBudget
+from .capabilities import install_capabilities, require_llm_access
+from .request_telemetry import RequestTelemetry
+from .rewrite_capacity import ExecutionSlot
+from .auth import (
+    COOKIE, LOGIN_REQUIRED, LoginRateLimiter, SessionPolicy, allowed_hosts, authenticate, authenticate_session,
+    credentials, issue_session, request_origin, require_access, bind_lease, require_lease_owner,
+    revoke_session,
+)
 from .schema import migrate
 from .changes import apply_delta, describe_changes
 from .rewrite_jobs import invalidate_running
@@ -34,6 +43,8 @@ class Review(BaseModel):
 
 def create_app(database_url=None, storage_dir=None):
     users = credentials()
+    session_policy = SessionPolicy.from_env()
+    hosts = allowed_hosts()
     folder = Path(storage_dir or os.getenv("STORAGE_DIR", "./data/files")).resolve()
     folder.mkdir(parents=True, exist_ok=True)
     engine = make_engine(
@@ -44,43 +55,68 @@ def create_app(database_url=None, storage_dir=None):
     @asynccontextmanager
     async def lifespan(app):
         migrate(engine, users)
-        yield
-        engine.dispose()
+        try:
+            async with pooled_client() as client:
+                app.state.llm_client = client
+                yield
+        finally:
+            engine.dispose()
 
     app = FastAPI(title="HWPX 공용 문서함", lifespan=lifespan)
     app.state.engine = engine
     app.state.folder = folder
     app.state.users = users
+    app.state.login_limiter = LoginRateLimiter()
+    app.state.ai_budget = UserAIBudget()
     lease_seconds = int(os.getenv("SESSION_TTL_SECONDS", "120"))
 
     @app.middleware("http")
     async def same_origin(request, call_next):
-        # No CORS. Cross-origin browser writes are rejected, including simple POSTs.
-        origin = request.headers.get("origin")
-        if (
-            request.method not in ("GET", "HEAD", "OPTIONS")
-            and origin
-            and origin != f"{request.url.scheme}://{request.headers.get('host')}"
-        ):
-            return JSONResponse(
-                {"detail": "다른 출처의 쓰기 요청은 허용하지 않습니다."},
-                status_code=403,
-            )
-        if request.url.path.startswith("/api/") and request.url.path not in (
-            "/api/health", "/api/auth/login", "/api/auth/status"
-        ):
-            try:
-                bearer = request.headers.get("authorization", "")
-                token = bearer[7:] if bearer.startswith("Bearer ") else request.cookies.get(COOKIE, "")
+        # Routing uses scope.path. Host-derived request.url must never decide authentication.
+        path = request.scope["path"]
+        api_path = path == "/api" or path.startswith("/api/")
+        cookie_auth = False
+        try:
+            expected_origin = request_origin(request.scope, hosts)
+            origin = request.headers.get("origin")
+            # No CORS. SameSite cookies and this check also reject simple cross-origin POSTs.
+            if request.method not in ("GET", "HEAD", "OPTIONS") and origin and origin != expected_origin:
+                raise HTTPException(403, "다른 출처의 쓰기 요청은 허용하지 않습니다.")
+            public = (request.method, path) in {
+                ("GET", "/api/health"), ("GET", "/api/auth/status"),
+                ("POST", "/api/auth/login"), ("POST", "/api/auth/logout"),
+            }
+            if api_path and not public:
+                authorization = request.headers.get("authorization", "")
+                scheme, _, token = authorization.partition(" ")
+                token = token.strip()
+                if authorization and (scheme.lower() != "bearer" or not token):
+                    raise HTTPException(401, LOGIN_REQUIRED)
                 if token.startswith("hwp-run-"):
                     from .rewrite import run_identity
-                    request.state.user, request.state.run_task = run_identity(engine, token, request.url.path, request.method)
+                    request.state.user, request.state.run_task = await run_in_threadpool(
+                        run_identity, engine, token, path, request.method
+                    )
+                elif not users:
+                    request.state.user = "local"
+                elif authorization:
+                    # Static credentials remain supported only for explicit automation Bearer auth.
+                    request.state.user = authenticate(token, users)
                 else:
-                    request.state.user = authenticate(token, users) if users else "local"
-            except HTTPException as exc:
-                return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+                    cookie_auth = True
+                    request.state.user = await run_in_threadpool(
+                        authenticate_session, engine, request.cookies.get(COOKIE, ""), users, session_policy
+                    )
+        except HTTPException as exc:
+            response = JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+            if api_path:
+                response.headers["Cache-Control"] = "no-store"
+            if cookie_auth and request.cookies.get(COOKIE):
+                response.delete_cookie(COOKIE, path="/api", httponly=True, samesite="strict",
+                                       secure=request.scope.get("scheme") == "https")
+            return response
         response = await call_next(request)
-        if request.url.path.startswith("/api/"):
+        if api_path:
             response.headers["Cache-Control"] = "no-store"
         return response
 
@@ -137,7 +173,7 @@ def create_app(database_url=None, storage_dir=None):
             if len(chunks) > MAX_FILE:
                 raise HTTPException(413, "30MB 한도를 초과했습니다.")
         data = bytes(chunks)
-        validate(data)
+        await run_in_threadpool(validate, data)
         return data
 
     def publish(db, doc, data, base, token, request_id, cause, *, author_id):
@@ -219,20 +255,43 @@ def create_app(database_url=None, storage_dir=None):
     class Login(BaseModel):
         token: str = Field(min_length=24, max_length=500)
 
+        @model_validator(mode="before")
+        @classmethod
+        def valid_input(cls, value):
+            # A JSON lone surrogate must not enter Pydantic's error `input` and
+            # fail again while rendering that error as UTF-8. Never echo a token.
+            detail = "로그인 토큰은 24~500자의 올바른 UTF-8 문자열이어야 합니다."
+            if not isinstance(value, dict) or not isinstance(value.get("token"), str):
+                raise HTTPException(422, detail)
+            if not 24 <= len(value["token"]) <= 500:
+                raise HTTPException(422, detail)
+            try:
+                value["token"].encode("utf-8")
+            except UnicodeError:
+                raise HTTPException(422, detail) from None
+            return value
+
     @app.post("/api/auth/login")
     def login(value: Login, request: Request):
         if not users:
             raise HTTPException(400, "단일 사용자 개발 모드입니다.")
-        user = authenticate(value.token, users)
+        user = app.state.login_limiter.authenticate(
+            request.client.host if request.client else "unknown", value.token, users
+        )
+        session = issue_session(engine, user, users, session_policy, request.cookies.get(COOKIE, ""))
         response = JSONResponse({"user_id": user})
-        response.set_cookie(COOKIE, value.token, httponly=True, samesite="strict",
-                            secure=request.url.scheme == "https", max_age=28800, path="/api")
+        response.set_cookie(COOKIE, session, httponly=True, samesite="strict",
+                            secure=request.scope.get("scheme") == "https",
+                            max_age=session_policy.absolute_seconds, path="/api")
         return response
 
     @app.post("/api/auth/logout")
-    def logout():
+    def logout(request: Request):
+        # Idempotent even for an expired session; never revoke an automation credential.
+        revoke_session(engine, request.cookies.get(COOKIE, ""))
         response = JSONResponse({"ok": True})
-        response.delete_cookie(COOKIE, path="/api")
+        response.delete_cookie(COOKIE, path="/api", httponly=True, samesite="strict",
+                               secure=request.scope.get("scheme") == "https")
         return response
 
     @app.get("/api/auth/me")
@@ -244,12 +303,12 @@ def create_app(database_url=None, storage_dir=None):
         return {"ok": True}
 
     @app.get("/api/documents")
-    def documents(request: Request, q: str = ""):
+    def documents(request: Request, q: str = Query("", max_length=200)):
         with Session(engine) as db:
             return [
-                {**doc_dict(d), "role": db.get(Access, (d.id, request.state.user)).role}
-                for d in db.scalars(
-                    select(Document)
+                {**doc_dict(d), "role": role}
+                for d, role in db.execute(
+                    select(Document, Access.role)
                     .join(Access, Access.document_id == Document.id)
                     .where(Access.user_id == request.state.user)
                     .where(Document.name.contains(q, autoescape=True))
@@ -271,34 +330,37 @@ def create_app(database_url=None, storage_dir=None):
         if not name.lower().endswith(".hwpx"):
             raise HTTPException(422, "HWPX 파일만 업로드하세요.")
         data = await body(request)
-        with transaction(engine) as db:
-            # Serialize concurrent creation/retries by stable client document UUID on PostgreSQL.
-            if engine.dialect.name == "postgresql":
-                from sqlalchemy import text
+        def persist_upload():
+            with transaction(engine) as db:
+                # Serialize concurrent creation/retries by stable client document UUID on PostgreSQL.
+                if engine.dialect.name == "postgresql":
+                    from sqlalchemy import text
 
-                db.execute(
-                    text("SELECT pg_advisory_xact_lock(:key)"),
-                    {"key": int(digest(document_id.encode())[:15], 16)},
-                )
-            doc = db.get(Document, document_id)
-            if not doc:
-                doc = Document(
-                    id=document_id, name=name, created_at=time.time(), lease_until=0
-                )
-                db.add(doc)
-                db.flush()
-                db.add(Access(document_id=doc.id, user_id=request.state.user, role="owner"))
-            elif not db.scalar(
-                select(Version).where(
-                    Version.document_id == doc.id, Version.request_id == idempotency_key
-                )
-            ):
-                raise HTTPException(409, "이미 존재하는 문서 ID입니다.")
-            else:
-                require_access(db, doc.id, request.state.user, "owner", lock=True)
-            publish(db, doc, data, None, None, idempotency_key, "upload", author_id=request.state.user)
-            result = {**doc_dict(doc), "role": "owner"}
-        return result
+                    db.execute(
+                        text("SELECT pg_advisory_xact_lock(:key)"),
+                        {"key": int(digest(document_id.encode())[:15], 16)},
+                    )
+                doc = db.get(Document, document_id)
+                if not doc:
+                    doc = Document(
+                        id=document_id, name=name, created_at=time.time(), lease_until=0
+                    )
+                    db.add(doc)
+                    db.flush()
+                    db.add(Access(document_id=doc.id, user_id=request.state.user, role="owner"))
+                elif not db.scalar(
+                    select(Version).where(
+                        Version.document_id == doc.id, Version.request_id == idempotency_key
+                    )
+                ):
+                    raise HTTPException(409, "이미 존재하는 문서 ID입니다.")
+                else:
+                    require_access(db, doc.id, request.state.user, "owner", lock=True)
+                publish(db, doc, data, None, None, idempotency_key, "upload", author_id=request.state.user)
+                result = {**doc_dict(doc), "role": "owner"}
+            return result
+
+        return await run_in_threadpool(persist_upload)
 
     @app.patch("/api/documents/{doc_id}")
     def rename(doc_id: str, value: Name, request: Request):
@@ -398,26 +460,31 @@ def create_app(database_url=None, storage_dir=None):
                     raise HTTPException(413, "변경분 크기 한도 초과")
         else:
             data = await body(request)
-        with transaction(engine) as db:
-            doc = locked(db, doc_id, request.state.user)
-            require_lease_owner(db, doc, request.state.user)
-            if delta:
-                old = db.get(Version, base_version)
-                if not old or old.document_id != doc.id:
-                    raise HTTPException(409, "기준 버전을 찾을 수 없습니다.")
-                data = apply_delta((folder / old.storage_key).read_bytes(), bytes(raw))
-            application = None
-            if x_application_id:
-                from .rewrite import validate_application_save
-                application = validate_application_save(db, doc, x_application_id, request.state.user,
-                                                        idempotency_key, base_version, data)
-            v = publish(
-                db, doc, data, base_version, x_edit_session, idempotency_key, cause, author_id=request.state.user
-            )
-            result = version_dict(v)
-            if application:
-                application.saved_version, application.status = v.id, "saved"
-        return result
+        def persist_save():
+            with transaction(engine) as db:
+                doc = locked(db, doc_id, request.state.user)
+                require_lease_owner(db, doc, request.state.user)
+                if delta:
+                    old = db.get(Version, base_version)
+                    if not old or old.document_id != doc.id:
+                        raise HTTPException(409, "기준 버전을 찾을 수 없습니다.")
+                    resolved = apply_delta((folder / old.storage_key).read_bytes(), bytes(raw))
+                else:
+                    resolved = data
+                application = None
+                if x_application_id:
+                    from .rewrite import validate_application_save
+                    application = validate_application_save(db, doc, x_application_id, request.state.user,
+                                                            idempotency_key, base_version, resolved)
+                v = publish(
+                    db, doc, resolved, base_version, x_edit_session, idempotency_key, cause, author_id=request.state.user
+                )
+                result = version_dict(v)
+                if application:
+                    application.saved_version, application.status = v.id, "saved"
+            return result
+
+        return await run_in_threadpool(persist_save)
 
     @app.post("/api/documents/{doc_id}/versions/{version_id}/restore")
     def restore(
@@ -448,9 +515,12 @@ def create_app(database_url=None, storage_dir=None):
         return result
 
     @app.get("/api/ai/models")
-    async def models():
-        provider = OpenAICompatible()
-        ids = await provider.models()
+    async def models(request: Request):
+        require_llm_access(request.state.user)
+        with app.state.ai_budget.reserve(request.state.user), ExecutionSlot(app.state.rewrite_capacity) as slot:
+            slot.reserve()
+            provider = OpenAICompatible()
+            ids = await provider.models()
         return {
             "models": ids,
             "configured_model": provider.model,
@@ -459,13 +529,16 @@ def create_app(database_url=None, storage_dir=None):
 
     @app.post("/api/ai/review")
     async def review(value: Review, request: Request, x_edit_session: str = Header()):
+        require_llm_access(request.state.user)
         with transaction(engine) as db:
             doc = locked(db, value.document_id, request.state.user)
             require_lease_owner(db, doc, request.state.user)
             check_lease(doc, x_edit_session)
             if doc.current_version != value.base_version:
                 raise HTTPException(409, "기준 버전이 변경되었습니다.")
-        proposal = await OpenAICompatible().review(value.original)
+        with app.state.ai_budget.reserve(request.state.user), ExecutionSlot(app.state.rewrite_capacity) as slot:
+            slot.reserve()
+            proposal = await OpenAICompatible().review(value.original)
         # Access/base can change while the provider is running.
         with transaction(engine) as db:
             doc = locked(db, value.document_id, request.state.user)
@@ -492,6 +565,8 @@ def create_app(database_url=None, storage_dir=None):
     install_toc(app, check_lease)
     from .reports import install_reports
     install_reports(app, publish, check_lease, doc_dict)
+    install_capabilities(app)
+    app.add_middleware(RequestTelemetry, runtime=app)
     return app
 
 

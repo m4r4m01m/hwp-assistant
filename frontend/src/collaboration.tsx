@@ -3,6 +3,8 @@ import { api, jsonRequest, type Document } from "./api";
 import type { Snapshot } from "./editor";
 import { RewritePanel, type PendingRewrite } from "./rewrite";
 import { WritingContextEditor, type WritingContext } from "./context";
+import { CapabilityNotice, useFeature } from "./capabilities";
+import { useComparisonDialog } from "./version-comparison";
 
 type Thread = { id: string; title: string; visibility: "document" | "private" };
 type Message = {
@@ -30,6 +32,7 @@ export function CollaborationPanel({
   cancelRewrite,
   onContextDirty,
   getPendingRewrite,
+  active = true,
 }: {
   document: Document;
   capture?: () => Snapshot;
@@ -39,7 +42,9 @@ export function CollaborationPanel({
   cancelRewrite?: (task: string) => Promise<void>;
   onContextDirty?: (dirty: boolean) => void;
   getPendingRewrite?: () => PendingRewrite | null;
+  active?: boolean;
 }) {
+  const chatFeature = useFeature("chat");
   const [threads, setThreads] = useState<Thread[]>([]),
     [selected, setSelected] = useState(""),
     [detail, setDetail] = useState<Detail | null>(null),
@@ -164,7 +169,7 @@ export function CollaborationPanel({
             대화 ID: <code>{detail.id}</code>
           </small>
           <RewritePanel key={detail.id} thread={detail.id} document={doc} context={detail.context} contextDirty={contextDirty}
-            requestRewrite={requestRewrite} approveRewrite={approveRewrite} cancelRewrite={cancelRewrite} getPendingRewrite={getPendingRewrite} />
+            active={active} requestRewrite={requestRewrite} approveRewrite={approveRewrite} cancelRewrite={cancelRewrite} getPendingRewrite={getPendingRewrite} />
           <WritingContextEditor key={`context-${detail.id}`} thread={detail.id} context={detail.context}
             baseVersion={doc.current_version} writable={writable} capture={capture} onSaved={() => load(detail.id)} onDirty={dirtyChanged} />
           <p className="hint">작성 정보와 대화는 이 앱에 저장됩니다. 후보 생성에는 선택한 작성 정보만 사용하며 전체 대화를 자동 전달하지 않습니다.</p>
@@ -185,6 +190,7 @@ export function CollaborationPanel({
           </div>
           {writable && (
             <>
+              <CapabilityNotice feature="chat" label="대화 AI 답변" />
               <textarea
                 aria-label="대화 메시지"
                 value={message}
@@ -211,7 +217,7 @@ export function CollaborationPanel({
                 메시지 저장
               </button>
               <button
-                disabled={busy || !message.trim()}
+                disabled={busy || !message.trim() || !chatFeature.available}
                 onClick={() =>
                   void run(async () => {
                     const row = await api<{ id: string }>(
@@ -274,6 +280,8 @@ export function AccessPanel({
   document: Document;
   onClose: () => void;
 }) {
+  const dialog = useRef<HTMLElement>(null);
+  useComparisonDialog(dialog, onClose);
   const [rows, setRows] = useState<{ user_id: string; role: string }[]>([]),
     [user, setUser] = useState(""),
     [role, setRole] = useState("reader"),
@@ -297,11 +305,11 @@ export function AccessPanel({
   }
   return (
     <div className="modal">
-      <section>
+      <section ref={dialog} role="dialog" aria-modal="true" aria-labelledby="access-panel-title">
         <button className="close" onClick={onClose}>
           닫기
         </button>
-        <h2>{doc.name} · 공유 권한</h2>
+        <h2 id="access-panel-title">{doc.name} · 공유 권한</h2>
         <p>
           열람자는 문서 공유 대화·컨텍스트·버전을 볼 수 있습니다. 편집자는
           저장·대화·제안을 작성합니다. 권한 변경 시 열린 편집 세션은 만료됩니다.

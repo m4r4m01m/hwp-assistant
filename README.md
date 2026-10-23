@@ -19,9 +19,13 @@ HWPX 문서함 · 문서 권한 기반 대화 · 승인 기반 AI 수정 · 버�
 HWP Assistant는 HWPX 파일을 열고, 편집하고, AI 수정안을 비교해 새 버전으로 저장하는 웹 애플리케이션입니다. 문서 원본은 **HWPX**로 유지하고, 최초 업로드와 이전 확정 버전은 보존합니다. 문서의 대화·작성 기준·수정 후보도 함께 관리합니다.
 
 > [!NOTE]
-> **개발·검증 단계입니다.** 실제 Codex 승인·저장 흐름과 일부 한컴 2018 왕복을 확인했습니다. 전체 문서 호환성이나 운영 배포 완료를 뜻하지 않습니다. Docker 작업은 현재 보류 중입니다.
+> **개발·검증 단계입니다.** 실제 Codex 승인·저장 흐름과 일부 한컴 2018 왕복을 확인했습니다. 전체 문서 호환성이나 운영 배포 완료를 뜻하지 않습니다. Docker·PostgreSQL·HTTPS 검증과 홈서버 배포 워크플로는 준비돼 있으며 실제 첫 실행과 서버 연결을 확인해야 합니다.
 
 현재 구현 범위, 남은 문제와 직접 확인할 순서는 **[구현 현황·사용자 검수 안내 · 2026-10-18](docs/implementation-status-and-user-review-2026-10-18.md)**에서 확인할 수 있습니다. 기능별 상태, 우선 검수 9개·추가 검수 6개, 개발 우선순위와 Codex 실행 프롬프트를 모았습니다.
+
+**2026-10-22 개선:** [홈서버 반응성·보안·UI 변경](docs/responsiveness-security-2026-10-22.md)에 정적 압축·캐시, 문서 열기/검색, 만료·폐기 가능한 로그인 세션, AI 미설정 안내, 모바일 패널과 검증 범위를 정리했습니다. 블록 삽입의 기존 본문 배치 보호는 포함하지만 엔진의 일반 HWPX 왕복 결함 해결이나 실제 홈서버 배포 완료를 뜻하지 않습니다.
+
+**홈서버 자동배포 연결:** [배포 파이프라인 첫 연결](docs/deployment-first-activation.md)에서 기존 서버의 읽기 전용 진단 → GitHub 이미지 검증·게시 → runner 등록 → 백업 후 배포 절차를 확인하세요. 워크플로 파일은 있지만 runner를 아직 설치하지 않은 경우를 위한 안내이며, 기존 문서·DB·운영 설정을 새로 초기화하지 않습니다.
 
 후속으로 [원문 양식과 내용 검토·보완](docs/report-review-workflow-2026-10-20.md), [문서 표준 편집 설정](docs/visual-standard-controls-2026-10-18.md), [전체 높이 편집 화면](docs/editor-viewport-2026-10-18.md), [Windows 원클릭 개발 환경](docs/developer-quickstart.md)을 추가했습니다. 해당 문서에서 새 기능과 검증 범위를 확인할 수 있습니다.
 
@@ -73,7 +77,7 @@ flowchart LR
 | 템플릿 추천·적용 | **엔진 시험 통과** | 등록된 합성 양식으로 새 문서를 만들고 편집·저장 |
 | 한컴 2018 왕복 | **일부 통과** | 단순 문단과 2×2 표의 실제 열기·수정·저장·재열기·웹 재가져오기 |
 | 수정 엔진 빌드 | **진단 빌드 통과** | 빌드 보호 11개, 실제 WASM 검사 8개, Windows no-opt 코어와 앱 번들 확인 |
-| Docker · PostgreSQL · nginx | **보류 / 미실행** | 최적화 배포 빌드와 컨테이너 실행 미검증 |
+| Docker · PostgreSQL · nginx | **파이프라인 준비 / 실행 대기** | 최적화 빌드·통합 검증 워크플로 구성. 실제 첫 실행 및 홈서버 연결은 [첫 연결 안내](docs/deployment-first-activation.md) 참고 |
 | 실제 사내 Qwen · 폐쇄망 실행 | **미검증** | 모델 ID·접속 규격과 외부 통신 차단 환경의 전체 흐름 확인 필요 |
 | 다른 사용자 Codex 후속 요청 · 독립 컨텍스트 복원 | **미검증** | DB에 보관된 사실과 세션 없는 복원 성공은 구분 |
 
@@ -83,9 +87,11 @@ flowchart LR
 
 ## Windows에서 API·웹 개발 실행
 
-**빠른 시작:** clone 후 루트의 **`Start HWP Assistant.cmd`를 더블클릭**하면 잠금 의존성 설치 → 해시로 고정한 개발 엔진 준비 → 분리된 로컬 문서함/API/웹 실행을 진행합니다. Git·Node·Python이 필요하며, AI에는 각 개발자의 Codex CLI와 본인 ChatGPT 로그인을 사용합니다. 기존 문서·다른 실행 서버·인증 파일을 복사하거나 변경하지 않습니다. [첫 실행·도구 검사·엔진 kit·소스 빌드 안내](docs/developer-quickstart.md)
+**현재 변경본의 준비 상태:** 새 bridge와 일치하는 엔진 kit는 아직 GitHub release에 게시하지 않았습니다. 기존 2026-10-18 kit를 사용하는 기본 더블클릭 설치는 호환성 검사에서 중단하므로, [개발자 빠른 시작](docs/developer-quickstart.md)의 소스 빌드 또는 별도로 제공한 새 진단 ZIP 수동 설치를 먼저 사용하세요. 기존 엔진 cache와 문서 데이터는 보존합니다.
 
-검증 환경은 Windows, Node **24.15.0**, Python **3.14.4**, Chrome입니다. React **19.2.0**, TypeScript **5.9.3**, FastAPI **0.121.0**, SQLAlchemy **2.0.44**를 사용합니다. 로컬 DB는 SQLite이며 PostgreSQL 실행 결과로 대체해 표현하지 않습니다.
+현재 checkout과 호환되는 kit가 게시된 버전에서는 루트의 **`Start HWP Assistant.cmd`를 더블클릭**해 잠금 의존성 설치 → 해시로 고정한 개발 엔진 준비 → 분리된 로컬 문서함/API/웹 실행을 진행합니다. Git·Node·Python이 필요하며, AI에는 각 개발자의 Codex CLI와 본인 ChatGPT 로그인을 사용합니다. [첫 실행·도구 검사·엔진 kit·소스 빌드 안내](docs/developer-quickstart.md)
+
+이전 Windows 검증 환경은 Node **24.15.0**, Python **3.14.4**, Chrome입니다. 현재 의존성은 React **19.2.0**, TypeScript **5.9.3**, FastAPI **0.136.3**, Starlette **1.3.1**, SQLAlchemy **2.0.44**입니다. 이번 변경의 Linux native 진단 엔진·Chromium 회귀와 남은 Windows·Docker·PostgreSQL 검증 범위는 [개선 기록](docs/responsiveness-security-2026-10-22.md)에 구분했습니다. 로컬 DB는 SQLite입니다.
 
 ### 1. 의존성 준비
 
@@ -131,7 +137,7 @@ node scripts/serve-engine-preview.mjs --public .cache/local-preview/public --por
 인증을 설정하지 않으면 `local` 단일 사용자 개발 모드입니다. 사용자별 토큰과 문서 권한 설정은 [협업·인증 안내](docs/collaboration-and-mcp.md)를 따릅니다. `data/metadata.db`와 `data/files/`가 재시작 후에도 유지되며, 백업할 때는 둘을 함께 보관합니다.
 
 <details>
-<summary><strong>Docker 배포 경로 — 현재 보류, 실행 미검증</strong></summary>
+<summary><strong>Docker 배포 경로 — 파이프라인 구성, 실제 실행 검증 필요</strong></summary>
 
 Docker Linux engine이 있는 환경을 위한 구성입니다. 현재 개발 PC에서는 빌드·실행을 검증하지 않았습니다.
 
@@ -244,7 +250,7 @@ docs/              요구사항 · 설정 안내 · 검증 근거 · 남은 범�
 
 `scripts/assistant-bridge.ts.txt`는 SDK에 없는 원문/서식 증거·손실 보고·원자적인 저장 리비전 확인을 추가한다. 텍스트 변경은 공개 `applyTextCommand`를 사용한다. `chrome=embed`로 엔진의 별도 파일 열기·저장을 차단해 호스트가 문서 수명주기를 관리한다. 폰트는 업스트림 `assets/fonts`의 번들 자원을 자체 제공하고 `RHWP_DISABLE_EXTERNAL_WEBFONTS=1`로 CDN 폰트를 끈다. 회사 글꼴은 추가하지 않았다. 업스트림 LICENSE, THIRD_PARTY_LICENSES, fonts/FONTS.md와 포함된 폰트 고지를 배포 디렉터리에 보존한다. 전체 라이선스 감사가 완료된 것은 아니며 반입 전 폰트별 고지를 재확인한다.
 
-의존성은 `frontend/package-lock.json`, `backend/requirements.lock.txt`, 업스트림 고정 커밋의 `rhwp-studio/package-lock.json`에 고정한다. 프런트엔드 Docker의 Node/Rust/nginx 베이스는 공식 레지스트리에서 확인한 digest도 고정했다. 백엔드·DB 이미지는 기존 버전 태그를 유지하며 전체 공급망 감사는 미완료다. 인터넷 없이 새로 빌드하려면 의존성 캐시 또는 사전 빌드 이미지를 별도로 반입해야 한다.
+의존성은 `frontend/package-lock.json`, `backend/requirements.lock.txt`, 업스트림 고정 커밋의 `rhwp-studio/package-lock.json`에 고정한다. 프런트엔드 Docker의 Node/Rust/nginx 베이스와 운영 PostgreSQL은 확인한 digest도 고정했다. 전체 공급망 감사는 미완료다. 인터넷 없이 새로 빌드하려면 의존성 캐시 또는 사전 빌드 이미지를 별도로 반입해야 한다.
 
 </details>
 

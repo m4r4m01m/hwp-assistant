@@ -1,7 +1,9 @@
+import asyncio
 import json
 import math
 import os
 from dataclasses import dataclass
+from contextvars import ContextVar
 from typing import Protocol
 from urllib.parse import urlparse
 import httpx
@@ -9,6 +11,17 @@ from fastapi import HTTPException
 from pydantic import BaseModel, Field, ValidationError, ConfigDict
 from .rewrite_contract import CandidatePair, parse_candidate_pair
 from .rewrite_context import generation_input, input_json
+
+# Bound only for an API request on its own event loop. Background rewrite workers
+# have independent asyncio.run() loops and must never borrow this client.
+request_client: ContextVar[httpx.AsyncClient | None] = ContextVar("hwp_llm_request_client", default=None)
+MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+
+
+def pooled_client():
+    return httpx.AsyncClient(trust_env=False, follow_redirects=False,
+                             limits=httpx.Limits(max_connections=8, max_keepalive_connections=4,
+                                                keepalive_expiry=30))
 
 
 class Suggestion(BaseModel):
@@ -68,19 +81,32 @@ class OpenAICompatible:
             )
 
     async def request(self, method, route, body=None):
-        try:
-            async with httpx.AsyncClient(
-                timeout=self.timeout, trust_env=False, follow_redirects=False
-            ) as client:
-                response = await client.request(
-                    method,
-                    self.base + route,
-                    json=body,
-                    headers={"Authorization": f"Bearer {self.key}"},
-                )
+        async def perform(client):
+            async with client.stream(
+                method, self.base + route, json=body,
+                timeout=httpx.Timeout(self.timeout, connect=min(5, self.timeout), pool=min(2, self.timeout)),
+                headers={"Authorization": f"Bearer {self.key}"},
+            ) as response:
                 response.raise_for_status()
-                return response.json()
-        except httpx.TimeoutException as exc:
+                declared = response.headers.get("content-length")
+                if declared is not None and not 0 <= int(declared) <= MAX_RESPONSE_BYTES:
+                    raise ValueError("model response is too large")
+                content = bytearray()
+                async for chunk in response.aiter_bytes(chunk_size=64 * 1024):
+                    if len(content) + len(chunk) > MAX_RESPONSE_BYTES:
+                        raise ValueError("model response is too large")
+                    content.extend(chunk)
+                return json.loads(content)
+
+        try:
+            # A total deadline also bounds slow trickling responses. No automatic POST retry.
+            async with asyncio.timeout(self.timeout):
+                client = request_client.get()
+                if client is not None:
+                    return await perform(client)
+                async with pooled_client() as local_client:
+                    return await perform(local_client)
+        except (httpx.TimeoutException, TimeoutError) as exc:
             raise HTTPException(
                 504, "AI 응답 시간 초과. 편집과 저장은 계속 사용할 수 있습니다."
             ) from exc

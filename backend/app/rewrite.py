@@ -18,6 +18,7 @@ from .collaboration import NewContext
 from .db import Access, Application, Conversation, RewriteCandidate, RewriteTask, Version, transaction
 from .hwpx import digest
 from .llm import OpenAICompatible
+from .capabilities import require_llm_access, llm_allowed
 from .rewrite_contract import CandidateInput, CandidatePair, PROMPT_CONTRACT
 from .rewrite_capacity import ExecutionSlot, configured_capacity
 from .rewrite_context import freeze_context, frozen_context, context_stale, generation_input, input_hash, CONTEXT_PROMPT_CONTRACT
@@ -160,7 +161,7 @@ def install_rewrite(app, check_lease):
     def rewrite_provider(request: Request):
         try:
             provider, client = configured_generator()
-            allowed = provider == "llm" or request.state.user == os.getenv("HWP_CODEX_USER", "local")
+            allowed = llm_allowed(request.state.user) if provider == "llm" else request.state.user == os.getenv("HWP_CODEX_USER", "local")
             return {"provider": provider, "model": client.model if client else None,
                     "configured": True, "allowed": allowed, "context_used": False, "supports_writing_context": True,
                     "reason": "" if allowed else "이 서버의 본인 Codex 계정에 연결된 사용자만 실행할 수 있습니다."}
@@ -199,6 +200,8 @@ def install_rewrite(app, check_lease):
                     raise HTTPException(409, "기준 버전이 변경되었습니다.")
                 context = freeze_context(db, thread, doc, value.context_revision)
                 provider, client = configured_generator()
+                if provider == "llm":
+                    require_llm_access(request.state.user)
                 if provider == "codex" and request.state.user != os.getenv("HWP_CODEX_USER", "local"):
                     raise HTTPException(403, "이 서버의 본인 Codex 계정에 연결된 사용자만 실행할 수 있습니다.")
                 token = "hwp-run-" + secrets.token_urlsafe(32) if provider == "codex" else ""

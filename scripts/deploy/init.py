@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import secrets
 import subprocess
+from config import DEFAULT_ALLOWED_HOSTS
 
 VOLUMES = ("hwp-assistant-prod-metadata", "hwp-assistant-prod-documents")
 
@@ -19,6 +20,12 @@ def settings(owner):
         "POSTGRES_PASSWORD=" + secrets.token_hex(32),
         "HWP_AUTH_TOKENS='" + json.dumps({owner: secrets.token_urlsafe(36)}) + "'",
         "HWP_LEGACY_OWNER=",
+        "HWP_ALLOWED_HOSTS=" + DEFAULT_ALLOWED_HOSTS,
+        "HWP_AUTH_SESSION_TTL_SECONDS=28800",
+        "HWP_AUTH_SESSION_IDLE_SECONDS=1800",
+        "HWP_AUTH_SESSION_MAX_PER_USER=20",
+        "HWP_AI_REQUESTS_PER_MINUTE=20",
+        "HWP_LLM_ALLOWED_USERS=" + owner,
         "HWP_IMAGE_PREFIX=ghcr.io/m4r4m01m/hwp-assistant",
         "HWP_IMAGE_TAG=",
         "LLM_PROVIDER=", "LLM_BASE_URL=", "LLM_API_KEY=", "LLM_MODEL=",
