@@ -106,6 +106,7 @@ test("HANCOM HWP real engine: saved download preserves RGB text, tables, shapes 
 
 test("HANCOM HWP safety: source hash mismatch and reported content loss block download", async ({ page, request }) => {
   const state = await syntheticDocument(page);
+  const savedVersions = await (await request.get(state.path + "/versions")).json();
   const downloads: string[] = [];
   page.on("download", download => downloads.push(download.suggestedFilename()));
   await page.route("**" + state.path + "/versions", async route => {
@@ -119,24 +120,50 @@ test("HANCOM HWP safety: source hash mismatch and reported content loss block do
 
   // Inject one reported loss around the real converter. This verifies the
   // product's fail-closed boundary, not a claim of an actual engine defect.
-  await page.evaluate(() => {
-    const prototype = (window as any).__hancomTestCore.HwpDocument.prototype;
-    (window as any).__hancomOriginalExport = prototype.exportHwpWithReport;
-    prototype.exportHwpWithReport = function () {
-      const artifact = (window as any).__hancomOriginalExport.call(this);
-      return { contentLoss: () => JSON.stringify({ schemaVersion: 1, outputFormat: "hwp", count: 1,
-        losses: [{ code: "binaryContentEmptied", subject: "binaryData", path: "BinData/SYNTHETIC", reason: "rawPassthroughUnavailable" }] }),
-        takeBytes: () => { throw Error("A lossy artifact must not be consumed"); }, free: () => artifact.free() };
+  await page.evaluate(async () => {
+    // Vite dev adds ?import to the app's dynamic binding URL, while a built
+    // app uses the plain URL. These can be distinct ES module instances, so
+    // patch both known same-origin bindings instead of only the fixture core.
+    const cores = await Promise.all([
+      import(/* @vite-ignore */ "/comparison-core.js"),
+      import(/* @vite-ignore */ "/comparison-core.js?import"),
+    ]);
+    const originals = Array.from(new Set(cores.map(core => core.HwpDocument.prototype)))
+      .map(prototype => ({ prototype, exportHwpWithReport: prototype.exportHwpWithReport }));
+    const probe = { exportCalls: 0, contentLossCalls: 0, takeBytesCalls: 0, freeCalls: 0 };
+    for (const { prototype, exportHwpWithReport } of originals) {
+      prototype.exportHwpWithReport = function () {
+        probe.exportCalls++;
+        const artifact = exportHwpWithReport.call(this);
+        return {
+          contentLoss: () => {
+            probe.contentLossCalls++;
+            return JSON.stringify({ schemaVersion: 1, outputFormat: "hwp", count: 1,
+              losses: [{ code: "binaryContentEmptied", subject: "binaryData", path: "BinData/SYNTHETIC", reason: "rawPassthroughUnavailable" }] });
+          },
+          takeBytes: () => { probe.takeBytesCalls++; throw Error("A lossy artifact must not be consumed"); },
+          free: () => { probe.freeCalls++; artifact.free(); },
+        };
+      };
+    }
+    (window as any).__hancomLossProbe = probe;
+    (window as any).__restoreHancomLossProbe = () => {
+      for (const { prototype, exportHwpWithReport } of originals) prototype.exportHwpWithReport = exportHwpWithReport;
+      delete (window as any).__hancomLossProbe;
+      delete (window as any).__restoreHancomLossProbe;
     };
   });
   try {
     await state.menu.getByRole("button", { name: "한컴 2018용 HWP", exact: true }).click();
     await expect(state.menu.getByRole("alert")).toContainText("내용 손실이 감지되었습니다");
+    expect(await page.evaluate(() => (window as any).__hancomLossProbe)).toEqual({
+      exportCalls: 1, contentLossCalls: 1, takeBytesCalls: 0, freeCalls: 1,
+    });
     expect(downloads).toHaveLength(0);
   } finally {
-    await page.evaluate(() => { (window as any).__hancomTestCore.HwpDocument.prototype.exportHwpWithReport = (window as any).__hancomOriginalExport; delete (window as any).__hancomOriginalExport; });
+    await page.evaluate(() => (window as any).__restoreHancomLossProbe());
   }
   expect(await (await request.get(state.file)).body()).toEqual(state.source);
-  expect(await (await request.get(state.path + "/versions")).json()).toHaveLength(1);
+  expect(await (await request.get(state.path + "/versions")).json()).toEqual(savedVersions);
   await expect(state.menu.getByRole("link", { name: "HWPX 원본", exact: true })).toHaveAttribute("href", state.file);
 });

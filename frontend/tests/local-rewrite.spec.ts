@@ -280,7 +280,7 @@ test("REAL rhwp + MOCK HTTP local provider: frozen input, no generation writes, 
   const beforeBytes = Buffer.from(await state.frame.evaluate(() => Array.from((window as any).hwpAssistantBridge.exportSnapshot().bytes)) as number[]);
   await article.getByRole("button", { name: "후보 2 승인·적용·저장" }).click(); // Automated fixture approval, NOT human consent.
   await expect(page.getByRole("status")).toHaveText("저장 완료");
-  await expect(article.getByTestId("application-history")).toContainText("saved");
+  await expect(article.getByTestId("application-history")).toHaveText("선택한 후보를 문서에 적용하고 서버에 저장했습니다.");
   const history = (await (await request.get(state.docPath + "/applications")).json())[0];
   const versions = await (await request.get(state.docPath + "/versions")).json();
   expect(versions).toHaveLength(2);
@@ -330,7 +330,7 @@ test(`REAL rhwp + MOCK provider: lost approved-save response preserves later typ
   });
   await article.getByRole("button", { name: "후보 1 승인·적용·저장" }).click();
   await expect(page.getByRole("status")).toHaveText("저장 확인 실패");
-  await expect(article.getByTestId("application-history")).toContainText("saved");
+  await expect(article.getByTestId("application-history")).toHaveText("선택한 후보를 문서에 적용하고 서버에 저장했습니다.");
   await state.frame.locator("#scroll-container canvas").first().click({ position: { x: 160, y: 150 }, force: true });
   await page.keyboard.press("Control+End");
   const appended = " 저장 응답 유실 뒤 후속 편집.";
@@ -340,7 +340,7 @@ test(`REAL rhwp + MOCK provider: lost approved-save response preserves later typ
     await expect(page.getByRole("status")).toHaveText("저장 확인 실패");
     await expect(page.getByRole("alert").filter({ hasText: "서버 반영 여부" })).toContainText("권한 거부");
     expect(await (await request.get(state.docPath + "/versions")).json()).toHaveLength(2);
-    await expect(article.getByTestId("application-history")).toContainText("saved");
+    await expect(article.getByTestId("application-history")).toHaveText("선택한 후보를 문서에 적용하고 서버에 저장했습니다.");
     await article.getByRole("button", { name: "저장 완료 확인" }).click();
   }
   await expect(page.getByRole("status")).toHaveText("저장되지 않은 변경 있음");
@@ -376,7 +376,7 @@ test("REAL rhwp + MOCK provider: lost approval response preserves the buffer and
     return route.continue();
   });
   await article.getByRole("button", { name: "후보 1 승인·적용·저장" }).click();
-  await expect(article.getByTestId("application-history")).toContainText("approved");
+  await expect(article.getByTestId("application-history")).toHaveText("후보 승인됨 · 서버 저장 확인이 필요합니다.");
   expect(await state.frame.evaluate(() => (window as any).hwpAssistantBridge.snapshot())).toEqual(state.snapshot);
   expect(await (await request.get(state.docPath + "/versions")).json()).toHaveLength(1);
   await article.getByRole("button", { name: "후보 1 승인·적용·저장" }).click();
@@ -401,6 +401,11 @@ test("REAL rhwp + MOCK provider: lost receipt response retries frozen output and
   await expect.poll(async () => (await (await request.get(process.env.HWP_E2E_MOCK_URL + "/proof")).json()).calls.at(-1)?.held).toBe(true);
   await request.post(process.env.HWP_E2E_MOCK_URL + "/controls", { data: {} });
   const article = page.locator(`[data-task-id="${job.id}"]`);
+  await page.getByRole("button", { name: "후보·적용 이력 새로고침", exact: true }).click();
+  const history = page.getByTestId("rewrite-history");
+  await expect(history.locator(`[data-task-id="${job.id}"]`)).toHaveCount(1);
+  await history.locator(":scope > summary").click();
+  await expect(article).toBeVisible();
   const receipts: any[] = [];
   await page.route("**/api/applications/*/receipt", async route => {
     receipts.push(route.request().postDataJSON());
@@ -411,10 +416,10 @@ test("REAL rhwp + MOCK provider: lost receipt response retries frozen output and
     return route.continue();
   });
   await article.getByRole("button", { name: "후보 1 승인·적용·저장" }).click();
-  await expect(article.getByTestId("application-history")).toContainText("applied");
+  await expect(article.getByTestId("application-history")).toHaveText("후보 적용됨 · 서버 저장 확인이 필요합니다.");
   await page.getByRole("button", { name: "후보·적용 이력 새로고침" }).click();
   await page.locator(`[data-task-id="${other.id}"]`).getByRole("button", { name: "이 작업 결과 수신 중단" }).click();
-  await expect(page.locator(`[data-task-id="${other.id}"]`)).toContainText("cancelled");
+  await expect(page.locator(`[data-task-id="${other.id}"]`)).toContainText("중단됨");
   await request.post(process.env.HWP_E2E_MOCK_URL + "/release");
   const replacement = job.task.candidates[0].replacement;
   expect(await state.frame.evaluate(() => (window as any).hwpAssistantBridge.snapshot().evidence.text)).toBe(replacement);
@@ -430,10 +435,10 @@ test("REAL rhwp + MOCK provider: lost receipt response retries frozen output and
   await expect(page.getByRole("textbox", { name: "문체 개선 요청" })).toHaveValue(instruction);
   expect(await (await request.get(job.path)).json()).toHaveLength(2);
   await page.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(page.locator(".workspace > [role=alert]").filter({ hasText: "승인 적용의 저장 연결" })).toBeVisible();
+  await expect(page.getByLabel("편집 알림", { exact: true }).getByRole("alert").filter({ hasText: "승인 적용의 저장 연결" })).toBeVisible();
   expect(await (await request.get(state.docPath + "/versions")).json()).toHaveLength(1);
   await article.getByRole("button", { name: "후보 1 승인·적용·저장" }).click();
-  await expect(article.getByTestId("application-history")).toContainText("saved");
+  await expect(article.getByTestId("application-history")).toHaveText("선택한 후보를 문서에 적용하고 서버에 저장했습니다.");
   await expect(page.getByRole("status")).toHaveText("저장되지 않은 변경 있음");
   expect(receipts).toHaveLength(2); expect(receipts[1]).toEqual(receipts[0]);
   expect(await state.frame.evaluate(() => (window as any).hwpAssistantBridge.snapshot().evidence.text)).toBe(replacement + appended);
@@ -603,7 +608,7 @@ test(`REAL rhwp + MOCK provider: same-document late ${lateResponse} response pre
     await openConversationTools(page);
     const articleA = page.locator(`[data-task-id="${posted[0].id}"]`);
     await articleA.getByRole("button", { name: "이 작업 결과 수신 중단" }).click();
-    await expect(articleA).toContainText("cancelled");
+    await expect(articleA).toContainText("중단됨");
     stages.push("A logically cancelled after panel remount");
     await request.post(process.env.HWP_E2E_MOCK_URL + "/release");
     await request.post(process.env.HWP_E2E_MOCK_URL + "/controls", { data: {} });
@@ -739,7 +744,7 @@ for (const action of ["approve", "cancel"] as const) {
         await expect(page.getByRole("status")).toHaveText("저장 완료");
       } else {
         await article.getByRole("button", { name: "이 작업 결과 수신 중단" }).click();
-        await expect(article).toContainText("cancelled");
+        await expect(article).toContainText("중단됨");
       }
       await request.post(process.env.HWP_E2E_MOCK_URL + "/controls", { data: {} });
       const nextInstruction = "같은 사실을 유지하고 표현을 간결하게 다듬어 주세요.";
@@ -795,7 +800,7 @@ test("REAL rhwp + MOCK delayed provider: cancel rejects late result and preserve
     const id = (await response.json()).id;
     const article = page.locator(`[data-task-id="${id}"]`);
     await article.getByRole("button", { name: "이 작업 결과 수신 중단" }).click();
-    await expect(article).toContainText("cancelled");
+    await expect(article).toContainText("중단됨");
     await expect.poll(async () => (await (await request.get(process.env.HWP_E2E_MOCK_URL + "/proof")).json()).calls.at(-1).finished,
       { timeout: 10000 }).toBe(true);
     const task = (await (await request.get(path)).json())[0];

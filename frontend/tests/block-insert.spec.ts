@@ -60,12 +60,12 @@ async function focusStart(page: Page) {
   await page.keyboard.press("Home");
   return frame;
 }
-async function openSample(page: Page, filename: string) {
+async function openSample(page: Page, filename: string, bytes?: Buffer) {
   await page.goto("/");
   await page.getByLabel("HWPX 업로드", { exact: true }).setInputFiles({
     name: filename,
     mimeType: "application/hwp+zip",
-    buffer: await readFile(sample),
+    buffer: bytes || await readFile(sample),
   });
   const row = page
     .getByRole("row")
@@ -159,11 +159,58 @@ function content(bytes: Buffer) {
   return strFromU8(unzipSync(bytes)["Contents/section0.xml"]);
 }
 
+test("REAL engine block insert: first-paragraph line distortion is refused without changing the live editor or server version", async ({
+  page,
+  request,
+}) => {
+  // Generate the empty fixture with the actual hosted engine, then take the
+  // normal upload/open path so the host's document epoch fences stay intact.
+  await page.goto("/rhwp/index.html?chrome=embed");
+  await page.waitForFunction(() => Boolean((window as any).hwpAssistantBridge));
+  await page.evaluate(() => (window as any).hwpAssistantBridge.newDocument());
+  const blank = Buffer.from(await page.evaluate(() => Array.from(
+    (window as any).hwpAssistantBridge.exportSnapshot().bytes,
+  ) as number[]));
+  const source = await openSample(page, `블록 줄배치 보호 ${Date.now()}.hwpx`, blank);
+  const original = await liveFrame(page);
+  await original.getByRole("textbox", { name: "문서 편집 입력", exact: true }).focus();
+  await page.keyboard.insertText(
+    "HWP Assistant 점검용 문서\n이 문서는 기능 점검을 위해 만든 시험 문서입니다.\n실제 업무자료나 개인정보는 포함하지 않습니다.",
+  );
+  await page.keyboard.press("Enter");
+  await page.keyboard.insertText("이 문단 뒤에 검증 블록을 넣습니다.");
+  const before = await exported(original);
+  const layout = await original.evaluate(() => (window as any).hwpAssistantBridge.bodyLayoutEvidence());
+  expect(layout.paragraph_counts).toEqual([2]);
+  expect(layout.paragraphs[0].lines).toHaveLength(3);
+  const versions = await (await request.get(source.document + "/versions")).json();
+  await page.getByRole("button", { name: "블록 삽입 열기", exact: true }).click();
+  await page.getByLabel("삽입할 블록").selectOption("title-frame");
+  await page.getByLabel("제목", { exact: true }).fill("왜곡되면 적용하지 않을 블록");
+  await original.getByRole("textbox", { name: "문서 편집 입력", exact: true }).focus();
+  await page.keyboard.press("Control+End");
+  expect((await evidence(original)).selection.target.paragraph).toBe(1);
+  const prepared = page.waitForResponse(response => response.url().endsWith("/block-preview") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "현재 문단 뒤 삽입 미리보기", exact: true }).click();
+  expect((await prepared).ok()).toBeTruthy(); // The real backend prepared a valid block.
+  await expect(page.getByLabel("표준 블록 삽입").getByRole("alert"))
+    .toContainText("기존 본문의 줄바꿈 또는 글자 간격이 달라져 적용을 중단", { timeout: 90000 });
+  expect(await liveFrame(page)).toBe(original);
+  expect(await exported(original)).toEqual(before);
+  expect(await original.evaluate(() => (window as any).hwpAssistantBridge.bodyLayoutEvidence())).toEqual(layout);
+  await expect(page.locator(".block-editor-slot iframe")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "확인한 블록 삽입", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
+  expect(await (await request.get(source.document + "/versions")).json()).toEqual(versions);
+  expect(await (await request.get(source.file)).body()).toEqual(blank);
+});
+
 test("REAL engine block insert: title, summary and table preserve unsaved content, undo, save and reopen", async ({
   page,
   request,
 }) => {
-  const source = await openSample(page, `블록 기본 검증 ${Date.now()}.hwpx`);
+  const filename = `블록 기본 검증 ${Date.now()}.hwpx`;
+  const source = await openSample(page, filename);
   const original = await addUnsaved(page),
     before = await exported(original),
     originalEvidence = await evidence(original);
@@ -316,7 +363,7 @@ test("REAL engine block insert: title, summary and table preserve unsaved conten
     await readFile(sample),
   );
   await page.getByRole("button", { name: "← 문서 목록", exact: true }).click();
-  await page.getByRole("button", { name: /^블록 기본 검증 .*\.hwpx$/ }).click();
+  await page.getByRole("button", { name: filename, exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("저장 완료", {
     timeout: 90000,
   });

@@ -81,7 +81,8 @@ test("LIBRARY file drop: lost upload response retries the same bytes and IDs wit
   await expect(page.getByRole("alert")).toContainText("먼저 보관한 파일의 업로드 결과를 재확인");
   expect(sent).toHaveLength(1);
   await page.getByRole("button", { name: "업로드 결과 재확인", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("파일을 새 문서로 저장했습니다");
+  const uploadSuccess = `${name} 파일을 새 문서로 저장했습니다.`;
+  await expect(page.getByRole("status").filter({ hasText: uploadSuccess })).toHaveText(uploadSuccess);
   expect(sent).toHaveLength(2);
   expect(sent[1]).toEqual(sent[0]);
   expect(sent[0].bytes).toEqual(source);

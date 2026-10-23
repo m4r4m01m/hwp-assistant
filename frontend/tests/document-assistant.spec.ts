@@ -241,29 +241,49 @@ test("REAL rhwp + MOCK document assistant: active answer locks an already-open c
   } finally { await request.post(mockUrl() + "/release"); await request.post(mockUrl() + "/controls", { data: {} }); }
 });
 
-test("REAL rhwp + MOCK document assistant: stale empty and running polls cannot erase an accepted or completed answer", async ({ page, request }) => {
-  const state = await setup(page, request);
-  await request.post(mockUrl() + "/controls", { data: { hold: true } });
+test("REAL rhwp + MOCK document assistant: sequential reads preserve accepted and completed answers across stale history", async ({ page, request }) => {
   let releaseEmpty!: () => void, releaseRunning!: () => void;
   const emptyGate = new Promise<void>(resolve => { releaseEmpty = resolve; });
   const runningGate = new Promise<void>(resolve => { releaseRunning = resolve; });
-  let phase: "empty" | "running" | "done" = "empty";
+  let phase: "empty" | "running" | "terminal" | "stale-running" | "stale-empty" | "done" = "empty";
   let capturedEmpty = false, capturedRunning = false, deliveredEmpty = false, deliveredRunning = false;
-  await page.route(`**/api/threads/${state.thread}/assistant-turns`, async route => {
-    if (route.request().method() !== "GET" || phase === "done") return route.continue();
-    const current = phase; phase = current === "empty" ? "running" : "done";
-    const response = await route.fetch();
-    const rows = await response.json();
-    if (current === "empty") {
-      expect(rows).toHaveLength(0); capturedEmpty = true;
-      await emptyGate; await route.fulfill({ response }); deliveredEmpty = true;
-    } else {
-      expect(rows).toHaveLength(1); expect(rows[0].status).toBe("running"); capturedRunning = true;
-      await runningGate; await route.fulfill({ response }); deliveredRunning = true;
-    }
+  let deliveredStaleRunning = false, deliveredStaleEmpty = false;
+  let reads = 0, inFlight = 0, maxInFlight = 0, capturedThread = "";
+  let runningRows: any[] = [];
+  // An idle history no longer polls. Intercept its opening read before the
+  // conversation mounts so it can arrive after the accepted POST instead.
+  await page.route("**/api/threads/*/assistant-turns", async route => {
+    if (route.request().method() !== "GET") return route.continue();
+    reads++; inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
+    capturedThread = new URL(route.request().url()).pathname.split("/").at(-2)!;
+    const current = phase;
+    phase = current === "empty" ? "running" : current === "running" ? "terminal" : "done";
+    try {
+      const response = await route.fetch();
+      expect(response.ok(), await response.text()).toBeTruthy();
+      const rows = await response.json();
+      if (current === "empty") {
+        expect(rows).toHaveLength(0); capturedEmpty = true;
+        await emptyGate; await route.fulfill({ response }); deliveredEmpty = true;
+      } else if (current === "running") {
+        expect(rows).toHaveLength(1); expect(rows[0].status).toBe("running");
+        runningRows = rows; capturedRunning = true;
+        await runningGate; await route.fulfill({ response }); deliveredRunning = true;
+      } else if (current === "stale-running") {
+        await route.fulfill({ response, json: runningRows }); deliveredStaleRunning = true;
+      } else if (current === "stale-empty") {
+        await route.fulfill({ response, json: [] }); deliveredStaleEmpty = true;
+      } else {
+        if (current === "terminal") { expect(rows).toHaveLength(1); expect(rows[0].status).toBe("ready"); }
+        await route.fulfill({ response });
+      }
+    } finally { inFlight--; }
   });
   try {
+    const state = await setup(page, request);
     await expect.poll(() => capturedEmpty).toBe(true);
+    expect(capturedThread).toBe(state.thread);
+    await request.post(mockUrl() + "/controls", { data: { hold: true } });
     await page.getByRole("textbox", { name: "AI에게 요청", exact: true }).fill("늦게 도착한 목록 응답을 확인할 질문입니다.");
     const accepted = page.waitForResponse(response => response.request().method() === "POST" && /\/assistant-turns$/.test(response.url()));
     await page.getByRole("button", { name: "보내기", exact: true }).click();
@@ -276,12 +296,42 @@ test("REAL rhwp + MOCK document assistant: stale empty and running polls cannot 
     await expect(article.getByRole("status")).toContainText("답변 작성 중");
     await expect.poll(() => capturedRunning).toBe(true);
     await request.post(mockUrl() + "/release");
-    await expect(article).toContainText("MOCK 문서 대화 응답");
+    await expect.poll(async () => (await (await request.get(`/api/threads/${state.thread}/assistant-turns`)).json())
+      .find((value: any) => value.id === turn.id)?.status).toBe("ready");
+    // The backend is complete, but a second browser GET must not overtake the
+    // held running read. Observe more than two normal 1.5-second poll periods.
+    const heldReads = reads;
+    expect(heldReads).toBe(2);
+    await page.waitForTimeout(3400);
+    expect(reads).toBe(heldReads);
+    expect(maxInFlight).toBe(1);
+    await expect(article.getByRole("status")).toContainText("답변 작성 중");
     releaseRunning(); await expect.poll(() => deliveredRunning).toBe(true);
+    // Only after that read settles may the next poll reconcile the ready row.
     await expect(article).toContainText("MOCK 문서 대화 응답");
+    expect(reads).toBe(3);
     await expect(article.getByRole("status")).toHaveCount(0);
     await expect(article.getByRole("button", { name: "응답 수신 중단", exact: true })).toHaveCount(0);
     await expect(page.getByLabel("대화 선택", { exact: true })).toBeEnabled();
+    const reopenConversation = async () => {
+      await page.getByLabel("추가 도구", { exact: true }).click();
+      await page.getByRole("button", { name: "AI 검토 열기", exact: true }).click();
+      await expect(page.getByLabel("대화 및 AI 패널", { exact: true })).toBeHidden();
+      await page.getByRole("button", { name: "문서 AI 대화 열기", exact: true }).click();
+    };
+    // Completed histories stay idle. A deliberate hide/show supplies later
+    // stale snapshots without requiring the overlapping polling we prohibit.
+    phase = "stale-running"; await reopenConversation();
+    await expect.poll(() => deliveredStaleRunning).toBe(true);
+    await expect(article).toContainText("MOCK 문서 대화 응답");
+    await expect(article.getByRole("status")).toHaveCount(0);
+    await expect(article.getByRole("button", { name: "응답 수신 중단", exact: true })).toHaveCount(0);
+    phase = "stale-empty"; await reopenConversation();
+    await expect.poll(() => deliveredStaleEmpty).toBe(true);
+    await expect(article).toContainText("MOCK 문서 대화 응답");
+    await expect(article.getByRole("status")).toHaveCount(0);
+    await expect(page.getByLabel("대화 선택", { exact: true })).toBeEnabled();
+    expect(maxInFlight).toBe(1);
     expect((await assistantCalls(request)).filter((call: any) => call.input.id === turn.id)).toHaveLength(1);
   } finally {
     releaseEmpty(); releaseRunning();

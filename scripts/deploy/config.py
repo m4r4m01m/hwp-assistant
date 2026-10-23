@@ -10,6 +10,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 from app.production import validate_environment
 
+DEFAULT_ALLOWED_HOSTS = "pseudowasabi-svr.taile7b6c4.ts.net,localhost,127.0.0.1,[::1]"
+
 
 def read_env(path):
     path = Path(path)
@@ -34,6 +36,8 @@ def read_env(path):
 
 def check_env(path):
     values = read_env(path)
+    # Match Compose's ${HWP_ALLOWED_HOSTS:-...} for existing private env files.
+    values["HWP_ALLOWED_HOSTS"] = values.get("HWP_ALLOWED_HOSTS") or DEFAULT_ALLOWED_HOSTS
     password = values.get("POSTGRES_PASSWORD", "")
     # Validate before constructing a URL: @/: could otherwise change its meaning.
     if not re.fullmatch(r"[A-Za-z0-9_-]{32,}", password):

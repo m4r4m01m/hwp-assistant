@@ -4,6 +4,10 @@
 
 이 변경은 **문서 기능의 컨테이너 배포 기반**이다. 외부 유료 LLM 제공자 구현과 Codex 전용 보고서 생성기의 교체는 포함하지 않는다. 기존 모델 미설정 오류가 표시될 수 있으며, 개인 Codex 로그인 파일을 서버에 복사하지 않는다. 실제 집 서버에서 편집·저장·한컴 호환성을 검수한 결과와 CI 실행 결과는 별도로 기록해야 한다.
 
+2026-10-22 반응성·세션·정적 파일 변경과 재로그인, 설정 및 검증 범위는 [구현 기록](responsiveness-security-2026-10-22.md)을 먼저 확인한다.
+
+워크플로는 있지만 홈서버 runner를 아직 연결하지 않았다면 [배포 파이프라인 첫 연결](deployment-first-activation.md)을 따른다. 기존 운영 설정·데이터 인수 확인, 읽기 전용 진단, runner 등록과 실제 GitHub 환경 기능을 순서대로 확인한다.
+
 ## 1. 추가한 구성
 
 | 파일 | 역할 |
@@ -12,6 +16,7 @@
 | `deploy/nginx.hwp-assistant.conf` | 컨테이너 Nginx: API 프록시, 공개 쿠키 경로, 전달된 HTTPS 보존 |
 | `deploy/host-nginx-location.conf.example` | 기존 호스트 server 블록에 적용할 HWP Assistant 전용 location 예시 |
 | `scripts/deploy/init.py` | 임의 비밀번호·사용자 토큰 생성, 권한 600 설정, 최초 볼륨 생성 |
+| `scripts/deploy/check-host.py` | 기존 서버의 도구·설정·권한·운영 볼륨을 변경 없이 진단 |
 | `scripts/deploy/deploy.sh` | 현재 커밋 빌드 또는 동일 SHA 이미지 pull → 백업 → 기동 → 점검 |
 | `scripts/deploy/backup.sh` | 앱 쓰기 중지 후 DB 덤프와 HWPX 파일을 일관된 세트로 백업 |
 | `scripts/deploy/smoke.py` | 라우팅·정적 파일·WASM·인증 검사. 합성 문서 쓰기는 명시적 옵션 |
@@ -159,10 +164,12 @@ bash scripts/deploy/deploy.sh pull
 - Ubuntu에 이 저장소 전용 GitHub Actions self-hosted runner 설치
 - runner 라벨: `self-hosted`, `linux`, `x64`, `hwp-deploy`
 - runner 계정이 Docker와 `/opt/hwp-assistant/production.env`에 접근 가능해야 함
-- `hwp-production` Environment에 main 배포 제한 및 필요한 승인 규칙 설정
+- `hwp-production` Environment의 실제 지원 여부를 확인하고 main 배포 제한 및 지원되는 승인 규칙 설정
 - 공개 저장소나 신뢰할 수 없는 기여자의 작업이 이 runner에서 실행되지 않도록 접근 통제
 
 이후 main에서 Run workflow의 `deploy`를 체크하면 검증된 두 이미지를 게시한 뒤, 집 서버 runner가 pull·백업·교체·점검을 수행한다. **SSH 공개 포트, Tailscale 인증 키, Funnel 설정 변경은 필요 없다.** runner 설치·권한·승인 설정은 이 코드가 자동으로 수행하지 않는다.
+
+이 private 저장소에서 required reviewers가 제공된다고 가정하지 않는다. GitHub Free/Pro/Team은 해당 기능을 public 저장소에만 제공한다. 실제 환경 보호 기능과 mode 600 운영 설정의 소유자 인수는 [첫 연결 절차](deployment-first-activation.md)에 설명한다. `environment` 선언이나 runner 라벨 자체가 별도 승인을 구성하지는 않는다.
 
 개인 PC에서 임의 PR 코드를 실행하지 않는다. workflow는 집 서버 작업을 main의 명시적 수동 실행으로 한정하지만, runner/Docker 관리 권한 자체가 매우 강하므로 별도의 신뢰 경계가 필요하다.
 

@@ -70,9 +70,23 @@ test("REAL rhwp: create, Korean edit, save, original upload, edit version, downl
   await page.getByLabel("추가 도구", { exact: true }).click();
   await page.getByRole("button", { name: "AI 검토 열기" }).click();
   await expect(page.getByRole("button", { name: "현재 문단 검토" })).toBeDisabled();
+  const beforeConnection = await frame2.evaluate(
+    () => (window as any).hwpAssistantBridge.snapshot().evidence.text,
+  );
+  let connectionChecks = 0;
+  // Exercise an explicit outage without depending on the configured local AI.
+  await page.route("**/api/ai/models", async (route) => {
+    connectionChecks++;
+    await route.fulfill({ status: 503, json: { detail: "TEST MOCK: separate AI unavailable" } });
+  });
   await page.getByRole("button", { name: "AI 연결 확인", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("별도 AI에 연결할 수 없습니다");
+  expect(connectionChecks).toBe(1);
   await expect(page.getByRole("button", { name: "현재 문단 검토" })).toBeDisabled();
+  expect(await frame2.evaluate(
+    () => (window as any).hwpAssistantBridge.snapshot().evidence.text,
+  )).toBe(beforeConnection);
+  await expect(page.getByRole("status")).toHaveText("저장되지 않은 변경 있음");
   await page.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("저장 완료");
   const editedUrl = await page

@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { api, ApiError, jsonRequest, type Document, type Version } from "./api";
+import { api, ApiError, downloadFile, errorMessage, isAbortError, jsonRequest, type Document, type Version } from "./api";
 import { EditorAdapter } from "./editor";
 import { previewSvg } from "./preview-svg";
 import { WorkspaceNav, WorkspaceIcon, type WorkspaceSection } from "./workspace-nav";
 import { publicPath } from "./public-path";
+import { PreviewCache } from "./preview-cache";
+import { useDebouncedValue } from "./ui-state";
 
 type Template = {
   id: string;
@@ -63,100 +65,96 @@ const payload = (fields: Fields) => ({
   category: fields.category.trim() || "기타",
 });
 const categories = ["보고서", "회의록", "계획서", "점검표", "기타"];
-function PinnedPreview({ item }: { item: Template }) {
+function PinnedPreview({ item, cache }: {
+  item: Template; cache: PreviewCache;
+}) {
   const host = useRef<HTMLDivElement>(null);
-  const [pages, setPages] = useState<string[]>([]),
-    [count, setCount] = useState(0),
-    [busy, setBusy] = useState(true),
-    [error, setError] = useState("");
+  const [pages, setPages] = useState<string[]>([]), [count, setCount] = useState(0),
+    [busy, setBusy] = useState(true), [phase, setPhase] = useState(""),
+    [error, setError] = useState(""), [attempt, setAttempt] = useState(0);
   const identity = `${item.id}:${item.version_id}:${item.sha256}`;
   useEffect(() => {
     const controller = new AbortController();
-    let live = true,
-      adapter: EditorAdapter | null = null;
+    let live = true, adapter: EditorAdapter | null = null;
     const urls: string[] = [];
-    setPages([]);
-    setCount(0);
-    setBusy(true);
-    setError("");
+    setPages([]); setCount(0); setBusy(true); setError("");
+    setPhase("양식 파일과 한글 엔진을 불러오는 중…");
+    const digest = async (bytes: ArrayBuffer) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)))
+      .map(value => value.toString(16).padStart(2, "0")).join("");
+    const append = (svg: string) => {
+      urls.push(URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" })));
+      setPages([...urls]);
+    };
+    const mount = async () => {
+      const instance = await EditorAdapter.mount(host.current!, { signal: controller.signal });
+      if (!live || controller.signal.aborted) { instance.destroy(); throw new DOMException("취소됨", "AbortError"); }
+      adapter = instance;
+      return instance;
+    };
     async function load() {
       if (!host.current) return;
-      const url = publicPath(`api/template-market/${item.id}/file`);
-      const response = await fetch(url, { signal: controller.signal });
-      if (!response.ok)
-        throw new Error(
-          response.status === 403 || response.status === 404
-            ? "현재 이 양식을 열람할 수 없습니다. 접근 권한을 확인하세요."
-            : "양식 파일을 불러오지 못했습니다.",
-        );
-      const bytes = await response.arrayBuffer();
-      const digest = Array.from(
-        new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
-      )
-        .map((n) => n.toString(16).padStart(2, "0"))
-        .join("");
-      if (digest !== item.sha256)
-        throw new Error("등록된 고정 버전과 파일 해시가 다릅니다.");
-      if (!live) return;
-      const mounted = await EditorAdapter.mount(host.current!);
-      if (!live) {
-        mounted.sdk.destroy();
-        return;
-      }
-      adapter = mounted;
-      await adapter.load(bytes, item.source_name);
-      const total = await adapter.sdk.pageCount();
-      for (let page = 0; page < Math.min(total, 6); page++) {
-        const svg = previewSvg(await adapter.sdk.getPageSvg(page));
-        if (!live) return;
-        urls.push(
-          URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" })),
-        );
-      }
-      if (live) {
-        setPages([...urls]);
-        setCount(total);
-      }
-    }
-    void load()
-      .catch((e) => {
-        if (live && !controller.signal.aborted) {
-          setPages([]);
-          setError(String(e));
+      const signature = downloadFile(publicPath("rhwp/build-info.json"), { signal: controller.signal, timeoutMs: 10000 })
+        .then(digest).catch(() => "");
+      const candidate = cache.has(identity);
+      // Start a cold engine together with the file read; warm candidates avoid
+      // creating an engine, but still require an authorized file GET and SHA.
+      const engine = candidate ? null : mount();
+      const file = downloadFile(publicPath(`api/template-market/${item.id}/file`), { signal: controller.signal });
+      const bytes = engine ? (await Promise.all([file, engine]))[0] : await file;
+      if (await digest(bytes) !== item.sha256) throw new Error("등록된 고정 버전과 파일 해시가 다릅니다.");
+      if (!live || controller.signal.aborted) return;
+      if (candidate) {
+        const cached = cache.get(identity, await signature);
+        if (!live || controller.signal.aborted) return;
+        if (cached) {
+          setCount(cached.pageCount);
+          for (const svg of cached.svgs) append(svg);
+          setBusy(false);
+          return;
         }
-      })
-      .finally(() => {
-        adapter?.sdk.destroy();
-        adapter = null;
-        if (live) setBusy(false);
-      });
-    return () => {
-      live = false;
+      }
+      const instance = adapter || await mount();
+      setPhase("한글 엔진에서 양식을 여는 중…");
+      await instance.load(bytes, item.source_name);
+      if (!live || controller.signal.aborted) return;
+      const total = await instance.sdk.pageCount();
+      if (!Number.isSafeInteger(total) || total < 1) throw new Error("양식의 페이지를 확인하지 못했습니다.");
+      setCount(total);
+      const svgs: string[] = [];
+      for (let page = 0; page < Math.min(total, 6); page++) {
+        setPhase(`${page + 1} / ${total}쪽을 그리는 중…`);
+        const svg = previewSvg(await instance.sdk.getPageSvg(page));
+        if (!live || controller.signal.aborted) return;
+        svgs.push(svg); append(svg);
+      }
+      // Metadata must not delay first-page or completed-preview visibility.
+      instance.destroy(); adapter = null; setBusy(false);
+      const engineSignature = await signature;
+      if (live && !controller.signal.aborted && engineSignature) cache.set(identity, engineSignature, { svgs, pageCount: total });
+    }
+    void load().catch(cause => {
+      if (live && !controller.signal.aborted && !isAbortError(cause)) {
+        setPages([]);
+        setError(cause instanceof ApiError && [403, 404].includes(cause.status)
+          ? "현재 이 양식을 열람할 수 없습니다. 접근 권한을 확인하세요." : errorMessage(cause));
+      }
       controller.abort();
-      adapter?.sdk.destroy();
-      urls.forEach((url) => URL.revokeObjectURL(url));
+    }).finally(() => {
+      adapter?.destroy(); adapter = null;
+      if (live) setBusy(false);
+    });
+    return () => {
+      live = false; controller.abort(); adapter?.destroy(); adapter = null;
+      urls.forEach(url => URL.revokeObjectURL(url));
     };
-  }, [identity]);
-  return (
-    <section className="market-preview" aria-label="양식 HWPX 미리보기">
-      <div className="market-renderer" ref={host} aria-hidden="true" />
-      {busy && <p role="status">한글 엔진으로 양식을 불러오는 중…</p>}
-      {error && (
-        <p role="alert" className="error">
-          {error}
-        </p>
-      )}
-      {pages.map((src, i) => (
-        <figure key={src}>
-          <img src={src} alt={`양식 미리보기 ${i + 1}쪽`} />
-          <figcaption>
-            {i + 1} / {count}쪽
-          </figcaption>
-        </figure>
-      ))}
-      {!busy && count > 6 && <p>전체 {count}쪽 중 앞 6쪽을 표시했습니다.</p>}
-    </section>
-  );
+  }, [identity, cache, attempt]);
+  return <section className="market-preview" aria-label="양식 HWPX 미리보기">
+    <div className="market-renderer" ref={host} aria-hidden="true" />
+    {busy && <p role="status">{phase}</p>}
+    {error && <div role="alert" className="error"><p>{error}</p><button onClick={() => setAttempt(value => value + 1)}>미리보기 다시 불러오기</button></div>}
+    {pages.map((src, index) => <figure key={src}><img src={src} alt={`양식 미리보기 ${index + 1}쪽`} /><figcaption>{index + 1} / {count}쪽</figcaption></figure>)}
+    {!busy && count > 6 && <p>전체 {count}쪽 중 앞 6쪽을 표시했습니다.</p>}
+  </section>;
 }
 
 export function TemplateMarket({
@@ -204,6 +202,9 @@ export function TemplateMarket({
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
+  const previewCache = useRef(new PreviewCache());
+  const [searchQuery, flushSearch] = useDebouncedValue(query);
+  const searching = loading || query !== searchQuery;
   const frozen = useRef<Pending | null>(null),
     operationBusy = useRef(false),
     detailGeneration = useRef(0);
@@ -212,7 +213,7 @@ export function TemplateMarket({
     const controller = new AbortController();
     setLoading(true);
     const params = new URLSearchParams({
-      q: query,
+      q: searchQuery,
       favorite: String(favorite),
       sort,
       offset: String(offset),
@@ -223,7 +224,12 @@ export function TemplateMarket({
       signal: controller.signal,
     })
       .then((rows) => {
-        if (!controller.signal.aborted) setCatalog(rows);
+        if (controller.signal.aborted) return;
+        // Removing a favorite or losing access can shrink the current result set.
+        // Return to a valid page before hiding pagination for a one-page result.
+        const lastOffset = Math.max(0, Math.ceil(rows.total / 24) - 1) * 24;
+        if (offset > lastOffset) setOffset(lastOffset);
+        else setCatalog(rows);
       })
       .catch((e) => {
         if (!controller.signal.aborted) setError(String(e));
@@ -232,7 +238,7 @@ export function TemplateMarket({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [query, category, favorite, sort, offset, refresh]);
+  }, [searchQuery, category, favorite, sort, offset, refresh]);
   useEffect(() => {
     if (!registering) return;
     const controller = new AbortController();
@@ -514,6 +520,7 @@ export function TemplateMarket({
               aria-label="양식 검색"
               placeholder="이름, 설명, 태그 검색"
               value={query}
+              onKeyDown={event => { if (event.key === "Enter") flushSearch(); }}
               disabled={locked}
               onChange={(e) => {
                 setQuery(e.target.value);
@@ -609,7 +616,7 @@ export function TemplateMarket({
           </div>
           {catalog.total > 24 && <nav className="market-pages" aria-label="양식 목록 페이지">
             <button
-              disabled={locked || loading || offset === 0}
+              disabled={locked || searching || offset === 0}
               onClick={() => setOffset(Math.max(0, offset - 24))}
             >
               이전
@@ -619,7 +626,7 @@ export function TemplateMarket({
               {Math.max(1, Math.ceil(catalog.total / 24))}
             </span>
             <button
-              disabled={locked || loading || offset + 24 >= catalog.total}
+              disabled={locked || searching || offset + 24 >= catalog.total}
               onClick={() => setOffset(offset + 24)}
             >
               다음
@@ -837,7 +844,7 @@ export function TemplateMarket({
                   </p>
                 </div>
               )}
-              <PinnedPreview
+              <PinnedPreview cache={previewCache.current}
                 key={`${selected.id}:${selected.version_id}`}
                 item={selected}
               />

@@ -9,11 +9,13 @@ import type {
 } from "./comparison-types";
 import "./compare-renderer.css";
 import { publicPath } from "./public-path";
+import { registerComparisonFonts, waitForComparisonFonts } from "./comparison-fonts";
 
 const target = document.getElementById("page")!;
 let native: typeof import("@rhwp/core");
 let doc: HwpDocument | null = null;
 let generation = 0;
+let renderGeneration = 0;
 const sha = async (bytes: Uint8Array) =>
   Array.from(
     new Uint8Array(
@@ -24,7 +26,7 @@ const sha = async (bytes: Uint8Array) =>
 const ready = (async () => {
   const response = await fetch(publicPath("comparison-engine.json"));
   if (!response.ok)
-    throw Error("검증된 비교 엔진이 없습니다. 프런트엔드를 다시 빌드하세요.");
+    throw Error("문서 비교를 준비하지 못했습니다. 새로고침 후에도 같으면 관리자에게 문의하세요.");
   const manifest = await response.json();
   const wasmPrefix = publicPath("rhwp/assets/");
   if (
@@ -40,30 +42,7 @@ const ready = (async () => {
   if ((await sha(wasm)) !== manifest.wasm_sha256)
     throw Error("문서 엔진 파일이 검증된 버전과 다릅니다.");
   await native.default({ module_or_path: wasm });
-  // Same self-hosted fonts as Studio. SVG contains the engine's family fallback
-  // chains and absolute glyph positions; no HTML reconstruction or remote fonts.
-  const families = [
-    ["Nanum Myeongjo", "NanumMyeongjo"],
-    ["Nanum Gothic", "NanumGothic"],
-    ["Noto Serif KR", "NotoSerifKR"],
-    ["Noto Sans KR", "NotoSansKR"],
-    ["D2Coding", "D2Coding"],
-    ["Pretendard", "Pretendard"],
-    ["Gowun Batang", "GowunBatang"],
-  ];
-  await Promise.all(
-    families.flatMap(([family, file]) =>
-      ["Regular", "Bold"].map(async (weight) => {
-        const face = new FontFace(
-          family,
-          `url(${publicPath(`rhwp/fonts/${file}-${weight}.woff2`)})`,
-          { weight: weight === "Bold" ? "700" : "400" },
-        );
-        document.fonts.add(await face.load());
-      }),
-    ),
-  );
-  await document.fonts.ready;
+  registerComparisonFonts();
 })();
 // Handle startup failures even before the parent begins awaiting ready.
 void ready.catch(() => {});
@@ -157,6 +136,7 @@ const api: ComparisonRenderer = {
   ready,
   async open(bytes, expected) {
     const ticket = ++generation;
+    renderGeneration++;
     await ready;
     if (bytes.length > 30 * 1024 * 1024 || (await sha(bytes)) !== expected)
       throw Error("비교할 저장본의 해시가 일치하지 않습니다.");
@@ -291,7 +271,8 @@ const api: ComparisonRenderer = {
       return absent;
     }
   },
-  render(page, location, kind = "modified", zoom = 1) {
+  async render(page, location, kind = "modified", zoom = 1) {
+    const ticket = ++renderGeneration;
     if (!doc || !Number.isInteger(page) || page < 0 || page >= doc.pageCount())
       throw Error("유효하지 않은 문서 쪽수입니다.");
     const svg = safeSvg(doc.renderPageSvg(page));
@@ -321,7 +302,11 @@ const api: ComparisonRenderer = {
       );
       svg.appendChild(marker);
     }
+    svg.style.visibility = "hidden";
     target.replaceChildren(svg);
+    await waitForComparisonFonts(svg);
+    if (ticket !== renderGeneration || !svg.isConnected) return;
+    svg.style.visibility = "visible";
     const first = target.querySelector(".change-mark");
     if (first) {
       // scrollIntoView also scrolls the embedding modal, clipping its header and
@@ -336,6 +321,7 @@ const api: ComparisonRenderer = {
   },
   dispose() {
     generation++;
+    renderGeneration++;
     doc?.free();
     doc = null;
     target.replaceChildren();

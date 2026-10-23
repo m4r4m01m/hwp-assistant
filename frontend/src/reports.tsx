@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { api, ApiError, jsonRequest, downloadBytes, type Document } from "./api";
+import { api, ApiError, errorMessage, isAbortError, jsonRequest, downloadBytes, type Document } from "./api";
 import { EditorAdapter, type ExportSnapshot } from "./editor";
 import { ReportPreview, type ReportRecovery } from "./report-preview";
 import { ReportWriting, ReportTiming, type LiveReport } from "./report-progress";
@@ -9,6 +9,8 @@ import type { VisualSelection } from "./standard-designer";
 import { WorkspaceNav, WorkspaceIcon, type WorkspaceSection } from "./workspace-nav";
 import "./report-editor-workspace.css";
 import { SavedDownload } from "./saved-download";
+import { CapabilityNotice, useFeature } from "./capabilities";
+import { usePageVisible, useMobileDrawerCanvas } from "./ui-state";
 
 type Template = { id: string; revision: number; standard_id: string; reference_sha256: string;
   standard_profile_sha256: string; profile_sha256: string;
@@ -37,6 +39,10 @@ function selectionSnapshot(value: VisualSelection): VisualSelection {
 }
 
 export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: { onClose: () => void; onOpen: (doc: Document) => void; initialVisualStandard?: VisualSelection; onNavigate?: (section: WorkspaceSection) => void }) {
+  const feature = useFeature("reports"), visible = usePageVisible();
+  const workspaceRoot = useRef<HTMLElement>(null);
+  useMobileDrawerCanvas(workspaceRoot, ".report-workspace-canvas", ".report-workspace-drawer:not([hidden])");
+  const [pollError, setPollError] = useState("");
   const [workspacePanel, setWorkspacePanel] = useState<"request" | "content" | "history" | null>("request");
   const [previewTools, setPreviewTools] = useState<HTMLDivElement | null>(null);
   const [previewDetails, setPreviewDetails] = useState<HTMLDivElement | null>(null);
@@ -125,27 +131,43 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
     } catch (e) { if (generation === templateFetch.current) setError(String(e)); }
   }
   useEffect(() => {
-    if (job?.status !== "running") return;
+    if (job?.status !== "running" || !visible) return;
     let stopped = false;
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
+    let delay = 800;
+    const fingerprint = (value: Job) => [value.id, value.status, value.draft_sha256, value.execution?.progress?.revision, value.execution?.progress?.stage, value.execution?.progress?.activity, value.execution?.progress?.research_calls, value.approval?.saved_version, value.preview_id].join(":");
+    let previous = fingerprint(job);
     const poll = async () => {
-      try { const result = await api<Job>(`/report-tasks/${job.id}`, { signal: controller.signal }); if (!stopped && active.current === result.id) {
-        setJob(current => current?.id === result.id && current.status === "running" ? result : current);
-        setJobs(values => values.map(value => value.id === result.id ? result : value));
-      } }
-      catch (e) { if (!stopped) setError(String(e)); }
-      finally { if (!stopped) timer = setTimeout(() => void poll(), 400); }
+      let terminal = false;
+      try {
+        const result = await api<Job>(`/report-tasks/${job.id}`, { signal: controller.signal });
+        if (!stopped && active.current === result.id) {
+          const next = fingerprint(result), changed = previous !== next;
+          previous = next;
+          delay = changed ? 800 : Math.min(5000, delay * 1.7);
+          setPollError("");
+          if (changed) setJob(current => current?.id === result.id && current.status === "running" ? result : current);
+          terminal = result.status !== "running";
+          if (terminal) setJobs(values => values.map(value => value.id === result.id ? result : value));
+        }
+      } catch (cause) {
+        if (!stopped && !isAbortError(cause)) {
+          setPollError(errorMessage(cause));
+          delay = Math.max(Math.min(30000, delay * 2), cause instanceof ApiError ? cause.retryAfterMs || 0 : 0);
+        }
+      } finally { if (!stopped && !terminal) timer = setTimeout(() => void poll(), delay); }
     };
     void poll();
     return () => { stopped = true; controller.abort(); clearTimeout(timer); };
-  }, [job?.id, job?.status]);
+  }, [job?.id, job?.status, visible]);
   useEffect(() => {
     const timer = setInterval(() => { const current = lease.current; if (current) void api(`/documents/${current.documentId}/session`,
       { method: "PUT", headers: { "X-Edit-Session": current.token } }).catch(e => setError(String(e))); }, 30000);
     return () => clearInterval(timer);
   }, []);
   function selectJob(value: Job) {
+    setPollError("");
     setRestoreTaskId(null);
     sessionStorage.setItem("hwp-report-task", value.id);
     setJobs(values => values.map(item => item.id === value.id ? value : item));
@@ -161,6 +183,7 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
     setSaved(null); setError(""); setProgress(""); approval.current = null; approvalBody.current = null; output.current = null;
   }
   async function requestReport() {
+    if (!pending && !feature.available) { setError(feature.message); return; }
     const template = templates.find(item => item.id === templateId);
     const visual = visualStandards.find(item => item.id === visualId);
     if (!pending && !template) { setError("내용 구성을 선택한 뒤 요청하세요."); return; }
@@ -178,6 +201,7 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
     finally { if (active.current === frozen.id) setBusy(false); }
   }
   async function reviseDraft() {
+    if (!pendingRevision && !feature.available) { setError(feature.message); return; }
     if (!job?.draft_sha256 || (!pendingRevision && !feedback.trim())) return;
     const request = pendingRevision || { sourceId: job.id, body: { id: crypto.randomUUID(), draft_sha256: job.draft_sha256, feedback: feedback.trim() } };
     const sourceId = job.id;
@@ -307,7 +331,7 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
   const frozenVisual = job?.input.visual_standard;
   const formatName = (visual?: VisualSelection) => visual?.name || "이전 기본 서식 (호환용)";
   const formatDescription = (visual?: VisualSelection) => `항목 요약 말머리 ${visual?.settings.body_parenthetical_labels === false ? "숨김" : "표시"} · 핵심 요약 ${visual?.settings.show_core_summary === false ? "미포함" : "포함"}`;
-  return <main className="report-workspace report-editor-workspace">
+  return <main ref={workspaceRoot} className="report-workspace report-editor-workspace">
     <WorkspaceNav active="reports" compact className="report-workspace-rail" label="보고서 작업 도구" onBack={onClose} onNavigate={onNavigate} disabled={locked || job?.status === "running"}>
       <button aria-label="작성 요청" title="새 보고서의 주제와 양식 선택" aria-expanded={workspacePanel === "request"} aria-controls="report-request-panel" onClick={() => setWorkspacePanel(value => value === "request" ? null : "request")}><WorkspaceIcon name="rename" /><span>작성 요청</span></button>
       <button aria-label={job?.status === "running" ? "작성 진행" : "결과·출처"} title={job?.status === "running" ? "보고서 작성 진행 정보" : "보고서 결과와 출처"} aria-expanded={workspacePanel === "content"} aria-controls="report-content-panel" onClick={() => setWorkspacePanel(value => value === "content" ? null : "content")}><WorkspaceIcon name="documents" /><span>{job?.status === "running" ? "진행" : "내용"}</span></button>
@@ -317,6 +341,7 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
     <div className="report-preview-details-host" ref={setPreviewDetails} />
     <aside id="report-request-panel" className="report-workspace-drawer report-request-drawer" hidden={workspacePanel !== "request"} aria-label="보고서 작성 요청 도구">
       <div className="report-drawer-heading"><div><small>보고서 작성</small><h1>{job ? "새 보고서 요청" : "무엇을 정리할까요?"}</h1></div><button aria-label="작성 요청 도구 닫기" onClick={() => setWorkspacePanel(null)}><WorkspaceIcon name="close" size={18} /></button></div>
+      <CapabilityNotice feature="reports" label="보고서 AI 생성" />
       <section className="report-input">
         {job && <p className="report-current-format" aria-label="현재 보고서 고정 서식"><strong>현재 초안: {formatName(frozenVisual)}</strong><br />{formatDescription(frozenVisual)}<br />아래 설정은 다음 보고서에 적용됩니다.</p>}
         <label htmlFor="report-prompt">보고서 작성 요청</label>
@@ -349,7 +374,7 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
         </details>
       </section>
       <div className="report-request-submit">
-        <button className="primary" disabled={busy || saving || !!lease.current || previewLocked || !!pendingRevision || (!pending && (!visualCatalogReady || prompt.trim().length < 5 || !templates.some(item => item.id === templateId))) || job?.status === "running"} onClick={() => void requestReport()}>{busy ? "요청 확인 중…" : pending ? "같은 요청 접수 재확인" : "초안 작성하기"}</button>
+        <button className="primary" disabled={busy || saving || !!lease.current || previewLocked || !!pendingRevision || (!pending && (!feature.available || !visualCatalogReady || prompt.trim().length < 5 || !templates.some(item => item.id === templateId))) || job?.status === "running"} onClick={() => void requestReport()}>{busy ? "요청 확인 중…" : pending ? "같은 요청 접수 재확인" : "초안 작성하기"}</button>
         <p className="hint">초안을 확인하고 보완한 뒤 문서로 만듭니다.</p>
       </div>
     </aside>
@@ -367,10 +392,11 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
       <small>{value.execution?.revision_of ? "보완본 · " : ""}{({ ready: "초안 준비", running: "작성 중", failed: "생성 실패", cancelled: "중단" } as Record<string, string>)[value.status]}{value.approval?.saved_version ? " · 저장됨" : ""}</small></li>)}</ul>
     </aside>
     <section className="report-preview report-workspace-canvas" aria-label="보고서 초안">
+      {pollError && <p className="report-workspace-error error" role="alert">{pollError}</p>}
       {error && <p className="report-workspace-error error" role="alert">{error}{restoreTaskId && <button onClick={() => { setError(""); setRestoreAttempt(value => value + 1); }}>이전 요청 다시 열기</button>}</p>}
       {!error && job?.status === "failed" && <p className="report-workspace-error error" role="alert">{job.error}</p>}
       {job?.status === "running" || (!job?.draft && !!job?.execution?.progress?.blocks.length) ? <ReportWriting key={job.id} startedAt={job.created_at} progress={job.execution?.progress} stopped={job.status !== "running"} controlsHost={writingTools} /> : job?.draft ? <>
-        {!job.approval && !hasPreview && <ReportReview draft={job.draft} formatName={formatName(frozenVisual)} includesSummary={frozenVisual?.settings.show_core_summary !== false} feedback={feedback} onFeedback={changeFeedback} onRevise={() => void reviseDraft()} onFormat={beginFormatting} busy={busy} retry={!!pendingRevision} />}
+        {!job.approval && !hasPreview && <ReportReview draft={job.draft} formatName={formatName(frozenVisual)} includesSummary={frozenVisual?.settings.show_core_summary !== false} feedback={feedback} onFeedback={changeFeedback} onRevise={() => void reviseDraft()} onFormat={beginFormatting} busy={busy} retry={!!pendingRevision} revisionAvailable={feature.available} />}
         {hasPreview && <ReportPreview key={job.id} taskId={job.id} draftHash={job.draft_sha256!} onLock={setPreviewLocked} toolbarHost={previewTools} detailsHost={previewDetails}
           workspacePanelOpen={workspacePanel !== null} onShowDetails={() => setWorkspacePanel(null)}
           onSaved={(doc, options) => { setSaved(doc); setSavedWithUnsaved(!!options?.unsavedChanges); recovery.current = options?.recovery || null; setRecoverySnapshot(null); setRecoveryError(""); }}

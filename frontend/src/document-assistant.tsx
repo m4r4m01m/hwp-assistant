@@ -1,7 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { api, ApiError, type Document } from "./api";
+import { api, ApiError, errorMessage, isAbortError, type Document } from "./api";
 import type { Snapshot } from "./editor";
 import type { AssistantCapture } from "./document-assistant-context";
+import { usePageVisible } from "./ui-state";
+import { CapabilityNotice, useFeature } from "./capabilities";
 import "./document-assistant.css";
 
 export type AssistantRequest = AssistantCapture & { id: string; message: string };
@@ -27,11 +29,12 @@ export type AssistantActions = {
   onAssistantActive?: (active: boolean) => void;
 };
 
-export function DocumentAssistantPanel({ thread, document: doc, captureDocument, sendAssistant, onDirty, onActive, requestRewrite, onShowRewrite }: AssistantActions & {
+export function DocumentAssistantPanel({ thread, document: doc, captureDocument, sendAssistant, onDirty, onActive, requestRewrite, onShowRewrite, active: panelActive = true }: AssistantActions & {
   thread: string; document: Document; onDirty: (dirty: boolean) => void; onActive: (active: boolean) => void;
   requestRewrite?: (thread: string, instruction: string, contextRevision?: number, expectedSelection?: Snapshot) => Promise<void>;
-  onShowRewrite: () => void;
+  onShowRewrite: () => void; active?: boolean;
 }) {
+  const visible = usePageVisible(), rewriteFeature = useFeature("rewrite");
   const [turns, setTurns] = useState<AssistantTurn[]>([]), [provider, setProvider] = useState<Provider | null>(null);
   const [message, setMessage] = useState(""), [error, setError] = useState(""), [busy, setBusy] = useState(false);
   const [permissionLost, setPermissionLost] = useState(false);
@@ -43,6 +46,9 @@ export function DocumentAssistantPanel({ thread, document: doc, captureDocument,
   const previousLatest = useRef<{ id: string; status: string; answer: string | null; error: string } | null>(null);
   const automaticScrollTop = useRef<number | null>(null);
   const active = busy || !permissionLost && (!!pending || turns.some(turn => turn.status === "running" && turn.can_cancel));
+  const running = turns.some(turn => turn.status === "running");
+  const shouldPoll = useRef(false), schedulePoll = useRef<() => void>(() => {}), readError = useRef("");
+  shouldPoll.current = !permissionLost && (running || !!pending);
   const writable = doc.role !== "reader" && !!sendAssistant && !!captureDocument;
   useEffect(() => { onDirty(!!message.trim() || !!pending); }, [message, pending, onDirty]);
   useEffect(() => { onActive(active); }, [active, onActive]);
@@ -97,22 +103,60 @@ export function DocumentAssistantPanel({ thread, document: doc, captureDocument,
   }, [turns]);
   useEffect(() => {
     alive.current = true;
-    let live = true, denied = false;
-    const load = () => {
-      if (denied) return;
-      return api<AssistantTurn[]>(`/threads/${thread}/assistant-turns`).then(rows => {
-        if (live) setTurns(previous => mergeTurns(previous, rows));
-      }).catch(cause => {
-        if (!live) return;
-        if (cause instanceof ApiError && [403, 404].includes(cause.status)) { denied = true; setPermissionLost(true); setPending(null); }
-        setError(String(cause));
-      });
-    };
-    void api<Provider>("/document-assistant-provider").then(value => { if (live) setProvider(value); }).catch(cause => { if (live) setError(String(cause)); });
-    void load();
-    const timer = setInterval(load, 1500);
-    return () => { live = false; alive.current = false; clearInterval(timer); onDirty(false); onActive(false); };
+    return () => { alive.current = false; onDirty(false); onActive(false); };
   }, [thread, onDirty, onActive]);
+  useEffect(() => {
+    if (!panelActive || !visible || permissionLost) return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined, loading = false, denied = false, delay = 1500;
+    const schedule = () => {
+      clearTimeout(timer);
+      if (!controller.signal.aborted && !denied && !loading && shouldPoll.current)
+        timer = setTimeout(() => void load(), delay);
+    };
+    const load = async () => {
+      if (controller.signal.aborted || denied || loading) return;
+      loading = true;
+      let retry = false;
+      try {
+        const rows = await api<AssistantTurn[]>(`/threads/${thread}/assistant-turns`, { signal: controller.signal });
+        if (!controller.signal.aborted) {
+          setTurns(previous => mergeTurns(previous, rows)); delay = 1500;
+          const recovered = readError.current;
+          readError.current = "";
+          if (recovered) setError(current => current === recovered ? "" : current);
+        }
+      } catch (cause) {
+        if (controller.signal.aborted || isAbortError(cause)) return;
+        if (cause instanceof ApiError && [401, 403, 404].includes(cause.status)) {
+          denied = true; setPermissionLost(true); setPending(null);
+        } else {
+          retry = true;
+          delay = Math.max(Math.min(30000, delay * 2), cause instanceof ApiError ? cause.retryAfterMs || 0 : 0);
+        }
+        readError.current = errorMessage(cause);
+        setError(readError.current);
+      } finally {
+        loading = false;
+        if (!controller.signal.aborted) {
+          if (retry) timer = setTimeout(() => void load(), delay);
+          else schedule();
+        }
+      }
+    };
+    schedulePoll.current = schedule;
+    void api<Provider>("/document-assistant-provider", { signal: controller.signal })
+      .then(value => { if (!controller.signal.aborted) setProvider(value); })
+      .catch(cause => { if (!controller.signal.aborted && !isAbortError(cause)) setError(errorMessage(cause)); });
+    // Refresh on opening/returning to the panel. Completed and empty histories
+    // remain idle; running requests use one cancellable request at a time.
+    void load();
+    return () => {
+      controller.abort(); clearTimeout(timer);
+      if (schedulePoll.current === schedule) schedulePoll.current = () => {};
+    };
+  }, [thread, panelActive, visible, permissionLost]);
+  useEffect(() => { schedulePoll.current(); }, [running, !!pending]);
   async function send() {
     if (!captureDocument || !sendAssistant || busy) return;
     setBusy(true); setError("");
@@ -159,8 +203,10 @@ export function DocumentAssistantPanel({ thread, document: doc, captureDocument,
           {turn.stale && <p className="hint">이 답변 이후 문서 저장본이 바뀌었습니다. 새 요청은 현재 문서를 다시 읽습니다.</p>}
           {turn.document_context.truncated && <p className="hint">긴 문서의 앞부분을 읽고 작성한 답변입니다.</p>}
           {turn.rewrite_instruction && turn.selection && requestRewrite && <div className="assistant-rewrite-action">
+            <CapabilityNotice feature="rewrite" label="문단 수정 후보" />
             <details><summary>제안한 수정 방향</summary><p className="text">{turn.rewrite_instruction}</p></details>
-            <button disabled={permissionLost || active || turn.stale || turn.base_version !== doc.current_version} onClick={async () => {
+            <button disabled={permissionLost || active || !rewriteFeature.available || turn.stale || turn.base_version !== doc.current_version} onClick={async () => {
+              if (!rewriteFeature.available) return;
               setBusy(true); setError("");
               try { await requestRewrite(thread, turn.rewrite_instruction!, undefined, turn.selection!); }
               catch (cause) { setError(String(cause)); }

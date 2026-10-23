@@ -78,7 +78,7 @@ try {
     if (-not (Test-Path 'frontend/node_modules/typescript/bin/tsc')) { throw 'Frontend dependencies are missing. Rerun without -NoInstall.' }
     if (-not $NoInstall) { $expected | ConvertTo-Json | Set-Content -LiteralPath $receiptPath -Encoding utf8 }
     $engineRoot = if ($EnginePublic) { Resolve-DeveloperPath $EnginePublic } else { Join-Path $developerRoot 'public' }
-    if (-not $EngineArchive -and -not (Test-Path (Join-Path $engineRoot 'rhwp/build-info.json')) -and (Test-Path 'developer-engine.zip')) {
+    if ($BuildEngine -eq 'Auto' -and -not $EngineArchive -and -not (Test-Path (Join-Path $engineRoot 'rhwp/build-info.json')) -and (Test-Path 'developer-engine.zip')) {
         $EngineArchive = 'developer-engine.zip'
     }
     if (-not $EnginePublic -and -not $EngineArchive -and -not (Test-Path (Join-Path $engineRoot 'rhwp/build-info.json')) -and $BuildEngine -eq 'Auto') {

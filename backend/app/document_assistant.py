@@ -5,12 +5,14 @@ import secrets
 import time
 import unicodedata
 import uuid
+from contextlib import ExitStack
 from threading import Thread
 from fastapi import Header, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from .auth import require_access, require_lease_owner
+from .capabilities import llm_allowed, require_llm_access
 from .db import Access, Conversation, ConversationTurn, Document, Message, transaction
 from .hwpx import digest
 from .rewrite import TaskInput
@@ -204,17 +206,18 @@ def install_document_assistant(app, check_lease):
     def provider_info(request: Request):
         try:
             provider, settings = configured_provider()
-            allowed = provider != "codex" or request.state.user == os.getenv("HWP_CODEX_USER", "local")
+            allowed = llm_allowed(request.state.user) if provider == "llm" else request.state.user == os.getenv("HWP_CODEX_USER", "local")
             configured = provider != "codex" or bool(settings.executable)
+            reason = "이 사용자는 서버의 AI 연결을 실행할 권한이 없습니다." if provider == "llm" else "이 서버에 연결된 Codex 계정의 사용자만 질문할 수 있습니다."
             return {"provider": provider, "model": settings.model, "configured": configured, "allowed": allowed and configured,
-                "reason": "설치된 Codex CLI가 필요합니다." if not configured else "" if allowed else "이 서버에 연결된 Codex 계정의 사용자만 질문할 수 있습니다."}
+                "reason": "설치된 Codex CLI가 필요합니다." if not configured else "" if allowed else reason}
         except HTTPException as exc:
             return {"provider": os.getenv("HWP_DOCUMENT_ASSISTANT_PROVIDER", os.getenv("HWP_REWRITE_PROVIDER", "codex")),
                 "model": None, "configured": False, "allowed": False, "reason": str(exc.detail)}
 
     @app.post("/api/threads/{thread_id}/assistant-turns")
     def create_turn(thread_id: str, value: TurnInput, request: Request, x_edit_session: str = Header()):
-        with ExecutionSlot(app.state.rewrite_capacity) as slot:
+        with ExecutionSlot(app.state.rewrite_capacity) as slot, ExitStack() as pending_budget:
             with transaction(engine) as db:
                 thread = db.get(Conversation, thread_id)
                 if not thread:
@@ -232,6 +235,8 @@ def install_document_assistant(app, check_lease):
                 if doc.current_version != value.base_version:
                     raise HTTPException(409, "문서의 저장 버전이 바뀌었습니다. 현재 문서로 다시 질문하세요.")
                 provider, settings = configured_provider()
+                if provider == "llm":
+                    require_llm_access(request.state.user)
                 if provider == "codex" and request.state.user != os.getenv("HWP_CODEX_USER", "local"):
                     raise HTTPException(403, "이 서버에 연결된 Codex 계정의 사용자만 질문할 수 있습니다.")
                 if provider == "codex" and not settings.executable:
@@ -249,13 +254,27 @@ def install_document_assistant(app, check_lease):
                         "completed": False, "outcome": "running", "input_sha256": digest(encoded.encode()),
                         "history_turns": len(history), "_lease_sha256": digest(x_edit_session.encode())}), error="", created_at=time.time())
                 slot.reserve()
+                # Identical retries above only read the accepted request. A
+                # global-capacity rejection must not consume a user's quota.
+                pending_budget.enter_context(app.state.ai_budget.reserve(request.state.user))
                 db.add(row)
                 result = public_turn(row, doc, request.state.user, role)
+            # The worker owns admission until actual inference/cleanup ends.
+            # Returning HTTP 200 or cancelling a logical turn cannot free it.
+            worker_budget = pending_budget.pop_all()
+            def execute(*args):
+                try:
+                    run_turn(*args)
+                finally:
+                    worker_budget.close()
             try:
-                slot.start(Thread, run_turn, (engine, row.id, provider, settings))
+                slot.start(Thread, execute, (engine, row.id, provider, settings))
             except Exception:
                 finish_turn(engine, row.id, error="질문 실행기를 시작하지 못했습니다.")
                 result.update(status="failed", error="질문 실행기를 시작하지 못했습니다.")
+            finally:
+                if not slot.started:
+                    worker_budget.close()
             return result
 
     @app.get("/api/threads/{thread_id}/assistant-turns")

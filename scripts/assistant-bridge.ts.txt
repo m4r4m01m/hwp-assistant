@@ -5,12 +5,112 @@ import { collectTargetEvidence as assistantEvidence } from './document-agent/con
 import { sha256 as assistantSha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex as assistantHex } from '@noble/hashes/utils.js';
 const assistantDigest = (value: Uint8Array) => assistantHex(assistantSha256(value));
+type AssistantBodyGlyph = [number, number, number]; // logical offset, relative x, advance (px)
+type AssistantBodyLine = {start: number; end: number; glyphs: AssistantBodyGlyph[]};
+type AssistantBodyParagraph = {
+  section: number; paragraph: number; length: number; text_sha256: string; lines: AssistantBodyLine[];
+};
 let assistantRevision = 0;
 const assistantListeners = new Set<() => void>();
 eventBus.on('document-mutated', () => {
   assistantRevision += 1;
   for (const listener of assistantListeners) listener();
 });
+
+// A read-only rendering receipt for block insertion. It compares the actual
+// body glyph positions, independently of HWPX's disposable line-segment cache.
+// Page/y positions are deliberately not in the receipt: inserting a block may
+// move later text to another page without changing that text's line layout.
+function assistantBodyLayoutEvidence() {
+  if (!documentAgent) throw new Error('편집기 초기화 중입니다.');
+  const revision = assistantRevision;
+  const epoch = wasm.documentGeneration;
+  const state = documentAgent.getDocumentState();
+  const native = wasm.borrowDocumentHandle();
+  const page_count = wasm.pageCount;
+  if (!native || !Number.isSafeInteger(page_count) || page_count < 1 || page_count > 200)
+    throw new Error('문서가 커서 자동 배치 검증을 완료하지 못했습니다. 200쪽 이하 문서에서 다시 시도하세요.');
+  const started = performance.now();
+  const checkTime = () => {
+    // A single native page query cannot be interrupted; stop between queries.
+    if (performance.now() - started > 4000)
+      throw new Error('문서가 커서 자동 배치 검증을 완료하지 못했습니다. 기존 편집 내용은 그대로입니다.');
+  };
+  const invalid = () => new Error('기존 본문의 렌더 좌표를 안전하게 확인하지 못했습니다. 기존 편집 내용은 그대로입니다.');
+  const sectionCount = native.getSectionCount();
+  if (!Number.isSafeInteger(sectionCount) || sectionCount < 1 || sectionCount > 1000) throw invalid();
+  const paragraph_counts: number[] = [];
+  const paragraphs: AssistantBodyParagraph[] = [];
+  const source = new Map<string, {value: AssistantBodyParagraph; chars: string[];
+    rows: Array<{page: number; y: number; glyphs: AssistantBodyGlyph[]}>}>();
+  let characterCount = 0;
+  for (let section = 0; section < sectionCount; section++) {
+    const count = native.getParagraphCount(section);
+    if (!Number.isSafeInteger(count) || count < 0 || paragraphs.length + count > 10000)
+      throw new Error('문서가 커서 자동 배치 검증을 완료하지 못했습니다. 문단 수 제한을 초과했습니다.');
+    paragraph_counts.push(count);
+    for (let paragraph = 0; paragraph < count; paragraph++) {
+      if (paragraph % 100 === 0) checkTime();
+      const length = native.getParagraphLength(section, paragraph);
+      if (!Number.isSafeInteger(length) || length < 0 || length > 200000) throw invalid();
+      const text = native.getTextRange(section, paragraph, 0, length);
+      const chars = [...text];
+      characterCount += chars.length;
+      if (chars.length !== length || characterCount > 200000)
+        throw new Error('문서가 커서 자동 배치 검증을 완료하지 못했습니다. 본문 글자 수 제한을 초과했습니다.');
+      const value: AssistantBodyParagraph = {section, paragraph, length,
+        text_sha256: assistantDigest(new TextEncoder().encode(text)), lines: []};
+      paragraphs.push(value);
+      source.set(`${section}/${paragraph}`, {value, chars, rows: []});
+    }
+  }
+  let glyphCount = 0;
+  for (let page = 0; page < page_count; page++) {
+    checkTime();
+    const layout = JSON.parse(native.getPageTextLayout(page));
+    if (!Array.isArray(layout.runs)) throw invalid();
+    for (const run of layout.runs) {
+      // Cells and text boxes have a separate coordinate path. Their semantic
+      // content/format validation remains the server's existing responsibility.
+      if (run.parentParaIdx !== undefined || !Number.isSafeInteger(run.secIdx)
+        || !Number.isSafeInteger(run.paraIdx) || !Number.isSafeInteger(run.charStart)
+        || typeof run.text !== 'string' || !run.text.length) continue;
+      const target = source.get(`${run.secIdx}/${run.paraIdx}`);
+      const text = [...run.text];
+      if (!target || run.charStart < 0 || run.charStart + text.length > target.value.length
+        || text.some((character, index) => target.chars[run.charStart + index] !== character)
+        || !Number.isFinite(run.x) || !Number.isFinite(run.y) || !Array.isArray(run.charX)
+        || run.charX.length !== text.length + 1 || !run.charX.every(Number.isFinite)) throw invalid();
+      glyphCount += text.length;
+      if (glyphCount > 200000)
+        throw new Error('문서가 커서 자동 배치 검증을 완료하지 못했습니다. 렌더 글자 수 제한을 초과했습니다.');
+      let row = target.rows.find(candidate => candidate.page === page && Math.abs(candidate.y - run.y) < 0.2);
+      if (!row) { row = {page, y: run.y, glyphs: []}; target.rows.push(row); }
+      for (let index = 0; index < text.length; index++) {
+        row.glyphs.push([run.charStart + index, run.x + run.charX[index], run.charX[index + 1] - run.charX[index]]);
+      }
+    }
+  }
+  for (const {value, rows} of source.values()) {
+    value.lines = rows.map(row => {
+      row.glyphs.sort((a, b) => a[0] - b[0]);
+      const origin = row.glyphs.reduce((left, glyph) => Math.min(left, glyph[1]), Infinity);
+      // Native coordinates have 0.1px precision. Keep that precision; callers
+      // compare with a small tolerance instead of requiring JSON equality.
+      const glyphs = row.glyphs.map(([offset, x, advance]): AssistantBodyGlyph =>
+        [offset, Math.round((x - origin) * 10) / 10, Math.round(advance * 10) / 10]);
+      return {start: glyphs[0][0], end: glyphs[glyphs.length - 1][0] + 1, glyphs};
+    }).sort((a, b) => a.start - b.start || a.end - b.end);
+  }
+  checkTime();
+  const artifact = wasm.exportHwpxWithReport();
+  const current = documentAgent.getDocumentState();
+  if (artifact.contentLoss.count || revision !== assistantRevision || epoch !== wasm.documentGeneration
+    || state.documentEpoch !== current.documentEpoch || state.changeSeq !== current.changeSeq
+    || page_count !== wasm.pageCount) throw new Error('본문 배치 조회 중 문서가 바뀌었습니다. 다시 준비하세요.');
+  return {revision, epoch, page_count, paragraph_counts, paragraphs, export_sha256: assistantDigest(artifact.bytes)};
+}
+
 (window as any).hwpAssistantBridge = {
   async newDocument() { await initPromise; await createNewDocument(); },
   revision: () => assistantRevision,
@@ -34,6 +134,7 @@ eventBus.on('document-mutated', () => {
     const artifact = wasm.exportHwpxWithReport();
     return { ...artifact, revision: assistantRevision, epoch: wasm.documentGeneration };
   },
+  bodyLayoutEvidence: assistantBodyLayoutEvidence,
   paragraphPage(section: number, paragraph: number) {
     if (!documentAgent || !Number.isSafeInteger(section) || section < 0
       || !Number.isSafeInteger(paragraph) || paragraph < 0 || paragraph >= wasm.getParagraphCount(section))

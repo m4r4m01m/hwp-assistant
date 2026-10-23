@@ -180,6 +180,19 @@
 }
 .report-editor-workspace .report-writing > .report-live-scroll { flex: 1; }
 .report-editor-workspace .report-empty { max-width: 750px; margin: 0 auto; padding: 60px 30px; }
+@media (max-width: 720px) {
+  .report-editor-workspace:has(.report-workspace-drawer:not([hidden])) { grid-template-columns: var(--report-rail-width) 0 minmax(0, 1fr); }
+  .report-editor-workspace .report-workspace-drawer {
+    position: absolute;
+    grid-column: 1 / -1;
+    top: 0;
+    bottom: 0;
+    left: var(--report-rail-width);
+    right: 0;
+    width: auto;
+    z-index: 4;
+  }
+}
 @media (max-width: 600px) {
   .report-editor-workspace .report-workspace-drawer { padding: 15px; }
   .report-editor-workspace .report-live-paper { padding: 24px; }

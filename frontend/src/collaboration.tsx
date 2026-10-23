@@ -5,6 +5,8 @@ import { RewritePanel, type PendingRewrite } from "./rewrite";
 import { WritingContextEditor, type WritingContext } from "./context";
 import { DocumentAssistantPanel, type AssistantActions } from "./document-assistant";
 import { WorkspaceIcon } from "./workspace-nav";
+import { CapabilityNotice, useFeature } from "./capabilities";
+import { useComparisonDialog } from "./version-comparison";
 
 type Thread = { id: string; title: string; visibility: "document" | "private" };
 type Message = {
@@ -32,7 +34,7 @@ export function CollaborationPanel({
   cancelRewrite,
   onContextDirty,
   getPendingRewrite,
-  captureDocument, sendAssistant, onAssistantActive,
+  captureDocument, sendAssistant, onAssistantActive, active = true,
 }: AssistantActions & {
   document: Document;
   capture?: () => Snapshot;
@@ -42,7 +44,9 @@ export function CollaborationPanel({
   cancelRewrite?: (task: string) => Promise<void>;
   onContextDirty?: (dirty: boolean) => void;
   getPendingRewrite?: () => PendingRewrite | null;
+  active?: boolean;
 }) {
+  const chatFeature = useFeature("chat");
   const [threads, setThreads] = useState<Thread[]>([]),
     [selected, setSelected] = useState(""),
     [detail, setDetail] = useState<Detail | null>(null),
@@ -224,11 +228,11 @@ export function CollaborationPanel({
       )}
       {detail && (
         <div className="conversation-content" inert={createPending}>
-          <DocumentAssistantPanel key={`assistant-${detail.id}`} thread={detail.id} document={doc} captureDocument={captureDocument} sendAssistant={sendAssistant}
+          <DocumentAssistantPanel active={active} key={`assistant-${detail.id}`} thread={detail.id} document={doc} captureDocument={captureDocument} sendAssistant={sendAssistant}
             onDirty={assistantDirtyChanged} onActive={assistantActiveChanged} requestRewrite={requestRewrite} onShowRewrite={() => setShowRewrite(true)} />
           <details className="assistant-secondary-tools" open={showRewrite} onToggle={event => setShowRewrite(event.currentTarget.open)}><summary>문단 수정 후보 · 직접 요청</summary>
           <RewritePanel key={detail.id} thread={detail.id} document={doc} context={detail.context} contextDirty={contextDirty}
-            requestRewrite={requestRewrite} approveRewrite={approveRewrite} cancelRewrite={cancelRewrite} getPendingRewrite={getPendingRewrite} />
+            active={active && showRewrite} requestRewrite={requestRewrite} approveRewrite={approveRewrite} cancelRewrite={cancelRewrite} getPendingRewrite={getPendingRewrite} />
           </details>
           <details className="assistant-secondary-tools"><summary>작성 정보·검토 메모</summary>
           <details><summary>추가 작성 정보 · 선택 사항</summary>
@@ -254,6 +258,7 @@ export function CollaborationPanel({
           </div>
           {writable && (
             <>
+              <CapabilityNotice feature="chat" label="대화 AI 답변" />
               <textarea
                 aria-label="대화 메시지"
                 placeholder="문서에 대한 의견이나 검토 내용을 남기세요."
@@ -286,7 +291,7 @@ export function CollaborationPanel({
                 <button disabled={busy || checkingConnection} onClick={() => void checkSeparateAi()}>{checkingConnection ? "연결 확인 중…" : "별도 AI 연결 확인"}</button>
                 {separateAi && <p role={separateAi.ready ? "status" : "alert"}>{separateAi.ready ? `연결됨 · ${separateAi.model}` : separateAi.error}</p>}
               <button
-                disabled={busy || checkingConnection || !separateAi?.ready || !message.trim()}
+                disabled={busy || checkingConnection || !separateAi?.ready || !message.trim() || !chatFeature.available}
                 onClick={() =>
                   void run(async () => {
                     const row = await api<{ id: string }>(
@@ -352,6 +357,8 @@ export function AccessPanel({
   document: Document;
   onClose: () => void;
 }) {
+  const dialog = useRef<HTMLElement>(null);
+  useComparisonDialog(dialog, onClose);
   const [rows, setRows] = useState<{ user_id: string; role: string }[]>([]),
     [user, setUser] = useState(""),
     [role, setRole] = useState("reader"),
@@ -375,11 +382,11 @@ export function AccessPanel({
   }
   return (
     <div className="modal">
-      <section>
+      <section ref={dialog} role="dialog" aria-modal="true" aria-labelledby="access-panel-title">
         <button className="close" onClick={onClose}>
           닫기
         </button>
-        <h2>{doc.name} · 공유 권한</h2>
+        <h2 id="access-panel-title">{doc.name} · 공유 권한</h2>
         <p>
           열람자는 문서 공유 대화·컨텍스트·버전을 볼 수 있습니다. 편집자는
           저장·대화·제안을 작성합니다. 권한 변경 시 열린 편집 세션은 만료됩니다.

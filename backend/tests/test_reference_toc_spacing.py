@@ -114,14 +114,20 @@ def test_new_toc_includes_native_subheadings_and_preserves_frozen_selection(monk
     raw, plan = generated(defaults("appendix-2"))
     value, output, _ = prepared(raw, plan)
     info, rows = toc_rows(output)
-    assert [h["level"] for h in info["headings"]] == [1, 2, 2, 1, 1, 1]
+    # Replacing the original cited body paragraphs makes S1/S2 unreferenced.
+    # Preserve those supplied sources in the new reference-material section;
+    # it is a real heading, distinct from the verification limitations.
+    assert [(h["text"], h["level"]) for h in info["headings"]] == [
+        ("1. 수집 현황", 1), ("가. 수집 범위", 2), ("나. 제외 기준", 2),
+        ("2. 정비 방안", 1), ("3. 추진 일정", 1), ("확인 사항", 1), ("참고자료", 1),
+    ]
     assert [h["text"] for h in info["headings"] if h["level"] == 2] == ["가. 수집 범위", "나. 제외 기준"]
     assert [rows[i]["margins"][0]["prev"] for i in (1, 2, 3, 4)] == [2240, 2240, 0, 2240]
     assert all(h["id"] == str(uuid.uuid5(uuid.UUID(value["base_version"]), "heading:" + item["command_id"]))
                for h, item in zip(info["headings"], [p for p in plan if p["kind"] == "heading" or p.get("toc_level") == 2]))
     frozen = copy.deepcopy(plan); frozen[0].pop("body_spacing")
     legacy = initial_config(dict(id=value["base_version"], plan=frozen), raw, str(uuid.uuid4()))
-    assert [h["level"] for h in legacy["headings"]] == [1, 1, 1, 1]
+    assert [h["level"] for h in legacy["headings"]] == [1, 1, 1, 1, 1]
     assert all(h["heading_id"] in info["heading_ids"] for h in legacy["headings"])
 
 

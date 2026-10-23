@@ -2,6 +2,7 @@ import asyncio
 import pytest
 import httpx
 from fastapi import HTTPException
+from app import llm
 from app.llm import OpenAICompatible
 
 
@@ -62,7 +63,119 @@ def test_mock_transport_failures(provider, monkeypatch, error, status):
     async def fail(*args, **kwargs):
         raise error
 
-    monkeypatch.setattr(httpx.AsyncClient, "request", fail)
+    monkeypatch.setattr(llm, "pooled_client", lambda: httpx.AsyncClient(transport=httpx.MockTransport(fail)))
     with pytest.raises(HTTPException) as result:
         asyncio.run(provider.models())
     assert result.value.status_code == status
+
+
+@pytest.mark.parametrize("key", ["", "synthetic-test-token"])
+@pytest.mark.parametrize("shared_pool", [False, True])
+def test_optional_api_key_uses_valid_http_headers(monkeypatch, key, shared_pool):
+    """Use HTTP/1.1 on loopback: MockTransport does not validate wire headers."""
+    received = []
+
+    async def respond(reader, writer):
+        try:
+            try:
+                received.append(await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 2))
+            except asyncio.IncompleteReadError:
+                return
+            body = b'{"data":[{"id":"synthetic-model"}]}'
+            writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                         + f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n".encode() + body)
+            await writer.drain()
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+    async def check():
+        async with await asyncio.start_server(respond, "127.0.0.1", 0) as server:
+            port = server.sockets[0].getsockname()[1]
+            monkeypatch.setenv("LLM_PROVIDER", "openai-compatible")
+            monkeypatch.setenv("LLM_BASE_URL", f"http://127.0.0.1:{port}/v1")
+            monkeypatch.setenv("LLM_MODEL", "synthetic-model")
+            monkeypatch.setenv("LLM_API_KEY", key)
+            provider = OpenAICompatible()
+            async with llm.pooled_client() as pool:
+                marker = llm.request_client.set(pool if shared_pool else None)
+                try:
+                    assert await provider.models() == ["synthetic-model"]
+                    assert not pool.is_closed
+                finally:
+                    llm.request_client.reset(marker)
+
+    asyncio.run(check())
+    assert len(received) == 1
+    lines = received[0].decode("ascii").split("\r\n")
+    assert lines[0] == "GET /v1/models HTTP/1.1"
+    headers = dict(line.lower().split(": ", 1) for line in lines[1:] if line)
+    if key:
+        assert headers["authorization"] == f"bearer {key}"
+    else:
+        assert "authorization" not in headers
+
+
+@pytest.mark.parametrize("declared", [None, str(3 * 1024 * 1024)])
+def test_oversized_model_body_stops_reading_and_does_not_close_shared_pool(provider, declared):
+    class LargeBody(httpx.AsyncByteStream):
+        chunks, closed = 0, False
+        async def __aiter__(self):
+            for _ in range(10):
+                self.chunks += 1
+                yield b"x" * (1024 * 1024)
+        async def aclose(self):
+            self.closed = True
+    body = LargeBody()
+    calls = []
+    def respond(request):
+        calls.append(1)
+        return (httpx.Response(200, stream=body, headers={"Content-Length": declared} if declared else {}) if len(calls) == 1 else
+                httpx.Response(200, json={"data": [{"id": "synthetic-model"}]}))
+    async def check():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            marker = llm.request_client.set(client)
+            try:
+                with pytest.raises(HTTPException) as result:
+                    await provider.models()
+                assert result.value.status_code == 502
+                assert body.chunks == (0 if declared else 3) and body.closed
+                assert not client.is_closed
+                assert await provider.models() == ["synthetic-model"]
+            finally:
+                llm.request_client.reset(marker)
+    asyncio.run(check())
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+def test_model_stream_is_closed_on_total_timeout_or_cancellation(provider, monkeypatch, cancel):
+    monkeypatch.setenv("LLM_TIMEOUT_SECONDS", "0.05")
+    provider = OpenAICompatible()
+    closed = []
+    async def check():
+        started = asyncio.Event()
+        class SlowBody(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                yield b"{"
+                started.set()
+                await asyncio.sleep(10)
+            async def aclose(self):
+                closed.append(True)
+        async with httpx.AsyncClient(transport=httpx.MockTransport(
+                lambda _request: httpx.Response(200, stream=SlowBody()))) as client:
+            marker = llm.request_client.set(client)
+            try:
+                task = asyncio.create_task(provider.models())
+                await started.wait()
+                if cancel:
+                    task.cancel()
+                    with pytest.raises(asyncio.CancelledError):
+                        await task
+                else:
+                    with pytest.raises(HTTPException) as result:
+                        await task
+                    assert result.value.status_code == 504
+                assert closed == [True] and not client.is_closed
+            finally:
+                llm.request_client.reset(marker)
+    asyncio.run(check())

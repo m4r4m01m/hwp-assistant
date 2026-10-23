@@ -173,6 +173,8 @@ def test_capacity_rejection_does_not_create_or_dispatch_a_turn(assistant):
     app.state.rewrite_capacity = BoundedSemaphore(0)
     assert create(assistant).status_code == 429
     assert not calls
+    assert not app.state.ai_budget.active
+    assert not app.state.ai_budget.recent.get("alice")
     with transaction(app.state.engine) as db:
         assert db.get(ConversationTurn, body["id"]) is None
     app.state.rewrite_capacity = BoundedSemaphore(1)
@@ -188,6 +190,108 @@ def test_dispatch_failure_is_terminal_and_same_id_retry_never_reexecutes(assista
     assert first.status_code == 200 and first.json()["status"] == "failed"
     assert create(assistant).json()["status"] == "failed"
     assert not assistant[6]
+    assert not assistant[1].state.ai_budget.active
+    assert len(assistant[1].state.ai_budget.recent["alice"]) == 1
+
+
+@pytest.fixture
+def pending_workers(monkeypatch):
+    """Keep execution pending without real threads or an external model."""
+    workers = []
+    class Worker:
+        def __init__(self, *, target, args, daemon):
+            self.target, self.args = target, args
+            assert daemon
+        def start(self):
+            workers.append(self)
+        def run(self):
+            self.target(*self.args)
+    monkeypatch.setattr(document_assistant, "Thread", Worker)
+    return workers
+
+
+def test_http_assistant_enforces_the_existing_llm_allowlist(assistant, monkeypatch):
+    c, app, _, _, _, body, calls, _ = assistant
+    monkeypatch.setenv("HWP_LLM_ALLOWED_USERS", "bob")
+    info = c.get("/api/document-assistant-provider").json()
+    assert info["configured"] and not info["allowed"]
+    assert create(assistant).status_code == 403
+    assert not calls and not app.state.ai_budget.active
+    with transaction(app.state.engine) as db:
+        assert db.get(ConversationTurn, body["id"]) is None
+    monkeypatch.setenv("HWP_LLM_ALLOWED_USERS", "alice")
+    assert c.get("/api/document-assistant-provider").json()["allowed"]
+    assert create(assistant).status_code == 200
+
+
+def test_invalid_llm_allowlist_does_not_enable_or_dispatch_assistant(assistant, monkeypatch):
+    c, app, _, _, _, body, calls, _ = assistant
+    monkeypatch.setenv("HWP_LLM_ALLOWED_USERS", "alice,")
+    info = c.get("/api/document-assistant-provider").json()
+    assert not info["configured"] and not info["allowed"]
+    assert create(assistant).status_code == 503
+    assert not calls
+    with transaction(app.state.engine) as db:
+        assert db.get(ConversationTurn, body["id"]) is None
+
+
+def test_user_budget_remains_reserved_after_cancel_until_worker_cleanup(assistant, pending_workers):
+    c, app, _, _, _, body, calls, _ = assistant
+    assert create(assistant).status_code == 200
+    assert app.state.ai_budget.active == {"alice"}
+    assert create(assistant).status_code == 200  # Read back the same accepted request.
+    another = {**body, "id": str(uuid.uuid4())}
+    assert create(assistant, another).status_code == 429
+    assert len(pending_workers) == 1 and not calls
+    assert c.post(f"/api/assistant-turns/{body['id']}/cancel").status_code == 200
+    assert app.state.ai_budget.active == {"alice"}
+    assert create(assistant, another).status_code == 429
+    with transaction(app.state.engine) as db:
+        assert db.get(ConversationTurn, another["id"]) is None
+    pending_workers[0].run()
+    assert not app.state.ai_budget.active
+    assert create(assistant, another).status_code == 200
+    pending_workers[1].run()
+    assert not app.state.ai_budget.active
+
+
+def test_assistant_rate_limit_does_not_charge_idempotent_readback(assistant, pending_workers):
+    _, app, _, _, _, body, _, _ = assistant
+    app.state.ai_budget.limit = 1
+    assert create(assistant).status_code == 200
+    pending_workers[0].run()
+    assert not app.state.ai_budget.active
+    assert create(assistant).status_code == 200
+    rejected = create(assistant, {**body, "id": str(uuid.uuid4())})
+    assert rejected.status_code == 429 and rejected.headers["Retry-After"] == "60"
+    assert len(pending_workers) == 1
+    assert len(app.state.ai_budget.recent["alice"]) == 1
+
+
+def test_document_assistant_shares_the_existing_http_ai_budget(assistant):
+    _, app, _, _, _, body, calls, _ = assistant
+    with app.state.ai_budget.reserve("alice"):
+        assert create(assistant).status_code == 429
+        assert not calls
+        with transaction(app.state.engine) as db:
+            assert db.get(ConversationTurn, body["id"]) is None
+    assert create(assistant).status_code == 200
+
+
+def test_unexpected_worker_failure_releases_user_and_global_capacity(assistant, pending_workers, monkeypatch):
+    _, app, _, _, _, body, _, _ = assistant
+    app.state.rewrite_capacity = BoundedSemaphore(1)
+    def failed_worker(*_):
+        raise RuntimeError("synthetic worker cleanup failure")
+    monkeypatch.setattr(document_assistant, "run_turn", failed_worker)
+    assert create(assistant).status_code == 200
+    with pytest.raises(RuntimeError, match="synthetic worker cleanup failure"):
+        pending_workers[0].run()
+    assert not app.state.ai_budget.active
+    assert create(assistant, {**body, "id": str(uuid.uuid4())}).status_code == 200
+    with pytest.raises(RuntimeError, match="synthetic worker cleanup failure"):
+        pending_workers[1].run()
+    assert not app.state.ai_budget.active
 
 
 def canonical_text(value):

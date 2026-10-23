@@ -10,10 +10,10 @@ export type ReportDraft = {
   sources: { id: string; title: string; url: string; published: string }[]; limitations: string[];
 };
 
-export function ReportReview({ draft, formatName, includesSummary = true, feedback, onFeedback, onRevise, onFormat, busy, retry }: {
+export function ReportReview({ draft, formatName, includesSummary = true, feedback, onFeedback, onRevise, onFormat, busy, retry, revisionAvailable = true }: {
   draft: ReportDraft; formatName: string; includesSummary?: boolean; feedback: string;
   onFeedback: (value: string) => void; onRevise: () => void; onFormat: () => void;
-  busy: boolean; retry: boolean;
+  busy: boolean; retry: boolean; revisionAvailable?: boolean;
 }) {
   return <div className="report-review" aria-label="초안 내용 검토">
     <header className="report-review-heading">
@@ -55,7 +55,7 @@ export function ReportReview({ draft, formatName, includesSummary = true, feedba
         <textarea id="report-feedback" value={feedback} maxLength={6000} rows={7} disabled={busy || retry}
           placeholder="예: 추진 일정에 담당 부서를 추가하고, 대안별 장단점을 표로 비교해줘."
           onChange={event => onFeedback(event.target.value)} />
-        <button disabled={busy || (!retry && !feedback.trim())} onClick={onRevise}>{busy ? "보완 요청 확인 중…" : retry ? "같은 보완 요청 재확인" : "의견 반영해 다시 작성"}</button>
+        <button disabled={busy || (!retry && (!revisionAvailable || !feedback.trim()))} onClick={onRevise}>{busy ? "보완 요청 확인 중…" : retry ? "같은 보완 요청 재확인" : "의견 반영해 다시 작성"}</button>
       </aside>
     </div>
   </div>;
