@@ -55,3 +55,4 @@ htmlcov/
 production.env
 .deploy/
 backups/
+actions-runner/
