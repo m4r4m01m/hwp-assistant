@@ -1,0 +1,249 @@
+{
+  "recorded_date": "2026-10-24",
+  "scope": "Document standard editor whole-page preview, clearer controls and selective parenthetical lead summaries",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "base_head": "ac190b80482e99dd4307dc8ea82edf029ac73083",
+  "result": "passed",
+  "changes": [
+    "Default single-page view fits both pane width and height; previous/next/page selector, width-fit and 100% retained.",
+    "Settings, registration and explanations moved to the left; preview top row contains only view/page controls.",
+    "Parenthetical lead summaries are named 괄호 요약어 with examples and six independently selectable prose roles.",
+    "Optional canonical scope is frozen only when explicitly selected; absent legacy values and hashes remain unchanged.",
+    "Same synthetic business sample across appendix presets and saved settings; sample v2 adds only the bounded (목적) prefix to the existing plain paragraph."
+  ],
+  "backend": {
+    "passed": 190,
+    "per_module": {
+      "backend.tests.test_parenthetical_scope": 43,
+      "backend.tests.test_reference_standard": 19,
+      "backend.tests.test_visual_standards": 33,
+      "backend.tests.test_visual_standard_controls": 65,
+      "backend.tests.test_reference_prompt_structure": 12,
+      "backend.tests.test_standard_samples": 18
+    },
+    "command": "$env:PYTHONIOENCODING='utf-8'; $env:PYTHONPATH='backend'; $env:STORAGE_DIR='.cache/standard-page-fit-20261024/test-import-files'; $env:DATABASE_URL='sqlite:///.cache/standard-page-fit-20261024/test-import.db'; .cache/standard-sample-designer-20261023/source/.venv/Scripts/python -m pytest -q backend/tests/test_parenthetical_scope.py backend/tests/test_reference_standard.py backend/tests/test_visual_standards.py backend/tests/test_visual_standard_controls.py backend/tests/test_reference_prompt_structure.py backend/tests/test_standard_samples.py --basetemp=.cache/standard-page-fit-20261024/pytest-scope-b --tb=short --junitxml=.cache/standard-page-fit-20261024/backend-junit.xml",
+    "proof": ".cache/standard-page-fit-20261024/backend-summary.json",
+    "coverage": [
+      "Optional scalar scope strict canonical validation, omitted defaults and old settings serialization preserved.",
+      "Six independent canonical prose roles under BULLETS and NUMBERED; summary scope independent from square and summary visibility.",
+      "Master OFF, empty selection, direct marker before parenthesis and role-specific emphasis preservation.",
+      "Bounded labels only; facts, numbers, genuine conditions, citations, source IDs, headings, tables and notes preserved.",
+      "Scope reaches actual report execution input through mocked Codex runner for all three report profiles; no model invocation.",
+      "Partial-scope immutable registration and same-request receipt replay; existing source-preview, frozen-selection and sample verification fences."
+    ],
+    "legacy_settings_sha256": {
+      "appendix-1": "395d93614673adb0407faf3da7d6b338a85ccf848e2bf74cfacd073e035a5661",
+      "appendix-2": "c1f43dd0e6d74ad35171c9e756aec699cb3f50245ea995f2000f85f08aa3268e",
+      "appendix-3": "d8a7be2c36a1f30084abd58f48e79f1b9ea9635b3798f65195ebd81a1ce24df8"
+    }
+  },
+  "actual_rhwp": {
+    "passed_scenarios": 3,
+    "proof": ".cache/standard-page-fit-20261024/e2e-core/e2e-summary.json",
+    "viewports": [
+      {
+        "width": 876,
+        "height": 730,
+        "settings": {
+          "x": 220,
+          "y": 0,
+          "width": 260,
+          "height": 730
+        },
+        "preview": {
+          "x": 480,
+          "y": 0,
+          "width": 396,
+          "height": 730
+        },
+        "full_page": {
+          "pane": {
+            "x": 480,
+            "y": 53,
+            "width": 396,
+            "height": 677
+          },
+          "page": {
+            "x": 501,
+            "y": 141.171875,
+            "width": 354,
+            "height": 500.640625
+          },
+          "overflow": {
+            "horizontal": 0,
+            "vertical": 0
+          }
+        }
+      },
+      {
+        "width": 1024,
+        "height": 768,
+        "settings": {
+          "x": 220,
+          "y": 0,
+          "width": 260,
+          "height": 768
+        },
+        "preview": {
+          "x": 480,
+          "y": 0,
+          "width": 544,
+          "height": 768
+        },
+        "full_page": {
+          "pane": {
+            "x": 480,
+            "y": 53,
+            "width": 544,
+            "height": 715
+          },
+          "page": {
+            "x": 514.078125,
+            "y": 74,
+            "width": 475.859375,
+            "height": 672.984375
+          },
+          "overflow": {
+            "horizontal": 0,
+            "vertical": 0
+          }
+        }
+      },
+      {
+        "width": 1366,
+        "height": 900,
+        "settings": {
+          "x": 220,
+          "y": 0,
+          "width": 332,
+          "height": 900
+        },
+        "preview": {
+          "x": 552,
+          "y": 0,
+          "width": 814,
+          "height": 900
+        },
+        "full_page": {
+          "pane": {
+            "x": 552,
+            "y": 53,
+            "width": 814,
+            "height": 847
+          },
+          "page": {
+            "x": 671.578125,
+            "y": 70,
+            "width": 574.859375,
+            "height": 812.984375
+          },
+          "overflow": {
+            "horizontal": 0,
+            "vertical": 0
+          }
+        }
+      }
+    ],
+    "pager": {
+      "expanded_pages": 4,
+      "reduced_pages": 2,
+      "clamped_after_settings_change": true
+    },
+    "scope": {
+      "sample_sha256": "5f9992eb0285ee8c4b5456c0c1f118bd84f72d7204a6ab2108516f92765c9872",
+      "combinations": [
+        "square,dot,body",
+        "circle,dash,summary",
+        ""
+      ],
+      "facts_conditions_citations_preserved": true,
+      "master_off_preserves_choices": true,
+      "saved_id": "08bc4f83-16d5-4789-8856-88c37aa982c4",
+      "settings_sha256": "a6a8aeeca2ee5ee92121f0957e928e959a1cddb0c9faa9260fe7e616ae0a20b5",
+      "frozen_file_sha256": "7d58f9d3872a30e1512d08e175962cb85f342bcb089b35b65a45cab12512ee90",
+      "reloaded_scope": "circle,dash,summary"
+    },
+    "legacy": {
+      "actual_model_calls": 0,
+      "choice_kept_unsaved_settings": true,
+      "cancel_kept_unsaved_settings": true,
+      "confirmed_load": "cb964280-b255-4e87-8bdf-60da5657ee2a",
+      "prior_policy_remains_absent": true,
+      "prior_parenthetical_scope_remains_absent": true,
+      "frozen_settings_sha256": "62760016ae8ac9847d330233851ebb7f1ea7e0a374292dc20cc1ccbcb556b249",
+      "frozen_file_sha256": "222ac5063a225ba4d9492b3070e1bedc4ae2f3c5e851ea110b6c59a77e1d8768"
+    },
+    "fonts": [
+      {
+        "family": "Noto Serif KR",
+        "hwpx_body_font": "Noto Serif KR",
+        "embedded_svg_font": true,
+        "preview_sha256": "55c5b361c6d1cd8e797b77996bcc9d8a933a2b546c436de78cc3c3eb4f0ab77e"
+      },
+      {
+        "family": "Nanum Gothic",
+        "hwpx_body_font": "Nanum Gothic",
+        "embedded_svg_font": true,
+        "preview_sha256": "02b2935a7f12433a130ee339f856c2c41acbdad81b961604bc005b2c6354bafe"
+      }
+    ],
+    "executed_test_source_sha256": "E29C3C72474B0EB9883F4446DD04D6290F98845518F653C0F597BE458BDFA65F",
+    "final_test_source_sha256": "794333F416B0A5BAD455ED7409242B072971ADC90F6F164362FC4955C2489C9C",
+    "test_only_followup": "Existing, unexecuted general helper selectors were aligned to the new scroll container and always-visible zoom controls after this run; syntax checked, not counted as extra passed scenarios.",
+    "remaining_test_listeners": []
+  },
+  "prior_related_verification": [
+    "docs/evidence/standard-designer-review-2026-10-23.json",
+    "docs/evidence/standard-sample-designer-2026-10-24.json"
+  ],
+  "preservation": {
+    "added_documents": 0,
+    "added_files": 0,
+    "added_other_rows": 0,
+    "added_tables": 0,
+    "added_versions": 0,
+    "added_visual_standards": 0,
+    "changed_existing_blobs": 0,
+    "changed_existing_rows": 0,
+    "manifest_sha256": "8cdba5a62f081118f140dc2e766b6773e3a6690ef33a914aff0d06848b0c98a4",
+    "missing_existing_blobs": 0,
+    "missing_existing_rows": 0,
+    "mode": "verify",
+    "result": "passed",
+    "verified_existing_files": 16,
+    "source_sha256": {
+      "backend/app/assets/document-standard/reference.hwpx": "6c68b50656867f1fc724c50549e60e1109e2f7a00219f2928ef58de0a45711f1",
+      "backend/app/assets/document-standard/profile.json": "7b2a0cb0fd540a83fea952abd891b8fc3e535ed3ac92a5affa6898313d7e4271"
+    },
+    "baseline_documents": 10,
+    "baseline_versions": 13,
+    "baseline_visual_standards": 3
+  },
+  "local_runtime": {
+    "web_url": "http://127.0.0.1:15201/",
+    "runtime_source": ".cache/standard-page-fit-20261024/source",
+    "source_fingerprint": "8f19d4cf6efbfa23566dd21a7d559c510487d84706a281833a5cd1c45c69e714",
+    "desktop_launcher_reused_verified_run": true,
+    "same_data_directory_and_ports": true,
+    "dependencies_installed": false,
+    "engine_rebuilt": false
+  },
+  "live_browser": {
+    "surface": "Codex in-app browser",
+    "tab_id": "13",
+    "checks": [
+      "Default complete page visible",
+      "Only square scope selected and reflected in the actual sample",
+      "Temporary settings reset to default without registering into user storage"
+    ],
+    "screenshot": ".cache/standard-page-fit-20261024/screenshots/live-standard-editor.png"
+  },
+  "actual_model_calls": 0,
+  "human_acceptance": false,
+  "native_hancom_check": false,
+  "limitations": [
+    "Fixed synthetic sample and mock execution-input checks; no claim of actual model wording-quality evaluation.",
+    "The existing diagnostic rhwp bundle was reused; production engine build, Docker and Hancom verification were outside this change.",
+    "Prior related proof records retain their original dates, sample version and failures; no historical evidence overwritten."
+  ]
+}

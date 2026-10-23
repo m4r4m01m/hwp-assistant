@@ -105,14 +105,32 @@ def numbered_marker(pattern, index):
     return pattern
 
 
-def body_item(text, settings, counters):
+def body_item(text, settings, counters, *, apply_numbered_markers=False):
     """Resolve structural tokens before freezing text; never change claim prose."""
     match = re.match(r"^([□ㅇ○\-․])\s+", text)
     if not match:
         for pattern, role in ((r"^[가-하]\.\s", "subheading"), (r"^(?:\(\d+\)|\d+\))\s", "minor_heading"),
                               (r"^(?:\([가-하]\)|[가-하]\))\s", "numbered_4"), (r"^[①-⑳]\s", "numbered_5"),
                               (r"^[㉮-㉻]\s", "numbered_6"), (r"^(?:\*+|주\d+\))\s", "note")):
-            if re.match(pattern, text):
+            found = re.match(pattern, text)
+            if found and apply_numbered_markers and role != "note":
+                # This is a new-plan presentation transform, never a rewrite of
+                # a frozen plan or existing HWPX. Preserve the ordinal/prose.
+                token = found[0].strip("().) ")
+                if token.isdecimal():
+                    index = int(token)
+                elif token in "가나다라마바사아자차카타파하":
+                    index = "가나다라마바사아자차카타파하".index(token) + 1
+                elif "①" <= token <= "⑳":
+                    index = ord(token) - ord("①") + 1
+                elif len(token) == 1 and "㉮" <= token <= "㉻":
+                    index = ord(token) - ord("㉮") + 1
+                else:
+                    return text, role
+                level = {"subheading": 2, "minor_heading": 3, "numbered_4": 4, "numbered_5": 5, "numbered_6": 6}[role]
+                marker = numbered_marker(settings[f"numbered_{level}_marker"], index)
+                return marker + " " + text[found.end():], role
+            if found:
                 return text, role
         return text, "body"
     level = {"□": 0, "ㅇ": 1, "○": 1, "-": 2, "․": 3}[match[1]]

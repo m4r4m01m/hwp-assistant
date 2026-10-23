@@ -8,6 +8,41 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from .hwpx import digest
 from .document_standard import role
 
+PARENTHETICAL_SCOPES = (
+    ("square", "주요 항목 □"), ("circle", "하위 설명 ㅇ"), ("dash", "세부 설명 -"),
+    ("dot", "보충 항목 ․"), ("body", "일반 문단"), ("summary", "핵심 요약"),
+)
+PARENTHETICAL_LABELS = "요약|배경|차이점|조치|제안|현황|목적|쟁점|방안|일정|결론|핵심"
+
+
+def validate_parenthetical_scope(value):
+    if not isinstance(value, str):
+        raise ValueError("괄호 요약어 범위는 정해진 문자열이어야 합니다.")
+    selected = value.split(",") if value else []
+    canonical_scope = ",".join(key for key, _ in PARENTHETICAL_SCOPES if key in selected)
+    if canonical_scope != value:
+        raise ValueError("괄호 요약어 범위는 square,circle,dash,dot,body,summary 순서로 중복 없이 선택하세요.")
+    return value
+
+
+def parenthetical_role(value):
+    """Canonical prose role before selected bullet/number glyphs are applied."""
+    # The bounded lead-label grammar also accepts a marker directly before '('.
+    # Classify that existing spelling without inserting spaces or rewriting it.
+    match = re.match(r"^\s*([□ㅇ○\-․])(?=\s|\()", value)
+    if match:
+        return {"□": "square", "ㅇ": "circle", "○": "circle", "-": "dash", "․": "dot"}[match[1]]
+    if re.match(r"^\s*(?:[가-하][.)]|\(\d+\)|\d+\)|\([가-하]\)|[①-⑳㉮-㉻]|\*+|주\d+\))\s+", value):
+        return None  # Explicit headings and notes are not body label targets.
+    return "body"
+
+
+def parenthetical_enabled(settings, scope):
+    if settings.get("body_parenthetical_labels") is False:
+        return False
+    selected = settings.get("body_parenthetical_scope")
+    return selected is None or scope in selected.split(",")
+
 
 class ReportValue(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -206,12 +241,15 @@ def citation_style_for_scope(style, source_count):
     return ("STARS" if source_count <= 1 else "NOTE") if style == "AUTO" else style
 
 
-def presentation_text(value, settings, source_ids, *, body=False, marks=None, marker_numbers=None):
-    if body and settings.get("body_parenthetical_labels") is False:
+def presentation_text(value, settings, source_ids, *, body=False, marks=None, marker_numbers=None, scope=None):
+    scoped = "body_parenthetical_scope" in settings
+    target_role = scope or parenthetical_role(value)
+    hide_label = body and (not parenthetical_enabled(settings, target_role) if scoped and target_role else settings.get("body_parenthetical_labels") is False)
+    if hide_label:
         # Only the bounded lead-label grammar used by the existing emphasis
         # contract is eligible. Conditions and parentheses later in prose stay.
-        label = "요약|배경|차이점|조치|제안|현황|목적|쟁점|방안|일정|결론|핵심" if settings.get("preset_id") else "[^()]{1,24}"
-        value = re.sub(r"^(\s*(?:[□ㅇ○-]\s*)?)\((" + label + r")\)(\s*)",
+        label = PARENTHETICAL_LABELS if scoped or settings.get("preset_id") else "[^()]{1,24}"
+        value = re.sub(r"^(\s*(?:[□ㅇ○․-]\s*)?)\((" + label + r")\)(\s*)",
                        lambda match: match[1] if match[3] else match[0], value, count=1)
     style = settings.get("citation_style", "BRACKET_S")
     if style == "AUTO":
@@ -242,16 +280,17 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
     reference = settings.get("preset_id") in ("appendix-1", "appendix-2", "appendix-3")
     source_ids = {source.id for source in draft.sources}
     rendered_marks = {}
-    def present(value, *, body=False):
+    def present(value, *, body=False, scope=None):
         marks = []
         # New reference notes are numbered per logical paragraph/visual below,
         # before the plan is frozen or any HWPX command is applied.
         display = {**settings, "citation_style": "BRACKET_S"} if reference else settings
-        result = presentation_text(value, display, source_ids, body=body, marks=marks)
+        result = presentation_text(value, display, source_ids, body=body, marks=marks, scope=scope)
         if not reference and settings.get("citation_superscript") and marks:
             rendered_marks[result] = marks
         return result
-    emphasis = [{**item.model_dump(), "text": present(item.text, body=True)} for item in draft.emphasis]
+    scoped_labels = "body_parenthetical_scope" in settings
+    emphasis = [{**item.model_dump(), "text": present(item.text, body=not scoped_labels)} for item in draft.emphasis]
     blocks = [(draft.title, "title", False, {})]
     if reference:
         from .reference_report import BODY_SPACING_POLICY, TITLE_OVERFLOW_POLICY
@@ -274,7 +313,8 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
             if cover.get(field):
                 blocks.append((paragraph(cover[field]), "body", False, {"style_kind": "cover_" + field}))
     if settings.get("show_core_summary", True):
-        blocks.extend([("핵심 요약", "heading", False, {}), (present(draft.summary, body=True), "body", False, {})])
+        blocks.extend([("핵심 요약", "heading", False, {}),
+                       (present(draft.summary, body=True, scope="summary"), "body", False, {"parenthetical_role": "summary"})])
     table_number = diagram_number = 0
     for i, section in enumerate(draft.sections, 1):
         if reference:
@@ -283,11 +323,12 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
             blocks.append((f"{marker} {section.heading}", "heading", True, {}))
             counters = [0, 0, 0, 0]
             for prose in section.paragraphs:
+                label_role = parenthetical_role(prose)
                 # Strip only eligible lead labels before replacing the canonical
                 # bullet with a numbered marker; (1)/(가) are structural text.
                 prose = presentation_text(prose, {**settings, "citation_style": "BRACKET_S"}, source_ids, body=True)
-                text, reference_role = body_item(prose, settings, counters)
-                item_meta = {"style_kind": reference_role}
+                text, reference_role = body_item(prose, settings, counters, apply_numbered_markers=True)
+                item_meta = {"style_kind": reference_role, **({"parenthetical_role": label_role} if label_role else {})}
                 # A numbered display of a square body item is still prose.
                 # Only an explicit subordinate title joins the native TOC.
                 if reference_role == "subheading" and re.match(r"^[가-하]\.\s", prose):
@@ -295,7 +336,8 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
                 blocks.append((present(text), "body", False, item_meta))
         else:
             blocks.append((f"{i}. {section.heading}", "heading", True, {}))
-            blocks.extend((present(p, body=True), "body", False, {}) for p in section.paragraphs)
+            blocks.extend((present(p, body=True), "body", False,
+                           {"parenthetical_role": label_role} if (label_role := parenthetical_role(p)) else {}) for p in section.paragraphs)
         for visual in [*section.tables, *section.diagrams]:
             is_table = isinstance(visual, ReportTable)
             if is_table: table_number += 1
@@ -371,11 +413,13 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
             chunk_offset += len(chunk)
             if rich:
                 local_ids = meta.get("citation_source_ids")
-                local_emphasis = emphasis
+                scope = meta.get("parenthetical_role")
+                local_emphasis = ([{**item, "text": present(item["text"], body=True, scope=scope)} for item in emphasis]
+                                  if scoped_labels and scope else emphasis)
                 if local_ids:
                     numbers = {identifier: n for n, identifier in enumerate(local_ids, 1)}
                     local_emphasis = [{**item, "text": presentation_text(item["text"], settings, source_ids, marker_numbers=numbers)}
-                                     for item in emphasis if all(ref in numbers for ref in re.findall(r"\[(S\d+)\]", item["text"]))]
+                                     for item in local_emphasis if all(ref in numbers for ref in re.findall(r"\[(S\d+)\]", item["text"]))]
                 result[-1]["emphasis"] = [item for item in local_emphasis if item["text"] in chunk]
             if style_kind in ("square", "circle", "dash", "dot"):
                 result[-1]["style_kind"] = style_kind + ("_continuation" if index else "")

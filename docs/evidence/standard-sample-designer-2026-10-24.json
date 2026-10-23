@@ -1,0 +1,259 @@
+{
+  "recorded_date": "2026-10-24",
+  "result": "passed",
+  "scope": "Document standard editor: fixed synthetic business sample, composition and numbering controls, font list, actual sample target highlighting.",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "head": "ac190b80482e99dd4307dc8ea82edf029ac73083",
+  "committed_or_pushed": false,
+  "backend": {
+    "recorded_date": "2026-10-24",
+    "scope": "Fixed synthetic ReportDraft through production report_blocks, scaffold and layout_rich_report; actual TOC compose/verify contracts reused",
+    "sample_id": "standard-business-report-v1",
+    "sample_sha256": "94a186cbb9005f2ff4bf0141fa8556e53d519e3891734af29ef94adf91d7f97f",
+    "tests": {
+      "unique_cases": 151,
+      "final_status": "all passed across focused runs",
+      "broad_run": {
+        "artifact": "backend-junit.xml",
+        "passed": 145,
+        "failed": 1,
+        "seconds": 48.62
+      },
+      "broad_run_failure": "A test still compared a minor-heading bold exception against literal 1) after new-plan selected marker became (1). Updated only the expected marker lookup; product formatting was correct.",
+      "final_rerun": {
+        "artifact": "backend-final-junit.xml",
+        "passed": 27,
+        "failed": 0,
+        "seconds": 19.15
+      },
+      "other_unchanged_cases_passed": 119,
+      "files": [
+        "test_standard_samples.py",
+        "test_reference_body_spacing.py",
+        "test_reference_report.py",
+        "test_report_local_notes.py",
+        "test_visual_standard_controls.py",
+        "test_visual_standards.py"
+      ],
+      "warning_count": 2,
+      "warnings": "Existing Starlette/httpx and anyio deprecation warnings",
+      "native_fix_rerun": {
+        "artifact": "backend-native-junit.xml",
+        "passed": 14,
+        "failed": 0,
+        "seconds": 20.88
+      },
+      "footer_fix_rerun": {
+        "artifact": "backend-footer-junit.xml",
+        "passed": 18,
+        "failed": 0
+      }
+    },
+    "contracts_checked": [
+      "Same fixed draft and sample hash across all three presets and legacy settings",
+      "Summary/lead-label toggles, ordinary parenthetical condition and facts preserved",
+      "All six numbered roles use selected markers in newly frozen plans; unknown Hangul tokens preserved",
+      "Synthetic API stages do not create ReportTask or Document rows and do not call AI",
+      "HMAC owner, expiry, source-standard hash, bounded input and immutable source-output fencing",
+      "TOC heading UUID/hash/evidence matching, previous measured pages, maximum three passes, changed duplicate stage rejected",
+      "Unverified registration rejected; saved blob SHA confirmed and DB commit precedes response",
+      "Same registration ID/payload retries return committed receipt after application restart",
+      "Old/new builtin IDs reserved and legacy settings do not gain preview_layout_policy",
+      "Final heading regions use measured body pages; native TOC precedes body occurrence; summary alias included"
+    ],
+    "preservation": {
+      "reference_hwpx_sha256": "6c68b50656867f1fc724c50549e60e1109e2f7a00219f2928ef58de0a45711f1",
+      "profile_json_sha256": "7b2a0cb0fd540a83fea952abd891b8fc3e535ed3ac92a5affa6898313d7e4271",
+      "user_database_writes": 0,
+      "actual_model_calls": 0,
+      "dependencies_installed_or_modified": false,
+      "services_restarted": false,
+      "commits_or_pushes": false
+    },
+    "limits": {
+      "test_page_evidence": "Synthetic unit/API fixtures, not real renderer page proof",
+      "real_rhwp": "Actual pinned WASM initial serialization verified for five variants; integrated UI and final TOC convergence owned by parent and browser-test agent",
+      "native_hancom": "Not performed",
+      "preview_lifetime_seconds": 600,
+      "max_pages": 32,
+      "max_toc_passes": 3,
+      "verification_receipts": "1024 entries / 64MB, expires with signed stage, checked under lock after threadpool processing"
+    },
+    "real_engine_initial_roundtrip": {
+      "artifact": "engine-audit/roundtrip.json",
+      "variants": 5,
+      "strict_body_styles_resources_preserved": true,
+      "pre_toc_pages": {
+        "appendix-1": 2,
+        "appendix-2": 4,
+        "appendix-3": 3,
+        "legacy-1": 2,
+        "legacy-2": 2
+      },
+      "fix_scope": "Only new synthetic output canonicalization; existing verify_engine_output unchanged"
+    },
+    "real_engine_page_number_roundtrip": {
+      "artifact": "engine-audit/roundtrip-extra.json",
+      "variants": 4,
+      "styles": [
+        "PLAIN",
+        "PAGE_TOTAL",
+        "NONE",
+        "ROMAN"
+      ],
+      "strict_body_styles_resources_preserved": true,
+      "native_auto_number_fields_preserved": true
+    }
+  },
+  "browser_runs": {
+    "e2e-core-b": {
+      "result": "passed",
+      "started_at": "2026-10-23T15:28:44.8759972Z",
+      "finished_at": "2026-10-23T15:31:14.5562777Z",
+      "commands": [
+        {
+          "built_app": true,
+          "command": "Playwright E2E",
+          "pattern": "standard designer: shared sample",
+          "exit_code": 0
+        }
+      ],
+      "actual_model_calls": 0,
+      "remaining_listeners": []
+    },
+    "e2e-final": {
+      "result": "passed",
+      "started_at": "2026-10-23T15:37:02.7948199Z",
+      "finished_at": "2026-10-23T15:38:53.2528583Z",
+      "commands": [
+        {
+          "built_app": true,
+          "command": "Playwright E2E",
+          "pattern": "standard designer: (shared sample fonts|fixed appendix examples|lost registration response|a legacy registration|registered settings survive)",
+          "exit_code": 0
+        }
+      ],
+      "actual_model_calls": 0,
+      "remaining_listeners": []
+    }
+  },
+  "composition": {
+    "real_engine": true,
+    "actual_model_calls": 0,
+    "fixed_sample_id": "standard-business-report-v1",
+    "presets": [
+      {
+        "preset": "appendix-1",
+        "sample_sha256": "94a186cbb9005f2ff4bf0141fa8556e53d519e3891734af29ef94adf91d7f97f",
+        "pages": 2,
+        "body_page": 1,
+        "toc_page": null,
+        "preview_sha256": "b07fad402510f35e0fb0ca891200c8a220aac4f11a97137eb7977ffebf8297c0",
+        "toc_converged": null
+      },
+      {
+        "preset": "appendix-2",
+        "sample_sha256": "94a186cbb9005f2ff4bf0141fa8556e53d519e3891734af29ef94adf91d7f97f",
+        "pages": 4,
+        "body_page": 3,
+        "toc_page": 2,
+        "preview_sha256": "2fd07edeeb260195b371973143e6f44cc997895ec090c1b6c31008c32f5cdf92",
+        "toc_converged": true
+      },
+      {
+        "preset": "appendix-3",
+        "sample_sha256": "94a186cbb9005f2ff4bf0141fa8556e53d519e3891734af29ef94adf91d7f97f",
+        "pages": 3,
+        "body_page": 2,
+        "toc_page": 1,
+        "preview_sha256": "dea48c013e7d6a1bafdea31cc28d8cd8d0899f9a66761122d4b25dc0960e5106",
+        "toc_converged": true
+      }
+    ],
+    "saved_id": "51478434-fccb-4156-9d35-93fcd708c93c",
+    "saved_file_sha256": "dea48c013e7d6a1bafdea31cc28d8cd8d0899f9a66761122d4b25dc0960e5106",
+    "original_sha256": "6c68b50656867f1fc724c50549e60e1109e2f7a00219f2928ef58de0a45711f1",
+    "original_and_saved_files_preserved": true,
+    "saved_sample_return_from_reference_is_ready": true
+  },
+  "source_runtime_comparison": {
+    "equivalent": true,
+    "scope": "Get-HwpSourceContext sources plus explicit dependency/launcher files; only allowlisted UTF-8 CRLF/LF differences",
+    "checkout_file_count": 130,
+    "runtime_file_count": 130,
+    "newline_only_files": [],
+    "differences": [],
+    "comparison_fingerprint": "6859e65e66176486a302c159df1a622508f76dc75605da4dc132f79f8d3a9223",
+    "runtime_exact_fingerprint_unchanged": true
+  },
+  "existing_storage_preservation_before_rollout": {
+    "added_documents": 0,
+    "added_files": 0,
+    "added_other_rows": 0,
+    "added_tables": 0,
+    "added_versions": 0,
+    "added_visual_standards": 0,
+    "changed_existing_blobs": 0,
+    "changed_existing_rows": 0,
+    "manifest_sha256": "576be76b2db64deeb8881077b185c86d4de3b25e62ae8e1bb31d88f0bde5e190",
+    "missing_existing_blobs": 0,
+    "missing_existing_rows": 0,
+    "mode": "verify",
+    "result": "passed",
+    "verified_existing_files": 16
+  },
+  "visual_review": {
+    "reviewer": "assistant",
+    "sample_page_images_reviewed": 9,
+    "app_layout_image_reviewed": true,
+    "human_acceptance": false
+  },
+  "corrected_initial_failure": "Initial new-sample XML serialization differed from native output. Corrected only the new synthetic artifact representation; existing strict content/style/resource verifier unchanged. Failed e2e-core-a evidence retained.",
+  "limits": [
+    "Fixed-sample comparison does not validate AI prose quality; actual model calls were zero.",
+    "Native Hancom verification was not performed.",
+    "User acceptance remains pending."
+  ],
+  "artifacts": ".cache/standard-sample-designer-20261023",
+  "immutable_sources": {
+    "backend/app/assets/document-standard/reference.hwpx": "6c68b50656867f1fc724c50549e60e1109e2f7a00219f2928ef58de0a45711f1",
+    "backend/app/assets/document-standard/profile.json": "7b2a0cb0fd540a83fea952abd891b8fc3e535ed3ac92a5affa6898313d7e4271"
+  },
+  "existing_storage_preservation_after_rollout": {
+    "added_documents": 0,
+    "added_files": 0,
+    "added_other_rows": 0,
+    "added_tables": 0,
+    "added_versions": 0,
+    "added_visual_standards": 0,
+    "changed_existing_blobs": 0,
+    "changed_existing_rows": 0,
+    "manifest_sha256": "576be76b2db64deeb8881077b185c86d4de3b25e62ae8e1bb31d88f0bde5e190",
+    "missing_existing_blobs": 0,
+    "missing_existing_rows": 0,
+    "mode": "verify",
+    "result": "passed",
+    "verified_existing_files": 16
+  },
+  "live_runtime": {
+    "url": "http://127.0.0.1:15201/",
+    "source_fingerprint": "1363002c39c5fbbfa716a44e813f90087e675b5a94fabd725e7f58c3a25a012b",
+    "run_directory": ".cache/standard-sample-designer-20261023/source/.cache/developer/runs/20261024-004225-7f134aee",
+    "desktop_shortcut_reuses_verified_run": true,
+    "database_and_blob_directory_changed": false,
+    "startup_note": "PowerShell 7 inherited module-path issue resolved by launching through Windows PowerShell. No persistent environment settings or repository launcher code changed."
+  },
+  "live_browser": {
+    "surface": "Codex in-app browser",
+    "tab_id": "12",
+    "checks": [
+      "Default appendix 1 sample rendered in two pages",
+      "Selecting appendix 3 rendered the same sample in three pages with cover TOC",
+      "Left-margin field highlights actual paper margin",
+      "Moving focus to and clicking the position button retains the target",
+      "Sample settings were not registered into user storage"
+    ],
+    "screenshot": ".cache/standard-sample-designer-20261023/screenshots/live-standard-editor.png",
+    "left_open_for_user": true
+  }
+}

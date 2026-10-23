@@ -15,14 +15,14 @@ from urllib.parse import quote
 from xml.etree import ElementTree as ET
 
 from fastapi import HTTPException, Request, Response
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_serializer, model_validator
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from .db import VisualStandard, transaction
 from .document_standard import metadata
 from .hwpx import digest, validate
-from .report_contract import ReportValue, canonical, paragraph, report_blocks, report_hash
+from .report_contract import PARENTHETICAL_SCOPES, ReportValue, canonical, paragraph, report_blocks, report_hash, validate_parenthetical_scope
 from .report_hwpx import HP, paragraphs, scaffold
 from .report_rich import layout_rich_report
 from . import reference_standard
@@ -86,10 +86,20 @@ class VisualSettingsV2(VisualSettings):
     table_cell_padding_mm: Annotated[float, Field(strict=True, ge=0, le=5, allow_inf_nan=False)]
     title_vertical_offset_pt: Annotated[float, Field(strict=True, ge=-12, le=24, allow_inf_nan=False)]
     body_parenthetical_labels: Annotated[bool, Field(strict=True)]
+    body_parenthetical_scope: str | None = Field(default=None, max_length=64)
     show_core_summary: Annotated[bool, Field(strict=True)]
     page_number_style: Literal["DASH", "PLAIN", "ROMAN", "NONE"]
     page_number_position: Literal["BOTTOM_CENTER", "BOTTOM_LEFT", "BOTTOM_RIGHT"]
     citation_style: Literal["BRACKET_S", "NOTE", "ASTERISK"]
+
+    _scope = field_validator("body_parenthetical_scope", mode="before")(validate_parenthetical_scope)
+
+    @model_serializer(mode="wrap")
+    def preserve_legacy_scope(self, handler):
+        value = handler(self)
+        if value.get("body_parenthetical_scope") is None:
+            value.pop("body_parenthetical_scope", None)
+        return value
 
     @field_validator("table_border_width_mm")
     @classmethod
@@ -152,8 +162,8 @@ def field_catalog():
         choice("table_border_width_mm", "선 두께", "표", [(value, f"{value:g} mm") for value in (.1, .12, .15, .2, .25, .3, .4, .5, .6, .7, 1.0)],
                disabled_when=dict(key="table_border_scope", value="NONE")),
         dict(key="table_cell_padding_mm", label="셀 안쪽 여백", group="표", type="number", min=0, max=5, step=.1, unit="mm"),
-        dict(key="body_parenthetical_labels", label="항목 요약 말머리", group="본문 구성", type="boolean", unit="",
-             help="끄면 항목 앞 괄호 말머리를 숨깁니다. 본문의 일반 괄호·조건과 원래 초안은 보존합니다."),
+        dict(key="body_parenthetical_labels", label="괄호 요약어", group="본문 구성", type="boolean", unit="",
+             help="(현황), (조치)처럼 문장 앞에 붙는 짧은 요약어입니다. 표시할 항목을 선택할 수 있으며 제목·표·주석과 본문의 사실·조건은 바꾸지 않습니다."),
         dict(key="show_core_summary", label="핵심 요약", group="본문 구성", type="boolean", unit="",
              help="끄면 별도 핵심 요약 절과 요약 내용을 표시하지 않습니다. 원래 초안의 요약·업무 절·출처는 보존됩니다."),
         choice("page_number_style", "쪽번호 형식", "쪽번호·주석", [("DASH", "- 1 -"), ("PLAIN", "1"), ("ROMAN", "- I - / - II -"), ("NONE", "없음")]),
@@ -222,11 +232,12 @@ def settings_revision(settings):
     return 3 if isinstance(settings, VisualSettingsV3) else 2 if isinstance(settings, VisualSettingsV2) else 1
 
 
-def builtin_presets():
+def builtin_presets(*, legacy=False):
     """Stable source-based choices use the same immutable selection contract."""
     standard = base_standard()
-    return [dict(id=reference_standard.builtin_identity(item["preset_id"]), name=item["name"], revision=3,
-        settings=VisualSettingsV3.model_validate(reference_standard.defaults(item["preset_id"])).model_dump(mode="json"),
+    defaults = reference_standard.legacy_defaults if legacy else reference_standard.defaults
+    return [dict(id=reference_standard.builtin_identity(item["preset_id"], legacy=legacy), name=item["name"], revision=3,
+        settings=VisualSettingsV3.model_validate(defaults(item["preset_id"])).model_dump(mode="json"),
         base_standard=standard, **{key: value for key, value in item.items() if key in ("description", "source_range")})
         for item in reference_standard.preset_definitions()]
 
@@ -333,7 +344,10 @@ def verified_file(folder, row):
 def validate_visual_selection(db, user, value, *, folder=None):
     """Only new report tasks resolve a registration; frozen retries keep their input."""
     supplied = value.model_dump(mode="json")
-    candidate = next((item for item in builtin_presets() if item["id"] == str(value.id)), None) if value.revision == 3 else None
+    # Historical built-in choices retain their exact settings and renderer.
+    # They are accepted for old inputs, but only the new policy is advertised.
+    candidate = next((item for item in [*builtin_presets(), *builtin_presets(legacy=True)]
+                      if item["id"] == str(value.id)), None) if value.revision == 3 else None
     if candidate is not None:
         if _selection_only(_complete_builtin(candidate)) != supplied:
             raise HTTPException(409, "선택한 원문 별첨 표준의 고정 값이 다릅니다. 목록을 다시 확인하세요.")
@@ -368,6 +382,8 @@ def write_immutable(folder, key, data):
 
 def install_visual_standards(app):
     engine, folder = app.state.engine, app.state.folder
+    from .standard_samples import install_standard_samples
+    install_standard_samples(app)
 
     @app.get("/api/visual-standards")
     def catalog(request: Request):
@@ -381,7 +397,8 @@ def install_visual_standards(app):
                     "2": {"defaults": DEFAULTS, "fields": field_catalog()},
                 }, "presets": presets, "default_id": presets[0]["id"], "max_pages": reference_standard.MAX_PAGES,
                 "source": reference_standard.source_metadata(), "rules": reference_standard.rules(),
-                "reference_preview_url": "/api/document-standard/preview"}
+                "reference_preview_url": "/api/document-standard/preview",
+                "parenthetical_scopes": [{"value": key, "label": label} for key, label in PARENTHETICAL_SCOPES]}
 
     @app.get("/api/document-standard/preview")
     def original_preview():
@@ -419,7 +436,7 @@ def install_visual_standards(app):
                     raise HTTPException(409, "같은 표준 등록 ID에 다른 입력을 사용할 수 없습니다.")
                 verified_file(folder, old)
                 return snapshot_value(old)
-            if str(value.id) in {item["id"] for item in builtin_presets()}:
+            if str(value.id) in {item["id"] for item in [*builtin_presets(), *builtin_presets(legacy=True)]}:
                 raise HTTPException(409, "원문 별첨의 고정 ID는 새 표준 등록에 사용할 수 없습니다.")
             settings = value.settings.model_dump(mode="json")
             if report_hash(settings) != value.settings_sha256:

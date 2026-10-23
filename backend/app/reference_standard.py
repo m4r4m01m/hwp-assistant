@@ -12,11 +12,11 @@ from typing import Literal
 from xml.etree import ElementTree as E
 
 from fastapi import HTTPException
-from pydantic import Field, create_model, model_validator
+from pydantic import Field, create_model, field_validator, model_serializer, model_validator
 
 from .document_standard import HP, HH, HC, load_standard, normalize_no_fill
 from .hwpx import digest, validate
-from .report_contract import ReportValue, citation_marker, citation_style_for_scope
+from .report_contract import ReportValue, citation_marker, citation_style_for_scope, validate_parenthetical_scope
 from . import reference_source as source
 
 PRESETS = {
@@ -25,6 +25,7 @@ PRESETS = {
     "appendix-3": ("별첨 3 · 목차를 포함한 표지", "문서표지에 목차를 함께 둔 원문 구성", 131, 141),
 }
 MAX_PAGES = 32
+PREVIEW_LAYOUT_POLICY = "NATIVE_V1"
 WIDTHS = (.1, .12, .15, .2, .25, .3, .4, .5, .6, .7, 1., 1.5, 2., 3., 4., 5.)
 # New editable defaults requested after reviewing generated appendix reports.
 # Keep these distinct from the source extractor: the example's geometry is
@@ -33,6 +34,11 @@ REPORT_DEFAULT_OVERRIDES = {
     "square_first_line_indent_pt": -21,
     "circle_first_line_indent_pt": -21,
     "dash_first_line_indent_pt": -14,
+}
+NATIVE_PREVIEW_DEFAULTS = {
+    "toc_major_horizontal_align": "LEFT",
+    "toc_minor_horizontal_align": "LEFT",
+    "unit_horizontal_align": "RIGHT",
 }
 ROLE_LABELS = {
     "title": "본문 문서 제목", "heading": "대제목 · 첫째 항목", "subheading": "중제목 · 둘째 항목",
@@ -122,6 +128,8 @@ def source_metadata():
                         dict(id="S3", inline_ordinal=412, description_ordinal=420, original="주2)")],
                     "toc_border": dict(part="Contents/section0.xml", top_level_index=129, table_id="1872749252", color="#000000", width_mm=.1),
                     "toc_padding": dict(ordinal=206, basis="좌우20pt는 문단 여백에 적용하며 셀 좌우 여백을 중복하지 않음"),
+                    "preview_layout_policy": dict(default=PREVIEW_LAYOUT_POLICY, defaults=dict(NATIVE_PREVIEW_DEFAULTS),
+                        basis="새 기본 양식은 원문의 정렬용 공백·작은 하이픈 나열·고정 탭 폭을 문단 정렬과 오른쪽 탭으로 옮깁니다. 목차 항목은 각 전체 폭 셀에 배치해 실제 글꼴·여백으로 다시 줄을 나눕니다. 문구·예시 쪽번호는 유지하며 기존 등록·동결 예시는 바꾸지 않습니다."),
                     "page_number_font": dict(basis="원문에는 실제 쪽번호 필드·고유 글꼴 정의가 없어 참고·주석 역할의 글꼴과 12pt 기본값을 상속"),
                 })
 
@@ -193,8 +201,8 @@ def _catalog():
         _choice("citation_style", "주석 표식", "면 표시·주석", "AUTO", [("AUTO", "자동 · 1개 *, 2개 이상 주1)"), ("STARS", "별표 고정 · *, **, ***"), ("NOTE", "번호 고정 · 주1), 주2)")],
                 help="자동은 같은 문단·표·도식의 서로 다른 주석이 1개면 *, 2개 이상이면 첫 주석부터 주1), 주2)로 표시합니다. 같은 출처의 반복 인용은 하나로 세며 다음 단위에서 다시 시작합니다."),
         dict(key="citation_superscript", label="본문 주석 표식 윗첨자", group="면 표시·주석", type="boolean", unit="", default=True),
-        dict(key="body_parenthetical_labels", label="항목 요약 말머리", group="문서 구성", type="boolean", unit="", default=False,
-             help="원문 별첨 예시에 없는 추가 말머리를 새 보고서에 표시할지 선택합니다."),
+        dict(key="body_parenthetical_labels", label="괄호 요약어", group="문서 구성", type="boolean", unit="", default=False,
+             help="(현황), (조치)처럼 문장 앞에 붙는 짧은 요약어입니다. 표시할 항목을 선택할 수 있으며 제목·표·주석과 본문의 사실·조건은 바꾸지 않습니다."),
         dict(key="show_core_summary", label="별도 핵심 요약 절", group="문서 구성", type="boolean", unit="", default=False,
              help="원문 별첨 예시에 없는 추가 요약 절을 새 보고서에 표시할지 선택합니다."),
         _choice("numbering_style", "본문 항목 구성", "항목 번호·기호", "BULLETS", [("BULLETS", "기호 항목"), ("NUMBERED", "번호 항목")]),
@@ -215,16 +223,43 @@ def _catalog():
 
 
 def field_catalog():
-    return copy.deepcopy(_catalog())
+    fields = copy.deepcopy(_catalog())
+    for field in fields:
+        if field["key"] in NATIVE_PREVIEW_DEFAULTS:
+            field["default"] = NATIVE_PREVIEW_DEFAULTS[field["key"]]
+    return fields
 
 
 def defaults(preset_id="appendix-1"):
+    if preset_id not in PRESETS:
+        raise ValueError("Unknown original appendix preset")
+    return {**{field["key"]: field["default"] for field in _catalog()}, "preset_id": preset_id,
+            **NATIVE_PREVIEW_DEFAULTS, "preview_layout_policy": PREVIEW_LAYOUT_POLICY}
+
+
+def legacy_defaults(preset_id="appendix-1"):
+    """Exact defaults preceding native sample geometry, for historical choices."""
     if preset_id not in PRESETS:
         raise ValueError("Unknown original appendix preset")
     return {**{field["key"]: field["default"] for field in _catalog()}, "preset_id": preset_id}
 
 
 class _SettingsBase(ReportValue):
+    # Only newly selected presets opt into native sample geometry. Omitting this
+    # field must keep every historical settings hash and frozen retry unchanged.
+    preview_layout_policy: Literal["NATIVE_V1"] | None = None
+    body_parenthetical_scope: str | None = Field(default=None, max_length=64)
+
+    _scope = field_validator("body_parenthetical_scope", mode="before")(validate_parenthetical_scope)
+
+    @model_serializer(mode="wrap")
+    def preserve_legacy_settings(self, handler):
+        value = handler(self)
+        for key in ("preview_layout_policy", "body_parenthetical_scope"):
+            if value.get(key) is None:
+                value.pop(key, None)
+        return value
+
     @model_validator(mode="before")
     @classmethod
     def strict_options_and_text(cls, value):
@@ -360,7 +395,11 @@ def render_preset(settings):
             if child.tag.split("}")[-1] in ("presentation", "parameterset"):
                 props.remove(child)
         source.apply_page(props, settings)
-        role_positions, citations = _sample_presentation(_preset_roles(preset_id, section), settings)
+        native_layout = settings.get("preview_layout_policy") == PREVIEW_LAYOUT_POLICY
+        positions = _preset_roles(preset_id, section)
+        if native_layout:
+            positions = _native_sample_roles(positions)
+        role_positions, citations = _sample_presentation(positions, settings)
         chars = header.find(f".//{{{HH}}}charProperties")
         paras = header.find(f".//{{{HH}}}paraProperties")
         originals_c = {node.get("id"): node for node in chars}
@@ -396,6 +435,8 @@ def render_preset(settings):
         if settings["citation_style"] == "AUTO":
             _order_auto_sample_notes(section, role_positions)
         _apply_sample_tables(header, section, settings)
+        if native_layout:
+            _native_sample_geometry(header, section, settings, role_positions)
         # Current page numbers are native fields, never literal example totals.
         # The source states a page-number rule but has no actual field. The
         # editable projection uses fields evaluated by the actual renderer.
@@ -464,6 +505,139 @@ def _preset_roles(preset_id, section):
             elif index in (100, 101, 102): role = "table_source"
             result.append((paragraph, role))
     return result
+
+
+def _native_sample_roles(positions):
+    """The source's attachment list is TOC text, not a 20pt attachment title."""
+    result = []
+    for paragraph, role in positions:
+        text = _text(paragraph).strip()
+        if role == "attachment" or (role == "toc_major" and text == "2. 정부의 핀테크 관련 법안"):
+            role = "toc_minor"
+        if role in ("caption", "unit"):
+            # These two known source examples align through leading spaces.
+            # Native paragraph alignment now owns their position instead.
+            prefix = len(_text(paragraph)) - len(_text(paragraph).lstrip(" "))
+            if prefix:
+                _splice(paragraph, 0, prefix, "")
+        result.append((paragraph, role))
+    return result
+
+
+def _native_sample_geometry(header, section, settings, positions):
+    """Reflow only the extracted examples; the real report TOC is independent.
+
+    Source tab widths and tiny hand-typed dash runs are stale after changing
+    fonts or margins. Preserve their labels and example page numbers using the
+    same native right-tab representation as the managed report TOC.
+    """
+    paras = {node.get("id"): node for node in header.iter(f"{{{HH}}}paraPr")}
+    roles = dict(positions)
+    tabs = header.find(f".//{{{HH}}}tabProperties")
+    for host in section:
+        for table in host.findall(f"{{{HP}}}run/{{{HP}}}tbl"):
+            identifier = table.get("id")
+            if identifier == "1872749261":
+                # Full-width inline tables must not retain the original narrow
+                # sample's space prefix or horizontal object margins.
+                for text in host.findall(f"{{{HP}}}run/{{{HP}}}t"):
+                    if not (text.text or "").strip() and not len(text):
+                        text.text = ""
+                table.find(f"{{{HP}}}outMargin").attrib.update(left="0", right="0")
+                continue
+            if identifier not in ("1872749252", "1872749254"):
+                continue
+            for cell in table.iter(f"{{{HP}}}tc"):
+                width = int(cell.find(f"{{{HP}}}cellSz").get("width"))
+                padding = cell.find(f"{{{HP}}}cellMargin")
+                for paragraph in cell.findall(f"{{{HP}}}subList/{{{HP}}}p"):
+                    role = roles.get(paragraph)
+                    if role not in ("toc_major", "toc_minor"):
+                        continue
+                    text = _text(paragraph)
+                    match = re.fullmatch(r"(.*?)\s*-{3,}\s*(\d+)\s*", text)
+                    if match is None and paragraph.find(f".//{{{HP}}}tab") is not None:
+                        match = re.fullmatch(r"(.*?)\s+(\d+)\s*", text)
+                    if match is None:
+                        continue  # Attachment labels have no example page.
+                    label, page = match[1].rstrip(), match[2]
+                    para = paras[paragraph.get("paraPrIDRef")]
+                    left = round(settings[f"{role}_left_indent_pt"] * 100)
+                    right = round(settings[f"{role}_right_indent_pt"] * 100)
+                    position = width - int(padding.get("left")) - int(padding.get("right")) - left - right
+                    if position <= 0:
+                        raise HTTPException(422, "목차 상자의 너비보다 항목 여백이 큽니다.")
+                    tab = E.SubElement(tabs, f"{{{HH}}}tabPr", dict(id=str(max(int(item.get("id")) for item in tabs) + 1), autoTabLeft="0", autoTabRight="0"))
+                    switch = E.SubElement(tab, f"{{{HP}}}switch")
+                    case = E.SubElement(switch, f"{{{HP}}}case", {f"{{{HP}}}required-namespace": "http://www.hancom.co.kr/hwpml/2016/HwpUnitChar"})
+                    E.SubElement(case, f"{{{HH}}}tabItem", dict(pos=str(position), type="RIGHT", leader="DASH", unit="HWPUNIT"))
+                    fallback = E.SubElement(switch, f"{{{HP}}}default")
+                    E.SubElement(fallback, f"{{{HH}}}tabItem", dict(pos=str(position * 2), type="RIGHT", leader="DASH"))
+                    tabs.set("itemCnt", str(len(tabs)))
+                    para.set("tabPrIDRef", tab.get("id"))
+                    runs = paragraph.findall(f"{{{HP}}}run")
+                    char = runs[0].get("charPrIDRef")
+                    for run in runs:
+                        paragraph.remove(run)
+                    run = E.SubElement(paragraph, f"{{{HP}}}run", dict(charPrIDRef=char))
+                    E.SubElement(run, f"{{{HP}}}t").text = label
+                    tab_run = E.SubElement(paragraph, f"{{{HP}}}run", dict(charPrIDRef=char))
+                    E.SubElement(E.SubElement(tab_run, f"{{{HP}}}t"), f"{{{HP}}}tab", dict(width="0", leader="0", type="1"))
+                    page_run = E.SubElement(paragraph, f"{{{HP}}}run", dict(charPrIDRef=char))
+                    E.SubElement(page_run, f"{{{HP}}}t").text = page
+            _split_native_toc_entries(header, table)
+
+
+def _split_native_toc_entries(header, table):
+    """Keep the source title frame; give each body paragraph its own full row.
+
+    This matches the existing report TOC topology. A large merged cell with
+    mixed paragraph sizes gives the pinned renderer stale line-width decisions
+    across paragraphs, even after replacing its saved tab widths. Separate
+    rows let each entry reflow under its own font/margin settings without
+    shrinking text, deleting content, or retaining an obsolete lineseg cache.
+    """
+    rows = table.findall(f"{{{HP}}}tr")
+    body_row = rows[-1]
+    cells = body_row.findall(f"{{{HP}}}tc")
+    if len(cells) != 1 or cells[0].find(f"{{{HP}}}cellSpan").get("colSpan") != "3":
+        raise ValueError("원문 목차 본문 셀 구성이 달라졌습니다.")
+    cell = cells[0]
+    paragraphs = list(cell.find(f"{{{HP}}}subList"))
+    fills = header.find(f".//{{{HH}}}borderFills")
+    fill = next(item for item in fills if item.get("id") == cell.get("borderFillIDRef"))
+    inner = copy.deepcopy(fill)
+    inner.set("id", str(max(int(item.get("id")) for item in fills) + 1))
+    inner.find(f"{{{HH}}}bottomBorder").set("type", "NONE")
+    fills.append(inner)
+    fills.set("itemCnt", str(len(fills)))
+    chars = {item.get("id"): item for item in header.iter(f"{{{HH}}}charPr")}
+    paras = {item.get("id"): item for item in header.iter(f"{{{HH}}}paraPr")}
+    height = int(table.find(f"{{{HP}}}sz").get("height")) - int(cell.find(f"{{{HP}}}cellSz").get("height"))
+    table.remove(body_row)
+    for index, paragraph in enumerate(paragraphs):
+        entry = copy.deepcopy(cell)
+        entry.find(f"{{{HP}}}subList")[:] = [paragraph]
+        entry.find(f"{{{HP}}}cellAddr").set("rowAddr", str(index + 2))
+        if index < len(paragraphs) - 1:
+            entry.set("borderFillIDRef", inner.get("id"))
+        size = max(int(chars[run.get("charPrIDRef")].get("height")) for run in paragraph.findall(f"{{{HP}}}run"))
+        para = paras[paragraph.get("paraPrIDRef")]
+        branch = para.find(f"{{{HP}}}switch/{{{HP}}}case")
+        if branch is None:
+            branch = para
+        spacing = branch.find(f"{{{HH}}}lineSpacing")
+        percent = int(spacing.get("value")) if spacing is not None else 160
+        paragraph_margin = branch.find(f"{{{HH}}}margin")
+        outside = sum(int(item.get("value")) for item in paragraph_margin
+                      if item.tag.split("}")[-1] in ("prev", "next")) if paragraph_margin is not None else 0
+        margin = entry.find(f"{{{HP}}}cellMargin")
+        row_height = round(size * percent / 100) + outside + int(margin.get("top")) + int(margin.get("bottom"))
+        entry.find(f"{{{HP}}}cellSz").set("height", str(row_height))
+        height += row_height
+        E.SubElement(table, f"{{{HP}}}tr").append(entry)
+    table.set("rowCnt", str(len(paragraphs) + 2))
+    table.find(f"{{{HP}}}sz").set("height", str(height))
 
 
 def _splice(paragraph, start, stop, replacement):
@@ -641,9 +815,10 @@ def apply_table(table, header, settings):
     table.find(f"{{{HP}}}sz").set("height", str(total))
 
 
-def builtin_identity(preset_id):
+def builtin_identity(preset_id, *, legacy=False):
     profile, _ = load_standard()
-    return str(uuid.uuid5(uuid.NAMESPACE_URL, "hwp-assistant:reference-standard-v3:" + profile["reference_sha256"] + ":" + preset_id))
+    suffix = "" if legacy else ":" + PREVIEW_LAYOUT_POLICY
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, "hwp-assistant:reference-standard-v3:" + profile["reference_sha256"] + ":" + preset_id + suffix))
 
 
 def _page_number(header, section, settings):

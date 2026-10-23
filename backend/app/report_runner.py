@@ -78,11 +78,33 @@ def revision_prompt(value, prompt):
     return prompt + REVISION_PROMPT if value.get("revision") else prompt
 
 
+def parenthetical_prompt(prompt, settings):
+    """Only explicitly scoped new requests acquire this optional instruction."""
+    if "body_parenthetical_scope" not in settings:
+        return prompt
+    from .report_contract import PARENTHETICAL_SCOPES, PARENTHETICAL_LABELS, parenthetical_enabled
+    enabled = [key for key, _ in PARENTHETICAL_SCOPES if parenthetical_enabled(settings, key)]
+    prompt = prompt.replace("summary starts with '□ (요약) '.",
+                            "the summary is a separate schema value; its lead label follows the selected scope.")
+    prompt = prompt.replace("Where useful, begin square points with a short parenthesized label such as (배경), (차이점), (조치), or (제안).",
+                            "Use short parenthesized lead summaries only in the selected scopes below, when useful.")
+    prompt += ("\nFrozen parenthetical lead-summary scope: " + (",".join(enabled) or "none") + ". "
+               "Scopes refer to canonical inputs before displayed numbering: square=□ items; circle=ㅇ/○ items; "
+               "dash=- items; dot=․ items; body=unmarked section.paragraphs; summary=the separate summary value, "
+               "even when it starts with □. Do not introduce parenthesized lead summaries in unselected scopes. "
+               "Do not add them to titles, explicit subheadings, table/diagram cells or captions, or source/note descriptions. "
+               "Eligible lead summaries are limited to (" + PARENTHETICAL_LABELS.replace("|", "), (") + "). "
+               "Preserve all genuine parenthetical facts, numbers, conditions, quotations and citations, including "
+               "parentheses within a sentence. The scope never permits removing substantive meaning. This instruction "
+               "applies while writing this new draft; do not rewrite a frozen draft or existing document.\n")
+    return prompt
+
+
 def writing_prompt(value):
     """New reference-based requests use their frozen writing rules, not later app defaults."""
     visual = value.get("visual_standard") or {}
     if visual.get("revision") != 3:
-        return revision_prompt(value, PROMPT)
+        return revision_prompt(value, parenthetical_prompt(PROMPT, visual.get("settings") or {}))
     settings = visual["settings"]
     prompt = PROMPT.replace("summary starts with '□ (요약) '.", "the summary is a separate schema value; its display is controlled by the selected standard.")
     prompt = prompt.replace("at the standard 15pt body size", f"at the selected {settings['body_size_pt']:g}pt body size")
@@ -134,7 +156,7 @@ def writing_prompt(value):
     prompt += "\nFrozen document-writing rules from the selected reference standard:\n" + "\n".join(rules) + (
         "\nKeep canonical [S1] source IDs in JSON. The document renderer applies the selected note marks and superscripts. "
         "Formatting rules never permit inventing or changing facts, figures, names, dates or citations.\n")
-    return revision_prompt(value, prompt)
+    return revision_prompt(value, parenthetical_prompt(prompt, settings))
 
 
 def generate_report(value, settings, progress=lambda value: None, active=lambda: True):

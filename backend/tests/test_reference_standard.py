@@ -13,7 +13,7 @@ from app.document_standard import HP, HH, load_standard
 from app.hwpx import digest, validate
 from app.reference_source import LANGUAGES, mm_to_hwp
 from app.reference_standard import (
-    PRESETS, VisualSettingsV3, defaults, original_projection, render_preset,
+    PRESETS, VisualSettingsV3, defaults, legacy_defaults, original_projection, render_preset,
 )
 
 
@@ -68,6 +68,17 @@ def _assert_preset_content(section, source_section, settings):
         return text[:match.start()] + ((match[1] if position == "start" else "") + "<STRUCTURAL_MARKER>") + text[match.end():]
     for paragraph, original_text, rendered_text in zip(source_paragraphs, before, after):
         ordinal = ordinals[paragraph]
+        if settings.get("preview_layout_policy") == "NATIVE_V1":
+            if preset_id == "appendix-1" and ordinal in (407, 408, 409):
+                # Only these known caption/unit/inline-table alignment prefixes
+                # move into native paragraph/object positioning.
+                original_text = original_text.lstrip(" ")
+            elif preset_id in ("appendix-2", "appendix-3"):
+                match = re.fullmatch(r"(.*?)\s*-{3,}\s*(\d+)\s*", original_text)
+                if match is None and paragraph.find(f".//{{{HP}}}tab") is not None:
+                    match = re.fullmatch(r"(.*?)\s+(\d+)\s*", original_text)
+                if match is not None:
+                    original_text = match[1].rstrip() + match[2]
         if preset_id == "appendix-1" and ordinal in numbered:
             old, new = numbered[ordinal]
             # Only the exact known item-prefix spaces move into paragraph
@@ -200,10 +211,79 @@ def _archive_contents(raw):
 ])
 def test_frozen_star_settings_and_preview_keep_pre_auto_contents(preset_id, settings_sha, preview_contents_sha):
     from app.report_contract import report_hash
-    settings = {**defaults(preset_id), "citation_style": "STARS"}
+    settings = {**legacy_defaults(preset_id), "citation_style": "STARS"}
     assert VisualSettingsV3.model_validate(settings).model_dump(mode="json") == settings
     assert report_hash(settings) == settings_sha
     assert report_hash(_archive_contents(render_preset(settings))) == preview_contents_sha
+
+
+@pytest.mark.parametrize("preset_id,settings_sha,preview_contents_sha", [
+    ("appendix-1", "395d93614673adb0407faf3da7d6b338a85ccf848e2bf74cfacd073e035a5661", "a3c9b4fe63ee23dabffc3cef336985621f1763b41c828c45cbd1f0056309ae74"),
+    ("appendix-2", "c1f43dd0e6d74ad35171c9e756aec699cb3f50245ea995f2000f85f08aa3268e", "96fd36fe3262fb71bb7c739069ec30ef96165f30be6013a0bb32fa5b37e7be64"),
+    ("appendix-3", "d8a7be2c36a1f30084abd58f48e79f1b9ea9635b3798f65195ebd81a1ce24df8", "eceea33babde5c8bea3e1cbca3479b6ccba6a6deda88d7a5b84b51b00e7d15ac"),
+])
+def test_pre_native_auto_settings_and_all_archive_members_are_unchanged(preset_id, settings_sha, preview_contents_sha):
+    from app.report_contract import report_hash
+    old = legacy_defaults(preset_id)
+    serialized = VisualSettingsV3.model_validate(old).model_dump(mode="json")
+    assert serialized == old and "preview_layout_policy" not in serialized
+    assert report_hash(serialized) == settings_sha
+    assert report_hash(_archive_contents(render_preset(serialized))) == preview_contents_sha
+    assert VisualSettingsV3.model_validate({**old, "preview_layout_policy": None}).model_dump(mode="json") == old
+
+
+def test_native_preview_defaults_are_explicit_and_catalog_consistent():
+    from app.reference_standard import field_catalog, builtin_identity
+    new, old = defaults(), legacy_defaults()
+    assert new["preview_layout_policy"] == "NATIVE_V1"
+    assert new["unit_horizontal_align"] == "RIGHT"
+    assert new["toc_major_horizontal_align"] == new["toc_minor_horizontal_align"] == "LEFT"
+    assert old["unit_horizontal_align"] == "CENTER"
+    assert old["toc_major_horizontal_align"] == old["toc_minor_horizontal_align"] == "JUSTIFY"
+    assert all(item["default"] == new[item["key"]] for item in field_catalog())
+    assert builtin_identity("appendix-1") != builtin_identity("appendix-1", legacy=True)
+
+
+@pytest.mark.parametrize("preset,table_id,count", [("appendix-2", "1872749252", 14), ("appendix-3", "1872749254", 3)])
+def test_native_toc_uses_right_tabs_in_individual_full_width_cells(preset, table_id, count):
+    settings = defaults(preset)
+    settings.update(toc_minor_before_pt=1, toc_minor_after_pt=1)
+    header, section = _parts(render_preset(settings))
+    table = next(item for item in section.iter(f"{{{HP}}}tbl") if item.get("id") == table_id)
+    fills = {item.get("id"): item for item in header.iter(f"{{{HH}}}borderFill")}
+    paras = {item.get("id"): item for item in header.iter(f"{{{HH}}}paraPr")}
+    tabs = {item.get("id"): item for item in header.iter(f"{{{HH}}}tabPr")}
+    rows = table.findall(f"{{{HP}}}tr")
+    assert len(rows) == int(table.get("rowCnt")) and len(rows) > 3
+    entries = []
+    for index, row in enumerate(rows[2:]):
+        cell, = row.findall(f"{{{HP}}}tc")
+        paragraph, = cell.findall(f"{{{HP}}}subList/{{{HP}}}p")
+        assert cell.find(f"{{{HP}}}cellSpan").get("colSpan") == "3"
+        assert cell.find(f"{{{HP}}}cellAddr").get("rowAddr") == str(index + 2)
+        assert cell.find(f"{{{HP}}}cellSz").get("width") == table.find(f"{{{HP}}}sz").get("width")
+        bottom = fills[cell.get("borderFillIDRef")].find(f"{{{HH}}}bottomBorder").get("type")
+        assert bottom == ("NONE" if index < len(rows) - 3 else settings["toc_border_style"])
+        inline = paragraph.find(f".//{{{HP}}}tab")
+        if inline is not None:
+            assert inline.attrib == {"width": "0", "leader": "0", "type": "1"}
+            para = paras[paragraph.get("paraPrIDRef")]
+            native = tabs[para.get("tabPrIDRef")].find(f"{{{HP}}}switch/{{{HP}}}case/{{{HH}}}tabItem")
+            assert native.get("type") == "RIGHT" and native.get("leader") == "DASH"
+            text = _paragraph_texts([paragraph])[0]
+            assert "---" not in text and re.search(r"\d+$", text)
+            entries.append(text)
+    assert len(entries) == count
+
+
+def test_native_full_width_table_and_caption_have_no_old_alignment_padding():
+    _, section = _parts(render_preset(defaults()))
+    host = next(p for p in section if p.find(f"{{{HP}}}run/{{{HP}}}tbl[@id='1872749261']") is not None)
+    assert "".join(t.text or "" for t in host.findall(f"{{{HP}}}run/{{{HP}}}t")) == ""
+    table = host.find(f"{{{HP}}}run/{{{HP}}}tbl")
+    assert table.find(f"{{{HP}}}outMargin").get("left") == table.find(f"{{{HP}}}outMargin").get("right") == "0"
+    assert int(table.find(f"{{{HP}}}sz").get("width")) == mm_to_hwp(210) - 2 * mm_to_hwp(20)
+    assert any(text.startswith("우리나라 현황") for text in _paragraph_texts(list(section)))
 
 
 def test_auto_sample_uses_numbered_markers_for_the_same_three_note_table():
