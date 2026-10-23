@@ -1,0 +1,104 @@
+name: HWP deploy published images
+run-name: Deploy published HWP build ${{ inputs.build_run_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: 'Successful HWP deployment Actions run ID (URL number, not #24)'
+        type: string
+        required: true
+      confirm_deploy:
+        description: 'Replace production containers after backup (brief write interruption)'
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate-published-build:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm_deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      source_sha: ${{ steps.release.outputs.source_sha }}
+      build_run_id: ${{ steps.release.outputs.build_run_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate the publishing run, successful checks and main ancestry
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+        run: python3 -B scripts/deploy/verify-published-run.py
+
+  deploy-home:
+    needs: validate-published-build
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.confirm_deploy
+    runs-on: [self-hosted, linux, x64, hwp-deploy]
+    environment: hwp-production
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+    # Shared with hwp-deploy.yml; never interrupt a backup/replacement in flight.
+    concurrency:
+      group: hwp-home-production
+      cancel-in-progress: false
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Require a separate, unused checkout inside the runner workspace
+        run: |
+          set -Eeuo pipefail
+          workspace=$(realpath -- "$GITHUB_WORKSPACE")
+          [[ "$workspace" != / && "$workspace" != "$HOME" ]]
+          [[ ! -e "$workspace/.runner" && ! -e "$workspace/actions-runner" ]]
+          [[ ! -e "$workspace/release-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" ]]
+      - name: Checkout the published source, not current main
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate-published-build.outputs.source_sha }}
+          path: release-${{ github.run_id }}-${{ github.run_attempt }}
+          clean: false
+          persist-credentials: false
+      - name: Read-only production preflight
+        working-directory: release-${{ github.run_id }}-${{ github.run_attempt }}
+        run: python3 -B scripts/deploy/check-host.py --env-file /opt/hwp-assistant/production.env
+      - name: Pull existing images, back up and replace containers (no build)
+        working-directory: release-${{ github.run_id }}-${{ github.run_attempt }}
+        env:
+          HWP_ENV_FILE: /opt/hwp-assistant/production.env
+          HWP_IMAGE_TAG: ${{ needs.validate-published-build.outputs.source_sha }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          DOCKER_CONFIG=$(mktemp -d "$RUNNER_TEMP/hwp-deploy-ghcr.XXXXXXXX")
+          export DOCKER_CONFIG
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true; rm -rf -- "$DOCKER_CONFIG"' EXIT
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          unset GHCR_TOKEN
+          bash scripts/deploy/deploy.sh pull
+      - name: Check the public HTTPS path without sending login credentials
+        working-directory: release-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          python3 -B scripts/deploy/smoke.py \
+            --url https://pseudowasabi-svr.taile7b6c4.ts.net/hwp-assistant/
+      - name: Record deployment source in the job summary
+        env:
+          SOURCE_SHA: ${{ needs.validate-published-build.outputs.source_sha }}
+          BUILD_RUN_ID: ${{ needs.validate-published-build.outputs.build_run_id }}
+        run: |
+          printf 'Deployed existing image tag: `%s`\n\n' "$SOURCE_SHA" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Publishing run: `%s`. No image build was performed.\n\n' "$BUILD_RUN_ID" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Local and public smoke checks passed. Verify login, editing and saving manually.\n' >> "$GITHUB_STEP_SUMMARY"
