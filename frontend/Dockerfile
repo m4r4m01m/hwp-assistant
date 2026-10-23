@@ -19,12 +19,22 @@ RUN test "$(uname -m)" = x86_64 \
     && rm /tmp/binaryen.tar.gz
 ENV PATH="/opt/binaryen-version_117/bin:${PATH}" HWP_CORE_BUILD_ENV=docker-linux CARGO_TARGET_DIR=/build-target
 WORKDIR /app
-COPY scripts ./scripts
+# Only native-core inputs belong in this expensive stage. Deployment scripts,
+# UI tests and the Studio bridge must not invalidate a pinned Rust/WASM build.
+COPY scripts/build-release-core.mjs scripts/engine-build-lib.mjs scripts/engine-lock.json \
+    scripts/prepare-patched-core.py scripts/record-patched-core.mjs \
+    scripts/test-engine-fill.mjs scripts/test-engine-selection.mjs ./scripts/
+COPY scripts/patches ./scripts/patches
 COPY --from=dependencies /app/frontend/node_modules/fflate ./frontend/node_modules/fflate
-RUN node scripts/build-release-core.mjs
+# Keep verified package bytes, not gigabytes of Cargo targets/vendor checkout.
+# Cleanup must be in this same RUN; a later layer would still export those bytes.
+RUN node scripts/build-release-core.mjs \
+    && mkdir -p /out \
+    && cp -a /app/.cache/rhwp-core-release/pkg/. /out/ \
+    && rm -rf /build-target /app/.cache /usr/local/cargo/registry /usr/local/cargo/git
 
 FROM scratch AS core-export
-COPY --from=core-build /app/.cache/rhwp-core-release/pkg/ /
+COPY --from=core-build /out/ /
 
 FROM dependencies AS build
 ARG HWP_PUBLIC_BASE_PATH=/
@@ -32,7 +42,7 @@ ENV HWP_PUBLIC_BASE_PATH=${HWP_PUBLIC_BASE_PATH}
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY scripts /app/scripts
 COPY frontend/src/block-layout.ts /app/frontend/src/block-layout.ts
-COPY --from=core-build /app/.cache/rhwp-core-release/pkg /app/.cache/rhwp-core-release/pkg
+COPY --from=core-build /out/ /app/.cache/rhwp-core-release/pkg/
 RUN node --test /app/scripts/public-base.test.mjs && npm run engine
 COPY frontend/index.html frontend/compare-renderer.html frontend/tsconfig.json frontend/vite.config.ts ./
 COPY frontend/src ./src

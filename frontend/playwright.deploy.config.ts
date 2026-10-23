@@ -5,8 +5,10 @@ export default defineConfig({
   workers: 1,
   use: {
     headless: true,
-    // Only the CI localhost gateway uses a self-signed certificate.
-    ignoreHTTPSErrors: process.env.HWP_CI_TLS === "1",
+    // run-browser-checks.sh trusts the disposable CI certificate in NSS/Node.
+    // Do not bypass TLS: Service Worker script loading validates it separately.
+    ignoreHTTPSErrors: false,
+    serviceWorkers: "allow",
     viewport: { width: 1500, height: 1000 },
     trace: "off", // Do not persist login tokens in browser traces.
   },

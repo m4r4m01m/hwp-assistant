@@ -31,6 +31,7 @@ jobs:
       - run: pip install -r backend/requirements.lock.txt -r backend/requirements-mcp.lock.txt
       - run: python scripts/deploy/test_deployment.py
       - run: python -I -S -B scripts/deploy/test_host_preflight.py
+      - run: python scripts/deploy/test_ci_contracts.py
       - run: python scripts/developer-download.test.py
       - run: python -m pytest -q
 
@@ -52,7 +53,7 @@ jobs:
         working-directory: frontend
       - run: node --test scripts/public-base.test.mjs scripts/engine-build.test.mjs scripts/comparison-core.test.mjs scripts/precompress-static.test.mjs scripts/developer-engine-kit.test.mjs
       - run: node scripts/audit-public-paths.mjs
-      - run: bash -n scripts/deploy/common.sh scripts/deploy/backup.sh scripts/deploy/deploy.sh
+      - run: bash -n scripts/deploy/common.sh scripts/deploy/backup.sh scripts/deploy/deploy.sh scripts/deploy/run-browser-checks.sh
       - name: Report dependency advisories (bounded; no automatic lockfile changes)
         continue-on-error: true
         run: timeout 45s npm audit --json --fetch-timeout=15000 --fetch-retries=0
@@ -61,6 +62,9 @@ jobs:
   ui-lifecycle:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    env:
+      HWP_CI_CERT_DIR: ${{ runner.temp }}/hwp-tls-preflight-${{ github.run_id }}
+      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/hwp-playwright
     steps:
       - uses: actions/checkout@v4
         with:
@@ -77,6 +81,15 @@ jobs:
       - name: Mocked login, search, mobile and preview lifecycle checks
         run: npm run test:ui
         working-directory: frontend
+      # Real HTTPS/Service Worker test runs on push/PR, before an expensive build.
+      - name: Verify strict CI TLS and Service Workers before image builds
+        run: |
+          sudo apt-get install -y --no-install-recommends libnss3-tools
+          mkdir -p "$HWP_CI_CERT_DIR"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+            -keyout "$HWP_CI_CERT_DIR/key.pem" -out "$HWP_CI_CERT_DIR/cert.pem" \
+            -subj '/CN=localhost' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null
+          bash scripts/deploy/run-browser-checks.sh --grep '^CI TLS:'
 
   # Heavy Rust/WASM build is explicitly requested, not repeated on every push.
   # PR code never runs on the home server and never receives package write access.
@@ -94,6 +107,7 @@ jobs:
       HWP_IMAGE_TAG: ${{ github.sha }}
       HWP_ENV_FILE: /tmp/hwp-ci-${{ github.run_id }}/production.env
       HWP_CI_CERT_DIR: /tmp/hwp-ci-${{ github.run_id }}/certs
+      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/hwp-playwright
     steps:
       - uses: actions/checkout@v4
         with:
@@ -154,11 +168,11 @@ jobs:
         working-directory: frontend
         env:
           HWP_DEPLOY_ENV_FILE: ${{ env.HWP_ENV_FILE }}
-          HWP_CI_TLS: '1'
         run: |
           npm ci --no-audit --fund=false
-          npx playwright install --with-deps chromium
-          npx playwright test --config playwright.deploy.config.ts
+          npx playwright install --with-deps --only-shell chromium
+          sudo apt-get install -y --no-install-recommends libnss3-tools
+          bash ../scripts/deploy/run-browser-checks.sh
       - name: Authenticate to GHCR only after verification
         uses: docker/login-action@v3
         with:
