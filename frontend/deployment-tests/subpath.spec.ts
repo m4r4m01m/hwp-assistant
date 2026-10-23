@@ -33,6 +33,7 @@ test("HTTPS subpath login, real Studio and immutable comparison renderer", async
   // The bridge is installed before WASM and the requested document are ready.
   // Wait for the application's completed load, not merely the bridge object.
   await expect(currentDocument.getByRole("status")).toHaveText("저장 완료", { timeout: 90000 });
+  await expect(page.getByRole("button", { name: "저장", exact: true })).toBeEnabled();
   await expect(page.getByRole("link", { name: "저장본 다운로드", exact: true }))
     .toHaveAttribute("href", `${new URL(base).pathname}api/documents/${receipt.id}/versions/${receipt.version}/file`);
   await expect.poll(() => page.frames().some(frame => frame.url().includes("/hwp-assistant/rhwp/index.html"))).toBe(true);
@@ -49,6 +50,8 @@ test("HTTPS subpath login, real Studio and immutable comparison renderer", async
   expect(response.ok()).toBe(true);
   const stored = [...await response.body()];
   await page.goto(base + "compare-renderer.html");
+  // Renderer registration and its WASM-ready promise are separate stages.
+  await page.waitForFunction(() => !!(window as any).hwpComparisonRenderer, undefined, { timeout: 60_000 });
   const result = await page.evaluate(async ({ bytes, hash }) => {
     const renderer = (window as any).hwpComparisonRenderer;
     await renderer.ready;
