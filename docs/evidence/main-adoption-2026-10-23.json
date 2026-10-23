@@ -1,0 +1,176 @@
+{
+  "kind": "Reviewed main adoption with isolated Codex runtime and preserved user storage",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "from_commit": "940a2048718b5aaf23ac6da732414ba72cbc9f39",
+  "integrated_main": "324b1bfe94f0c4b3062775080cdfb577b954eb1a",
+  "integration": "fast-forward; no additional product source edits",
+  "runtime": {
+    "url": "http://127.0.0.1:15201/",
+    "api_port": 18201,
+    "verified_at": "2026-10-23T13:22:19.8363995Z",
+    "source_directory": ".cache/main-adoption-20261023/source",
+    "engine_public": ".cache/main-adoption-20261023/engine/public",
+    "user_data_directory": ".cache/local-ui-qa-2026-10-22/data",
+    "exact_source_fingerprint_windows_powershell5": "73110934788499af5b94c0672380973715430321914c390af1c8b58eb4afd76f",
+    "checkout_runtime_gate": {
+      "equivalent": true,
+      "scope": "Get-HwpSourceContext sources plus explicit dependency/launcher files; only allowlisted UTF-8 CRLF/LF differences",
+      "checkout_file_count": 127,
+      "runtime_file_count": 127,
+      "newline_only_files": [
+        "backend/app/assistant_runner.py",
+        "backend/app/changes.py",
+        "backend/app/hwpx.py",
+        "backend/app/mcp_server.py",
+        "backend/app/migrate.py",
+        "backend/app/report_notes.py",
+        "backend/app/rewrite_mcp.py",
+        "backend/requirements-mcp.lock.txt",
+        "frontend/index.html",
+        "frontend/src/document-assistant-context.ts",
+        "frontend/src/document-assistant.css",
+        "frontend/src/hancom-download.ts",
+        "frontend/src/saved-download.css",
+        "frontend/src/saved-download.tsx"
+      ],
+      "differences": [],
+      "comparison_fingerprint": "8165da0d7e85be5b0e1cf9bdae613f0b5daa8601de69284c8e87de246252faa7",
+      "runtime_exact_fingerprint_unchanged": true
+    },
+    "shortcut_launch_and_reuse_verified": true,
+    "root_dependency_directories_updated": false,
+    "reason": "Existing QA and Codex MCP processes use root dependencies; isolated locked dependencies avoid replacing loaded packages.",
+    "dependencies": {
+      "fastapi": "0.136.3",
+      "starlette": "1.3.1",
+      "httpx": "0.28.1",
+      "SQLAlchemy": "2.0.44",
+      "pytest": "8.4.2",
+      "mcp": "1.26.0",
+      "sse-starlette": "3.4.11",
+      "pydantic-settings": "2.15.0",
+      "vite": "7.3.7"
+    },
+    "health": {
+      "ok": true
+    },
+    "document_count": 10,
+    "reports_configured": true,
+    "rewrite_provider": "codex",
+    "assistant_provider": "codex",
+    "old_qa_and_synthetic_run_stopped_by_exact_identity": true,
+    "other_existing_runtimes_stopped": false
+  },
+  "engine": {
+    "mode": "native diagnostic",
+    "bridge_sha256": "0ba18d4cf13fdc586b02384f497f87a735debf657709835301dc5a4dba6e096f",
+    "wasm_sha256": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0",
+    "rust_rebuilt": false
+  },
+  "automated_tests": {
+    "backend_focused": 136,
+    "stdio_mcp_api": 2,
+    "frontend_unit": 18,
+    "real_engine_browser_block_scenarios": 2,
+    "typescript": "passed",
+    "frontend_build": "passed",
+    "pip_check": "passed",
+    "native_wasm_fill_selection_block_layout": "passed",
+    "real_engine_block_assertions": [
+      "Reject layout-distorting insertion without touching live unsaved content",
+      "Accept normal heading/summary/table insertion; undo/save/reopen"
+    ],
+    "full_regression_suite_run": false
+  },
+  "actual_codex": {
+    "accepted": 3,
+    "completed": 3,
+    "model": "gpt-6.1-sol",
+    "synthetic_data_only": true,
+    "mock_responses": false,
+    "paid_fallback": false,
+    "human_review": false,
+    "automated_test_approval": true,
+    "report": {
+      "output_sha256": "addff14032697d87f6f39f3dcd12cb2fb45997b1163e44f8c275151f908a0bde",
+      "pages": 3,
+      "report_facts_retained": true,
+      "saved_and_reopened_bytes_identical": true
+    },
+    "report_executor": "codex-app-server",
+    "assistant_executor": "codex-app-server",
+    "rewrite_executor": "codex-cli with task-scoped MCP",
+    "assistant": {
+      "context_sha256": "ad75eca08e913d8391deb47773887edff289a8c1b5765b766399600f5c65da2a",
+      "unsaved_context_reached_model": true,
+      "question_changed_server_document": false,
+      "live_document_unchanged_during_answer_display": true,
+      "live_bytes_after_model_completion_measured_in_original_run": false,
+      "generation_created_version": false
+    },
+    "rewrite": {
+      "version_count": 2,
+      "original_sha256": "5bfa0caf2cbb9b364be8b3e5c8bf367f350f28aac0e4f4bf3ee932c4dfcf70ff",
+      "saved_sha256": "7ae3145fb1fbd80f64ff23670e84478229d133643cd0d0951ddc4c1d73f32bde",
+      "no_generation_document_writes": true,
+      "original_preserved": true,
+      "non_target_preserved": true,
+      "binary_parts_preserved": true,
+      "saved_and_reopened_bytes_identical": true
+    },
+    "harness_recovery": "Initial loopback denial made zero model calls. Answer-container assertion was corrected; completed report/assistant outputs were reused and only the remaining rewrite called the model."
+  },
+  "storage": {
+    "documents": 10,
+    "versions": 13,
+    "visual_standards": 2,
+    "files": 15,
+    "bytes": 266167,
+    "backup": ".cache/main-adoption-20261023/storage-cutover-backup",
+    "backup_method": "SQLite read-only backup and immutable blob hash-verified copies; no restore performed",
+    "after": {
+      "mode": "verify",
+      "changed_existing_rows": 0,
+      "missing_existing_rows": 0,
+      "added_documents": 0,
+      "added_versions": 0,
+      "added_visual_standards": 0,
+      "added_other_rows": 0,
+      "missing_existing_blobs": 0,
+      "changed_existing_blobs": 0,
+      "added_files": 0,
+      "added_tables": 2,
+      "verified_existing_files": 15,
+      "manifest_sha256": "82f16f38e741656b3130b6dcff8b53255a0fe3a54805d3a7419fe5d87e79014e",
+      "result": "passed"
+    },
+    "ignored_runtime_state": [
+      "document leases",
+      "lease_owners",
+      "auth_sessions",
+      "ai_requests"
+    ],
+    "original_reference_hwpx_sha256": "6c68b50656867f1fc724c50549e60e1109e2f7a00219f2928ef58de0a45711f1",
+    "original_profile_json_sha256": "7b2a0cb0fd540a83fea952abd891b8fc3e535ed3ac92a5affa6898313d7e4271"
+  },
+  "local_evidence_sha256": {
+    "backend-validation.json": "cdebf939a69751f32f4e2cc2d01f54e2fa8fd83ff10ef8a20f26286b21c41657",
+    "frontend-engine-validation.json": "67234a82c6da91cd3ceee0d376d2b747485d0b6cff14e0c19305f9c73de403e8",
+    "block-regression-a/run.json": "d96003927dc058c32e3120e379d7da1898645319554281a185bae569dba1fb7f",
+    "actual-codex-c/proof.json": "e2363e50f8b60a0355135e942844d854510f3243b6def7ce7cb36c02690615b1",
+    "actual-codex-b/synthetic-appendix1.hwpx": "addff14032697d87f6f39f3dcd12cb2fb45997b1163e44f8c275151f908a0bde",
+    "actual-codex-b/report-reopened.png": "37815cf5b13d1ea3ba14bc626931be563c5f452d4f5612775cc76ac445259bd9",
+    "actual-codex-c/assistant-answer.png": "0a3348770a7316e56e8500bac9ed3b0366d7fcf8b0a0124e12b218b17f316a3b",
+    "actual-codex-c/rewrite-reopened.png": "773c8235ee19cf55a0d5b154e2517122461ca389b8400e290015956c4631db01",
+    "runtime-after.json": "ab9f5c648dfd253abe647912924641944a0285f5342d41f82cac2fce1c63a94a",
+    "storage-after.json": "23064c3b17d3a4e829f5279ee16bcef224dafeaa4f48353dfff8b750f5716484"
+  },
+  "limits": [
+    "No native Hancom, Docker optimized deployment or isolated-network verification",
+    "Diagnostic engine is local; no updated downloadable release kit was published",
+    "The live-model assistant completion-time buffer hash was not measured in the original interrupted assertion; server persistence and later displayed-answer nonmutation were checked",
+    "Existing browser unsaved buffers were not included in the server backup; user tabs were not reloaded",
+    "Runtime and private backups are ignored local cache; retain this active runtime directory",
+    "Actual model calls ran on the isolated synthetic store before cutover; the user store received read-only runtime checks only"
+  ]
+}
