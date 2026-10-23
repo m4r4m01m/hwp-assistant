@@ -126,6 +126,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
   const [dialogOpen, setDialogOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(() => window.matchMedia("(min-width: 721px)").matches);
   const [filter, setFilter] = useState("");
+  const [settingsMode, setSettingsMode] = useState<"common" | "all">("common");
   const host = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const adapter = useRef<EditorAdapter | null>(null);
@@ -380,15 +381,22 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
   }
 
   const fields = (definition?.fields || []).filter(field => field.key !== "preset_id");
-  const groupOrder = ["문서 구성", "용지·여백", "본문 문서 제목", "제목 상자", "일반 본문", "항목 번호·기호",
+  const groupOrder = ["면 표시·주석", "쪽번호·주석", "문서 구성", "용지·여백", "본문 문서 제목", "제목 상자", "일반 본문", "항목 번호·기호",
     "□ 기호 항목", "ㅇ 기호 항목", "- 기호 항목", "대제목 · 첫째 항목", "중제목 · 둘째 항목", "소제목 · 셋째 항목",
-    "표 구조", "표 내용", "표·그림 제목", "표·그림 단위", "표·그림 아래 주석", "면 표시·주석", "본문 주석", "참고·출처",
+    "표 구조", "표 내용", "표·그림 제목", "표·그림 단위", "표·그림 아래 주석", "본문 주석", "참고·출처",
     "표지 제목", "표지 일자", "표지 부서명", "목차 상자", "목차 제목", "목차 첫째 항목", "목차 둘째 항목", "작성 규정"];
   const groups = Array.from(new Set(fields.map(field => field.group))).sort((a, b) => {
     const aIndex = groupOrder.indexOf(a), bIndex = groupOrder.indexOf(b);
     return (aIndex < 0 ? groupOrder.length : aIndex) - (bIndex < 0 ? groupOrder.length : bIndex);
   });
-  const filteredFields = fields.filter(field => !filter.trim() || `${field.group} ${field.label} ${field.help || ""}`.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase()));
+  const commonKeys = new Set(["citation_style", "citation_superscript", "page_number_style", "page_number_position",
+    "body_parenthetical_labels", "show_core_summary", "numbering_style", "margin_top_mm", "margin_bottom_mm", "margin_left_mm", "margin_right_mm",
+    "title_font", "title_size_pt", "title_line_percent", "title_vertical_offset_pt", "body_font", "body_size_pt", "body_line_percent", "body_horizontal_align",
+    "table_header_fill", "table_border_color", "table_border_scope", "table_width_percent", "table_horizontal_align", "table_vertical_align"]);
+  const searching = !!filter.trim();
+  const filteredFields = fields.filter(field => searching
+    ? `${field.group} ${field.label} ${field.help || ""}`.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase())
+    : settingsMode === "all" || commonKeys.has(field.key));
   const sourceSelection = catalog?.items.find(item => item.id === source);
   const olderSource = sourceSelection && sourceSelection.revision < 3 && !!catalog?.presets?.length;
   function fieldDisabled(field: Field) {
@@ -434,16 +442,19 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
         {catalog && <div className="standard-setting-fields standard-source"><label className="standard-field"><span>설정 불러오기</span><select aria-label="설정 불러오기" value={source} disabled={locked} onChange={event => selectSource(event.target.value)}><option value="">새 보고서 기본값</option>{catalog.items.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label></div>}
         {olderSource && <p className="standard-source-note" role="note">이전 등록 표준의 설정을 그대로 불러왔습니다. 기존 설정과 파일은 보존하고, 수정하면 같은 형식의 새 표준으로 등록합니다.</p>}
         {settingsRevision >= 3 && !!catalog?.presets?.length && <div className="standard-setting-fields standard-source standard-preset"><label className="standard-field"><span>기본 양식</span><select aria-label="기본 양식" value={values.preset_id || ""} disabled={locked} onChange={event => change("preset_id", event.target.value)}>{catalog.presets.map(preset => <option key={preset.id} value={String(preset.settings.preset_id)}>{preset.name}</option>)}</select></label><p className="standard-preset-description">{selectedPreset?.description}</p></div>}
-        {catalog && <div className="standard-settings-search"><label htmlFor="standard-settings-filter">설정 찾기</label><div><input id="standard-settings-filter" type="search" value={filter} onChange={event => setFilter(event.target.value)} placeholder="정렬, 테두리, 쪽번호…" />{filter && <button aria-label="설정 검색 지우기" onClick={() => setFilter("")}>×</button>}</div></div>}
-        {groups.filter(group => filteredFields.some(field => field.group === group)).map(group => <details className="standard-setting-group" key={`${filter ? "filtered" : "all"}-${group}`} open={!!filter || groups.indexOf(group) < (settingsRevision < 3 ? 3 : 1)}>
-          <summary>{group}</summary><div className="standard-setting-fields">{filteredFields.filter(field => field.group === group).map(field => <label className={`standard-field${field.type === "select" ? " standard-field-select" : ""}${field.type === "text" || field.type === "textarea" ? " standard-field-text" : ""}${fieldDisabled(field) ? " standard-field-disabled" : ""}`} key={field.key}>
+        {catalog && <><div className="standard-settings-modes" role="tablist" aria-label="설정 범위">
+          <button role="tab" aria-selected={settingsMode === "common"} onClick={() => setSettingsMode("common")}>자주 쓰는 설정</button>
+          <button role="tab" aria-selected={settingsMode === "all"} onClick={() => setSettingsMode("all")}>상세 설정</button>
+        </div><div className="standard-settings-search"><label htmlFor="standard-settings-filter">설정 찾기</label><div><input id="standard-settings-filter" type="search" value={filter} onChange={event => setFilter(event.target.value)} placeholder="주석, 여백, 정렬, 테두리…" />{filter && <button aria-label="설정 검색 지우기" onClick={() => setFilter("")}>×</button>}</div><p>{searching ? `전체 설정에서 ${filteredFields.length}개를 찾았습니다.` : settingsMode === "common" ? "주석·여백·글자·표를 빠르게 조절합니다. 들여쓰기 등 모든 항목은 상세 설정에서 볼 수 있습니다." : "기준서의 모든 서식과 작성 규정을 조절합니다."}</p></div></>}
+        {groups.filter(group => filteredFields.some(field => field.group === group)).map(group => <details className="standard-setting-group" key={`${searching ? "filtered" : settingsMode}-${group}`} open={searching || groups.indexOf(group) === 0}>
+          <summary>{group}</summary><div className="standard-setting-fields">{filteredFields.filter(field => field.group === group).map(field => <label className={`standard-field${field.type === "select" ? " standard-field-select" : ""}${field.type === "text" || field.type === "textarea" || field.key === "citation_style" ? " standard-field-text" : ""}${fieldDisabled(field) ? " standard-field-disabled" : ""}`} key={field.key}>
             <span>{field.label}</span>{fieldControl(field)}
             {field.help && <small className="standard-field-help" id={`standard-help-${field.key}`}>{field.help}</small>}
           </label>)}</div>
         </details>)}
         {catalog && !filteredFields.length && <p className="standard-settings-no-results" role="status">일치하는 설정이 없습니다.</p>}
         {catalog && <div className="standard-settings-footer"><button disabled={locked} onClick={() => selectSource("")}>새 표준 기본값 복원</button><p>현재 설정을 새 보고서 기본값으로 되돌립니다. 저장한 표준은 유지됩니다.</p></div>}
-        {settingsRevision >= 3 && <details className="standard-source-rules"><summary>기본값과 미리보기 안내</summary><p>기준서에서 읽은 서식에 사용자 요청 기본값인 표 너비 100%와 기호 내어쓰기를 적용합니다.</p><p>기본 양식을 바꿔도 현재 수치와 문구는 유지합니다. 원본 기준서와 저장된 문서는 바뀌지 않습니다.</p>{catalog?.source?.preview_presentation && <p>{catalog.source.preview_presentation}</p>}<p>글꼴은 표시 환경에 따라 대체될 수 있습니다.</p></details>}
+        {settingsRevision >= 3 && <details className="standard-source-rules"><summary>기본값과 미리보기 안내</summary><p>기준서에서 읽은 서식에 사용자 요청 기본값인 표 너비 100%, 기호 내어쓰기와 주석 자동 표식을 적용합니다.</p><p>기본 양식을 바꿔도 현재 수치와 문구는 유지합니다. 원본 기준서와 저장된 문서는 바뀌지 않습니다.</p>{catalog?.source?.preview_presentation && <p>{catalog.source.preview_presentation}</p>}<p>글꼴은 표시 환경에 따라 대체될 수 있습니다.</p></details>}
         </>}
         {!!catalog?.rules?.length && <details className="standard-source-rules"><summary>기준서 원문 규정</summary>{catalog.rules.map(rule => <section key={rule.id}><h2>{rule.title}</h2><p>{rule.text}</p></section>)}</details>}
       </aside>

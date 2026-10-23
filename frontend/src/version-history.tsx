@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { api, fileUrl, type Document, type Version } from "./api";
+import { api, type Document, type Version } from "./api";
+import { SavedDownload } from "./saved-download";
 import {
   VersionComparison,
   authorLabel,
@@ -166,9 +167,7 @@ export function History({
                   )}
                 </td>
                 <td className="history-actions">
-                  <a className="button" href={fileUrl(d, v.id)}>
-                    다운로드
-                  </a>
+                  <SavedDownload document={d} versionId={v.id} icon={false} />
                   <button
                     onClick={async () => {
                       const ticket = ++detailRequest.current;

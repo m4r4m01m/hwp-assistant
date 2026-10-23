@@ -50,14 +50,44 @@ async function legacyDesigner(page: Page, request: APIRequestContext, revision: 
   await documentListButton(page).click();
   await openDesigner(page);
   await page.getByLabel("설정 불러오기", { exact: true }).selectOption(registered.id);
+  await page.getByRole("tab", { name: "상세 설정", exact: true }).click();
+  for (const group of ["대제목", "절 제목", "본문"]) await openGroup(page, group);
   await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
   return { catalog, definition, registered, seed };
 }
 async function openGroup(page: Page, group: string) {
+  await page.getByRole("tab", { name: "상세 설정", exact: true }).click();
   const section = page.locator(".standard-setting-group").filter({ has: page.locator("summary", { hasText: new RegExp(`^${group}$`) }) });
   if (!(await section.getAttribute("open")) && await section.getAttribute("open") !== "")
     await section.locator("summary").click();
 }
+
+test("REAL rhwp standard designer: common settings expose automatic notes and detailed settings remain searchable", async ({ page, request }, info) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await openDesigner(page);
+  const catalog = await (await request.get("/api/visual-standards")).json();
+  const citation = page.getByLabel(fieldLabel(catalog, "citation_style"), { exact: true });
+  await expect(page.getByRole("tab", { name: "자주 쓰는 설정", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(citation).toBeVisible();
+  await expect(citation).toHaveValue("AUTO");
+  await expect(page.getByLabel(fieldLabel(catalog, "square_first_line_indent_pt"), { exact: true })).toHaveCount(0);
+  const automaticHashes = await previewImageHashes(page);
+  await citation.selectOption("STARS");
+  await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
+  const fixedHashes = await previewImageHashes(page);
+  expect(fixedHashes).not.toEqual(automaticHashes);
+  await citation.selectOption("AUTO");
+  await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
+  await page.getByLabel("설정 찾기", { exact: true }).fill("첫 줄 들여쓰기");
+  await expect(page.getByLabel(fieldLabel(catalog, "square_first_line_indent_pt"), { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "설정 검색 지우기", exact: true }).click();
+  await page.getByRole("tab", { name: "상세 설정", exact: true }).click();
+  await openGroup(page, "□ 기호 항목");
+  await expect(page.getByLabel(fieldLabel(catalog, "square_first_line_indent_pt"), { exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "자주 쓰는 설정", exact: true }).click();
+  await expect(citation).toHaveValue("AUTO");
+  await page.screenshot({ path: info.outputPath("standard-common-auto-notes.png"), fullPage: true });
+});
 async function previewImageHashes(page: Page, outputPath?: (index: number) => string) {
   const images = await page.locator(".standard-preview-pages figure img").all();
   const hashes: string[] = [];

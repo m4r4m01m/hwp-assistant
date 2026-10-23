@@ -70,9 +70,10 @@ def test_original_readonly_projection_is_authenticated_and_hash_bound_without_do
     assert client.get(catalog["reference_preview_url"]).status_code == 401
 
 
-def test_new_reference_registration_persists_actual_preset_bytes_and_retries_from_frozen_receipt(secured, monkeypatch):
+@pytest.mark.parametrize("citation_style", ["AUTO", "STARS"])
+def test_new_reference_registration_persists_actual_preset_bytes_and_retries_from_frozen_receipt(secured, monkeypatch, citation_style):
     client, app, _, folder = secured
-    body = {"settings": {**defaults("appendix-2"), "cover_title_size_pt": 26},
+    body = {"settings": {**defaults("appendix-2"), "cover_title_size_pt": 26, "citation_style": citation_style},
             "seed_base64": base64.b64encode(seed()).decode()}
     result = client.post("/api/visual-standards/preview", json=body)
     assert result.status_code == 200, result.text
@@ -84,6 +85,8 @@ def test_new_reference_registration_persists_actual_preset_bytes_and_retries_fro
     assert result.status_code == 200, result.text
     snapshot = result.json()
     assert snapshot["revision"] == 3 and snapshot["settings"]["preset_id"] == "appendix-2"
+    assert snapshot["settings"]["citation_style"] == citation_style
+    assert client.get("/api/visual-standards").json()["defaults"]["citation_style"] == "AUTO"
     downloaded = client.get(f"/api/visual-standards/{snapshot['id']}/file")
     assert downloaded.content == base64.b64decode(preview["preview_base64"])
     with zipfile.ZipFile(io.BytesIO(downloaded.content)) as archive:

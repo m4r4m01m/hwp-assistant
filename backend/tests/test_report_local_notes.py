@@ -41,6 +41,45 @@ def test_notes_follow_each_logical_paragraph_or_visual_and_reset(style, one, two
     assert all(item.get("kind") != "heading" for item in plan if item.get("note_source_id"))
 
 
+def test_auto_counts_distinct_notes_per_paragraph_and_visual_then_resets():
+    original = copy.deepcopy(DRAFT)
+    plan = report_blocks(DRAFT, rich=True, visual_settings=defaults())
+    assert DRAFT == original
+    first = next(i for i, item in enumerate(plan) if item["text"].startswith("□ 자료"))
+    assert plan[first]["text"] == "□ 자료 24건을 확인함. 주1), 주2) 동일 근거를 유지함. 주1)"
+    assert [plan[first + n]["note_source_id"] for n in (1, 2)] == ["S8", "S4"]
+    assert [plan[first + n]["note_marker"] for n in (1, 2)] == ["주1)", "주2)"]
+    assert [plan[first]["text"][a:b] for a, b in plan[first]["citation_ranges"]] == ["주1)", "주2)", "주1)"]
+    second = next(i for i, item in enumerate(plan) if item["text"].startswith("ㅇ 보완"))
+    assert plan[second]["text"].endswith("*")
+    assert plan[second + 1]["note_marker"] == "*" and plan[second + 1]["note_source_id"] == "S4"
+    caption = next(item for item in plan if item.get("note_visual_caption"))
+    assert caption["text"] == "확인 대상 주1)"
+    cells = [i for i, item in enumerate(plan) if item.get("visual_id") == "table-1"]
+    assert any(plan[i]["text"] == "완료 주2)" for i in cells)
+    assert [plan[cells[-1] + n]["note_marker"] for n in (1, 2)] == ["주1)", "주2)"]
+    following = next(i for i, item in enumerate(plan) if item["text"].startswith("□ 원본"))
+    assert plan[following]["text"].endswith("*") and plan[following + 1]["note_marker"] == "*"
+
+
+def test_auto_repeated_one_source_stays_star_and_emphasis_uses_the_whole_scope():
+    draft = copy.deepcopy(DRAFT)
+    draft["sections"][0]["paragraphs"] = ["□ 같은 근거 [S4]를 반복 인용함. [S4]", "ㅇ 자료 [S8]와 조건 [S4]을 확인함."]
+    draft["sections"][1]["diagrams"] = [dict(caption="확인 절차 [S8]", steps=["자료 검토 [S4]", "승인 [S8]"])]
+    draft["emphasis"] = [dict(text="자료 [S8]", style="bold")]
+    plan = report_blocks(draft, rich=True, visual_settings=defaults())
+    single = next(item for item in plan if item["text"].startswith("□ 같은"))
+    assert single["text"].count("*") == 2
+    assert single["citation_source_ids"] == ["S4"]
+    multiple = next(item for item in plan if item["text"].startswith("ㅇ 자료"))
+    assert multiple["emphasis"] == [dict(text="자료 주1)", style="bold")]
+    caption = next(item for item in plan if item.get("note_visual_caption") and item.get("note_visual_kind") == "diagram")
+    assert caption["text"].endswith("주1)")
+    diagram = [i for i, item in enumerate(plan) if item.get("visual_id") == "diagram-1"]
+    assert any(plan[i]["text"] == "자료 검토 주2)" for i in diagram)
+    assert [plan[diagram[-1] + n]["note_marker"] for n in (1, 2)] == ["주1)", "주2)"]
+
+
 def test_split_prose_keeps_one_scope_and_definitions_after_its_last_chunk():
     draft = copy.deepcopy(DRAFT)
     draft["sections"][0]["paragraphs"] = ["□ " + "확인 조건과 원본을 보존함. " * 25 + "[S4]"]

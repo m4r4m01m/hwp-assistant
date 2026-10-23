@@ -201,6 +201,11 @@ def citation_marker(identifier, style):
     return f"주{number})" if style == "NOTE" else f"*{number}" if style == "ASTERISK" else f"[{identifier}]"
 
 
+def citation_style_for_scope(style, source_count):
+    """AUTO is a new explicit setting; legacy fixed marker styles keep their meaning."""
+    return ("STARS" if source_count <= 1 else "NOTE") if style == "AUTO" else style
+
+
 def presentation_text(value, settings, source_ids, *, body=False, marks=None, marker_numbers=None):
     if body and settings.get("body_parenthetical_labels") is False:
         # Only the bounded lead-label grammar used by the existing emphasis
@@ -209,6 +214,9 @@ def presentation_text(value, settings, source_ids, *, body=False, marks=None, ma
         value = re.sub(r"^(\s*(?:[□ㅇ○-]\s*)?)\((" + label + r")\)(\s*)",
                        lambda match: match[1] if match[3] else match[0], value, count=1)
     style = settings.get("citation_style", "BRACKET_S")
+    if style == "AUTO":
+        count = len(marker_numbers) if marker_numbers is not None else len({identifier for identifier in re.findall(r"\[(S\d+)\]", value) if identifier in source_ids})
+        style = citation_style_for_scope(style, count)
     offset = 0
     previous_end = None
     def replace(match):

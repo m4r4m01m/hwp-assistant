@@ -26,6 +26,7 @@ import { WorkspaceNav, WorkspaceIcon, type WorkspaceSection } from "./workspace-
 import "./workspace-shell.css";
 import { assistantDocumentContext } from "./document-assistant-context";
 import type { AssistantTurn } from "./document-assistant";
+import { SavedDownload } from "./saved-download";
 
 function App({
   account,
@@ -39,6 +40,10 @@ function App({
     [copying, setCopying] = useState(false),
     [copyNotice, setCopyNotice] = useState<Document | null>(null),
     [copyPending, setCopyPending] = useState<{ source: Document; body: { document_id: string; source_version: string; request_id: string; name: string } } | null>(null),
+    [uploading, setUploading] = useState(false),
+    [uploadPending, setUploadPending] = useState(""),
+    [uploadNotice, setUploadNotice] = useState(""),
+    [dragOver, setDragOver] = useState(false),
     [active, setActive] = useState<Document | null>(null),
     [creating, setCreating] = useState(false),
     [error, setError] = useState(""),
@@ -51,6 +56,32 @@ function App({
     [registerTemplate, setRegisterTemplate] = useState<Document | undefined>(),
     [reports, setReports] = useState(false);
   const listGeneration = useRef(0);
+  const uploadBusy = useRef(false), dragDepth = useRef(0);
+  const frozenUpload = useRef<{ bytes: Uint8Array; name: string; id: string; key: string } | null>(null);
+  const inLibrary = !active && !creating && !standardDesigner && !reports && !templates;
+  useEffect(() => {
+    if (!inLibrary) return;
+    const clearDrag = () => { dragDepth.current = 0; setDragOver(false); };
+    const filesDragged = (event: DragEvent) => Array.from(event.dataTransfer?.types || []).includes("Files");
+    const preventFileNavigation = (event: DragEvent) => {
+      if (!filesDragged(event)) return;
+      event.preventDefault();
+      if (event.type === "drop") clearDrag();
+      else if (!(event.target instanceof Element) || !event.target.closest(".library-drop-target") || history || sharing)
+        event.dataTransfer!.dropEffect = "none";
+    };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") clearDrag(); };
+    window.addEventListener("dragover", preventFileNavigation);
+    window.addEventListener("drop", preventFileNavigation);
+    window.addEventListener("dragend", clearDrag);
+    window.addEventListener("blur", clearDrag);
+    window.addEventListener("keydown", escape);
+    return () => {
+      window.removeEventListener("dragover", preventFileNavigation); window.removeEventListener("drop", preventFileNavigation);
+      window.removeEventListener("dragend", clearDrag); window.removeEventListener("blur", clearDrag); window.removeEventListener("keydown", escape);
+      dragDepth.current = 0;
+    };
+  }, [inLibrary, history, sharing]);
   const sortedDocs = [...docs].sort((a, b) => sort === "name" ? a.name.localeCompare(b.name, "ko", { numeric: true }) || a.id.localeCompare(b.id)
     : sort === "oldest" ? a.created_at - b.created_at || a.id.localeCompare(b.id) : b.created_at - a.created_at || a.id.localeCompare(b.id));
   const refresh = () => {
@@ -63,6 +94,7 @@ function App({
   };
   useEffect(refresh, [query]);
   function navigate(section: WorkspaceSection) {
+    setDragOver(false); dragDepth.current = 0;
     setActive(null); setCreating(false); setHistory(null); setSharing(null);
     setRegisterTemplate(undefined); setReportStandard(undefined);
     setTemplates(section === "templates"); setReports(section === "reports");
@@ -87,18 +119,29 @@ function App({
       setError(`${String(e)} · 문서 목록과 복제 결과를 확인하세요.`);
     } finally { setCopying(false); }
   }
-  async function incoming(file: File) {
+  async function incoming(file?: File) {
+    if (uploadBusy.current) { setError("파일을 업로드하고 있습니다. 완료된 뒤 다음 파일을 가져오세요."); return; }
+    if (file && frozenUpload.current) { setError("먼저 보관한 파일의 업로드 결과를 재확인하세요. 새 파일은 업로드하지 않았습니다."); return; }
+    if (!file && !frozenUpload.current) return;
+    uploadBusy.current = true; setUploading(true); setUploadNotice("");
     try {
       setError("");
-      if (!file.name.toLowerCase().endsWith(".hwpx"))
-        throw new Error("HWPX 파일만 업로드하세요.");
-      if (file.size > 30 * 1024 * 1024)
-        throw new Error("30MB 이하 파일만 업로드하세요.");
-      await upload(new Uint8Array(await file.arrayBuffer()), file.name);
+      if (file) {
+        if (!file.name.toLowerCase().endsWith(".hwpx")) throw new Error("HWPX 파일만 업로드할 수 있습니다. .hwp 파일은 HWPX로 저장한 뒤 가져오세요.");
+        if (file.size > 30 * 1024 * 1024) throw new Error("30MB 이하의 HWPX 파일을 가져오세요.");
+        frozenUpload.current = { bytes: new Uint8Array(await file.arrayBuffer()), name: file.name,
+          id: crypto.randomUUID(), key: crypto.randomUUID() };
+      }
+      const frozen = frozenUpload.current!;
+      setUploadPending(frozen.name);
+      await upload(frozen.bytes, frozen.name, frozen.id, frozen.key);
+      frozenUpload.current = null; setUploadPending("");
+      setUploadNotice(`${frozen.name} 파일을 새 문서로 저장했습니다.`);
       refresh();
     } catch (e) {
-      setError(String(e));
-    }
+      if (e instanceof ApiError && e.status >= 400 && e.status < 500) { frozenUpload.current = null; setUploadPending(""); }
+      setError(`${String(e)}${frozenUpload.current ? " · 파일과 요청을 보관했습니다. 같은 업로드 결과를 재확인하세요." : ""}`);
+    } finally { uploadBusy.current = false; setUploading(false); }
   }
   if (standardDesigner) return <StandardDesigner onNavigate={navigate} onClose={() => { setStandardDesigner(false); refresh(); }}
     onReport={standard => { setReportStandard(standard); setStandardDesigner(false); setReports(true); }} />;
@@ -114,9 +157,7 @@ function App({
       <main className="drive drive-workspace">
         <h1>{active.name}</h1>
         <p>열람 권한 · 저장본과 문서 공유 대화를 확인할 수 있습니다.</p>
-        <a className="button" href={fileUrl(active)}>
-          저장본 다운로드
-        </a>
+        <SavedDownload document={active} label="저장본 다운로드" />
         <CollaborationPanel document={active} />
       </main></div>
     );
@@ -136,12 +177,29 @@ function App({
     );
   return (
     <div className="workspace-shell library-shell">
-      <WorkspaceNav active="documents" onNavigate={navigate} disabled={copying} footer={<><strong>{account.authentication_required ? account.user_id : "개인 작업 공간"}</strong><details className="library-account-note"><summary>이용 안내</summary><p>{account.authentication_required ? "문서별 열람·편집·소유자 권한과 대화 공개 범위가 적용됩니다." : "현재 이 컴퓨터의 개인 문서함입니다. 사용자 간 공유는 서버 인증 설정 후 사용할 수 있습니다."}</p><p>저장본은 이전 버전을 보존합니다. 한컴 호환성은 실제 파일로 확인하세요.</p></details>{account.authentication_required && <button onClick={async () => { await api("/auth/logout", { method: "POST" }); location.reload(); }}>로그아웃</button>}</>}>
-        <button className="primary workspace-nav-action" aria-label="빈 문서 만들기" onClick={() => setCreating(true)}><WorkspaceIcon name="plus"/><span>빈 문서 만들기</span></button>
-        <label className="button workspace-nav-action" title="HWPX 업로드"><WorkspaceIcon name="upload"/><span>HWPX 업로드</span><input aria-label="HWPX 업로드" type="file" accept=".hwpx" onChange={event => { if (event.target.files?.[0]) void incoming(event.target.files[0]); event.target.value = ""; }} /></label>
+      <WorkspaceNav active="documents" onNavigate={navigate} disabled={copying || uploading} footer={<><strong>{account.authentication_required ? account.user_id : "개인 작업 공간"}</strong><details className="library-account-note"><summary>이용 안내</summary><p>{account.authentication_required ? "문서별 열람·편집·소유자 권한과 대화 공개 범위가 적용됩니다." : "현재 이 컴퓨터의 개인 문서함입니다. 사용자 간 공유는 서버 인증 설정 후 사용할 수 있습니다."}</p><p>저장본은 이전 버전을 보존합니다. 한컴 호환성은 실제 파일로 확인하세요.</p></details>{account.authentication_required && <button onClick={async () => { await api("/auth/logout", { method: "POST" }); location.reload(); }}>로그아웃</button>}</>}>
+        <button className="primary workspace-nav-action" aria-label="빈 문서 만들기" disabled={uploading} onClick={() => setCreating(true)}><WorkspaceIcon name="plus"/><span>빈 문서 만들기</span></button>
+        <label className="button workspace-nav-action" title="HWPX 업로드"><WorkspaceIcon name="upload"/><span>HWPX 업로드</span><input aria-label="HWPX 업로드" type="file" accept=".hwpx" disabled={uploading || !!uploadPending} onChange={event => { if (event.target.files?.[0]) void incoming(event.target.files[0]); event.target.value = ""; }} /></label>
         <p className="workspace-nav-note">문서를 만들거나 기존 HWPX를 가져와 작업하세요.</p>
       </WorkspaceNav>
-    <main className="drive drive-workspace">
+    <main className={`drive drive-workspace library-drop-target${dragOver ? " is-file-dragging" : ""}`}
+      onDragEnter={event => {
+        if (!Array.from(event.dataTransfer.types).includes("Files") || history || sharing) return;
+        event.preventDefault(); dragDepth.current++; setDragOver(true);
+      }}
+      onDragOver={event => {
+        if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+        event.preventDefault(); event.dataTransfer.dropEffect = history || sharing || uploading || uploadPending ? "none" : "copy";
+      }}
+      onDragLeave={() => { dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragOver(false); }}
+      onDrop={event => {
+        if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+        event.preventDefault(); event.stopPropagation(); dragDepth.current = 0; setDragOver(false);
+        if (history || sharing) return;
+        const files = Array.from(event.dataTransfer.files);
+        if (files.length !== 1) { setError("한 번에 HWPX 파일 한 개씩 가져오세요. 여러 파일이나 폴더는 업로드하지 않았습니다."); return; }
+        void incoming(files[0]);
+      }}>
       <header className="library-heading">
         <div>
           <h1>HWPX 문서함</h1>
@@ -149,6 +207,10 @@ function App({
         </div>
         <span className="library-document-count">{docs.length}개 문서</span>
       </header>
+      <div className="library-drop-hint" role="region" aria-label="HWPX 파일 놓기" aria-busy={uploading}>
+        <WorkspaceIcon name="upload" size={22}/><div><strong>{uploading ? "파일을 업로드하고 있습니다…" : dragOver ? "여기에 놓아 새 문서로 가져오세요" : "HWPX 파일을 이 문서함에 끌어 놓으세요"}</strong>
+          <p>파일 한 개씩 · 최대 30MB · 기존 문서는 그대로 유지됩니다.</p></div>
+      </div>
       <div className="library-toolbar">
       <input
         className="search"
@@ -168,6 +230,10 @@ function App({
       {copyNotice && <div className="notice">{copyNotice.name} 사본을 저장했습니다. 원본의 대화·권한·버전 이력은 복사하지 않습니다.
         <button onClick={() => setActive(copyNotice)}>사본 열기</button>
       </div>}
+      {uploadPending && <div className="notice" role="status">{uploadPending}{uploading ? " 파일을 저장하는 중입니다." : " 파일의 저장 결과를 확인해야 합니다."}
+        {!uploading && <button onClick={() => void incoming()}>업로드 결과 재확인</button>}
+      </div>}
+      {uploadNotice && <p className="notice" role="status">{uploadNotice}</p>}
       {error && (
         <div role="alert" className="error">
           {error}
@@ -198,7 +264,7 @@ function App({
                 </td>
                 <td>{new Date(d.created_at * 1000).toLocaleString("ko-KR")}</td>
                 <td className="library-document-actions">
-                  <a className="button" href={fileUrl(d)} aria-label="다운로드" title="저장본 다운로드"><WorkspaceIcon name="download" size={17}/><span>다운로드</span></a>
+                  <SavedDownload document={d} />
                   <button aria-label="버전 기록" title="버전 기록" onClick={() => setHistory(d)}><WorkspaceIcon name="history" size={17}/><span>버전 기록</span></button>
                   <button id={`document-more-${d.id}`} aria-label={`${d.name} 더보기`} title="더보기" aria-expanded={expandedDocument === d.id} aria-controls={`document-actions-${d.id}`}
                     onClick={() => setExpandedDocument(expandedDocument === d.id ? null : d.id)}><WorkspaceIcon name="more" size={17}/><span>더보기</span></button>
@@ -862,9 +928,7 @@ function Editor({
           <WorkspaceIcon name="save" /><span>저장</span>
         </button>
         {doc.current && (
-          <a className="button editor-rail-action editor-download" aria-label="저장본 다운로드" title="서버에 저장된 버전 다운로드" href={fileUrl(doc.current)}>
-            <WorkspaceIcon name="download" /><span>저장본 다운로드</span>
-          </a>
+          <SavedDownload document={doc.current} label="저장본 다운로드" rail />
         )}
         <details className="editor-menu" name="editor-overflow" ref={fileMenu}>
           <summary className="editor-rail-action" aria-label="파일 작업" title="파일 작업"><WorkspaceIcon name="file" /><span>파일</span></summary>

@@ -1,0 +1,216 @@
+{
+  "date": "2026-10-23",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "base_head": "5977f337b17a6f6e35aa5cf20b4496194cf3ce16",
+  "status": "Local-installation discrepancy reproduced; HWP diagnostic roundtrips and two focused built-browser download tests passed. Final source is running in the verified local QA service. Native display of the new HWP export remains unverified.",
+  "observed_installation": {
+    "application": "Hancom 2018 on this Windows machine",
+    "native_file_app_version": "10, 0, 0, 5060 WIN32LEWindows_8",
+    "native_file_header_version": "1.2",
+    "native_file_xml_version": "1.2",
+    "scope_limit": "Observations apply to this installation and the tested files. They do not establish that the HWPX specification or every Hancom version uses BGR or has the same defect."
+  },
+  "reproduced_observations": {
+    "user_php_document": {
+      "source_filename": "PHP 기반 웹서비스 해킹 위험 및 대응방안.hwpx",
+      "bytes": 19434,
+      "sha256": "e17d433435da806ed2cc7040944152005be39a5373857b2541f3493a038e81c6",
+      "local_diagnostic_copy": ".cache/color-compat-20261023/php-before.hwpx",
+      "xml_color": "#437FC1",
+      "native_observation": "The parent agent observed the blue XML color displaying orange in Hancom 2018.",
+      "native_observation_provenance": "Parent task's direct native-UI observation; this documentation task did not repeat it and has not been given a saved screenshot path.",
+      "source_unchanged_in_diagnostic_audit": true
+    },
+    "native_red_control": {
+      "path": ".cache/color-compat-20261023/native-red.hwpx",
+      "sha256": "011ba1c5e2ca878850e60c60abf427d596de74794f1abca5d8b0c8bdf2eaa955",
+      "text": "NATIVE RED 2026",
+      "creation": "Parent agent explicitly selected pure red in Hancom 2018 and saved this synthetic control.",
+      "active_character_style_id": "7",
+      "saved_xml_textColor": "#0000FF",
+      "rhwp_read_and_svg_color": "#0000ff",
+      "verified_by_documentation_task": "Rehashed the artifact and directly read charPr 7 in Contents/header.xml.",
+      "inference": "This controlled result is consistent with a red/blue byte-order interpretation difference in this installed application path. It is not a universal file-format claim."
+    },
+    "standard_rgb_engine_control": {
+      "diagnostic_summary": ".cache/color-compat-20261023/color-audit-summary.json",
+      "result": "The real WASM API to HWPX to SVG to HWPX-reopen diagnostic preserved red, green, blue, #437FC1 and #107FB5.",
+      "product_decision": "No global RGB/BGR swap, numeric color rewrite, original-file rewrite or canonical HWPX migration."
+    },
+    "native_ui_stop": "After the user's Escape action and request to stop further native investigation, native input stopped. The newly exported HWP artifacts were not visually checked in Hancom."
+  },
+  "diagnostic_hwp_roundtrips": {
+    "engine": {
+      "version": "0.8.6",
+      "commit": "e8800c8def63449808a4092798442652ed460552",
+      "wasm_sha256": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0",
+      "kind": "Existing real WASM native diagnostic build; isolated in-memory documents"
+    },
+    "php_document": {
+      "proof": ".cache/color-compat-20261023/php-hwp-wasm-proof.json",
+      "output": ".cache/color-compat-20261023/php-hancom2018.hwp",
+      "output_sha256": "58c1547bc5a9e2be4669e8158fb95886232e910a55a99b8362a7c2945ed482bb",
+      "output_bytes": 14336,
+      "content_loss_report": {
+        "schemaVersion": 1,
+        "outputFormat": "hwp",
+        "count": 0,
+        "losses": []
+      },
+      "pages_before_after": [
+        7,
+        7
+      ],
+      "paragraphs_before_after": [
+        108,
+        108
+      ],
+      "tables_before_after": [
+        4,
+        4
+      ],
+      "shapes_before_after": [
+        0,
+        0
+      ],
+      "text_runs_before_after": [
+        221,
+        221
+      ],
+      "text_run_order_equal": true,
+      "concatenated_text_equal": true,
+      "active_text_colors_equal": true,
+      "active_table_border_and_fill_colors_equal": true,
+      "all_header_color_multisets_equal": false,
+      "header_difference": "Two unused winBrush faceColor=#FFFFFFFF entries disappeared; active table styles were unchanged.",
+      "native_hwp_display_verified": false
+    },
+    "synthetic_rgb_table_shapes": {
+      "proof": ".cache/color-compat-20261023/rgb-shapes-proof.json",
+      "semantic_proof": ".cache/color-compat-20261023/rgb-shapes-semantic-proof.json",
+      "output": ".cache/color-compat-20261023/rgb-shapes.hwp",
+      "output_sha256": "9aa012a3be704085921e2f65b3d3781a91b529f3a168b82f3834a4c408a36e84",
+      "output_bytes": 13824,
+      "content_loss_report": {
+        "schemaVersion": 1,
+        "outputFormat": "hwp",
+        "count": 0,
+        "losses": []
+      },
+      "pages_before_after": [
+        1,
+        1
+      ],
+      "paragraphs_before_after": [
+        14,
+        14
+      ],
+      "tables_before_after": [
+        1,
+        1
+      ],
+      "shapes_before_after": [
+        3,
+        3
+      ],
+      "semantic_matches": {
+        "paragraphs": true,
+        "tables": true,
+        "shapes": true,
+        "runs": true,
+        "tableColors": true,
+        "shapeColors": true
+      },
+      "matched_attributes": "Text and active RGB text colors; table cell fills and border colors/widths; three shape fills, line colors/widths and sizes.",
+      "native_hwp_display_verified": false
+    },
+    "limits": [
+      "contentLoss count=0 means no loss reported by this exporter; it is not proof of every document feature or layout property",
+      "Same-engine reopening and semantic color equality do not establish Hancom screen parity",
+      "Diagnostic export derivatives do not replace the canonical HWPX or saved versions"
+    ]
+  },
+  "evidence_integrity": [
+    {
+      "path": ".cache/color-compat-20261023/color-audit-summary.json",
+      "sha256": "d036504bad29925538b20cc51d6435391edce34cf92da8a5b4ce724ec2224e3d"
+    },
+    {
+      "path": ".cache/color-compat-20261023/php-hwp-wasm-proof.json",
+      "sha256": "e763f1d3a64c427eb5070bcc00e214034693cbfc4968df5cf54870d24f696b42"
+    },
+    {
+      "path": ".cache/color-compat-20261023/rgb-shapes-proof.json",
+      "sha256": "aa6a7b5b061c917fdc561ef77225c387671201345e0d28b2a3b67784792c5990"
+    },
+    {
+      "path": ".cache/color-compat-20261023/rgb-shapes-semantic-proof.json",
+      "sha256": "fa67ab9c233e3b32da2de1a05ec98bb3fa1d634e2257cdf69f9e6d4bb2201475"
+    }
+  ],
+  "verification_boundaries": {
+    "actual_model_calls": 0,
+    "new_native_hwp_visual_check": false,
+    "product_download_ui_test_complete": true,
+    "user_data_or_db_modified_by_diagnostics": false,
+    "server_restart_claimed": true,
+    "commit_or_push_claimed": false
+  },
+  "cache_note": "The diagnostic .cache files are local and may be absent from a fresh checkout. This summary preserves observed hashes, measured results and limitations.",
+  "product_download": {
+    "implementation_files": [
+      "frontend/src/hancom-download.ts",
+      "frontend/src/saved-download.tsx",
+      "frontend/src/saved-download.css",
+      "frontend/src/main.tsx",
+      "frontend/src/version-history.tsx",
+      "frontend/src/reports.tsx"
+    ],
+    "implementation_status": "Implemented and verified in the built browser app; native Hancom HWP screen parity remains unverified.",
+    "source": "Capture a specific stored document/version, fetch its bytes, and verify document/version association, declared byte size and SHA-256. Never read or export the live editor buffer.",
+    "isolation": "Verify the pinned binding and WASM hashes, create a separate HwpDocument, and free all objects after success or failure.",
+    "export": "Use exportHwpWithReport once; take both content-loss report and bytes from that same output artifact. Require schemaVersion 1, outputFormat hwp, count 0 and an empty losses array.",
+    "checks_before_download": "Check CFB signature, bounded output size, and reopen the emitted bytes in the isolated engine; require exact getTextFileText and page-count preservation.",
+    "limits": {
+      "max_source_bytes": 31457280,
+      "max_output_bytes": 31457280,
+      "max_pages": 500
+    },
+    "failure": "Do not offer the failed HWP output; show the error and retain the HWPX download path.",
+    "source_and_history": "Read-only saved-version export; no server save, source-blob modification, historical-version change or mutation of unsaved editor text.",
+    "ui_status": "passed_focused_built_browser_tests",
+    "focused_download_tests": {
+      "status": "passed",
+      "passed_count": 2,
+      "duration_seconds": 6.4,
+      "run": ".cache/color-compat-20261023/download-e2e-b/run.json",
+      "remaining_listeners": 0,
+      "coverage": [
+        "Actual menu download and CFB signature",
+        "Real WASM reopen: exact text/pages, RGB text/table/shape semantics",
+        "Canonical stored bytes and versions unchanged",
+        "Source SHA mismatch blocks download",
+        "Reported export loss blocks download"
+      ],
+      "screenshot": ".cache/color-compat-20261023/download-e2e-b/results/hancom-download-HANCOM-HWP-8a9a6-apes-and-canonical-versions/hancom-download.png"
+    },
+    "native_export_color_verification": "not_performed"
+  },
+  "runtime": {
+    "verified_at": "2026-10-23T03:52:39.4682893Z",
+    "web_url": "http://127.0.0.1:15201/",
+    "source_fingerprint": "9c29952f0af885e0a16b6a0efb7f824c46bb88f176c01369500f8311098e5f8c"
+  },
+  "live_storage_audit": {
+    "result": "passed_before_and_after_restart",
+    "documents": 9,
+    "versions": 12,
+    "verified_blobs": 14,
+    "verified_bytes": 244182,
+    "visual_standards": 2,
+    "verified_visual_standard_blobs": 2,
+    "same_verified_counts_and_bytes": true,
+    "issues": [],
+    "source_files_mutated": false
+  }
+}

@@ -22,7 +22,10 @@ DRAFT = {"title": "금융권 해킹 대응 보고서 — 합성 시험", "summar
 def generate(value, settings, progress=lambda value: None, active=lambda: True):
     from tests.report_rich_fixture import RICH_DRAFT
     from tests.report_toc_fixture import LONG_TOC_DRAFT
+    from tests.report_notes_fixture import AUTO_NOTES_DRAFT
     draft = LONG_TOC_DRAFT if '[LONG-TOC]' in value['prompt'] else RICH_DRAFT if '[RICH]' in value['prompt'] else DRAFT
+    if '[AUTO-NOTES]' in value['prompt']:
+        draft = AUTO_NOTES_DRAFT
     if value['prompt'].startswith('[STREAM]'):
         from app import report_stream
         from unittest.mock import patch

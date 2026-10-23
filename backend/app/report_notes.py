@@ -5,7 +5,7 @@ POLICY = "reference-local-notes-v1"
 
 
 def localize_notes(blocks, sources, settings):
-    from .report_contract import citation_marker, presentation_text
+    from .report_contract import citation_marker, citation_style_for_scope, presentation_text
 
     known = {source.id: source for source in sources}
     used, result = set(), []
@@ -29,6 +29,7 @@ def localize_notes(blocks, sources, settings):
         serial += 1
         scope = f"note-{serial}"
         numbers = {identifier: i for i, identifier in enumerate(identifiers, 1)}
+        style = citation_style_for_scope(settings.get("citation_style", "STARS"), len(identifiers))
         used.update(identifiers)
         for value, role, page_break, metadata in group:
             marks = []
@@ -41,7 +42,7 @@ def localize_notes(blocks, sources, settings):
         note_role = "table_source" if visual_kind else "note"
         for identifier in identifiers:
             source = known[identifier]
-            marker = citation_marker(f"S{numbers[identifier]}", settings.get("citation_style", "STARS"))
+            marker = citation_marker(f"S{numbers[identifier]}", style)
             value = f"{marker} {source.title} ({source.published or '발행일 미확인'}) · {source.url}"
             result.append((value, "source", False, {
                 "style_kind": note_role, "note_scope": scope, "note_source_id": identifier,

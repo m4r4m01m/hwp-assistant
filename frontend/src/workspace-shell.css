@@ -4,6 +4,14 @@
 .library-heading small { font-size: 11px; color: #8493a2; }
 .library-heading h1 { margin: 9px 0 6px; font-size: 27px; letter-spacing: -.05em; }
 .library-heading p { margin: 0; color: #748699; font-size: 13px; }
+.library-drop-target { transition: background-color .12s; }
+.library-drop-hint { display: flex; align-items: center; gap: 12px; margin: 0 0 20px; padding: 16px 18px; border: 1px dashed #bfcedc; border-radius: 10px; background: #f8fbfd; color: #526b7e; }
+.library-drop-hint svg { flex: 0 0 auto; color: #577c9e; }
+.library-drop-hint strong { font-size: 13px; font-weight: 550; }
+.library-drop-hint p { margin: 5px 0 0; font-size: 12px; line-height: 1.6; }
+.library-drop-target.is-file-dragging { background: #edf5fd; box-shadow: inset 0 0 0 2px #4779a7; }
+.is-file-dragging .library-drop-hint { border-style: solid; border-color: #4779a7; background: #fff; color: #245f96; }
+.library-shell .workspace-nav-action:has(input:disabled) { opacity: .5; cursor: wait; }
 .library-document-count { flex: 0 0 auto; padding: 7px 12px; border-radius: 20px; background: #e9eff6; color: #657e97; font-size: 12px; }
 .library-account-note { margin: 0 0 18px; font-size: 11px; color: #7f90a1; }
 .library-account-note summary { cursor: pointer; }

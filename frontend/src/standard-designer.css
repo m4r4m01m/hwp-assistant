@@ -56,6 +56,10 @@
 .standard-source .standard-field { grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .standard-source-note { margin: -4px 22px 17px; padding: 10px 12px; background: #f1f6fb; border: 1px solid #d6e3ef; border-radius: 6px; font-size: 12px; line-height: 1.6; color: #496982; }
 .standard-settings-search { padding: 0 22px 17px; }
+.standard-settings-modes { display: flex; gap: 5px; padding: 0 22px 13px; }
+.standard-settings-modes button { flex: 1; min-width: 0; padding: 9px 5px; font-size: 12px; white-space: nowrap; }
+.standard-settings-modes button[aria-selected="true"] { color: #205d91; border-color: #a9c4df; background: #edf5fd; }
+.standard-settings-search > p { margin: 8px 0 0; color: #647c91; font-size: 11px; line-height: 1.6; }
 .standard-settings-search > label { display: block; margin: 0 0 7px; color: #40576d; font-size: 12px; }
 .standard-settings-search > div { display: flex; align-items: center; border: 1px solid #cbd7e2; border-radius: 6px; background: #fff; overflow: hidden; }
 .standard-settings-search > div:focus-within { outline: 2px solid #9ec1e1; outline-offset: 1px; }
@@ -64,6 +68,7 @@
 .standard-settings-search button { flex: 0 0 auto; padding: 2px 8px; border: 0; font-size: 19px; color: #6b8196; background: transparent; }
 .standard-settings-no-results { margin: 0; padding: 18px 22px; font-size: 13px; color: #728294; }
 .standard-field-select { grid-template-columns: minmax(0, 1fr) 128px; }
+.standard-field-select.standard-field-text { grid-template-columns: minmax(0, 1fr); }
 .standard-field-disabled { color: #8796a4; }
 .standard-field-disabled :is(input, select, textarea) { opacity: .65; cursor: not-allowed; }
 .standard-toggle { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-height: 34px; color: #4e687d; font-size: 12px; }
@@ -109,7 +114,7 @@
   .standard-designer-header { padding: 14px 18px; gap: 12px; }
   .standard-designer-grid { --standard-settings-width: 298px; }
   .standard-settings-intro, .standard-setting-group > summary { padding-left: 18px; padding-right: 18px; }
-  .standard-setting-fields, .standard-settings-search { padding-left: 18px; padding-right: 18px; }
+  .standard-setting-fields, .standard-settings-search, .standard-settings-modes { padding-left: 18px; padding-right: 18px; }
   .standard-source-note { margin-left: 18px; margin-right: 18px; }
   .standard-preview-pages { padding: 20px; }
   .standard-preview-toolbar { padding-left: 20px; padding-right: 20px; }
@@ -122,6 +127,7 @@
   .standard-setting-fields { grid-template-columns: 1fr; gap: 12px; }
   .standard-field { grid-template-columns: minmax(0, 1fr) 95px; gap: 8px; }
   .standard-field-select { grid-template-columns: minmax(0, 1fr) 120px; }
+  .standard-field-select.standard-field-text { grid-template-columns: minmax(0, 1fr); }
   .standard-field-text { grid-template-columns: minmax(0, 1fr); }
   .standard-value, .standard-color { width: 95px; }
   .standard-color input[type="text"] { width: 59px; }

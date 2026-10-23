@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { api, ApiError, jsonRequest, fileUrl, downloadBytes, type Document } from "./api";
+import { api, ApiError, jsonRequest, downloadBytes, type Document } from "./api";
 import { EditorAdapter, type ExportSnapshot } from "./editor";
 import { ReportPreview, type ReportRecovery } from "./report-preview";
 import { ReportWriting, ReportTiming, type LiveReport } from "./report-progress";
@@ -8,6 +8,7 @@ import { ReportReview, type ReportDraft as Draft } from "./report-review";
 import type { VisualSelection } from "./standard-designer";
 import { WorkspaceNav, WorkspaceIcon, type WorkspaceSection } from "./workspace-nav";
 import "./report-editor-workspace.css";
+import { SavedDownload } from "./saved-download";
 
 type Template = { id: string; revision: number; standard_id: string; reference_sha256: string;
   standard_profile_sha256: string; profile_sha256: string;
@@ -412,7 +413,7 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
         catch (e) { setError(String(e)); } finally { setBusy(false); }
       }}>문서 만들기 종료·초안 보존</button>}
       {!saving && !saved && !!output.current && <button onClick={() => downloadBytes(decode((output.current as { output_base64: string }).output_base64), (job?.draft?.title || "보고서") + " 복구용.hwpx")}>미확인 출력 복구용 다운로드</button>}
-      {saved && <div className="notice"><a className="button" href={fileUrl(saved)}>완성 보고서 다운로드</a>{savedWithUnsaved ? <div className="report-recovery-actions">
+      {saved && <div className="notice"><SavedDownload document={saved} label="완성 보고서 다운로드" />{savedWithUnsaved ? <div className="report-recovery-actions">
         <p>후속 편집은 아직 서버에 저장되지 않았습니다. 복구 파일을 다운로드하고 실제 저장을 확인한 뒤 저장본을 여세요.</p>
         <button onClick={downloadRecovery}>복구 파일 다운로드</button>
         {recoverySnapshot && <p aria-live="polite">복구 파일 다운로드를 요청했습니다. 다운로드가 취소되거나 실패했다면 현재 초안을 유지하고 다시 다운로드하세요.</p>}
