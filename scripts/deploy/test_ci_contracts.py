@@ -61,6 +61,13 @@ class BuildCacheContracts(unittest.TestCase):
         self.assertLess(lines.index("RUN pip install --no-cache-dir -r requirements.txt"), lines.index("COPY backend/app ./app"))
         self.assertIn("LABEL org.opencontainers.image.revision=${HWP_REVISION}", lines)
 
+    def test_job_env_uses_pre_runner_contexts_only(self):
+        workflow = (ROOT / ".github/workflows/hwp-deploy.yml").read_text()
+        allowed = {"github", "needs", "strategy", "matrix", "vars", "secrets", "inputs"}
+        for block in re.findall(r"^    env:\n((?:      [^\n]*\n)+)", workflow, re.MULTILINE):
+            for context in re.findall(r"\$\{\{\s*(\w+)\.", block):
+                self.assertIn(context, allowed)
+
     def test_publication_and_production_gates_are_preserved(self):
         workflow = (ROOT / ".github/workflows/hwp-deploy.yml").read_text()
         self.assertIn("needs: [python-checks, frontend-checks, ui-lifecycle]", workflow)
@@ -70,7 +77,7 @@ class BuildCacheContracts(unittest.TestCase):
             self.assertIn("cache-from: type=gha,scope=" + scope, workflow)
             self.assertIn("cache-to: type=gha,mode=max,scope=" + scope, workflow)
         self.assertLess(workflow.index("bash ../scripts/deploy/run-browser-checks.sh"), workflow.index("Authenticate to GHCR only after verification"))
-        self.assertLess(workflow.index("--grep '^CI TLS:'"), workflow.index("  build-verify-publish:"))
+        self.assertLess(workflow.index("--grep 'CI TLS:'"), workflow.index("  build-verify-publish:"))
 
 
 class BrowserTLSContracts(unittest.TestCase):
@@ -128,13 +135,13 @@ class BrowserTLSContracts(unittest.TestCase):
                 node.write_text('#!/bin/sh\nprintf "%s\\n" "$HOME" > "$RECORD"\n'
                                 '[ "$NODE_EXTRA_CA_CERTS" = "$HWP_CI_CERT_DIR/cert.pem" ] || exit 91\n'
                                 '[ "$HWP_CI_TLS" = 1 ] || exit 92\n'
-                                '[ "$6" = "^CI TLS:" ] || exit 93\nexit "$CHILD_EXIT"\n')
+                                '[ "$6" = "CI TLS:" ] || exit 93\nexit "$CHILD_EXIT"\n')
                 node.chmod(0o755)
                 env = {**os.environ, "GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "github-hosted",
                        "HWP_DEPLOY_TEST_URL": "https://localhost:24443/hwp-assistant/",
                        "RUNNER_TEMP": temp, "HWP_CI_CERT_DIR": str(certs), "PLAYWRIGHT_BROWSERS_PATH": str(root / "browsers"),
                        "PATH": str(bins) + os.pathsep + os.environ["PATH"], "RECORD": str(root / "record"), "CHILD_EXIT": str(code)}
-                result = subprocess.run(["bash", str(target), "--grep", "^CI TLS:"], env=env, capture_output=True, text=True, timeout=10)
+                result = subprocess.run(["bash", str(target), "--grep", "CI TLS:"], env=env, capture_output=True, text=True, timeout=10)
                 self.assertEqual(result.returncode, code, result.stderr)
                 home = Path((root / "record").read_text().strip())
                 self.assertEqual(home.parent, root)

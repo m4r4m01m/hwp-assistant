@@ -63,8 +63,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
-      HWP_CI_CERT_DIR: ${{ runner.temp }}/hwp-tls-preflight-${{ github.run_id }}
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/hwp-playwright
+      HWP_CI_CERT_DIR: /tmp/hwp-tls-preflight-${{ github.run_id }}
+      PLAYWRIGHT_BROWSERS_PATH: /tmp/hwp-playwright-${{ github.run_id }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -89,7 +89,7 @@ jobs:
           openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
             -keyout "$HWP_CI_CERT_DIR/key.pem" -out "$HWP_CI_CERT_DIR/cert.pem" \
             -subj '/CN=localhost' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null
-          bash scripts/deploy/run-browser-checks.sh --grep '^CI TLS:'
+          bash scripts/deploy/run-browser-checks.sh --grep 'CI TLS:'
 
   # Heavy Rust/WASM build is explicitly requested, not repeated on every push.
   # PR code never runs on the home server and never receives package write access.
@@ -107,7 +107,7 @@ jobs:
       HWP_IMAGE_TAG: ${{ github.sha }}
       HWP_ENV_FILE: /tmp/hwp-ci-${{ github.run_id }}/production.env
       HWP_CI_CERT_DIR: /tmp/hwp-ci-${{ github.run_id }}/certs
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/hwp-playwright
+      PLAYWRIGHT_BROWSERS_PATH: /tmp/hwp-playwright-${{ github.run_id }}
     steps:
       - uses: actions/checkout@v4
         with:
