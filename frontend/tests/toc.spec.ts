@@ -112,7 +112,7 @@ async function typeEnd(page: Page, text: string) {
 async function analyze(page: Page, isNew = true) {
   if (
     !(await page
-      .getByLabel("목차 관리", { exact: true })
+      .getByRole("complementary", { name: "목차 관리", exact: true })
       .isVisible()
       .catch(() => false))
   )
@@ -153,7 +153,7 @@ async function ready(page: Page, existing = false) {
           .isEnabled()
           .catch(() => false)) ||
         (await page
-          .getByLabel("목차 관리", { exact: true })
+          .getByRole("complementary", { name: "목차 관리", exact: true })
           .getByRole("alert")
           .isVisible()
           .catch(() => false)),
@@ -161,7 +161,7 @@ async function ready(page: Page, existing = false) {
     )
     .toBe(true);
   const alert = page
-    .getByLabel("목차 관리", { exact: true })
+    .getByRole("complementary", { name: "목차 관리", exact: true })
     .getByRole("alert");
   if (await alert.isVisible().catch(() => false))
     throw new Error(await alert.innerText());
@@ -179,7 +179,7 @@ async function insert(page: Page) {
 }
 async function closePanel(page: Page) {
   await page
-    .getByLabel("목차 관리", { exact: true })
+    .getByRole("complementary", { name: "목차 관리", exact: true })
     .getByRole("button", { name: "닫기", exact: true })
     .click();
 }
@@ -320,7 +320,7 @@ test("REAL engine TOC: verified physical pages, hierarchy, unsaved content, expl
   });
   await expect(page.getByLabel("목차 상태")).toContainText("확인 필요");
   await analyze(page, false);
-  await expect(page.getByLabel("목차 관리", { exact: true })).toContainText(
+  await expect(page.getByRole("complementary", { name: "목차 관리", exact: true })).toContainText(
     "현재 목차",
   );
   await ready(page, true);
@@ -404,7 +404,7 @@ test("REAL engine TOC: response loss retries frozen inputs and save output while
     .getByRole("button", { name: "현재 문서의 목차·제목 확인", exact: true })
     .click();
   await expect(
-    page.getByLabel("목차 관리", { exact: true }).getByRole("alert"),
+    page.getByRole("complementary", { name: "목차 관리", exact: true }).getByRole("alert"),
   ).toContainText("저장·승인·후보 비교");
   await closePanel(page);
   await page.getByRole("button", { name: "저장", exact: true }).click();
@@ -441,7 +441,7 @@ test("REAL engine TOC: stale edits and late results after close preserve live bu
     .getByRole("button", { name: "검증한 목차 반영", exact: true })
     .click();
   await expect(
-    page.getByLabel("목차 관리", { exact: true }).getByRole("alert"),
+    page.getByRole("complementary", { name: "목차 관리", exact: true }).getByRole("alert"),
   ).toContainText("문서나 커서가 바뀌었습니다");
   expect(await live(page)).toBe(original);
   expect(await exported(original)).toEqual(changed);
@@ -535,7 +535,7 @@ test("REAL authenticated TOC: current ACL revocation rejects adoption and reader
     .getByRole("button", { name: "검증한 목차 반영", exact: true })
     .click();
   await expect(
-    page.getByLabel("목차 관리", { exact: true }).getByRole("alert"),
+    page.getByRole("complementary", { name: "목차 관리", exact: true }).getByRole("alert"),
   ).toBeVisible();
   expect(await live(page)).toBe(original);
   expect(await exported(original)).toEqual(before);

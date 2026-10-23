@@ -1,0 +1,13 @@
+.saved-download { display: inline-flex; align-items: stretch; vertical-align: middle; max-width: 100%; }
+.saved-download > .saved-download-primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin-right: 0; border-radius: 6px 0 0 6px; }
+.saved-download > .saved-download-toggle { flex: 0 0 25px; min-width: 25px; margin-left: 0; padding: 5px 4px; border-left: 0; border-radius: 0 6px 6px 0; }
+.saved-download > .saved-download-toggle[aria-expanded="true"] { color: #245f96; background: #eaf2fb; }
+.saved-download .saved-download-panel { position: fixed; z-index: 1200; display: flex; flex-direction: column; gap: 8px; width: min(310px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); overflow: auto; padding: 14px; border: 1px solid #c7d6e4; border-radius: 9px; background: #fff; color: #304d66; box-shadow: 0 6px 24px #12345626; white-space: normal; text-align: left; }
+.saved-download .saved-download-panel strong { font-size: 13px; }
+.saved-download .saved-download-panel :is(button, .button) { display: block; flex: none; width: 100%; min-height: 38px; height: auto; padding: 9px 11px; margin: 0; border: 1px solid #d4dfeb; border-radius: 6px; background: #f8fafc; color: #284d6d; text-align: left; font-size: 13px; white-space: normal; }
+.saved-download .saved-download-panel p { margin: 0; font-size: 11px; line-height: 1.6; color: #6a7f92; }
+.saved-download .saved-download-panel .saved-download-error { color: #a33228; overflow-wrap: anywhere; }
+.workspace-nav .saved-download-rail { width: 100%; position: relative; }
+.workspace-nav[data-mode="expanded"] .workspace-nav-tools .saved-download > .saved-download-primary { flex: 1 1 auto; width: auto; min-width: 0; }
+.workspace-nav .saved-download-rail > .saved-download-toggle { min-height: 42px; background: transparent; border-color: transparent; }
+.workspace-nav[data-mode="icons"] .saved-download-rail > .saved-download-toggle { position: absolute; right: 0; bottom: 0; min-width: 20px; width: 20px; min-height: 20px; height: 20px; padding: 0; background: #eef3f8; border-radius: 5px; }

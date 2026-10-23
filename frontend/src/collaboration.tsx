@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, jsonRequest, type Document } from "./api";
+import { api, ApiError, jsonRequest, type Document } from "./api";
 import type { Snapshot } from "./editor";
 import { RewritePanel, type PendingRewrite } from "./rewrite";
 import { WritingContextEditor, type WritingContext } from "./context";
+import { DocumentAssistantPanel, type AssistantActions } from "./document-assistant";
+import { WorkspaceIcon } from "./workspace-nav";
 import { CapabilityNotice, useFeature } from "./capabilities";
 import { useComparisonDialog } from "./version-comparison";
 
@@ -32,12 +34,12 @@ export function CollaborationPanel({
   cancelRewrite,
   onContextDirty,
   getPendingRewrite,
-  active = true,
-}: {
+  captureDocument, sendAssistant, onAssistantActive, active = true,
+}: AssistantActions & {
   document: Document;
   capture?: () => Snapshot;
   approve?: (thread: string, proposal: string) => Promise<void>;
-  requestRewrite?: (thread: string, instruction: string, contextRevision?: number) => Promise<void>;
+  requestRewrite?: (thread: string, instruction: string, contextRevision?: number, expectedSelection?: Snapshot) => Promise<void>;
   approveRewrite?: (task: string, candidate: string, application: string) => Promise<void>;
   cancelRewrite?: (task: string) => Promise<void>;
   onContextDirty?: (dirty: boolean) => void;
@@ -52,9 +54,22 @@ export function CollaborationPanel({
     [contextDirty, setContextDirty] = useState(false),
     [message, setMessage] = useState(""),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [creating, setCreating] = useState(false),
+    [newTitle, setNewTitle] = useState("문서 검토"),
+    [titleDirty, setTitleDirty] = useState(false),
+    [createPending, setCreatePending] = useState(false),
+    [switchRequest, setSwitchRequest] = useState<{ id: string; label: string } | null>(null),
+    [discardNew, setDiscardNew] = useState(false),
+    [checkingConnection, setCheckingConnection] = useState(false),
+    [separateAi, setSeparateAi] = useState<{ ready: boolean; model: string; error: string } | null>(null);
   const generation = useRef(0);
-  const dirtyChanged = useCallback((dirty: boolean) => { setContextDirty(dirty); onContextDirty?.(dirty); }, [onContextDirty]);
+  const [assistantDirty, setAssistantDirty] = useState(false), [assistantActive, setAssistantActive] = useState(false), [showRewrite, setShowRewrite] = useState(false);
+  const assistantDirtyChanged = useCallback((dirty: boolean) => setAssistantDirty(dirty), []);
+  const assistantActiveChanged = useCallback((active: boolean) => { setAssistantActive(active); onAssistantActive?.(active); }, [onAssistantActive]);
+  const pendingCreate = useRef<{ id: string; title: string; visibility: "document" } | null>(null);
+  const dirtyChanged = useCallback((dirty: boolean) => { setContextDirty(dirty); }, []);
+  useEffect(() => { onContextDirty?.(contextDirty || message.length > 0 || titleDirty || createPending || assistantDirty); }, [contextDirty, message, titleDirty, createPending, assistantDirty, onContextDirty]);
   const writable = doc.role !== "reader";
   async function list() {
     const rows = await api<Thread[]>(`/documents/${doc.id}/threads`);
@@ -74,7 +89,15 @@ export function CollaborationPanel({
 
   }
   useEffect(() => {
-    void list().catch((e) => setError(e.message));
+    let live = true;
+    void api<Thread[]>(`/documents/${doc.id}/threads`).then(rows => {
+      if (!live) return;
+      setThreads(rows);
+      // The API returns conversations in creation order. Reopen the newest one.
+      if (rows.length) setSelected(rows[rows.length - 1].id);
+      else if (writable) setCreating(true);
+    }).catch((e) => { if (live) setError(e.message); });
+    return () => { live = false; };
   }, [doc.id]);
   useEffect(() => {
     setDetail(null);
@@ -96,20 +119,72 @@ export function CollaborationPanel({
       setBusy(false);
     }
   }
+  async function checkSeparateAi() {
+    setCheckingConnection(true);
+    setSeparateAi(null);
+    try {
+      const value = await api<{ configured_model: string; model_available: boolean }>("/ai/models");
+      setSeparateAi({ ready: value.model_available, model: value.configured_model,
+        error: value.model_available ? "" : "설정한 모델을 연결된 서버에서 찾지 못했습니다." });
+    } catch (cause) {
+      setSeparateAi({ ready: false, model: "", error: String(cause) });
+    } finally { setCheckingConnection(false); }
+  }
+  function selectThread(id: string) {
+    if (id === selected) return;
+    if (assistantActive) return;
+    if (contextDirty || message.length > 0 || titleDirty || assistantDirty) {
+      setSwitchRequest({ id, label: threads.find(row => row.id === id)?.title || "선택한 대화" });
+      return;
+    }
+    changeThread(id);
+  }
+  function changeThread(id: string) {
+    dirtyChanged(false); setMessage(""); setSelected(id); setCreating(false); setShowRewrite(false);
+    setNewTitle("문서 검토"); setTitleDirty(false); setSwitchRequest(null); setDiscardNew(false);
+  }
+  async function createThread() {
+    if (!pendingCreate.current) {
+      const title = newTitle.trim();
+      if (!title) return;
+      pendingCreate.current = { id: crypto.randomUUID(), title, visibility: "document" };
+    }
+    const frozen = pendingCreate.current;
+    setCreatePending(true);
+    let row: Thread;
+    try {
+      row = await api<Thread>(`/documents/${doc.id}/threads`, jsonRequest("POST", frozen));
+    } catch (cause) {
+      if (cause instanceof ApiError && cause.status >= 400 && cause.status < 500) {
+        pendingCreate.current = null; setCreatePending(false);
+        throw cause;
+      }
+      throw new Error(`${String(cause)} · 대화 이름과 요청을 보관했습니다. ‘대화 생성 결과 재확인’으로 같은 요청을 확인하세요.`);
+    }
+    // The committed conversation can be opened even if refreshing the list fails.
+    pendingCreate.current = null; setCreatePending(false);
+    setThreads(rows => rows.some(item => item.id === row.id) ? rows : [...rows, row]);
+    changeThread(row.id);
+    try { await list(); }
+    catch { setError("대화를 만들었습니다. 목록을 새로 불러오지 못했지만 이 대화는 계속 사용할 수 있습니다."); }
+  }
+  function beginCreate() {
+    if (assistantActive) return;
+    if (!createPending && (contextDirty || message.length > 0 || assistantDirty)) {
+      setSwitchRequest({ id: "__new__", label: "새 대화" });
+      return;
+    }
+    void run(createThread);
+  }
   return (
     <section className="collaboration">
-      <h2>문서 대화 · 컨텍스트</h2>
-      <p>
-        문서 접근 권한자는 작성자와 관계없이 이 문서의 모든 대화·후보·적용 이력을 볼 수 있습니다. 편집 권한은 별도로 적용됩니다.
-      </p>
-      <select
+      <h2>문서 AI 대화</h2>
+      <p className="hint">이 문서의 수정 후보와 검토 내용을 함께 보관합니다. 대화는 문서 접근 권한이 있는 사용자와 공유됩니다.</p>
+      <div className="conversation-switcher"><select
         aria-label="대화 선택"
         value={selected}
-        onChange={(e) => {
-          if (contextDirty && !confirm("저장하지 않은 작성 정보가 있습니다. 대화를 바꾸면 입력이 사라집니다. 계속할까요?")) return;
-          dirtyChanged(false); setSelected(e.target.value);
-        }}
-        disabled={busy}
+        onChange={(e) => selectThread(e.target.value)}
+        disabled={busy || createPending || assistantActive}
       >
         <option value="">대화를 선택하세요</option>
         {threads.map((t) => (
@@ -118,70 +193,63 @@ export function CollaborationPanel({
           </option>
         ))}
       </select>
-      {writable &&
-        (["document"] as const).map((visibility) => (
-          <button
-            key={visibility}
-            disabled={busy}
-            onClick={() =>
-              void run(async () => {
-                if (contextDirty && !confirm("저장하지 않은 작성 정보가 있습니다. 새 대화를 열까요?")) return;
-                const title = prompt(
-                  "대화 제목",
-                  "문서 검토",
-                );
-                if (!title) return;
-                const row = await api<Thread>(
-                  `/documents/${doc.id}/threads`,
-                  jsonRequest("POST", {
-                    id: crypto.randomUUID(),
-                    title,
-                    visibility,
-                  }),
-                );
-                await list();
-                dirtyChanged(false); setSelected(row.id);
-              })
-            }
-          >
-            공유 대화 만들기
-          </button>
-        ))}
-      <button
-        disabled={busy}
-        onClick={() =>
-          void run(async () => {
-            await list();
-            await load();
-          })
-        }
-      >
-        대화 새로고침
-      </button>
+      {writable && !creating && <button disabled={busy || assistantActive} onClick={() => { setCreating(true); setSwitchRequest(null); }}>새 대화</button>}
+      <button aria-label="대화 새로고침" title="대화 새로고침" disabled={busy} onClick={() => void run(async () => { await list(); await load(); })}><WorkspaceIcon name="refresh" size={17}/></button>
+      </div>
+      {writable && creating && <form aria-label="새 대화 만들기" onSubmit={event => { event.preventDefault(); beginCreate(); }}>
+        <label>대화 이름<input aria-label="대화 이름" value={newTitle} maxLength={120} disabled={busy || createPending}
+          onChange={event => { setNewTitle(event.target.value); setTitleDirty(true); }} autoFocus /></label>
+        <button type="submit" disabled={busy || assistantActive || !newTitle.trim()}>{busy ? "대화 여는 중…" : createPending ? "대화 생성 결과 재확인" : "AI와 대화 시작"}</button>
+        {selected && <button type="button" disabled={busy || createPending} onClick={() => {
+          if (titleDirty) setDiscardNew(true);
+          else setCreating(false);
+        }}>새 대화 취소</button>}
+        {createPending && <p role="status">같은 이름과 요청으로 결과를 확인합니다. 중복 대화를 만들지 않습니다.</p>}
+      </form>}
+      {discardNew && <div role="group" aria-label="새 대화 입력 취소 확인">
+        <p>입력한 대화 이름을 버릴까요?</p>
+        <button disabled={busy} onClick={() => { setCreating(false); setTitleDirty(false); setNewTitle("문서 검토"); setDiscardNew(false); }}>대화 이름 버리기</button>
+        <button onClick={() => setDiscardNew(false)}>계속 작성</button>
+      </div>}
+      {switchRequest && <div role="group" aria-label="대화 전환 확인">
+        <p>저장하지 않은 입력이 있습니다. 입력을 버리고 ‘{switchRequest.label}’로 이동할까요?</p>
+        <button disabled={busy || assistantActive || createPending} onClick={() => {
+          if (assistantActive || createPending) return;
+          const next = switchRequest.id; setSwitchRequest(null);
+          if (next === "__new__") void run(createThread);
+          else changeThread(next);
+        }}>입력 버리고 이동</button>
+        <button disabled={busy} onClick={() => setSwitchRequest(null)}>현재 대화 유지</button>
+      </div>}
       {error && (
         <p role="alert" className="error">
           {error}
         </p>
       )}
       {detail && (
-        <>
-          <small>
-            대화 ID: <code>{detail.id}</code>
-          </small>
+        <div className="conversation-content" inert={createPending}>
+          <DocumentAssistantPanel active={active} key={`assistant-${detail.id}`} thread={detail.id} document={doc} captureDocument={captureDocument} sendAssistant={sendAssistant}
+            onDirty={assistantDirtyChanged} onActive={assistantActiveChanged} requestRewrite={requestRewrite} onShowRewrite={() => setShowRewrite(true)} />
+          <details className="assistant-secondary-tools" open={showRewrite} onToggle={event => setShowRewrite(event.currentTarget.open)}><summary>문단 수정 후보 · 직접 요청</summary>
           <RewritePanel key={detail.id} thread={detail.id} document={doc} context={detail.context} contextDirty={contextDirty}
-            active={active} requestRewrite={requestRewrite} approveRewrite={approveRewrite} cancelRewrite={cancelRewrite} getPendingRewrite={getPendingRewrite} />
+            active={active && showRewrite} requestRewrite={requestRewrite} approveRewrite={approveRewrite} cancelRewrite={cancelRewrite} getPendingRewrite={getPendingRewrite} />
+          </details>
+          <details className="assistant-secondary-tools"><summary>작성 정보·검토 메모</summary>
+          <details><summary>추가 작성 정보 · 선택 사항</summary>
           <WritingContextEditor key={`context-${detail.id}`} thread={detail.id} context={detail.context}
             baseVersion={doc.current_version} writable={writable} capture={capture} onSaved={() => load(detail.id)} onDirty={dirtyChanged} />
-          <p className="hint">작성 정보와 대화는 이 앱에 저장됩니다. 후보 생성에는 선택한 작성 정보만 사용하며 전체 대화를 자동 전달하지 않습니다.</p>
+          </details>
+          <h3>검토 메모</h3>
+          <p className="hint">메모는 이 앱에 보관됩니다. 수정 후보에 필요한 내용은 추가 작성 정보에 입력하세요.</p>
           <div className="messages" aria-label="저장된 대화">
             {detail.messages.map((m) => (
               <article key={m.id}>
                 <small>
                   {m.author_id} ·{" "}
-                  {m.source === "model"
+                  {m.role === "assistant" && m.source === "document_ai" ? "문서 AI" : m.source === "model"
                     ? "설정된 AI"
                     : m.source === "codex"
-                      ? "Codex/MCP"
+                      ? "Codex"
                       : "사용자"}
                 </small>
                 <p className="text">{m.content}</p>
@@ -193,6 +261,7 @@ export function CollaborationPanel({
               <CapabilityNotice feature="chat" label="대화 AI 답변" />
               <textarea
                 aria-label="대화 메시지"
+                placeholder="문서에 대한 의견이나 검토 내용을 남기세요."
                 value={message}
                 disabled={busy}
                 onChange={(e) => setMessage(e.target.value)}
@@ -214,10 +283,15 @@ export function CollaborationPanel({
                   })
                 }
               >
-                메시지 저장
+                메모 저장
               </button>
+              <details>
+                <summary>별도 AI 연결</summary>
+                <p className="hint">관리자가 연결한 로컬·사내 모델에 질문하는 기능입니다. Codex 연결만으로는 사용할 수 없습니다. 질문할 때 저장된 작성 정보와 최근 대화가 전달됩니다.</p>
+                <button disabled={busy || checkingConnection} onClick={() => void checkSeparateAi()}>{checkingConnection ? "연결 확인 중…" : "별도 AI 연결 확인"}</button>
+                {separateAi && <p role={separateAi.ready ? "status" : "alert"}>{separateAi.ready ? `연결됨 · ${separateAi.model}` : separateAi.error}</p>}
               <button
-                disabled={busy || !message.trim() || !chatFeature.available}
+                disabled={busy || checkingConnection || !separateAi?.ready || !message.trim() || !chatFeature.available}
                 onClick={() =>
                   void run(async () => {
                     const row = await api<{ id: string }>(
@@ -240,8 +314,9 @@ export function CollaborationPanel({
                   })
                 }
               >
-                설정된 AI에 질문
+                메모 내용으로 별도 AI에 질문
               </button>
+              </details>
             </>
           )}
           {proposals.map((p) => (
@@ -267,7 +342,9 @@ export function CollaborationPanel({
               )}
             </article>
           ))}
-        </>
+          <details><summary>연결 정보</summary><p>대화 ID: <code>{detail.id}</code></p></details>
+          </details>
+        </div>
       )}
     </section>
   );
@@ -361,117 +438,6 @@ export function AccessPanel({
         >
           권한 저장
         </button>
-        {error && <p role="alert">{error}</p>}
-      </section>
-    </div>
-  );
-}
-
-export function Templates({
-  onClose,
-  onApply,
-}: {
-  onClose: () => void;
-  onApply: (d: Document) => void;
-}) {
-  const [query, setQuery] = useState(""),
-    [rows, setRows] = useState<
-      {
-        id: string;
-        name: string;
-        description: string;
-        reason: string;
-        version_id: string;
-      }[]
-    >([]),
-    [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
-  const pending = useRef<{ id: string; body: object } | null>(null);
-  useEffect(() => {
-    let live = true;
-    api<typeof rows>(`/templates?q=${encodeURIComponent(query)}`)
-      .then((r) => {
-        if (live) setRows(r);
-      })
-      .catch((e) => {
-        if (live) setError(e.message);
-      });
-    return () => {
-      live = false;
-    };
-  }, [query]);
-  return (
-    <div className="modal">
-      <section>
-        <button className="close" onClick={onClose}>
-          닫기
-        </button>
-        <h2>템플릿 추천 · 적용</h2>
-        <p>
-          접근 가능한 양식을 이름·설명·태그로 추천합니다. 적용하면 표·서식을
-          포함한 해당 HWPX 버전으로 새 문서를 만듭니다.
-        </p>
-        <input
-          aria-label="템플릿 검색"
-          placeholder="회의록, 보고서, 계획 등"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        {!rows.length && (
-          <p>
-            추천할 양식이 없습니다. 문서 목록에서 저장된 문서를 양식으로
-            등록하세요.
-          </p>
-        )}
-        {rows.map((t) => (
-          <article key={t.id}>
-            <h3>{t.name}</h3>
-            <p>{t.description}</p>
-            <small>
-              {t.reason} · 기준 {t.version_id}
-            </small>
-            <button
-              disabled={
-                busy || (!!pending.current && pending.current.id !== t.id)
-              }
-              onClick={async () => {
-                if (!pending.current) {
-                  const name = prompt(
-                    "양식으로 만들 문서 이름",
-                    t.name + ".hwpx",
-                  );
-                  if (!name) return;
-                  pending.current = {
-                    id: t.id,
-                    body: {
-                      document_id: crypto.randomUUID(),
-                      request_id: crypto.randomUUID(),
-                      name,
-                    },
-                  };
-                }
-                setBusy(true);
-                setError("");
-                try {
-                  const d = await api<Document>(
-                    `/templates/${t.id}/apply`,
-                    jsonRequest("POST", pending.current.body),
-                  );
-                  pending.current = null;
-                  onApply(d);
-                } catch (e) {
-                  setError(
-                    String(e) + " 같은 양식 버튼으로 재시도할 수 있습니다.",
-                  );
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              이 양식으로 새 문서
-            </button>
-          </article>
-        ))}
         {error && <p role="alert">{error}</p>}
       </section>
     </div>

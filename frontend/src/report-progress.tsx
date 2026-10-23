@@ -7,8 +7,10 @@ export type LiveReport = { stage: string; revision: number; activity: string; re
 export function ReportTiming({ timings }: { timings?: Record<string, number | null> }) {
   if (!timings) return null;
   const labels: Record<string, string> = { startup_ms: "연결 준비", first_text_ms: "첫 글 도착까지", research_ms: "자료 조회", generation_ms: "내용 생성 전체", client_apply_ms: "문서 입력", layout_ms: "서식 계산" };
-  return <small className="report-timing">{Object.entries(labels).filter(([key]) => typeof timings[key] === "number")
-    .map(([key, label]) => `${label} ${(timings[key]! / 1000).toFixed(1)}초`).join(" · ")}</small>;
+  const entries = Object.entries(labels).filter(([key]) => typeof timings[key] === "number");
+  if (!entries.length) return null;
+  return <details className="report-timing-details"><summary>단계별 소요 시간</summary><small className="report-timing">{entries
+    .map(([key, label]) => `${label} ${(timings[key]! / 1000).toFixed(1)}초`).join(" · ")}</small></details>;
 }
 
 export type ReportStage = "writing" | "review" | "applying" | "formatting" | "ready";

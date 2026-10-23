@@ -51,7 +51,7 @@ test("REAL rhwp, NO AI: three save/download/reupload/reopen cycles preserve tabl
     if (/^https?:/.test(r.url()) && new URL(r.url()).origin !== new URL(baseURL!).origin) external.push(r.url());
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "+ 새 문서", exact: true }).click();
+  await page.getByRole("button", { name: "빈 문서 만들기", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("저장되지 않은 변경 있음");
   let frame = page.frames().find(f => f.url().includes("/rhwp/"))!;
   await frame.locator("#scroll-container canvas").first().click({ position: { x: 160, y: 150 }, force: true });
@@ -123,8 +123,13 @@ test("REAL rhwp, NO AI: three save/download/reupload/reopen cycles preserve tabl
     observed.set(url, hash(saved));
     const savedVersion = url.split("/").at(-2);
     await page.getByRole("button", { name: "← 문서 목록", exact: true }).click();
+    const more = page.getByRole("row").filter({ has: page.locator(`a[href="${url}"]`) })
+      .getByRole("button", { name: / 더보기$/ });
+    if (await more.getAttribute("aria-expanded") !== "true") await more.click();
+    const actions = page.locator(`#${await more.getAttribute("aria-controls")}`);
+    await expect(actions).toBeVisible();
     const responsePromise = page.waitForResponse(r => r.request().method() === "POST" && r.url().includes(docPath + "/versions?"));
-    await page.getByRole("row").filter({ has: page.locator(`a[href="${url}"]`) }).locator('input[type="file"]')
+    await actions.getByLabel(/ 새 버전 업로드$/)
       .setInputFiles({ name: `합성-왕복-${cycle}.hwpx`, mimeType: "application/hwp+zip", buffer: saved });
     const response = await responsePromise;
     expect(response.ok(), await response.text()).toBeTruthy();

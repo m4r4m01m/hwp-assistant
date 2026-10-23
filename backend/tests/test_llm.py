@@ -69,6 +69,53 @@ def test_mock_transport_failures(provider, monkeypatch, error, status):
     assert result.value.status_code == status
 
 
+@pytest.mark.parametrize("key", ["", "synthetic-test-token"])
+@pytest.mark.parametrize("shared_pool", [False, True])
+def test_optional_api_key_uses_valid_http_headers(monkeypatch, key, shared_pool):
+    """Use HTTP/1.1 on loopback: MockTransport does not validate wire headers."""
+    received = []
+
+    async def respond(reader, writer):
+        try:
+            try:
+                received.append(await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 2))
+            except asyncio.IncompleteReadError:
+                return
+            body = b'{"data":[{"id":"synthetic-model"}]}'
+            writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                         + f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n".encode() + body)
+            await writer.drain()
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+    async def check():
+        async with await asyncio.start_server(respond, "127.0.0.1", 0) as server:
+            port = server.sockets[0].getsockname()[1]
+            monkeypatch.setenv("LLM_PROVIDER", "openai-compatible")
+            monkeypatch.setenv("LLM_BASE_URL", f"http://127.0.0.1:{port}/v1")
+            monkeypatch.setenv("LLM_MODEL", "synthetic-model")
+            monkeypatch.setenv("LLM_API_KEY", key)
+            provider = OpenAICompatible()
+            async with llm.pooled_client() as pool:
+                marker = llm.request_client.set(pool if shared_pool else None)
+                try:
+                    assert await provider.models() == ["synthetic-model"]
+                    assert not pool.is_closed
+                finally:
+                    llm.request_client.reset(marker)
+
+    asyncio.run(check())
+    assert len(received) == 1
+    lines = received[0].decode("ascii").split("\r\n")
+    assert lines[0] == "GET /v1/models HTTP/1.1"
+    headers = dict(line.lower().split(": ", 1) for line in lines[1:] if line)
+    if key:
+        assert headers["authorization"] == f"bearer {key}"
+    else:
+        assert "authorization" not in headers
+
+
 @pytest.mark.parametrize("declared", [None, str(3 * 1024 * 1024)])
 def test_oversized_model_body_stops_reading_and_does_not_close_shared_pool(provider, declared):
     class LargeBody(httpx.AsyncByteStream):

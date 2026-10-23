@@ -1,4 +1,16 @@
-# Read-only identity checks shared by the desktop launcher and local runner.
+# Identity checks and scoped build settings shared by the local launchers.
+function Invoke-HwpLocalRootBuild {
+    param([Parameter(Mandatory=$true)][scriptblock]$Build)
+    # The local preview server and API proxy serve at /. A deployment shell may
+    # have a public subpath configured; do not carry it into this local build.
+    $previousBase = [Environment]::GetEnvironmentVariable('HWP_PUBLIC_BASE_PATH', 'Process')
+    try {
+        [Environment]::SetEnvironmentVariable('HWP_PUBLIC_BASE_PATH', '/', 'Process')
+        & $Build
+    } finally {
+        [Environment]::SetEnvironmentVariable('HWP_PUBLIC_BASE_PATH', $previousBase, 'Process')
+    }
+}
 function Get-HwpBytesHash([byte[]]$Bytes) {
     $algorithm = [Security.Cryptography.SHA256]::Create()
     try { return ([BitConverter]::ToString($algorithm.ComputeHash($Bytes))).Replace('-','').ToLowerInvariant() }
@@ -18,7 +30,7 @@ function Get-HwpSourceContext([string]$ProjectRoot) {
     }
     foreach ($name in @('frontend/index.html','frontend/compare-renderer.html','frontend/package-lock.json',
         'scripts/assistant-bridge.ts.txt','scripts/engine-lock.json','scripts/build-frontend.mjs','scripts/comparison-core.mjs',
-        'scripts/start-local.ps1','scripts/desktop-launch-lib.ps1')) {
+        'scripts/start-local.ps1','scripts/desktop-launch-lib.ps1','scripts/public-base.mjs')) {
         $files += Get-Item -LiteralPath (Join-Path $ProjectRoot $name)
     }
     $text = [Text.StringBuilder]::new(); $latest = [DateTime]::MinValue

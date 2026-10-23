@@ -4,7 +4,9 @@ import { writeFile } from "node:fs/promises";
 import { unzipSync, strFromU8 } from "fflate";
 
 const hash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
-const registerButton = (page: Page) => page.getByRole("button", { name: "표준 템플릿으로 등록", exact: true });
+const registerButton = (page: Page) => page.locator(".standard-preview-toolbar").getByRole("button", { name: "새 표준 등록", exact: true });
+const submitRegistration = (page: Page) => page.getByRole("dialog").getByRole("button", { name: "새 표준 등록", exact: true });
+const documentListButton = (page: Page) => page.locator(".workspace-nav").getByRole("button", { name: "문서함", exact: true });
 const fieldLabel = (catalog: any, key: string) => {
   const field = catalog.fields.find((item: any) => item.key === key);
   if (!field) throw new Error(`catalog field ${key} is missing`);
@@ -45,17 +47,47 @@ async function legacyDesigner(page: Page, request: APIRequestContext, revision: 
   expect(created.ok(), await created.text()).toBeTruthy();
   const registered = await created.json();
   expect(registered.revision).toBe(revision);
-  await page.getByRole("button", { name: "← 문서 목록", exact: true }).click();
+  await documentListButton(page).click();
   await openDesigner(page);
   await page.getByLabel("설정 불러오기", { exact: true }).selectOption(registered.id);
+  await page.getByRole("tab", { name: "상세 설정", exact: true }).click();
+  for (const group of ["대제목", "절 제목", "본문"]) await openGroup(page, group);
   await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
   return { catalog, definition, registered, seed };
 }
 async function openGroup(page: Page, group: string) {
+  await page.getByRole("tab", { name: "상세 설정", exact: true }).click();
   const section = page.locator(".standard-setting-group").filter({ has: page.locator("summary", { hasText: new RegExp(`^${group}$`) }) });
   if (!(await section.getAttribute("open")) && await section.getAttribute("open") !== "")
     await section.locator("summary").click();
 }
+
+test("REAL rhwp standard designer: common settings expose automatic notes and detailed settings remain searchable", async ({ page, request }, info) => {
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await openDesigner(page);
+  const catalog = await (await request.get("/api/visual-standards")).json();
+  const citation = page.getByLabel(fieldLabel(catalog, "citation_style"), { exact: true });
+  await expect(page.getByRole("tab", { name: "자주 쓰는 설정", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(citation).toBeVisible();
+  await expect(citation).toHaveValue("AUTO");
+  await expect(page.getByLabel(fieldLabel(catalog, "square_first_line_indent_pt"), { exact: true })).toHaveCount(0);
+  const automaticHashes = await previewImageHashes(page);
+  await citation.selectOption("STARS");
+  await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
+  const fixedHashes = await previewImageHashes(page);
+  expect(fixedHashes).not.toEqual(automaticHashes);
+  await citation.selectOption("AUTO");
+  await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
+  await page.getByLabel("설정 찾기", { exact: true }).fill("첫 줄 들여쓰기");
+  await expect(page.getByLabel(fieldLabel(catalog, "square_first_line_indent_pt"), { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "설정 검색 지우기", exact: true }).click();
+  await page.getByRole("tab", { name: "상세 설정", exact: true }).click();
+  await openGroup(page, "□ 기호 항목");
+  await expect(page.getByLabel(fieldLabel(catalog, "square_first_line_indent_pt"), { exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "자주 쓰는 설정", exact: true }).click();
+  await expect(citation).toHaveValue("AUTO");
+  await page.screenshot({ path: info.outputPath("standard-common-auto-notes.png"), fullPage: true });
+});
 async function previewImageHashes(page: Page, outputPath?: (index: number) => string) {
   const images = await page.locator(".standard-preview-pages figure img").all();
   const hashes: string[] = [];
@@ -74,12 +106,26 @@ async function expectOuterViewportContained(page: Page) {
 async function expectDesignerScrollContained(page: Page) {
   const expectReflow = async () => {
     const preview = (await page.locator(".standard-preview").boundingBox())!;
+    const nav = (await page.locator(".standard-workspace-rail").boundingBox())!;
+    const navigationRight = nav.x + nav.width;
     const settings = page.getByRole("complementary", { name: "문서 표준 설정", exact: true });
     const visible = await settings.isVisible();
     const bounds = visible ? (await settings.boundingBox())! : null;
-    if (bounds) { expect(bounds.x).toBe(64); expect(bounds.height).toBe(page.viewportSize()!.height); }
-    expect(preview.x).toBeCloseTo(bounds ? bounds.x + bounds.width : 64, 1);
+    if (bounds) {
+      expect(bounds.x).toBeCloseTo(navigationRight, 1);
+      expect(bounds.height).toBe(page.viewportSize()!.height);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+    }
+    const wrapper = (await page.locator(".standard-designer-grid").boundingBox())!;
+    expect(wrapper.x).toBeCloseTo(navigationRight, 1);
+    expect(wrapper.x + wrapper.width).toBeCloseTo(page.viewportSize()!.width, 1);
+    expect(preview.x).toBeCloseTo(bounds ? bounds.x + bounds.width : navigationRight, 1);
     expect(preview.width).toBeCloseTo(page.viewportSize()!.width - preview.x, 1);
+    expect(preview.x + preview.width).toBeCloseTo(page.viewportSize()!.width, 1);
+    if (!bounds) {
+      expect(preview.width).toBeGreaterThan(0);
+      await expect(registerButton(page)).toBeInViewport();
+    }
   };
   const previewBounds = (await page.locator(".standard-preview").boundingBox())!;
   expect(previewBounds.y).toBe(0);
@@ -147,14 +193,16 @@ test("REAL rhwp standard designer: settings change the sample and immutable regi
   await page.getByLabel("절 제목 글자 크기", { exact: true }).focus();
   await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
   await expect(page.getByLabel("절 제목 글자 크기", { exact: true })).toBeFocused();
-  await page.getByRole("button", { name: "원본 기본값 복원", exact: true }).click();
+  await page.getByRole("button", { name: "새 표준 기본값 복원", exact: true }).click();
   await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
   expect(await page.evaluate(() => document.activeElement?.getAttribute("aria-label"))).not.toBe("본문 줄 간격");
   expect(await page.evaluate(() => document.activeElement?.getAttribute("aria-label"))).not.toBe("절 제목 글자 크기");
   await page.getByLabel("설정 불러오기", { exact: true }).selectOption(legacy.id);
   await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
+  await openGroup(page, "본문");
   await page.getByLabel("본문 글자 크기", { exact: true }).fill("16");
   await page.getByLabel("본문 줄 간격", { exact: true }).fill("180");
+  await openGroup(page, "절 제목");
   await page.getByLabel("절 제목 글자 크기", { exact: true }).fill("18");
   await openGroup(page, "표");
   await page.getByLabel("표 머리글 채움색", { exact: true }).fill("#DDEFE5");
@@ -213,7 +261,7 @@ test("REAL rhwp standard designer: settings change the sample and immutable regi
   const name = `문서 표준 검증 ${Date.now()}`;
   await page.getByLabel("표준 이름", { exact: true }).fill(name);
   const registered = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname === "/api/visual-standards");
-  await page.getByRole("button", { name: "새 표준 등록", exact: true }).click();
+  await submitRegistration(page).click();
   const response = await registered;
   expect(response.ok()).toBeTruthy();
   const saved = await response.json();
@@ -243,14 +291,15 @@ test("REAL rhwp standard designer: settings change the sample and immutable regi
   expect((await (await request.get("/api/visual-standards")).json()).defaults).toEqual(fullCatalog.defaults);
   expect(await (await request.get("/api/document-standard")).json()).toEqual(original);
   await page.getByRole("button", { name: "이 표준으로 보고서 작성", exact: true }).click();
-  await expect(page.getByLabel("문서 서식 표준", { exact: true })).toHaveValue(saved.id);
-  await expect(page.getByLabel("문서 서식 표준", { exact: true })).toContainText(name);
+  await expect(page.getByLabel("문서 양식", { exact: true })).toHaveValue(saved.id);
+  await expect(page.getByLabel("문서 양식", { exact: true })).toContainText(name);
   await expect(page.getByLabel("새 요청에 사용할 서식", { exact: true })).toContainText("항목 요약 말머리 숨김 · 핵심 요약 미포함");
   await expect(page.getByLabel("새 요청에 사용할 서식", { exact: true })).not.toContainText("말머리는 굵게 표시");
+  await page.getByText("양식 관리·연결 정보", { exact: true }).click();
   await expect(page.getByRole("button", { name: "문서작성 기준 열기", exact: true })).toBeEnabled();
   await expect(page.getByRole("link", { name: /기준서.*(다운로드|사본)/ })).toHaveCount(0);
   expect(modelPosts).toHaveLength(0);
-  await page.getByRole("button", { name: "← 문서 목록", exact: true }).click();
+  await documentListButton(page).click();
   await page.getByRole("button", { name: "문서 표준 편집", exact: true }).click();
   await page.getByLabel("설정 불러오기", { exact: true }).selectOption(saved.id);
   await expect(page.getByLabel("본문 글자 크기", { exact: true })).toHaveValue("16");
@@ -258,7 +307,7 @@ test("REAL rhwp standard designer: settings change the sample and immutable regi
   await openGroup(page, labelField.group);
   await expect(page.getByLabel(`${labelField.group} ${labelField.label}`, { exact: true })).not.toBeChecked();
   await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
-  await page.getByRole("button", { name: "원본 기본값 복원", exact: true }).click();
+  await page.getByRole("button", { name: "새 표준 기본값 복원", exact: true }).click();
   await expect(page.getByLabel(fieldLabel(fullCatalog, "body_size_pt"), { exact: true })).toHaveValue(String(fullCatalog.defaults.body_size_pt));
   await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
   await page.getByLabel("설정 찾기", { exact: true }).fill(fullCatalog.fields.find((field: any) => field.key === "page_number_style").group);
@@ -313,7 +362,7 @@ test("REAL rhwp standard designer: stale preview cannot register and invalid val
   await registerButton(page).click();
   await page.getByLabel("표준 이름", { exact: true }).fill(`최신 예시 검증 ${Date.now()}`);
   const registered = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname === "/api/visual-standards");
-  await page.getByRole("button", { name: "새 표준 등록", exact: true }).click();
+  await submitRegistration(page).click();
   expect((await (await registered).json()).settings.body_size_pt).toBe(18);
 });
 
@@ -332,7 +381,7 @@ test("REAL rhwp standard designer: lost registration response retries the same f
   await registerButton(page).click();
   const name = `등록 재확인 ${Date.now()}`;
   await page.getByLabel("표준 이름", { exact: true }).fill(name);
-  await page.getByRole("button", { name: "새 표준 등록", exact: true }).click();
+  await submitRegistration(page).click();
   await expect(page.getByRole("button", { name: "같은 등록 결과 재확인", exact: true })).toBeEnabled();
   await expect(page.getByLabel("표준 이름", { exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "취소", exact: true })).toBeDisabled();
@@ -366,6 +415,7 @@ test("REAL rhwp standard designer: original rules, three presets, full reference
   expect(catalog.presets).toHaveLength(3);
   expect(catalog.presets.every((preset: any) => preset.revision === 3 && preset.base_standard.reference_sha256 === hash(originalFile))).toBe(true);
   expect(catalog.rules.length).toBeGreaterThan(0);
+  await page.getByRole("tab", { name: "상세 설정", exact: true }).click();
   for (const field of catalog.fields.filter((field: any) => field.key !== "preset_id"))
     await expect(page.getByLabel(`${field.group} ${field.label}`, { exact: true })).toHaveCount(1);
   const ruleFields = catalog.fields.filter((field: any) => field.type === "textarea");
@@ -421,7 +471,8 @@ test("REAL rhwp standard designer: original rules, three presets, full reference
   await page.getByRole("tab", { name: "기준서 전체", exact: true }).click();
   const reference = await (await readonly).json();
   await expect(page.locator(".standard-preview-pages")).toHaveAttribute("aria-busy", "false", { timeout: 90000 });
-  await expect(registerButton(page)).toBeDisabled();
+  await expect(registerButton(page)).toHaveCount(0);
+  await expect(page.getByLabel("설정 불러오기", { exact: true })).toHaveCount(0);
   const referenceImages = page.getByRole("img", { name: /^기준서 \d+쪽$/ });
   const pages = await referenceImages.count();
   expect(pages).toBeGreaterThan(0); expect(pages).toBeLessThanOrEqual(reference.max_pages);
@@ -446,11 +497,11 @@ test("REAL rhwp standard designer: original rules, three presets, full reference
   const name = `원문 기반 표준 ${Date.now()}`;
   await page.getByLabel("표준 이름", { exact: true }).fill(name);
   const registration = page.waitForResponse(value => value.request().method() === "POST" && new URL(value.url()).pathname === "/api/visual-standards");
-  await page.getByRole("button", { name: "새 표준 등록", exact: true }).click();
+  await submitRegistration(page).click();
   const saved = await (await registration).json();
   expect(saved.revision).toBe(3); expect(saved.settings).toEqual(selected);
   expect(hash(await (await request.get(`/api/visual-standards/${saved.id}/file`)).body())).toBe(saved.preview_sha256);
-  await page.getByRole("button", { name: "← 문서 목록", exact: true }).click();
+  await documentListButton(page).click();
   await openDesigner(page);
   await page.getByLabel("설정 불러오기", { exact: true }).selectOption(saved.id);
   await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
@@ -474,12 +525,12 @@ test("REAL rhwp + MOCK standard designer: a fresh report freezes the original ap
   const selection = { id, revision, name, settings, settings_sha256, base_standard, preview_sha256 };
   await page.goto("/");
   await page.getByRole("button", { name: "보고서 작성", exact: true }).click();
-  const selected = page.getByLabel("문서 서식 표준", { exact: true });
+  const selected = page.getByLabel("문서 양식", { exact: true });
   await expect(selected).toBeEnabled();
   await expect(selected).toHaveValue(catalog.default_id);
   await selected.selectOption("");
   const refreshed = page.waitForResponse(value => value.request().method() === "GET" && new URL(value.url()).pathname === "/api/visual-standards");
-  await page.getByText("작성 예시와 기준", { exact: true }).click();
+  await page.getByText("양식 관리·연결 정보", { exact: true }).click();
   await page.getByRole("button", { name: "문서 표준 목록 다시 확인", exact: true }).click();
   await refreshed;
   await expect(selected).toHaveValue(""); // Refresh must preserve an explicit legacy choice.
@@ -489,7 +540,7 @@ test("REAL rhwp + MOCK standard designer: a fresh report freezes the original ap
   await page.getByLabel("보고서 작성 요청", { exact: true }).fill("[RICH] 기준서 별첨 1 기본 양식으로 합성 자료 정비 방안과 역할을 정리");
   await page.getByLabel("공개 웹 자료를 검색하고 출처 포함").uncheck();
   const accepted = page.waitForResponse(value => value.request().method() === "POST" && new URL(value.url()).pathname === "/api/report-tasks");
-  await page.getByRole("button", { name: "Codex로 보고서 초안 만들기", exact: true }).click();
+  await page.getByRole("button", { name: "초안 작성하기", exact: true }).click();
   const response = await accepted, sent = response.request().postDataJSON(), job = await response.json();
   expect(response.ok()).toBeTruthy();
   expect(sent.visual_standard).toEqual(selection);
@@ -527,7 +578,10 @@ test("REAL rhwp + MOCK standard designer: a fresh report freezes the original ap
     exportedSection: strFromU8(unzipSync(bytes)["Contents/section0.xml"]), exportedHeader: strFromU8(unzipSync(bytes)["Contents/header.xml"]) });
   expect(semantic.exported).toEqual(semantic.baseline);
   expect(semantic.exported.paragraphs.length).toBeGreaterThan(0);
-  expect(semantic.exported.settings).toEqual(Object.fromEntries(Object.entries(selection.settings).filter(([key]) => key.startsWith("toc_") || key === "preset_id")));
+  expect(semantic.exported.settings).toEqual({
+    ...Object.fromEntries(Object.entries(selection.settings).filter(([key]) => key.startsWith("toc_") || key === "preset_id")),
+    body_spacing: "reference-body-spacing-v1",
+  });
   const pages = await engine.evaluate(() => (window as any).hwpAssistantBridge.documentState().pageCount);
   expect(pages).toBeGreaterThan(0);
   await page.screenshot({ path: info.outputPath("original-appendix1-report.png"), fullPage: true });
@@ -565,12 +619,12 @@ for (const composition of [{ preset: "appendix-2", tocPage: 2, firstBodyPage: 3 
     const selection = { id, revision, name, settings, settings_sha256, base_standard, preview_sha256 };
     await page.goto("/");
     await page.getByRole("button", { name: "보고서 작성", exact: true }).click();
-    await expect(page.getByLabel("문서 서식 표준", { exact: true })).toBeEnabled();
-    await page.getByLabel("문서 서식 표준", { exact: true }).selectOption(preset.id);
+    await expect(page.getByLabel("문서 양식", { exact: true })).toBeEnabled();
+    await page.getByLabel("문서 양식", { exact: true }).selectOption(preset.id);
     await page.getByLabel("보고서 작성 요청", { exact: true }).fill(`[RICH] 기준서 ${composition.preset} 양식으로 합성 자료 정비 방안과 역할을 정리`);
     await page.getByLabel("공개 웹 자료를 검색하고 출처 포함").uncheck();
     const accepted = page.waitForResponse(value => value.request().method() === "POST" && new URL(value.url()).pathname === "/api/report-tasks");
-    await page.getByRole("button", { name: "Codex로 보고서 초안 만들기", exact: true }).click();
+    await page.getByRole("button", { name: "초안 작성하기", exact: true }).click();
     const response = await accepted, job = await response.json();
     expect(response.ok()).toBeTruthy();
     expect(response.request().postDataJSON().visual_standard).toEqual(selection);
@@ -656,7 +710,7 @@ test("REAL rhwp standard designer: a legacy registration keeps its own fields an
     await expect(page.getByLabel(`${field.group} ${field.label}`, { exact: true })).toHaveCount(0);
   const copyResponse = page.waitForResponse(value => value.request().method() === "POST" && new URL(value.url()).pathname === "/api/visual-standards");
   await registerButton(page).click();
-  await page.getByRole("button", { name: "새 표준 등록", exact: true }).click();
+  await submitRegistration(page).click();
   const copy = await (await copyResponse).json();
   expect(copy.id).not.toBe(legacy.id);
   expect(copy.revision).toBe(1);
@@ -692,7 +746,7 @@ test("REAL rhwp + MOCK standard designer: registered settings survive report TOC
   const name = `보고서 적용 표준 ${Date.now()}`;
   await page.getByLabel("표준 이름", { exact: true }).fill(name);
   const registered = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname === "/api/visual-standards");
-  await page.getByRole("button", { name: "새 표준 등록", exact: true }).click();
+  await submitRegistration(page).click();
   const standard = await (await registered).json();
   const templates = await (await request.get("/api/report-templates")).json();
   const oldTask = await request.post("/api/report-tasks", { data: { id: randomUUID(),
@@ -702,13 +756,13 @@ test("REAL rhwp + MOCK standard designer: registered settings survive report TOC
   await expect.poll(async () => (await (await request.get(`/api/report-tasks/${oldId}`)).json()).status).toBe("ready");
   await page.evaluate(id => sessionStorage.setItem("hwp-report-task", id), oldId);
   await page.getByRole("button", { name: "이 표준으로 보고서 작성", exact: true }).click();
-  await expect(page.getByLabel("문서 서식 표준", { exact: true })).toHaveValue(standard.id);
+  await expect(page.getByLabel("문서 양식", { exact: true })).toHaveValue(standard.id);
   await expect(page.getByLabel("보고서 작성 요청", { exact: true })).toBeEmpty();
   expect((await (await request.get(`/api/report-tasks/${oldId}`)).json()).approval).toBeNull();
   await page.getByLabel("보고서 작성 요청", { exact: true }).fill("[RICH] 합성 표준 적용: 자료 정리와 검토 절차를 표와 흐름도로 정리");
   await page.getByLabel("공개 웹 자료를 검색하고 출처 포함").uncheck();
   const posted = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname === "/api/report-tasks");
-  await page.getByRole("button", { name: "Codex로 보고서 초안 만들기", exact: true }).click();
+  await page.getByRole("button", { name: "초안 작성하기", exact: true }).click();
   const job = await (await posted).json();
   expect(job.input.visual_standard).toEqual(standard);
   await page.getByRole("button", { name: "이 내용으로 문서 만들기", exact: true }).click();
@@ -784,8 +838,8 @@ test("REAL rhwp + MOCK standard designer: registered settings survive report TOC
   await page.getByRole("button", { name: "작성 요청", exact: true }).click();
   await expect(page.getByLabel("현재 보고서 고정 서식", { exact: true })).toContainText(standard.name);
   await expect(page.getByLabel("현재 보고서 고정 서식", { exact: true })).toContainText("항목 요약 말머리 숨김 · 핵심 요약 미포함");
-  await page.getByLabel("문서 서식 표준", { exact: true }).selectOption("");
-  await expect(page.getByLabel("문서 서식 표준", { exact: true })).toHaveValue("");
+  await page.getByLabel("문서 양식", { exact: true }).selectOption("");
+  await expect(page.getByLabel("문서 양식", { exact: true })).toHaveValue("");
   await expect(page.getByLabel("새 요청에 사용할 서식", { exact: true })).toContainText("항목 요약 말머리 표시 · 핵심 요약 포함");
   await expect(page.getByLabel("현재 보고서 고정 서식", { exact: true })).toContainText(standard.name);
   expect(hash(Buffer.from(await engine.evaluate(() => Array.from((window as any).hwpAssistantBridge.exportSnapshot().bytes) as number[])))).toBe(hash(saved));

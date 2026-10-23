@@ -19,11 +19,11 @@ async function mockApi(page: Page, handler?: Handler) {
     if (path === "/documents") return json(route, [documentRow]);
     if (path === "/documents/document-one/session") return json(route, route.request().method() === "POST" ? { token: "local-test-lease", document: { ...documentRow, name: "서버의 현재 문서.hwpx", current_version: "version-lease" } } : {});
     if (path.endsWith("/file")) return route.fulfill({ status: 200, contentType: "application/octet-stream", body: "local-test-file" });
-    if (path.endsWith("/versions") || path.endsWith("/proposals") || path.endsWith("/rewrite-tasks")) return json(route, []);
+    if (path.endsWith("/versions") || path.endsWith("/proposals") || path.endsWith("/rewrite-tasks") || path.endsWith("/assistant-turns")) return json(route, []);
     if (path === "/documents/document-one/access") return json(route, []);
     if (path.endsWith("/threads")) return json(route, [{ id: "thread-one", title: "합성 대화", visibility: "document" }]);
     if (path === "/threads/thread-one") return json(route, { id: "thread-one", title: "합성 대화", visibility: "document", context: writingContext, messages: [] });
-    if (path === "/rewrite-provider") return json(route, { provider: "llm", configured: false, allowed: true, model: null, reason: feature.message });
+    if (path === "/rewrite-provider" || path === "/document-assistant-provider") return json(route, { provider: "llm", configured: false, allowed: true, model: null, reason: feature.message });
     if (path === "/document-blocks") return json(route, { blocks: [], standard_reference_sha256: "a".repeat(64), standard_profile_sha256: "b".repeat(64) });
     if (path === "/report-tasks") return json(route, []);
     if (path === "/visual-standards") return json(route, { items: [], presets: [] });
@@ -122,6 +122,7 @@ test("MOCK UI: history shows loading until its response and sharing dialog resto
   finish();
   await expect(page.getByRole("status")).toHaveCount(0);
   await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: `${documentRow.name} 더보기`, exact: true }).click();
   const share = page.getByRole("button", { name: "공유 권한", exact: true });
   await share.click();
   const dialog = page.getByRole("dialog", { name: /공유 권한/ });
@@ -152,6 +153,7 @@ test("MOCK UI: fixed lease version downloads while the editor initializes; mobil
   await expect(page.getByLabel("현재 문서와 저장 상태")).toContainText("서버의 현재 문서.hwpx");
   const frame = page.locator(".block-editor-slot.active iframe");
   const before = (await frame.boundingBox())!;
+  await page.getByLabel("추가 도구", { exact: true }).click();
   await page.getByRole("button", { name: "AI 검토 열기", exact: true }).click();
   const drawer = page.getByLabel("문단 AI 검토 패널", { exact: true });
   const bounds = (await drawer.boundingBox())!;
@@ -162,9 +164,52 @@ test("MOCK UI: fixed lease version downloads while the editor initializes; mobil
   await expect(page.getByRole("button", { name: "현재 문단 검토", exact: true })).toBeDisabled();
   await prepareScreenshotFont(page);
   await page.screenshot({ path: info.outputPath("mobile-editor-drawer.png") });
-  await page.getByRole("button", { name: "AI 검토 닫기", exact: true }).click();
+  await page.getByRole("button", { name: "검토 패널 닫기", exact: true }).click();
   await expect(page.locator(".block-editor-wrapper")).toHaveJSProperty("inert", false);
   expect(await page.evaluate(() => (window as any).__engineStarted)).toBe(1);
+});
+
+test("MOCK UI: unsaved conversation confirmation traps focus, cancels with Escape, and discards only after confirmation", async ({ page }) => {
+  await mockEditor(page);
+  await mockApi(page);
+  await openEditor(page);
+  const openConversation = page.getByRole("button", { name: "문서 AI 대화 열기", exact: true });
+  await openConversation.click();
+  const question = page.getByRole("textbox", { name: "AI에게 요청", exact: true });
+  await question.fill("보내지 않은 질문을 보존해 주세요.");
+  const closePanel = page.getByRole("button", { name: "대화 패널 닫기", exact: true });
+  await closePanel.click();
+  const dialog = page.getByRole("alertdialog", { name: "미저장 입력 확인", exact: true });
+  const keep = dialog.getByRole("button", { name: "계속 편집", exact: true });
+  const discard = dialog.getByRole("button", { name: "입력 버리고 닫기", exact: true });
+  await expect(keep).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(discard).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(keep).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(discard).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(keep).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(closePanel).toBeFocused();
+  await expect(question).toHaveValue("보내지 않은 질문을 보존해 주세요.");
+  await closePanel.click();
+  await discard.click();
+  await expect(page.getByLabel("대화 및 AI 패널", { exact: true })).toHaveCount(0);
+  await openConversation.click();
+  await expect(question).toHaveValue("");
+  await question.fill("목록으로 이동하기 전에 확인할 질문");
+  const back = page.getByRole("button", { name: "← 문서 목록", exact: true });
+  await back.click();
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(back).toBeFocused();
+  await expect(question).toHaveValue("목록으로 이동하기 전에 확인할 질문");
+  await back.click();
+  await dialog.getByRole("button", { name: "저장하지 않고 목록으로", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "HWPX 문서함", exact: true })).toBeVisible();
 });
 
 test("MOCK UI: unconfigured AI blocks new report calls but retains existing draft formatting", async ({ page }, info) => {
@@ -179,12 +224,39 @@ test("MOCK UI: unconfigured AI blocks new report calls but retains existing draf
   await library(page);
   await page.getByRole("button", { name: "보고서 작성", exact: true }).click();
   await page.getByLabel("보고서 작성 요청", { exact: true }).fill("새 보고서 요청 내용");
-  await expect(page.getByRole("button", { name: "Codex로 보고서 초안 만들기", exact: true })).toBeDisabled();
-  await expect(page.locator(".capability-notice")).toContainText(feature.message);
-  const bounds = (await page.getByLabel("보고서 작성 요청 도구", { exact: true }).boundingBox())!;
+  await prepareScreenshotFont(page);
+  await page.screenshot({ path: info.outputPath("mobile-report-capability-layout.png") });
+  const drawer = page.getByRole("complementary", { name: "보고서 작성 요청 도구", exact: true });
+  const notice = drawer.locator(".capability-notice");
+  const recheck = notice.getByRole("button", { name: "사용 가능 여부 다시 확인", exact: true });
+  const submit = drawer.getByRole("button", { name: "초안 작성하기", exact: true });
+  await expect(submit).toBeDisabled();
+  await expect(notice).toContainText(feature.message);
+  for (const control of [notice, recheck, submit]) await expect(control).toBeInViewport({ ratio: 1 });
+  const submitBefore = await submit.boundingBox(), noticeBefore = (await notice.boundingBox())!;
+  const recheckBounds = (await recheck.boundingBox())!;
+  const drawerScrollBefore = await drawer.evaluate(node => node.scrollTop);
+  const inputs = drawer.locator(".report-input");
+  const inputBounds = (await inputs.boundingBox())!;
+  expect(recheckBounds.y + recheckBounds.height, "retry button must fit inside the capability notice")
+    .toBeLessThanOrEqual(noticeBefore.y + noticeBefore.height);
+  expect(inputBounds.y, "scrolling inputs must begin below the capability notice controls")
+    .toBeGreaterThanOrEqual(recheckBounds.y + recheckBounds.height);
+  await recheck.click({ trial: true });
+  const scroll = await inputs.evaluate(node => {
+    node.scrollTop = node.scrollHeight;
+    return { top: node.scrollTop, maximum: node.scrollHeight - node.clientHeight };
+  });
+  expect(scroll.maximum).toBeGreaterThan(0);
+  expect(scroll.top).toBeGreaterThan(0);
+  expect(Math.abs(scroll.maximum - scroll.top)).toBeLessThanOrEqual(1);
+  expect(await submit.boundingBox()).toEqual(submitBefore);
+  expect(await notice.boundingBox()).toEqual(noticeBefore);
+  expect(await drawer.evaluate(node => node.scrollTop)).toBe(drawerScrollBefore);
+  for (const control of [notice, recheck, submit]) await expect(control).toBeInViewport({ ratio: 1 });
+  const bounds = (await drawer.boundingBox())!;
   expect(bounds.width).toBeCloseTo(336, 1);
   await expect(page.locator(".report-workspace-canvas")).toHaveJSProperty("inert", true);
-  await prepareScreenshotFont(page);
   await page.screenshot({ path: info.outputPath("mobile-report-request.png") });
   await page.getByRole("button", { name: "최근 보고서", exact: true }).click();
   await page.getByRole("button", { name: draft.title, exact: true }).click();
@@ -200,11 +272,12 @@ test("MOCK UI: idle rewrite history does not poll, and hidden tools stop active 
   let reads = 0, running = false;
   const task = { id: "rewrite-one", document_id: "document-one", base_version: "version-lease", requested_by: "test-user", status: "running", stale: false, error: "", instruction: "합성 요청", snapshot: { revision: 0, evidence: { text: "원문" } }, execution: {}, candidates: [], application: null };
   await mockApi(page, async (route, path) => {
-    if (path.endsWith("/rewrite-tasks")) { reads++; await json(route, running ? [task] : []); return true; }
+    if (path.endsWith("/rewrite-tasks") || path.endsWith("/assistant-turns")) { reads++; await json(route, running ? [task] : []); return true; }
   });
   await openEditor(page);
-  await page.getByRole("button", { name: "대화 · AI 열기", exact: true }).click();
+  await page.getByRole("button", { name: "문서 AI 대화 열기", exact: true }).click();
   await page.getByLabel("대화 선택").selectOption("thread-one");
+  await page.getByText("문단 수정 후보 · 직접 요청", { exact: true }).click();
   await expect(page.getByTestId("rewrite-provider")).toContainText("로컬·사내 모델");
   const idleReads = reads;
   await page.clock.install();
@@ -212,10 +285,11 @@ test("MOCK UI: idle rewrite history does not poll, and hidden tools stop active 
   expect(reads).toBe(idleReads);
   running = true;
   await page.getByRole("button", { name: "후보·적용 이력 새로고침", exact: true }).click();
-  await expect(page.getByText("작업 rewrite-one", { exact: true })).toBeVisible();
+  await expect(page.locator('[data-task-id="rewrite-one"]')).toBeVisible();
   const activeReads = reads;
   await page.clock.runFor(2100);
   await expect.poll(() => reads).toBeGreaterThan(activeReads);
+  await page.getByLabel("추가 도구", { exact: true }).click();
   await page.getByRole("button", { name: "AI 검토 열기", exact: true }).click();
   const hiddenReads = reads;
   await page.clock.runFor(6500);
@@ -230,6 +304,7 @@ test("MOCK UI: mobile document actions fit the viewport and remain keyboard reac
   await expect(actions).toBeVisible();
   const bounds = (await actions.boundingBox())!;
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(400);
+  await page.getByRole("button", { name: `${documentRow.name} 더보기`, exact: true }).click();
   const fileInput = page.getByLabel(`${documentRow.name} 새 버전 업로드`);
   await fileInput.focus();
   await expect(fileInput).toBeFocused();
@@ -286,8 +361,8 @@ test("MOCK UI: template first page appears early; cache reuse still rechecks fil
     }
   });
   await library(page);
-  await page.getByRole("button", { name: "템플릿 마켓", exact: true }).click();
-  const select = async (name: string) => page.locator(".market-card").filter({ has: page.getByRole("heading", { name, exact: true }) }).getByRole("button", { name: "미리보기 · 사용", exact: true }).click();
+  await page.getByRole("button", { name: "양식 보관함", exact: true }).click();
+  const select = async (name: string) => page.locator(".market-card").filter({ has: page.getByRole("heading", { name, exact: true }) }).getByRole("button", { name: "양식 보기", exact: true }).click();
   await select("양식 A");
   await expect(page.getByRole("img", { name: "양식 미리보기 1쪽", exact: true })).toBeVisible();
   await expect(page.getByRole("img", { name: "양식 미리보기 2쪽", exact: true })).toHaveCount(0);
@@ -308,6 +383,43 @@ test("MOCK UI: template first page appears early; cache reuse still rechecks fil
   await expect(page.getByRole("img", { name: /양식 미리보기/ })).toHaveCount(0);
   expect(fileReads).toBe(5);
   expect(await page.evaluate(() => (window as any).__previewMounts)).toBe(2);
+});
+
+test("MOCK UI: removing the last favorite on a later page returns to the remaining templates", async ({ page }) => {
+  const templates = Array.from({ length: 25 }, (_, index) => ({
+    id: `template-${index + 1}`, name: `양식 ${index + 1}`, description: "합성 페이지 시험", tags: [],
+    document_id: `document-${index + 1}`, version_id: "fixed-version", category: "보고서", revision: 1,
+    favorite: true, can_manage: false, created_at: 1, sha256: "a".repeat(64), size: 10, source_name: "sample.hwpx",
+  }));
+  const reads: { offset: number; total: number }[] = [];
+  await mockApi(page, async (route, path) => {
+    if (path === "/template-market") {
+      const params = new URL(route.request().url()).searchParams;
+      const rows = templates.filter(item => params.get("favorite") !== "true" || item.favorite);
+      const offset = Number(params.get("offset"));
+      reads.push({ offset, total: rows.length });
+      await json(route, { items: rows.slice(offset, offset + 24), total: rows.length, categories: [] });
+      return true;
+    }
+    if (path === "/template-market/template-25/favorite") {
+      templates[24].favorite = route.request().postDataJSON().favorite;
+      await json(route, templates[24]);
+      return true;
+    }
+  });
+  await library(page);
+  await page.getByRole("button", { name: "양식 보관함", exact: true }).click();
+  await page.getByRole("checkbox", { name: "즐겨찾기만", exact: true }).check();
+  await page.getByRole("button", { name: "다음", exact: true }).click();
+  await expect(page.locator(".market-card")).toHaveCount(1);
+  await page.getByRole("button", { name: "양식 25 즐겨찾기", exact: true }).click();
+  await expect(page.locator(".market-card")).toHaveCount(24);
+  await expect(page.getByRole("heading", { name: "양식 1", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "양식 25", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "양식 목록 페이지", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "조건에 맞는 양식이 없습니다", exact: true })).toHaveCount(0);
+  expect(reads).toContainEqual({ offset: 24, total: 24 });
+  expect(reads.at(-1)).toEqual({ offset: 0, total: 24 });
 });
 
 test("MOCK UI: report polling backs off, pauses in hidden pages, and resumes to reconcile completion", async ({ page }) => {

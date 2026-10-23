@@ -2,7 +2,7 @@ import { useSyncExternalStore, type ReactNode } from "react";
 import "./workspace-nav.css";
 
 export type WorkspaceSection = "documents" | "reports" | "templates" | "standards";
-export type WorkspaceIconName = WorkspaceSection | "back" | "plus" | "upload" | "search" | "refresh" | "download" | "history" | "copy" | "rename" | "share" | "settings" | "close" | "save" | "document" | "file" | "block" | "toc" | "conversation" | "review" | "help" | "undo" | "sidebar-expanded" | "sidebar-icons" | "sidebar-hidden";
+export type WorkspaceIconName = WorkspaceSection | "back" | "plus" | "upload" | "search" | "refresh" | "download" | "history" | "copy" | "rename" | "share" | "settings" | "close" | "save" | "document" | "file" | "block" | "toc" | "conversation" | "review" | "help" | "undo" | "more" | "sidebar-expanded" | "sidebar-icons" | "sidebar-hidden";
 
 const paths: Record<WorkspaceIconName, ReactNode> = {
   documents: <><path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5M8 12h8M8 16h6"/></>,
@@ -30,6 +30,7 @@ const paths: Record<WorkspaceIconName, ReactNode> = {
   review: <path d="M4 3h12v8M4 3v18h8M8 7h4M8 11h3M15 15l2 2 4-5"/>,
   help: <path d="M9.1 8a3 3 0 0 1 5.8 1c0 2-3 2-3 4M12 17h.01M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20"/>,
   undo: <path d="M9 4 4 9l5 5M4 9h10a6 6 0 0 1 0 12h-3"/>,
+  more: <><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></>,
   "sidebar-expanded": <><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M10 4v16M6 8h1M6 12h1M6 16h1M13 8h5M13 12h5"/></>,
   "sidebar-icons": <><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v16M5.5 8h.01M5.5 12h.01M5.5 16h.01"/></>,
   "sidebar-hidden": <><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m11 9-3 3 3 3M8 12h8"/></>,
@@ -41,7 +42,7 @@ export function WorkspaceIcon({ name, size = 20 }: { name: WorkspaceIconName; si
 
 const sections: { title: string; items: { id: WorkspaceSection; label: string }[] }[] = [
   { title: "문서 작업", items: [{ id: "documents", label: "문서함" }, { id: "reports", label: "보고서 작성" }] },
-  { title: "서식 관리", items: [{ id: "standards", label: "문서 표준 편집" }, { id: "templates", label: "템플릿 마켓" }] },
+  { title: "서식 관리", items: [{ id: "standards", label: "문서 표준 편집" }, { id: "templates", label: "양식 보관함" }] },
 ];
 
 type SidebarMode = "expanded" | "icons" | "hidden";
@@ -92,7 +93,7 @@ export function WorkspaceNav({ active, onNavigate, onBack, backLabel = "← 문�
       <button aria-label="사이드바 아이콘만" title="아이콘만 표시" aria-pressed={mode === "icons"} onClick={() => setMode("icons")}><WorkspaceIcon name="sidebar-icons" size={18}/><span>아이콘</span></button>
       <button aria-label="사이드바 숨기기" title="사이드바 숨기기" aria-pressed={false} onClick={() => setMode("hidden")}><WorkspaceIcon name="sidebar-hidden" size={18}/><span>숨김</span></button>
     </div>
-    {onBack && <button className="workspace-nav-back" aria-label={backLabel} title={backLabel} disabled={disabled} onClick={onBack}><WorkspaceIcon name="back"/><span>문서 목록으로</span></button>}
+    {onBack && !onNavigate && <button className="workspace-nav-back" aria-label={backLabel} title={backLabel} disabled={disabled} onClick={onBack}><WorkspaceIcon name="back"/><span>문서 목록으로</span></button>}
     {onNavigate && <div className="workspace-nav-routes" role="group" aria-label="화면 이동">{sections.map(group => <div className="workspace-nav-section" key={group.title} role="group" aria-label={group.title}><p className="workspace-nav-caption">{group.title}</p>{group.items.map(section => <button key={section.id} className="workspace-nav-route" aria-label={section.label} title={section.label} aria-current={section.id === active ? "page" : undefined} disabled={disabled} onClick={() => { if (section.id !== active) onNavigate(section.id); }}><WorkspaceIcon name={section.id}/><span>{section.label}</span></button>)}</div>)}</div>}
     {children && <div className="workspace-nav-tools" role="group" aria-label="현재 화면 도구"><p className="workspace-nav-caption">현재 화면 도구</p>{children}</div>}
     {footer && <div className="workspace-nav-footer">{footer}</div>}

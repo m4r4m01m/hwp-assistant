@@ -1,0 +1,210 @@
+{
+  "date": "2026-10-23",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "base_head": "5977f337b17a6f6e35aa5cf20b4496194cf3ce16",
+  "status": "Implemented and tested; final source is running in the verified local QA service. Native HWP display remains unverified; see companion color record.",
+  "scope": [
+    "Drop one HWPX into the document library using the existing upload flow and frozen response-loss recovery.",
+    "Add an explicit AUTO note style: one distinct source uses *, two or more use 주1), 주2) from the first source, reset per logical paragraph/table/diagram.",
+    "Expose notes and frequently used standard settings first, while keeping all detailed controls searchable."
+  ],
+  "implementation": {
+    "library": {
+      "files": [
+        "frontend/src/main.tsx",
+        "frontend/src/workspace-shell.css",
+        "frontend/tests/library-drop.spec.ts"
+      ],
+      "behavior": "Library body accepts one HWPX, creates a new document ID, and uses the same incoming-file path as the upload button. Child enter/leave preserves hover; drop, Escape and reset clear it. File drops elsewhere in the library window cannot navigate the browser away.",
+      "limits": {
+        "max_files_per_drop": 1,
+        "max_file_bytes": 31457280,
+        "multiple_files": "Reject the entire drop; no partial upload.",
+        "pending_upload": "Block another upload until the frozen request is resolved."
+      },
+      "response_loss": "Keep bytes, filename, document UUID and idempotency key for rechecking the same request; no second document on retry."
+    },
+    "automatic_notes": {
+      "files": [
+        "backend/app/report_contract.py",
+        "backend/app/report_notes.py",
+        "backend/app/reference_standard.py",
+        "docs/document-writing-standard.md"
+      ],
+      "setting": "Additive AUTO option and new revision-3 default; existing STARS and NOTE retain their fixed meanings.",
+      "local_policy": "reference-local-notes-v1",
+      "scope": "One logical prose block, or one visual unit containing its caption and all table cells/diagram labels.",
+      "count": "Distinct canonical source IDs in first-reference order; repeated citations count once.",
+      "example": "[S8][S4][S8] becomes 주1), 주2), 주1); a following single-source [S4] unit uses *.",
+      "matching": "Inline markers, emphasis text and immediately following note explanations share the same scope mapping. Canonical draft source IDs and facts remain unchanged.",
+      "reference_preview": "Only the new AUTO derived preview reorders the three exactly linked table-note explanation paragraphs into 주1), 주2), 주3). Paragraph text, runs and source relationships are retained. Original view and fixed-style previews retain their prior order.",
+      "compatibility": "No revision increment or new persistence fields; old serialized fixed-style settings remain accepted. Existing registered hashes, frozen previews and save retries are not migrated."
+    },
+    "standard_designer": {
+      "files": [
+        "frontend/src/standard-designer.tsx",
+        "frontend/src/standard-designer.css"
+      ],
+      "behavior": "Default 자주 쓰는 설정 and optional 상세 설정. Notes/page numbering open first; AUTO help explains local reset and duplicate-source counting. Search covers every setting in either mode, and detailed controls retain their field labels.",
+      "common_controls": "Notes/page numbering, composition, margins, main font/size/line spacing/alignment, table fill/border/width/alignment."
+    }
+  },
+  "backend_tests": {
+    "unique_passed": 48,
+    "runs": [
+      {
+        "command": ".venv/Scripts/python -m pytest -q --basetemp=.cache/auto-notes-pytest-2 backend/tests/test_report_local_notes.py backend/tests/test_reference_standard.py backend/tests/test_reference_standard_api.py backend/tests/test_reference_report.py",
+        "result": "47 passed in 8.48s"
+      },
+      {
+        "command": ".venv/Scripts/python -m pytest -q --basetemp=.cache/auto-notes-pytest-3 backend/tests/test_reference_standard.py backend/tests/test_reference_standard_api.py",
+        "result": "26 passed in 4.31s; subset recheck after AUTO explanation ordering"
+      },
+      {
+        "command": ".venv/Scripts/python -m pytest -q --basetemp=.cache/auto-notes-pytest-4 backend/tests/test_reference_standard_api.py -k registration_persists",
+        "result": "2 passed, 13 deselected in 3.06s; AUTO and explicit legacy STARS registration, one new unique case"
+      }
+    ],
+    "coverage": [
+      "Local one/multiple-source choice and reset",
+      "Duplicate-source deduplication",
+      "Table and diagram scope",
+      "Emphasis mapping",
+      "AUTO source-derived preview order and content preservation",
+      "Three pre-change STARS raw-settings/render hashes",
+      "AUTO and legacy STARS immutable registration and frozen retry",
+      "Existing reference-report layout contracts"
+    ],
+    "test_only_fixtures": [
+      "backend/tests/report_notes_fixture.py",
+      "backend/tests/report_mock_app.py"
+    ],
+    "initial_test_adjustment": "Three initial golden assertions compared raw default hashes with Pydantic-normalized float hashes. The tests were corrected to compare the same raw input used for the pre-change baselines; no product hash or legacy render was changed to satisfy them.",
+    "actual_model_calls": 0
+  },
+  "browser_tests": {
+    "unique_passed": 6,
+    "library_browser_api": {
+      "path": ".cache/library-drop-20261023/regression-a/run.json",
+      "result": "2 passed in 6.0s",
+      "real_engine_used": false,
+      "coverage": [
+        "Two uploads with the same filename produce two distinct documents, original bytes and one version each",
+        "Invalid or multiple file drops make no upload POST; outside drop does not navigate",
+        "Lost successful POST response retries identical frozen input and produces only one document/version"
+      ]
+    },
+    "standard_and_report_real_engine": {
+      "unique_passed": 4,
+      "runs": [
+        {
+          "path": ".cache/standard-auto-notes-20261023/e2e-a/run.json",
+          "result": "2 passed in 23.1s",
+          "coverage": [
+            "Common/detailed/search controls and actual preview update",
+            "Stale preview registration prevention and invalid settings retaining previous preview"
+          ]
+        },
+        {
+          "path": ".cache/standard-auto-notes-20261023/e2e-b/run.json",
+          "result": "3 passed in 24.9s; common-settings scenario repeats",
+          "coverage": [
+            "Final AUTO preview after explanation-order change",
+            "Lost registration response retries the same frozen request",
+            "Synthetic AUTO report through actual rhwp, server save and web reopen"
+          ]
+        }
+      ],
+      "engine": {
+        "version": "0.8.6",
+        "commit": "e8800c8def63449808a4092798442652ed460552",
+        "wasm_sha256": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0",
+        "build": "Existing native diagnostic build reused; deployment optimization not verified.",
+        "engine_source_changed": false
+      },
+      "report_fixture": "Synthetic AUTO-NOTES draft; no claim about actual model writing quality."
+    },
+    "typescript_and_production_build": "passed",
+    "served_assets": "Verified against the built entry graphs in isolated runs.",
+    "actual_model_calls": 0,
+    "user_storage_used": false,
+    "remaining_test_listeners": 0,
+    "human_review": false
+  },
+  "visual_and_document_evidence": {
+    "standard_screenshot": ".cache/standard-auto-notes-20261023/e2e-b/results/standard-designer-REAL-rhw-9be89--settings-remain-searchable/standard-common-auto-notes.png",
+    "report_screenshot": ".cache/standard-auto-notes-20261023/e2e-b/results/auto-notes-REAL-rhwp-MOCK--2d7ed-tes-through-save-and-reopen/auto-notes-report.png",
+    "report_hwpx": ".cache/standard-auto-notes-20261023/e2e-b/results/auto-notes-REAL-rhwp-MOCK--2d7ed-tes-through-save-and-reopen/auto-notes-report.hwpx",
+    "report_proof": ".cache/standard-auto-notes-20261023/e2e-b/results/auto-notes-REAL-rhwp-MOCK--2d7ed-tes-through-save-and-reopen/auto-notes-proof.json",
+    "inspection": "Agent inspected both screenshots: AUTO control visible; reference table explanations read 주1), 주2), 주3); report notes sit after their logical paragraph/table and reset at the next unit.",
+    "report_pages": 2,
+    "saved_reopened_sha256": "3696abb1ee81cbb60afa2c213daaa1765137cc80e0ea985be4914d87d3b98451",
+    "canonical_source_ids": [
+      "S8",
+      "S4"
+    ],
+    "canonical_draft_preserved": true,
+    "cached_artifacts": "Local .cache files are diagnostic artifacts and may not be available in a fresh checkout; test sources and this summary are durable."
+  },
+  "preservation": {
+    "source_files": [
+      {
+        "path": "backend/app/assets/document-standard/reference.hwpx",
+        "sha256": "6c68b50656867f1fc724c50549e60e1109e2f7a00219f2928ef58de0a45711f1"
+      },
+      {
+        "path": "backend/app/assets/document-standard/profile.json",
+        "sha256": "7b2a0cb0fd540a83fea952abd891b8fc3e535ed3ac92a5affa6898313d7e4271"
+      }
+    ],
+    "legacy_stars_baselines": [
+      {
+        "preset": "appendix-1",
+        "raw_settings_sha256": "59ad7f985800bdcac06ee607a0bba9a9609259ab914397257bc770aaf693460a",
+        "rendered_hwpx_sha256": "d10d5c2f01ff4a9ba389a9e8882e6ca31048a6fc63598031352357f64fe68ede"
+      },
+      {
+        "preset": "appendix-2",
+        "raw_settings_sha256": "2499f9a07ea2945e3816a6976b8efb57014ead3b071d66db45519fd8b29cbb81",
+        "rendered_hwpx_sha256": "46f7ad6e697b49aa47081bf99d4d0d9a934100c9ebdc08cc97b1aaedc2a749d5"
+      },
+      {
+        "preset": "appendix-3",
+        "raw_settings_sha256": "dca24e30b4acffbff151e83b46e0e73a544466967f923b94a415442b85ffd330",
+        "rendered_hwpx_sha256": "13b21e1b39c2041bdf2b020abd81254be9be08289f729dc969205355f875dc54"
+      }
+    ],
+    "hash_scope": "Legacy settings hashes above cover pre-change raw default dictionaries, not normalized registered-selection hashes. Tests compare like-for-like raw inputs and rendered bytes.",
+    "historical_documents": "No migration or rewrite of original/historical blobs or existing frozen requests. Tests used isolated synthetic storage; this task does not claim a new full audit of the user's live storage."
+  },
+  "color_compatibility": {
+    "status": "in_progress",
+    "resolved": false,
+    "scope": "Separate Hancom 2018 color investigation owned by the parent task; no color correction or cross-editor color parity is claimed by this evidence.",
+    "follow_up_evidence": "docs/evidence/hancom-color-compatibility-2026-10-23.json"
+  },
+  "not_verified": [
+    "Human inspection of the new UI or generated document",
+    "Actual-model generation quality for AUTO notes",
+    "Hancom rendering of AUTO notes and color compatibility",
+    "Docker deployment or isolated-network certification",
+    "Native Hancom screen parity for the new HWP download remains unverified; the QA runtime now serves the final source"
+  ],
+  "runtime": {
+    "verified_at": "2026-10-23T03:52:39.4682893Z",
+    "web_url": "http://127.0.0.1:15201/",
+    "source_fingerprint": "9c29952f0af885e0a16b6a0efb7f824c46bb88f176c01369500f8311098e5f8c"
+  },
+  "live_storage_audit": {
+    "result": "passed_before_and_after_restart",
+    "documents": 9,
+    "versions": 12,
+    "verified_blobs": 14,
+    "verified_bytes": 244182,
+    "visual_standards": 2,
+    "verified_visual_standard_blobs": 2,
+    "same_verified_counts_and_bytes": true,
+    "issues": [],
+    "source_files_mutated": false
+  }
+}

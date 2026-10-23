@@ -51,7 +51,8 @@ test("REAL authenticated browsers: owner sharing, reader visibility, revoke bloc
   const row = page
     .getByRole("row")
     .filter({ has: page.getByRole("button", { name, exact: true }) });
-  await row.getByRole("button", { name: "공유 권한" }).click();
+  await row.getByRole("button", { name: `${name} 더보기`, exact: true }).click();
+  await page.getByRole("group", { name: `${name} 추가 작업`, exact: true }).getByRole("button", { name: "공유 권한" }).click();
   await page.getByLabel("공유 대상 사용자").fill("bob");
   await page.getByRole("button", { name: "권한 저장" }).click();
   await expect(page.locator(".modal")).toContainText("bob · reader");

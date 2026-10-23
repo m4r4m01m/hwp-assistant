@@ -1,0 +1,81 @@
+{
+  "date": "2026-10-23",
+  "scope": "Local UI usability cleanup after report note-placement and appendix fidelity work",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "base_head": "b09ccebaa14caebad11d1078db50aae747e7a62f",
+  "changes": [
+    "Document library exposes download, version history and a labelled More row; secondary operations and sharing retain existing APIs and authorization.",
+    "Common navigation uses consistent names, removes duplicate back navigation and renames the saved-document template library to 양식 보관함.",
+    "Report creation distinguishes content structure from document appearance, keeps the creation action visible below the independently scrolling input area and moves optional help into disclosures.",
+    "Report review promotes the next action, identifies summaries excluded from the final document and distinguishes the generated original from subsequent editor changes.",
+    "Standard designer consolidates preview actions, shows reference-only information when viewing the original and accurately describes new-standard defaults; loading a registered standard no longer marks it dirty.",
+    "Saved-template library removes the duplicate reference-standard card and inaccurate automatic-format claims while preserving registration, copy and metadata workflows.",
+    "AI rewriting is the primary editor action; optional separately configured model features require an explicit successful connection check.",
+    "Writing-context snapshots and review memos are labelled as app storage rather than an AI request; legacy data and detailed receipts remain accessible.",
+    "Completed rewrite history is collapsed while latest, running, cancellable, pending and unsaved applications remain directly accessible.",
+    "Unsent memo text participates in the existing leave/close guard; switching editor tools preserves mounted inputs. Unused legacy Templates modal removed."
+  ],
+  "validation": {
+    "typescript": "passed",
+    "frontend_build": "passed; production frontend build using the existing verified diagnostic rhwp bundle",
+    "harness": "scripts/test-isolated.ps1",
+    "isolated_test_storage": true,
+    "real_engine": "rhwp 0.8.6, e8800c8def63449808a4092798442652ed460552; existing diagnostic build",
+    "mock_ai": true,
+    "actual_model_calls": 0,
+    "unique_scenarios_passed": 23,
+    "runs": [
+      { "path": ".cache/ui-cleanup-20261023/regression-a", "passed": 9, "failed": 9 },
+      { "path": ".cache/ui-cleanup-20261023/regression-b", "passed": 12, "failed": 2 },
+      { "path": ".cache/ui-cleanup-20261023/regression-c", "passed": 2, "failed": 0 },
+      { "path": ".cache/ui-cleanup-20261023/regression-d", "passed": 3, "failed": 0 }
+    ],
+    "run_interpretation": "Counts overlap. Initial failures were obsolete selectors, unscoped duplicate labels and outdated sidebar/reference-view assumptions. These were corrected without weakening save, permission or document-integrity assertions. Runs C and D resolve remaining failures and verify the final always-visible report action. No unresolved failures in the selected scenarios.",
+    "coverage": [
+      "Document copy and lost-response idempotency, source preservation",
+      "Actual rhwp editing, save, download, reopen, mock AI approval and undo",
+      "Writing-context propagation and lost-response recovery preserving later input",
+      "Report content review, feedback revision, frozen retry, formatting, save and reopen",
+      "Standard preview freshness, invalid-setting handling, all three presets and reference immutability",
+      "Standard registration response-loss idempotency",
+      "Saved-template registration, pinned preview, favorites, metadata and lost-response copy recovery",
+      "Template pagination, revoked-source access and navigation without unintended document/model creation",
+      "Authenticated sharing, revocation and external proposal approval/stale-selection fences",
+      "Single editor panel, input preservation across tools and memo-only unsaved close guard",
+      "Authenticated block/TOC operations preserve pending user edits on access revocation",
+      "Expanded/icon/hidden sidebar persistence and responsive layouts; report action visible at 1366px and 400px"
+    ],
+    "browser_visual_review": {
+      "method": "Codex in-app browser, agent-created inspection tab; user tabs left untouched",
+      "viewport": "1280x720",
+      "screenshots": [
+        ".cache/ui-cleanup-20261023/review/documents.png",
+        ".cache/ui-cleanup-20261023/review/reports.png",
+        ".cache/ui-cleanup-20261023/review/standards.png"
+      ],
+      "findings": "Library operations are readable, standard actions are consolidated, and the final report creation button stays visible while input options scroll."
+    },
+    "human_acceptance_review": "pending user review",
+    "not_claimed": ["New actual-model prose evaluation", "Hancom rendering verification", "Full backend regression", "Docker or deployment build verification"]
+  },
+  "preservation": {
+    "audit": ".cache/ui-cleanup-20261023/storage-final.json",
+    "result": "passed",
+    "documents": 8,
+    "versions": 11,
+    "verified_blobs": 13,
+    "verified_bytes": 224748,
+    "registered_visual_standards": 2,
+    "issues": [],
+    "original_reference_and_profile_changed": false,
+    "backend_engine_or_fixtures_changed": false,
+    "notes": "Read-only SQLite/blob audit; no original or historical files rewritten. UI tests use separate synthetic storage."
+  },
+  "local_runtime": {
+    "url": "http://127.0.0.1:15201/",
+    "run_directory": ".cache/developer/runs/20261023-014921-ddc0fb94",
+    "source_fingerprint": "0cbd2f3ed2afe99554ceeef5f401ae176d95cb7f8960d8eb33b924f6ffb8c501",
+    "verified_at": "2026-10-22T16:49:37.6362358Z",
+    "deployment_scope": "Local UI/QA branch; no main-branch merge"
+  }
+}

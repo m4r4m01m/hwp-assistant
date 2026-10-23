@@ -1,0 +1,96 @@
+{
+  "date": "2026-10-23",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "base_head": "cd3308c2b8d5edc97c2bf4f70275216140aa77b2",
+  "scope": "Fix embedded-browser conversation creation and add live-document questions, follow-up conversation, and explicit paragraph-edit proposals.",
+  "reproduced": {
+    "surface": "Codex in-app browser, local QA app",
+    "document_open": "passed",
+    "old_create_conversation": "Error: prompt() is not supported.",
+    "fix": "Inline title form, frozen creation ID/title and same-request recovery; no native prompt or confirmation required for this flow."
+  },
+  "contracts": {
+    "input": "Current rhwp export including unsaved body and table text; SHA-256, revision, epoch, saved base version, optional supported paragraph snapshot, latest 10 completed turns.",
+    "text_limit": 60000,
+    "truncation": "Read-only prefix excerpt, visibly disclosed; never rewrites document text.",
+    "question": "Frozen UUID/input, current document ACL and edit lease, shared bounded execution capacity; unknown response retry does not regenerate.",
+    "conversation_visibility": "Existing document ACL; no private conversation claim or new access grants.",
+    "codex": "Existing ChatGPT login and configured model via ephemeral app-server; no shell, files, web, MCP tools or paid fallback in question runner.",
+    "edit": "Optional selected-paragraph instruction enters existing two-candidate workflow. Exact snapshot must still match; explicit human approval precedes application and transactional server save.",
+    "storage": "One additive document_assistant_turns table; original/historical HWPX and existing frozen workflows preserved.",
+    "navigation": "Unsent drafts retained, pending turn blocks destructive navigation, permission loss releases active hold while preserving drafts.",
+    "display": "Only actual running/completed status; no simulated token streaming. Preview collapses on sending; latest answer scrolls within conversation panel above composer."
+  },
+  "backend_tests": {
+    "command": ".venv/Scripts/python -m pytest -q --basetemp=.cache/assistant-backend-pytest-3 backend/tests/test_document_assistant.py backend/tests/test_rewrite.py backend/tests/test_collaboration.py",
+    "result": "43 passed",
+    "new_assistant_tests": 27,
+    "existing_rewrite_and_collaboration_tests": 16,
+    "actual_model_calls": 0
+  },
+  "browser_tests": {
+    "engine": "Actual pinned rhwp 0.8.6 native diagnostic build; synthetic HTTP AI provider",
+    "unique_regression_run": {"path": ".cache/document-assistant-20261023/regression-b", "result": "13 passed"},
+    "preview_and_header_recheck": {"path": ".cache/document-assistant-20261023/regression-c", "result": "5 passed; subset recheck after UI polish"},
+    "latest_answer_recheck": {"path": ".cache/document-assistant-20261023/regression-d", "result": "1 passed; subset recheck after panel scroll adjustment"},
+    "coverage": [
+      "Inline conversation creation without native prompt, response-loss recovery and reopen",
+      "Unsaved body/table extraction once in order, context SHA, follow-up history, read-only questions",
+      "Lost question response keeps frozen UUID and later unsent composer text; one generation",
+      "Selection change rejects stale paragraph candidate request",
+      "Suggestion to approved real-engine paragraph edit, server save and web reopen",
+      "Empty document produces useful error and preserves question",
+      "Pending answer blocks already-open conversation switch confirmation",
+      "Late empty/running GET does not erase accepted/completed turn",
+      "Access error releases active hold, blocks new requests and preserves draft",
+      "Existing panel input/context save recovery remains intact",
+      "Latest complete answer is entirely above composer; outer window scroll stays zero"
+    ],
+    "typescript_and_production_build": "passed",
+    "served_asset_bytes": "verified against built entry graphs",
+    "actual_model_calls": 0,
+    "user_storage_used": false,
+    "remaining_test_listeners": 0,
+    "initial_test_issue": "regression-a selected a first paragraph containing section controls; corrected test to a supported plain paragraph, preserving engine constraints."
+  },
+  "real_model": {
+    "path": ".cache/document-assistant-20261023/live-codex.json",
+    "provider": "codex",
+    "configured_model": "gpt-6.1-sol",
+    "actual_calls": 2,
+    "input": "Synthetic 20-item inspection plan, 5 completed, 2026-10-30 deadline; no user document sent.",
+    "result": "Two validated responses; correct 25% and 15 remaining; follow-up preserves team, date, total and planned tense in selected-paragraph instruction.",
+    "scope": "Direct production runner, not integrated real-model browser editing or human content review."
+  },
+  "visual_evidence": {
+    "mock_conversation": ".cache/document-assistant-20261023/regression-d/results/document-assistant-REAL-rh-3e35b-y-and-preview-without-edits/live-document-conversation.png",
+    "mock_rewrite_reopen": ".cache/document-assistant-20261023/regression-b/results/document-assistant-REAL-rh-d33df--and-saved-document-reopens/assistant-rewrite-reopened.png",
+    "actual_iab_inline_form": ".cache/document-assistant-20261023/iab-inline-conversation.png",
+    "actual_iab_check": "Existing document opens, inline form visible; closed without creating a conversation, submitting a model request or changing document content. User tabs untouched."
+  },
+  "preservation": {
+    "before": ".cache/document-assistant-20261023/storage-before-restart.json",
+    "after": ".cache/document-assistant-20261023/storage-final.json",
+    "result": "Both read-only audits passed, zero issues",
+    "documents": 8,
+    "versions": 11,
+    "verified_blobs": 13,
+    "verified_bytes": 224748,
+    "visual_standards": 2,
+    "reference_and_report_engine": "No changes"
+  },
+  "runtime": {
+    "url": "http://127.0.0.1:15201/",
+    "run_directory": ".cache/developer/runs/20261023-021925-30ca5cd0",
+    "source_fingerprint": "0ca6662b3a74fa4eb0446562deecd85b55b50f1206104bbf683ffbcfd7a263f2",
+    "provider_status": {"provider": "codex", "model": "gpt-6.1-sol", "configured": true, "allowed": true},
+    "startup": "Verified process identity, source fingerprint, health and served assets. Initial launch inherited incompatible PowerShell module paths; relaunched with Windows PowerShell 5 module paths scoped to this process. No system settings or launcher source changes."
+  },
+  "not_verified_or_supported": [
+    "AI visual reading of screenshots, colors, geometry or figures",
+    "Automatic whole-document, table, formatting or multi-paragraph edits",
+    "Actual-model browser edit approval and human review",
+    "Hancom, PostgreSQL live migration, Docker deployment or isolated-network certification",
+    "Recovery of unsent browser-memory inputs after force-closing the tab"
+  ]
+}

@@ -26,7 +26,7 @@ def emphasis_ranges(text, emphasis=()):
 
 
 class RichLayout:
-    def __init__(self, header, sample, *, visual_settings=None, page_width=481.9, page_budget=625):
+    def __init__(self, header, sample, *, visual_settings=None, page_width=481.9, page_budget=625, body_spacing=False):
         self.header = header
         self.chars = header.find(f".//{{{HH}}}charProperties")
         self.paras = header.find(f".//{{{HH}}}paraProperties")
@@ -39,6 +39,11 @@ class RichLayout:
         self.visual_settings = visual_settings
         from .reference_report import is_reference
         self.reference = is_reference(visual_settings)
+        self.body_spacing = self.reference and body_spacing
+        self.body_gaps = {}
+        if self.body_spacing:
+            from .reference_report import body_spacing_profile
+            self.spacing_profile = body_spacing_profile()
         self.page_width = page_width
         self.page_budget = page_budget
         self.table_size = round(visual_settings.get("table_size_pt", 12) * 100) if visual_settings is not None else 1200
@@ -110,6 +115,53 @@ class RichLayout:
             self.variants[key] = self.append(self.chars, char)
         return self.variants[key]
 
+    def space_body(self, p, item, previous):
+        if not self.body_spacing:
+            return 0
+        from .reference_report import body_gap, report_role
+        gap = body_gap(report_role(previous) if previous else None, report_role(item), self.visual_settings, self.spacing_profile)
+        if not gap:
+            return 0
+        from .reference_source import apply_paragraph
+        old_pid = p.get("paraPrIDRef")
+        para = copy.deepcopy(self.para_map[old_pid])
+        apply_paragraph(para, "body", {"body_before_pt": gap})
+        p.set("paraPrIDRef", self.append(self.paras, para))
+        self.body_gaps[p] = (old_pid, gap)
+        return gap
+
+    def clear_body_gap(self, p):
+        """A new page already separates blocks; do not add an empty top line."""
+        if p not in self.body_gaps:
+            return 0
+        pid, gap = self.body_gaps.pop(p)
+        p.set("paraPrIDRef", pid)
+        return gap
+
+    def align_local_note(self, p, item):
+        """Place a new local explanation under its text/table, with hanging text."""
+        if not self.reference or not item.get("note_source_id"):
+            return
+        role = item["style_kind"]
+        settings = self.visual_settings
+        # Explicit registered note indents own their geometry.
+        if any(settings.get(role + suffix) for suffix in ("_left_indent_pt", "_right_indent_pt", "_first_line_indent_pt")):
+            return
+        right = 0
+        if role == "table_source":
+            percent = settings["table_width_percent"] if item.get("note_visual_kind") == "table" else 100
+            left = self.page_width * (1 - percent / 100) / 2
+            right = left
+        else:
+            parent = item["note_parent_role"].removesuffix("_continuation")
+            left = settings.get(parent + "_left_indent_pt", 0) + max(0, -settings.get(parent + "_first_line_indent_pt", 0))
+        from .reference_source import apply_paragraph
+        para = copy.deepcopy(self.para_map[p.get("paraPrIDRef")])
+        hanging = width(item["note_marker"] + " ") * settings[role + "_size_pt"]
+        apply_paragraph(para, role, {role + "_left_indent_pt": left, role + "_right_indent_pt": right,
+                                    role + "_first_line_indent_pt": -hanging})
+        p.set("paraPrIDRef", self.append(self.paras, para))
+
     def text(self, p, item, *, style=None, limit=None, strong=False):
         cid = p.find(f"{{{HP}}}run").get("charPrIDRef")
         if style:
@@ -130,6 +182,12 @@ class RichLayout:
             raise ValueError("Paragraph margins leave no room for report text")
         parts = lines(item["text"], limit, item["kind"] == "title")
         flags = emphasis_ranges(item["text"], item.get("emphasis", []))
+        if self.body_spacing:
+            from .reference_report import report_role
+            if report_role(item) in {"title", "heading", "cover_title", "subheading", "minor_heading"}:
+                # A body emphasis phrase can also occur in a heading. The
+                # heading's selected role formatting owns its color/weight.
+                flags = [0] * len(item["text"])
         if item.get("style_kind") in ("cover_date", "cover_department"):
             flags = [0] * len(item["text"])
         if self.reference:
@@ -246,7 +304,9 @@ def layout_rich_report(data, plan, *, visual_settings=None):
     original = list(section)
     with zipfile.ZipFile(io.BytesIO(data)) as source:
         header = E.fromstring(source.read("Contents/header.xml"))
-        layout = RichLayout(header, original[3], visual_settings=visual_settings, page_width=page_width, page_budget=page_budget)
+        from .reference_report import has_body_spacing
+        layout = RichLayout(header, original[3], visual_settings=visual_settings, page_width=page_width, page_budget=page_budget,
+                            body_spacing=has_body_spacing(plan))
         prepared, index = [], 0
         while index < len(plan):
             item = plan[index]
@@ -257,11 +317,18 @@ def layout_rich_report(data, plan, *, visual_settings=None):
                 index = end
             else:
                 p = original[item["paragraph"]]
+                if plan[0].get("local_notes") == "reference-local-notes-v1":
+                    layout.align_local_note(p, item)
+                previous = prepared[-1][1] if prepared else None
+                if not item.get("visual_caption"):
+                    layout.space_body(p, item, previous)
                 cost = layout.text(p, item, style="caption" if item.get("visual_caption") else None,
                                    strong=bool(item.get("visual_caption")) and not layout.reference)
+                if item.get("visual_caption"):
+                    cost += layout.space_body(p, item, previous)
                 if layout.reference and item["kind"] == "title":
-                    from .reference_report import has_title_layout, title_layout_cost
-                    if has_title_layout(plan): cost = title_layout_cost(visual_settings, cost)
+                    from .reference_report import has_title_layout, has_title_overflow, title_layout_cost
+                    if has_title_layout(plan): cost = title_layout_cost(visual_settings, cost, overflow_padding=has_title_overflow(plan))
                 index += 1
             prepared.append((p, item, cost))
         for p in list(section)[1:]: section.remove(p)
@@ -271,6 +338,36 @@ def layout_rich_report(data, plan, *, visual_settings=None):
         body_started = False
         for i, (p, item, cost) in enumerate(prepared):
             following = prepared[i + 1][2] if (item["kind"] == "heading" or item.get("visual_caption")) and i + 1 < len(prepared) else 0
+            if layout.body_spacing:
+                from .reference_report import report_role
+                heading_roles = {"heading", "subheading", "minor_heading"}
+                if report_role(item) in heading_roles:
+                    # Keep an entire consecutive heading chain with its first
+                    # prose block when it fits; a middle heading alone is not
+                    # useful on the preceding page.
+                    following = 0
+                    for next_index in range(i + 1, len(prepared)):
+                        _, next_item, next_cost = prepared[next_index]
+                        following += next_cost
+                        if report_role(next_item) not in heading_roles:
+                            scope = next_item.get("note_scope") if plan[0].get("local_notes") == "reference-local-notes-v1" else None
+                            if scope:
+                                for _, grouped_item, grouped_cost in prepared[next_index + 1:]:
+                                    if grouped_item.get("note_scope") != scope:
+                                        break
+                                    following += grouped_cost
+                            break
+            if plan[0].get("local_notes") == "reference-local-notes-v1":
+                # Reserve the logical paragraph/visual and its explanations
+                # together when they fit. Larger groups retain normal flow.
+                scope = item.get("note_scope")
+                if scope:
+                    local_following = 0
+                    for _, next_item, next_cost in prepared[i + 1:]:
+                        if next_item.get("note_scope") != scope:
+                            break
+                        local_following += next_cost
+                    following = max(following, local_following)
             needed = cost + following if cost + following <= page_budget else cost
             is_cover = cover_layout and (item["kind"] == "title" or item.get("style_kind") in ("cover_date", "cover_department"))
             first_body = cover_layout and not is_cover and not body_started
@@ -278,6 +375,8 @@ def layout_rich_report(data, plan, *, visual_settings=None):
                 used = 0
                 body_started = True
             new_page = first_body or not is_cover and used > 0 and used + needed > page_budget
+            if new_page:
+                cost -= layout.clear_body_gap(p)
             p.set("pageBreak", "1" if new_page else "0")
             used = cost if new_page else used + cost
             section.append(p)

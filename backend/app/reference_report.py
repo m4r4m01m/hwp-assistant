@@ -1,6 +1,7 @@
 """Reference-standard formatting for newly requested reports (revision 3 only)."""
 import copy
 import json
+import math
 import re
 from xml.etree import ElementTree as E
 
@@ -10,6 +11,11 @@ STANDARD_STYLE = "HWP Assistant Reference Standard:v3"
 TOC_ANCHOR_STYLE = "HWP Assistant Reference TOC anchor:v3"
 COVER_LAYOUT_POLICY = "reference-cover-v1"
 TITLE_LAYOUT_POLICY = "reference-title-v1"
+TITLE_OVERFLOW_POLICY = "reference-title-overflow-v1"
+BODY_SPACING_POLICY = "reference-body-spacing-v1"
+TOC_LAYOUT_LEGACY_POLICY = "reference-toc-frame-v1"
+TOC_LAYOUT_POLICY = "reference-toc-frame-v2"
+TOC_LAYOUT_POLICIES = (TOC_LAYOUT_LEGACY_POLICY, TOC_LAYOUT_POLICY)
 COVER_SPACER_STYLE = "HWP Assistant Reference Cover spacer:v1"
 
 
@@ -19,6 +25,71 @@ def has_cover_layout(plan):
 
 def has_title_layout(plan):
     return bool(plan and plan[0].get("title_layout") == TITLE_LAYOUT_POLICY)
+
+
+def has_title_overflow(plan):
+    return bool(plan and plan[0].get("title_overflow") == TITLE_OVERFLOW_POLICY)
+
+
+def has_body_spacing(plan):
+    return bool(plan and plan[0].get("body_spacing") == BODY_SPACING_POLICY)
+
+
+def has_toc_layout(plan):
+    return bool(plan and plan[0].get("toc_layout") in TOC_LAYOUT_POLICIES)
+
+
+def report_role(item):
+    if item.get("visual_id"):
+        return "table"
+    if item.get("visual_caption"):
+        return "caption"
+    return item.get("style_kind", item["kind"])
+
+
+def body_spacing_profile():
+    """Source blank-line heights, separate from editable paragraph margins.
+
+    Appendix 1 uses native empty paragraphs, not before/after margins: top-level
+    84 (16pt) after a heading, 86/88 (14pt) around subordinate headings, 90
+    (6pt) before supporting prose and 103 (20pt) before the next main heading.
+    The written spacing rule (document-order paragraph 120) requires a 14pt
+    blank line generally and 6-20pt by element. Its minimum wins over the
+    incidental 3pt spacer at top-level 92. Never alter the source projection.
+    """
+    from .document_standard import paragraph_line_factor
+    _, header, section = source_parts()
+    chars = {c.get("id"): c for c in header.iter(f"{{{HH}}}charPr")}
+    paras = {p.get("id"): p for p in header.iter(f"{{{HH}}}paraPr")}
+    result = {}
+    for name, index in (("heading", 103), ("after_heading", 84), ("body", 86), ("support", 90)):
+        paragraph = section[index]
+        char = chars[paragraph.find(f"{{{HP}}}run").get("charPrIDRef")]
+        result[name] = round(int(char.get("height")) / 100 * paragraph_line_factor(paras[paragraph.get("paraPrIDRef")]), 2)
+    return result
+
+
+def body_gap(previous_role, role, settings, profile):
+    """Restore the source's separation once, respecting explicit user margins."""
+    excluded = {"title", "cover_title", "cover_date", "cover_department"}
+    if previous_role is None or previous_role in excluded or role in excluded or role == "table" or role.endswith("_continuation"):
+        return 0
+    # Continuations inherit the original item's native paragraph margins.
+    # Look up that role so its selected after-spacing still replaces our gap.
+    previous_role = previous_role.removesuffix("_continuation")
+    if settings.get(previous_role + "_after_pt", 0) or settings.get(role + "_before_pt", 0):
+        return 0
+    if role == "heading":
+        return profile["heading"]
+    if previous_role == "heading" or role == "subheading":
+        return profile["after_heading"]
+    if role in {"source", "note", "table_source", "unit"}:
+        return 0
+    if previous_role in {"subheading", "minor_heading"} or role == "minor_heading":
+        return profile["body"]
+    if role in {"circle", "dash", "dot"}:
+        return profile["support"]
+    return profile["body"]
 
 
 def is_reference(settings):
@@ -38,8 +109,8 @@ def body_item(text, settings, counters):
     """Resolve structural tokens before freezing text; never change claim prose."""
     match = re.match(r"^([□ㅇ○\-․])\s+", text)
     if not match:
-        for pattern, role in ((r"^[가-하]\.\s", "subheading"), (r"^\(\d+\)\s", "minor_heading"),
-                              (r"^\([가-하]\)\s", "numbered_4"), (r"^[①-⑳]\s", "numbered_5"),
+        for pattern, role in ((r"^[가-하]\.\s", "subheading"), (r"^(?:\(\d+\)|\d+\))\s", "minor_heading"),
+                              (r"^(?:\([가-하]\)|[가-하]\))\s", "numbered_4"), (r"^[①-⑳]\s", "numbered_5"),
                               (r"^[㉮-㉻]\s", "numbered_6"), (r"^(?:\*+|주\d+\))\s", "note")):
             if re.match(pattern, text):
                 return text, role
@@ -161,9 +232,19 @@ def toc_settings(header):
         return None
     from .reference_standard import VisualSettingsV3, defaults
     raw = json.loads(marker.get("engName", ""))
-    if not isinstance(raw, dict) or any(not key.startswith("toc_") and key != "preset_id" for key in raw):
+    if not isinstance(raw, dict) or any(not key.startswith("toc_") and key not in ("preset_id", "body_spacing") for key in raw):
         raise ValueError("Invalid reference TOC formatting")
+    policy = raw.pop("body_spacing", None)
+    if policy is not None and policy != BODY_SPACING_POLICY:
+        raise ValueError("Invalid reference spacing policy")
+    layout = raw.pop("toc_layout", None)
+    if layout is not None and layout not in TOC_LAYOUT_POLICIES:
+        raise ValueError("Invalid reference TOC layout policy")
     validated = VisualSettingsV3.model_validate({**defaults(), **raw}).model_dump(mode="json")
+    if policy is not None:
+        validated["body_spacing"] = policy
+    if layout is not None:
+        validated["toc_layout"] = layout
     return validated
 
 
@@ -171,9 +252,19 @@ def arrange_report(header, section, settings, *, plan=None):
     """Blank anchors and page boundaries add no claims or source example text."""
     if not is_reference(settings):
         return
+    if has_body_spacing(plan) or has_toc_layout(plan):
+        # Ordinary editor TOC updates must keep the same layout generation.
+        # Older frozen plans never acquire this marker on replay.
+        marker = next(node for node in header.iter(f"{{{HH}}}style") if node.get("name") == STANDARD_STYLE)
+        raw = json.loads(marker.get("engName"))
+        if has_body_spacing(plan):
+            raw["body_spacing"] = BODY_SPACING_POLICY
+        if has_toc_layout(plan):
+            raw["toc_layout"] = plan[0]["toc_layout"]
+        marker.set("engName", json.dumps(raw, ensure_ascii=False, sort_keys=True))
     if settings["preset_id"] == "appendix-1":
         if has_title_layout(plan):
-            arrange_source_title(header, section, settings)
+            arrange_source_title(header, section, settings, overflow_padding=has_title_overflow(plan))
         return
     if has_cover_layout(plan):
         arrange_source_cover(header, section, settings, plan)
@@ -215,7 +306,14 @@ def source_empty_paragraph(header, source_header, source, settings=None, role=No
     return node
 
 
-def source_title_box(header, section, title, settings, host, source_index, prefix):
+def overflow_title_padding(settings, prefix, original):
+    # A rule is centered on the cell edge. Leave 3pt of clear space inside
+    # its painted half-width when text makes the source frame grow.
+    safe = math.ceil(settings[prefix + "_rule_width_mm"] * 7200 / 25.4 / 2 + 300)
+    return {side: max(int(original[side]), safe) for side in ("top", "bottom")}
+
+
+def source_title_box(header, section, title, settings, host, source_index, prefix, *, overflow_padding=False):
     """Place one fenced title in the original native table, with chosen styling."""
     from .document_standard import layout_metrics
     _, source_header, source_section = source_parts()
@@ -253,6 +351,19 @@ def source_title_box(header, section, title, settings, host, source_index, prefi
     old_width = int(table.find(f"{{{HP}}}sz").get("width"))
     box_width = max(100, round(page_width * 100) - (source_width - old_width))
     box_height = round(settings[prefix + "_frame_height_mm"] * 7200 / 25.4)
+    if overflow_padding:
+        from .document_standard import paragraph_line_factor
+        char = next(c for c in header.iter(f"{{{HH}}}charPr") if c.get("id") == title.find(f"{{{HP}}}run").get("charPrIDRef"))
+        size = int(char.get("height"))
+        line_count = 1 + len(list(title.iter(f"{{{HP}}}lineBreak")))
+        margins = para.find(f"{{{HP}}}switch/{{{HP}}}case/{{{HH}}}margin")
+        vertical = sum(int(node.get("value")) for node in margins if node.tag in (f"{{{HH}}}prev", f"{{{HH}}}next"))
+        content_height = math.ceil(size + (line_count - 1) * size * paragraph_line_factor(para) + vertical)
+        padding = cell.find(f"{{{HP}}}cellMargin")
+        if content_height + int(padding.get("top")) + int(padding.get("bottom")) > box_height:
+            safe_padding = overflow_title_padding(settings, prefix, padding.attrib)
+            padding.attrib.update({side: str(value) for side, value in safe_padding.items()})
+            box_height = content_height + sum(safe_padding.values())
     table.find(f"{{{HP}}}sz").attrib.update(width=str(box_width), height=str(box_height))
     cell.find(f"{{{HP}}}cellSz").attrib.update(width=str(box_width), height=str(box_height))
     host_run = host.find(f"{{{HP}}}run")
@@ -263,7 +374,7 @@ def source_title_box(header, section, title, settings, host, source_index, prefi
     return host
 
 
-def title_layout_cost(settings, text_cost):
+def title_layout_cost(settings, text_cost, *, overflow_padding=False):
     """Budget the original title table and following empty paragraph."""
     from .document_standard import paragraph_line_factor
     _, header, section = source_parts()
@@ -272,8 +383,11 @@ def title_layout_cost(settings, text_cost):
     table = section[81].find(f".//{{{HP}}}tbl")
     outer = table.find(f"{{{HP}}}outMargin")
     cell = table.find(f"{{{HP}}}tr/{{{HP}}}tc/{{{HP}}}cellMargin")
+    padding = {side: int(cell.get(side)) for side in ("top", "bottom")}
+    if overflow_padding and text_cost + sum(padding.values()) / 100 > settings["title_frame_height_mm"] * 72 / 25.4:
+        padding = overflow_title_padding(settings, "title", padding)
     height = max(settings["title_frame_height_mm"] * 72 / 25.4,
-                 text_cost + (int(cell.get("top")) + int(cell.get("bottom"))) / 100)
+                 text_cost + sum(padding.values()) / 100)
     height += (int(outer.get("top")) + int(outer.get("bottom"))) / 100
     for index in (81, 82):
         p = section[index]
@@ -283,12 +397,12 @@ def title_layout_cost(settings, text_cost):
     return height
 
 
-def arrange_source_title(header, section, settings):
+def arrange_source_title(header, section, settings, *, overflow_padding=False):
     """Appendix 1's 15mm title box reserves space before its first heading."""
     _, source_header, source_section = source_parts()
     serial = max((int(e.get("id")) for e in section.iter() if (e.get("id") or "").isdigit()), default=980000) + 1
     host = source_empty_paragraph(header, source_header, source_section[81])
-    source_title_box(header, section, section[1], settings, host, 81, "title")
+    source_title_box(header, section, section[1], settings, host, 81, "title", overflow_padding=overflow_padding)
     for child in host.iter():
         if child.tag in (f"{{{HP}}}p", f"{{{HP}}}tbl"):
             child.set("id", str(serial)); serial += 1
@@ -345,7 +459,7 @@ def arrange_source_cover(header, section, settings, plan):
         index = 112 if settings["preset_id"] == "appendix-2" else 132
         host = blank(index)
         host.set("styleIDRef", "0")
-        return identity(source_title_box(header, section, title, settings, host, index, "cover"))
+        return identity(source_title_box(header, section, title, settings, host, index, "cover", overflow_padding=has_title_overflow(plan)))
 
     original = list(section)
     title = original[1]

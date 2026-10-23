@@ -557,6 +557,8 @@ def create_app(database_url=None, storage_dir=None):
     install_version_compare(app, version_dict)
     from .rewrite import install_rewrite
     install_rewrite(app, check_lease)
+    from .document_assistant import install_document_assistant
+    install_document_assistant(app, check_lease)
     from .document_copy import install_document_copy
     install_document_copy(app, locked, publish, doc_dict)
     from .document_blocks import install_document_blocks

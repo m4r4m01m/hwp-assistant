@@ -28,6 +28,13 @@ test("HTTPS subpath login, real Studio and immutable comparison renderer", async
   expect(cookie?.value).not.toBe(token);
 
   await page.getByRole("button", { name: "deployment-smoke-synthetic.hwpx", exact: true }).click();
+  const currentDocument = page.getByLabel("현재 문서와 저장 상태", { exact: true });
+  await expect(currentDocument).toContainText("deployment-smoke-synthetic.hwpx");
+  // The bridge is installed before WASM and the requested document are ready.
+  // Wait for the application's completed load, not merely the bridge object.
+  await expect(currentDocument.getByRole("status")).toHaveText("저장 완료", { timeout: 90000 });
+  await expect(page.getByRole("link", { name: "저장본 다운로드", exact: true }))
+    .toHaveAttribute("href", `${new URL(base).pathname}api/documents/${receipt.id}/versions/${receipt.version}/file`);
   await expect.poll(() => page.frames().some(frame => frame.url().includes("/hwp-assistant/rhwp/index.html"))).toBe(true);
   const frame = page.frames().find(value => value.url().includes("/hwp-assistant/rhwp/index.html"))!;
   await frame.waitForFunction(() => !!(window as any).hwpAssistantBridge);

@@ -72,9 +72,10 @@ export function WritingContextEditor({ thread, context, baseVersion, writable, c
     finally { if (active.current) setBusy(false); }
   }
   return <section className="writing-context" aria-label="후보 작성 정보">
-    <h2>작성 목적 · 확인 사실 · 작성 기준</h2>
-    <p>컨텍스트 {context.revision} · {stale ? "기준 버전이 바뀌었습니다. 내용을 확인하고 다시 저장하세요." : "현재 기준 버전"}</p>
-    {context.confirmation && <p className="hint" data-testid="context-confirmation">확인자 {context.confirmation.by} · {new Date(context.confirmation.at * 1000).toLocaleString()} · 확인 리비전 {context.revision}</p>}
+    <h2>추가 작성 정보</h2>
+    <p className="hint">문장 수정에 함께 사용할 목적·확인 사실·작성 기준을 입력하세요.</p>
+    {stale && <p className="notice">문서의 저장본이 바뀌었습니다. 작성 정보를 확인하고 다시 저장하세요.</p>}
+    {context.confirmation && <p className="hint" data-testid="context-confirmation">내용 확인 완료 · {new Date(context.confirmation.at * 1000).toLocaleString()}</p>}
     {conflict && dirty && <p role="alert">다른 변경이 저장되어 있습니다. 현재 입력은 유지했습니다. 내용을 비교한 뒤 다시 작성하거나 서버 내용을 불러오세요.</p>}
     {conflict && dirty && <details open><summary>서버에 저장된 최신 작성 정보 비교</summary>
       <ContextSnapshot value={{ ...context, id: thread }} />
@@ -100,15 +101,15 @@ export function WritingContextEditor({ thread, context, baseVersion, writable, c
       confirmed_facts: [...draft.confirmed_facts, { id: crypto.randomUUID(), text: "", source: "user_statement", source_note: "", version_id: null }] })}>확인 사실 추가</button>}
     <label>작성 기준<textarea aria-label="작성 기준" value={draft.writing_criteria} disabled={!writable || busy}
       onChange={e => change({ ...draft, writing_criteria: e.target.value })} maxLength={4000} placeholder="독자, 말투, 분량, 유지할 표현 등을 적으세요." /></label>
-    <details open={!!draft.facts}><summary>기존 메모 · 후보 입력에서 제외</summary>
+    {!!(draft.facts || context.facts) && <details><summary>이전 작성 메모</summary>
       <label>확정 사실·작성 기준<textarea aria-label="확정 사실·작성 기준" value={draft.facts} disabled={!writable || busy}
         onChange={e => change({ ...draft, facts: e.target.value })} maxLength={12000} /></label>
       <p className="hint">기존 메모는 보존합니다. 후보에 사용할 내용은 위의 확인 사실 또는 작성 기준으로 직접 옮기세요.</p>
-    </details>
+    </details>}
     {writable && <>
       <label className="check-label"><input type="checkbox" checked={confirmed} disabled={busy} onChange={e => setConfirmed(e.target.checked)} />목적·사실·기준을 확인했으며 후보 생성에 사용할 수 있습니다</label>
-      <button disabled={busy || conflict && !needsRecheck} onClick={() => void save(false)}>{needsRecheck ? "작성 정보 저장 결과 재확인" : "컨텍스트 저장"}</button>
-      {capture && <button disabled={busy || conflict || needsRecheck} onClick={() => void save(true)}>현재 문단을 Codex에 공유</button>}
+      <button disabled={busy || conflict && !needsRecheck} onClick={() => void save(false)}>{needsRecheck ? "작성 정보 저장 결과 재확인" : "작성 정보 저장"}</button>
+      {capture && <button disabled={busy || conflict || needsRecheck} onClick={() => void save(true)}>현재 문단을 작성 정보에 저장</button>}
       {dirty && <p className="hint">작성 정보에 아직 저장하지 않은 변경이 있습니다.</p>}
       {dirty && <button disabled={busy || needsRecheck} onClick={() => {
         if (confirm("저장하지 않은 작성 정보를 버리고 마지막으로 불러온 서버 내용으로 되돌릴까요?")) {
@@ -116,7 +117,9 @@ export function WritingContextEditor({ thread, context, baseVersion, writable, c
         }
       }}>작성 정보 편집 취소</button>}
     </>}
-    {context.selection && <p className="text">공유한 문단: {context.selection.evidence.text}</p>}
+    {capture && <p className="hint">문단 저장은 이 앱에 기록하는 작업입니다. AI 요청은 수정 후보 만들기에서 진행합니다.</p>}
+    {context.selection && <details><summary>작성 정보에 저장한 문단</summary><p className="text">{context.selection.evidence.text}</p></details>}
+    {context.revision > 0 && <details><summary>작성 정보 저장 기록</summary><p>작성 정보 버전 {context.revision}{context.confirmation ? ` · 확인자 ${context.confirmation.by}` : ""}</p></details>}
     {notice && <p className="hint" data-testid="context-saved">{notice}</p>}
     {error && <p role="alert" className="error">{error}</p>}
   </section>;

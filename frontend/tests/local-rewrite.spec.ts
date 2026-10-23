@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { unzipSync, strFromU8 } from "fflate";
+import { openConversationTools, startConversation } from "./conversation-helpers";
 
 test.use({ baseURL: process.env.HWP_E2E_LOCAL_URL || "http://127.0.0.1:15212" });
 test.skip(!process.env.HWP_E2E_LOCAL_URL || !process.env.HWP_E2E_MOCK_URL,
@@ -10,7 +11,7 @@ test.skip(!process.env.HWP_E2E_LOCAL_URL || !process.env.HWP_E2E_MOCK_URL,
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 async function setup(page: Page) {
   await page.goto("/");
-  await page.getByRole("button", { name: "+ 새 문서", exact: true }).click();
+  await page.getByRole("button", { name: "빈 문서 만들기", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("저장되지 않은 변경 있음");
   const frame = page.frames().find(f => f.url().includes("/rhwp/"))!;
   await frame.locator("#scroll-container canvas").first().click({ position: { x: 160, y: 150 }, force: true });
@@ -24,10 +25,9 @@ async function setup(page: Page) {
   const originalUrl = (await page.getByRole("link", { name: "저장본 다운로드" }).getAttribute("href"))!;
   const docPath = originalUrl.split("/versions/")[0];
   const original = await (await page.request.get(originalUrl)).body();
-  await page.getByRole("button", { name: /대화 · (Codex|AI) 열기/ }).click();
-  page.once("dialog", d => d.accept("MOCK 로컬 후보 시험"));
-  await page.getByRole("button", { name: "공유 대화 만들기", exact: true }).click();
-  await expect(page.getByRole("button", { name: "로컬·사내 모델로 후보 2개 요청" })).toBeEnabled();
+  await page.getByRole("button", { name: "문서 AI 대화 열기" }).click();
+  await startConversation(page, "MOCK 로컬 후보 시험");
+  await expect(page.getByRole("button", { name: "수정 후보 2개 만들기" })).toBeEnabled();
   await expect(page.getByTestId("rewrite-provider")).toContainText("hwp-synthetic-fixture");
   await frame.locator("#scroll-container canvas").first().click({ position: { x: 160, y: 150 }, force: true });
   await page.keyboard.press("Control+Home");
@@ -43,7 +43,7 @@ async function setup(page: Page) {
 
 async function requestCandidates(page: Page) {
   const pending = page.waitForResponse(r => r.request().method() === "POST" && /\/rewrite-tasks$/.test(r.url()));
-  await page.getByRole("button", { name: "로컬·사내 모델로 후보 2개 요청" }).click();
+  await page.getByRole("button", { name: "수정 후보 2개 만들기" }).click();
   const response = await pending;
   expect(response.ok(), await response.text()).toBeTruthy();
   const id = (await response.json()).id;
@@ -52,7 +52,21 @@ async function requestCandidates(page: Page) {
   return { id, path, request: response.request(), task: (await (await page.request.get(path)).json()).find((t: any) => t.id === id) };
 }
 
+async function openWritingContext(page: Page) {
+  await openConversationTools(page);
+  const summary = page.getByText("추가 작성 정보 · 선택 사항", { exact: true });
+  if (await summary.locator("..").getAttribute("open") === null) await summary.click();
+}
+
+async function expectContextRevision(page: Page, revision: number) {
+  const summary = page.getByText("작성 정보 저장 기록", { exact: true });
+  const record = summary.locator("..");
+  if (await record.getAttribute("open") === null) await summary.click();
+  await expect(record).toContainText(`작성 정보 버전 ${revision}`);
+}
+
 async function saveWritingContext(page: Page, purpose = "운영팀에 지출 현황을 보고") {
+  await openWritingContext(page);
   await page.getByLabel("작성 목적", { exact: true }).fill(purpose);
   await page.getByLabel("작성 기준", { exact: true }).fill("정중하고 짧게, 날짜와 부정 표현 유지");
   await page.getByRole("button", { name: "확인 사실 추가", exact: true }).click();
@@ -60,7 +74,7 @@ async function saveWritingContext(page: Page, purpose = "운영팀에 지출 현
   await page.getByLabel("사실 1 출처", { exact: true }).selectOption("user_confirmed_ai_excerpt");
   await page.getByLabel("사실 1 출처 설명", { exact: true }).fill("AI 초안에서 확인한 문장");
   await page.getByLabel("목적·사실·기준을 확인했으며 후보 생성에 사용할 수 있습니다", { exact: true }).check();
-  await page.getByRole("button", { name: "컨텍스트 저장", exact: true }).click();
+  await page.getByRole("button", { name: "작성 정보 저장", exact: true }).click();
   await expect(page.getByTestId("context-saved")).toContainText("확인한 작성 정보를 저장");
 }
 
@@ -68,7 +82,7 @@ test("REAL rhwp + MOCK provider: confirmed writing context reaches the model and
   await request.post(process.env.HWP_E2E_MOCK_URL + "/controls", { data: {} });
   const state = await setup(page);
   await page.getByLabel("저장한 작성 정보 사용", { exact: true }).check();
-  await expect(page.getByRole("button", { name: "로컬·사내 모델로 후보 2개 요청" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "수정 후보 2개 만들기" })).toBeDisabled();
   await saveWritingContext(page);
   const job = await requestCandidates(page);
   expect(job.request.postDataJSON().context_revision).toBe(1);
@@ -84,18 +98,19 @@ test("REAL rhwp + MOCK provider: confirmed writing context reaches the model and
   await expect(article.getByTestId("frozen-writing-context")).toContainText("운영팀에 지출 현황을 보고");
   expect(await (await request.get(state.docPath + "/versions")).json()).toHaveLength(1);
   expect(await state.frame.evaluate(() => (window as any).hwpAssistantBridge.snapshot())).toEqual(state.snapshot);
-  await page.getByRole("button", { name: "대화 · AI 닫기", exact: true }).click();
-  await page.getByRole("button", { name: "대화 · AI 열기", exact: true }).click();
+  await page.getByRole("button", { name: "문서 AI 대화 닫기", exact: true }).click();
+  await page.getByRole("button", { name: "문서 AI 대화 열기", exact: true }).click();
   const tid = new URL(job.request.url()).pathname.split("/")[3];
   await page.getByLabel("대화 선택").selectOption(tid);
+  await openWritingContext(page);
   await expect(page.getByLabel("작성 목적", { exact: true })).toHaveValue("운영팀에 지출 현황을 보고");
   await expect(page.getByLabel("확인 사실 1", { exact: true })).toHaveValue("지출 승인은 하지 않았다.");
   await article.getByText("이 후보에 전달한 작성 정보", { exact: true }).click();
   await expect(article.getByTestId("frozen-writing-context")).toContainText("AI 문장을 사용자가 확인");
   await page.getByLabel("작성 목적", { exact: true }).fill("임원에게 보고하는 새 목적");
   await page.getByLabel("목적·사실·기준을 확인했으며 후보 생성에 사용할 수 있습니다", { exact: true }).check();
-  await page.getByRole("button", { name: "컨텍스트 저장", exact: true }).click();
-  await expect(page.getByTestId("context-confirmation")).toContainText("리비전 2");
+  await page.getByRole("button", { name: "작성 정보 저장", exact: true }).click();
+  await expectContextRevision(page, 2);
   await expect(article.getByRole("button", { name: "후보 1 승인·적용·저장" })).toBeDisabled();
   await expect(article.getByTestId("frozen-writing-context")).toContainText("운영팀에 지출 현황을 보고");
   await expect(article.getByTestId("frozen-writing-context")).not.toContainText("임원에게 보고하는 새 목적");
@@ -103,11 +118,14 @@ test("REAL rhwp + MOCK provider: confirmed writing context reaches the model and
   const next = await requestCandidates(page);
   expect(next.task.execution.context_revision).toBe(2);
   await page.locator(`[data-task-id="${next.id}"]`).getByRole("button", { name: "후보 2 승인·적용·저장" }).click();
-  await expect(page.locator(`[data-task-id="${next.id}"]`).getByTestId("application-history")).toContainText("saved");
+  await expect(page.locator(`[data-task-id="${next.id}"]`).getByTestId("application-history")).toContainText("선택한 후보를 문서에 적용하고 서버에 저장했습니다.");
+  const applied = (await (await request.get(next.path)).json()).find((item: any) => item.id === next.id);
+  expect(applied.application.status).toBe("saved");
+  expect(applied.application.saved_version).toBeTruthy();
   await expect(page.getByRole("status")).toHaveText("저장 완료");
   expect(await (await request.get(state.docPath + "/versions")).json()).toHaveLength(2);
   expect(hash(await (await request.get(state.originalUrl)).body())).toBe(hash(state.original));
-  await expect(page.getByRole("button", { name: "로컬·사내 모델로 후보 2개 요청" })).toBeDisabled(); // New saved version needs explicit re-confirmation.
+  await expect(page.getByRole("button", { name: "수정 후보 2개 만들기" })).toBeDisabled(); // New saved version needs explicit re-confirmation.
   await page.screenshot({ path: info.outputPath("writing-context.png"), fullPage: true });
   await writeFile(info.outputPath("context-proof.json"), JSON.stringify({ actual_model_calls: 0, human_approvals: 0,
     engine: "real rhwp", first_input_sha256: job.task.execution.input_sha256, revisions: [1, 2],
@@ -121,7 +139,7 @@ test("REAL rhwp + MOCK provider: context draft survives message refresh and conc
   const tid = await page.getByLabel("대화 선택").inputValue();
   await page.getByLabel("작성 목적", { exact: true }).fill("저장 전 내 작성 목적");
   await page.getByLabel("대화 메시지").fill("작성 정보 편집 중에도 대화를 기록");
-  await page.getByRole("button", { name: "메시지 저장", exact: true }).click();
+  await page.getByRole("button", { name: "메모 저장", exact: true }).click();
   await expect(page.getByLabel("저장된 대화")).toContainText("작성 정보 편집 중에도 대화를 기록");
   await expect(page.getByLabel("작성 목적", { exact: true })).toHaveValue("저장 전 내 작성 목적");
   const current = (await (await request.get(`/api/threads/${tid}`)).json()).context;
@@ -130,13 +148,13 @@ test("REAL rhwp + MOCK provider: context draft survives message refresh and conc
     facts: current.facts, confirmed_facts: current.confirmed_facts, writing_criteria: current.writing_criteria, confirm_for_rewrite: true,
   }});
   expect(changed.ok()).toBeTruthy();
-  await page.getByRole("button", { name: "컨텍스트 저장", exact: true }).click();
+  await page.getByRole("button", { name: "작성 정보 저장", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "다른 사용자가 컨텍스트" })).toBeVisible();
   await page.getByRole("button", { name: "대화 새로고침", exact: true }).click();
   await expect(page.getByLabel("작성 목적", { exact: true })).toHaveValue("저장 전 내 작성 목적");
-  await expect(page.getByRole("button", { name: "컨텍스트 저장", exact: true })).toBeDisabled();
-  page.once("dialog", d => d.dismiss());
-  await page.getByRole("button", { name: "대화 · AI 닫기", exact: true }).click();
+  await expect(page.getByRole("button", { name: "작성 정보 저장", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "문서 AI 대화 닫기", exact: true }).click();
+  await page.getByRole("alertdialog", { name: "미저장 입력 확인", exact: true }).getByRole("button", { name: "계속 편집", exact: true }).click();
   await expect(page.getByLabel("작성 목적", { exact: true })).toHaveValue("저장 전 내 작성 목적");
   page.once("dialog", d => d.accept());
   await page.getByRole("button", { name: "작성 정보 편집 취소", exact: true }).click();
@@ -158,7 +176,7 @@ test("REAL rhwp + MOCK provider: context save response loss preserves later draf
   try {
     await page.getByLabel("작성 목적", { exact: true }).fill("응답이 유실될 저장 목적");
     await page.getByLabel("목적·사실·기준을 확인했으며 후보 생성에 사용할 수 있습니다", { exact: true }).check();
-    await page.getByRole("button", { name: "컨텍스트 저장", exact: true }).click();
+    await page.getByRole("button", { name: "작성 정보 저장", exact: true }).click();
     await expect(page.getByRole("button", { name: "작성 정보 저장 결과 재확인", exact: true })).toBeEnabled();
     await page.getByLabel("작성 목적", { exact: true }).fill("그 뒤에 입력한 목적");
     await page.getByRole("button", { name: "작성 정보 저장 결과 재확인", exact: true }).click();
@@ -168,8 +186,8 @@ test("REAL rhwp + MOCK provider: context save response loss preserves later draf
     const stored = (await (await request.get(`/api/threads/${tid}`)).json()).context;
     expect(stored.revision).toBe(2); expect(stored.purpose).toBe("응답이 유실될 저장 목적");
     await page.getByLabel("목적·사실·기준을 확인했으며 후보 생성에 사용할 수 있습니다", { exact: true }).check();
-    await page.getByRole("button", { name: "컨텍스트 저장", exact: true }).click();
-    await expect(page.getByTestId("context-confirmation")).toContainText("리비전 3");
+    await page.getByRole("button", { name: "작성 정보 저장", exact: true }).click();
+    await expectContextRevision(page, 3);
     expect(sent[2].request_id).not.toBe(sent[0].request_id);
     expect((await (await request.get(`/api/threads/${tid}`)).json()).context.purpose).toBe("그 뒤에 입력한 목적");
   } finally { await page.unrouteAll({ behavior: "wait" }); }
@@ -214,11 +232,11 @@ test("REAL rhwp + MOCK provider: explicit pending request recovery keeps origina
     return route.continue();
   });
   try {
-    await page.getByRole("button", { name: "로컬·사내 모델로 후보 2개 요청" }).click();
+    await page.getByRole("button", { name: "수정 후보 2개 만들기" }).click();
     await expect(page.getByRole("button", { name: "보관한 생성 요청 재확인", exact: true })).toBeEnabled();
     await page.getByLabel("작성 목적", { exact: true }).fill("나중에 작성한 미저장 목적");
     await page.getByLabel("문체 개선 요청").fill("다른 개선 지시를 나중에 작성");
-    await expect(page.getByRole("button", { name: "로컬·사내 모델로 후보 2개 요청" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "수정 후보 2개 만들기" })).toBeDisabled();
     await page.getByRole("button", { name: "보관한 생성 요청 재확인", exact: true }).click();
     await expect(page.getByTestId("pending-rewrite")).toHaveCount(0);
     expect(sends).toHaveLength(2); expect(sends[1]).toEqual(sends[0]);
@@ -262,7 +280,7 @@ test("REAL rhwp + MOCK HTTP local provider: frozen input, no generation writes, 
   const beforeBytes = Buffer.from(await state.frame.evaluate(() => Array.from((window as any).hwpAssistantBridge.exportSnapshot().bytes)) as number[]);
   await article.getByRole("button", { name: "후보 2 승인·적용·저장" }).click(); // Automated fixture approval, NOT human consent.
   await expect(page.getByRole("status")).toHaveText("저장 완료");
-  await expect(article.getByTestId("application-history")).toContainText("saved");
+  await expect(article.getByTestId("application-history")).toHaveText("선택한 후보를 문서에 적용하고 서버에 저장했습니다.");
   const history = (await (await request.get(state.docPath + "/applications")).json())[0];
   const versions = await (await request.get(state.docPath + "/versions")).json();
   expect(versions).toHaveLength(2);
@@ -312,7 +330,7 @@ test(`REAL rhwp + MOCK provider: lost approved-save response preserves later typ
   });
   await article.getByRole("button", { name: "후보 1 승인·적용·저장" }).click();
   await expect(page.getByRole("status")).toHaveText("저장 확인 실패");
-  await expect(article.getByTestId("application-history")).toContainText("saved");
+  await expect(article.getByTestId("application-history")).toHaveText("선택한 후보를 문서에 적용하고 서버에 저장했습니다.");
   await state.frame.locator("#scroll-container canvas").first().click({ position: { x: 160, y: 150 }, force: true });
   await page.keyboard.press("Control+End");
   const appended = " 저장 응답 유실 뒤 후속 편집.";
@@ -322,7 +340,7 @@ test(`REAL rhwp + MOCK provider: lost approved-save response preserves later typ
     await expect(page.getByRole("status")).toHaveText("저장 확인 실패");
     await expect(page.getByRole("alert").filter({ hasText: "서버 반영 여부" })).toContainText("권한 거부");
     expect(await (await request.get(state.docPath + "/versions")).json()).toHaveLength(2);
-    await expect(article.getByTestId("application-history")).toContainText("saved");
+    await expect(article.getByTestId("application-history")).toHaveText("선택한 후보를 문서에 적용하고 서버에 저장했습니다.");
     await article.getByRole("button", { name: "저장 완료 확인" }).click();
   }
   await expect(page.getByRole("status")).toHaveText("저장되지 않은 변경 있음");
@@ -358,7 +376,7 @@ test("REAL rhwp + MOCK provider: lost approval response preserves the buffer and
     return route.continue();
   });
   await article.getByRole("button", { name: "후보 1 승인·적용·저장" }).click();
-  await expect(article.getByTestId("application-history")).toContainText("approved");
+  await expect(article.getByTestId("application-history")).toHaveText("후보 승인됨 · 서버 저장 확인이 필요합니다.");
   expect(await state.frame.evaluate(() => (window as any).hwpAssistantBridge.snapshot())).toEqual(state.snapshot);
   expect(await (await request.get(state.docPath + "/versions")).json()).toHaveLength(1);
   await article.getByRole("button", { name: "후보 1 승인·적용·저장" }).click();
@@ -383,6 +401,11 @@ test("REAL rhwp + MOCK provider: lost receipt response retries frozen output and
   await expect.poll(async () => (await (await request.get(process.env.HWP_E2E_MOCK_URL + "/proof")).json()).calls.at(-1)?.held).toBe(true);
   await request.post(process.env.HWP_E2E_MOCK_URL + "/controls", { data: {} });
   const article = page.locator(`[data-task-id="${job.id}"]`);
+  await page.getByRole("button", { name: "후보·적용 이력 새로고침", exact: true }).click();
+  const history = page.getByTestId("rewrite-history");
+  await expect(history.locator(`[data-task-id="${job.id}"]`)).toHaveCount(1);
+  await history.locator(":scope > summary").click();
+  await expect(article).toBeVisible();
   const receipts: any[] = [];
   await page.route("**/api/applications/*/receipt", async route => {
     receipts.push(route.request().postDataJSON());
@@ -393,10 +416,10 @@ test("REAL rhwp + MOCK provider: lost receipt response retries frozen output and
     return route.continue();
   });
   await article.getByRole("button", { name: "후보 1 승인·적용·저장" }).click();
-  await expect(article.getByTestId("application-history")).toContainText("applied");
+  await expect(article.getByTestId("application-history")).toHaveText("후보 적용됨 · 서버 저장 확인이 필요합니다.");
   await page.getByRole("button", { name: "후보·적용 이력 새로고침" }).click();
   await page.locator(`[data-task-id="${other.id}"]`).getByRole("button", { name: "이 작업 결과 수신 중단" }).click();
-  await expect(page.locator(`[data-task-id="${other.id}"]`)).toContainText("cancelled");
+  await expect(page.locator(`[data-task-id="${other.id}"]`)).toContainText("중단됨");
   await request.post(process.env.HWP_E2E_MOCK_URL + "/release");
   const replacement = job.task.candidates[0].replacement;
   expect(await state.frame.evaluate(() => (window as any).hwpAssistantBridge.snapshot().evidence.text)).toBe(replacement);
@@ -407,15 +430,15 @@ test("REAL rhwp + MOCK provider: lost receipt response retries frozen output and
   await page.keyboard.insertText(appended);
   const instruction = "새 지시도 승인 저장 연결이 끝날 때까지 보존한다.";
   await page.getByRole("textbox", { name: "문체 개선 요청" }).fill(instruction);
-  await page.getByRole("button", { name: "로컬·사내 모델로 후보 2개 요청" }).click();
+  await page.getByRole("button", { name: "수정 후보 2개 만들기" }).click();
   await expect(page.locator(".rewrite > [role=alert]")).toContainText("승인 적용의 저장 연결");
   await expect(page.getByRole("textbox", { name: "문체 개선 요청" })).toHaveValue(instruction);
   expect(await (await request.get(job.path)).json()).toHaveLength(2);
   await page.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(page.locator(".workspace > [role=alert]").filter({ hasText: "승인 적용의 저장 연결" })).toBeVisible();
+  await expect(page.getByLabel("편집 알림", { exact: true }).getByRole("alert").filter({ hasText: "승인 적용의 저장 연결" })).toBeVisible();
   expect(await (await request.get(state.docPath + "/versions")).json()).toHaveLength(1);
   await article.getByRole("button", { name: "후보 1 승인·적용·저장" }).click();
-  await expect(article.getByTestId("application-history")).toContainText("saved");
+  await expect(article.getByTestId("application-history")).toHaveText("선택한 후보를 문서에 적용하고 서버에 저장했습니다.");
   await expect(page.getByRole("status")).toHaveText("저장되지 않은 변경 있음");
   expect(receipts).toHaveLength(2); expect(receipts[1]).toEqual(receipts[0]);
   expect(await state.frame.evaluate(() => (window as any).hwpAssistantBridge.snapshot().evidence.text)).toBe(replacement + appended);
@@ -472,7 +495,10 @@ test("REAL rhwp + MOCK provider: page-count rejection after approval preserves b
     expect(next.task.base_version).not.toBe(job.task.base_version);
     expect(next.task.snapshot.evidence.text).toBe(state.snapshot.evidence.text);
     await page.locator(`[data-task-id="${next.id}"]`).getByRole("button", { name: "후보 2 승인·적용·저장" }).click();
-    await expect(page.locator(`[data-task-id="${next.id}"]`).getByTestId("application-history")).toContainText("saved");
+    await expect(page.locator(`[data-task-id="${next.id}"]`).getByTestId("application-history")).toContainText("선택한 후보를 문서에 적용하고 서버에 저장했습니다.");
+  const applied = (await (await request.get(next.path)).json()).find((item: any) => item.id === next.id);
+  expect(applied.application.status).toBe("saved");
+  expect(applied.application.saved_version).toBeTruthy();
     await expect(page.getByRole("status")).toHaveText("저장 완료");
     expect(await (await request.get(state.docPath + "/versions")).json()).toHaveLength(3);
     const history = await (await request.get(state.docPath + "/applications")).json();
@@ -499,11 +525,11 @@ test("REAL rhwp + MOCK provider: late document A generation response cannot alte
     await route.fulfill({ response: result });
   });
   try {
-    await page.getByRole("button", { name: "로컬·사내 모델로 후보 2개 요청" }).click();
+    await page.getByRole("button", { name: "수정 후보 2개 만들기" }).click();
     await Promise.race([accepted, new Promise((_, reject) => setTimeout(() => reject(Error("response barrier timed out")), 5000))]);
-    page.once("dialog", d => d.accept());
     await page.getByRole("button", { name: "← 문서 목록", exact: true }).click();
-    await page.getByRole("button", { name: "+ 새 문서", exact: true }).click();
+    await page.getByRole("alertdialog", { name: "미저장 입력 확인", exact: true }).getByRole("button", { name: "저장하지 않고 목록으로", exact: true }).click();
+    await page.getByRole("button", { name: "빈 문서 만들기", exact: true }).click();
     await expect(page.getByRole("status")).toHaveText("저장되지 않은 변경 있음");
     const b = page.frames().find(f => f.url().includes("/rhwp/"))!;
     await b.locator("#scroll-container canvas").first().click({ position: { x: 160, y: 150 }, force: true });
@@ -519,9 +545,8 @@ test("REAL rhwp + MOCK provider: late document A generation response cannot alte
     await expect(page.locator(`[data-task-id="${oldTask}"]`)).toHaveCount(0);
     await page.getByRole("button", { name: "저장", exact: true }).click();
     await expect(page.getByRole("status")).toHaveText("저장 완료");
-    await page.getByRole("button", { name: /대화 · (Codex|AI) 열기/ }).click();
-    page.once("dialog", d => d.accept("문서 B"));
-    await page.getByRole("button", { name: "공유 대화 만들기", exact: true }).click();
+    await page.getByRole("button", { name: "문서 AI 대화 열기" }).click();
+    await startConversation(page, "문서 B");
     await expect(page.locator("[data-task-id]")).toHaveCount(0);
     expect(hash(await (await request.get(state.originalUrl)).body())).toBe(hash(state.original));
   } finally { release(); }
@@ -566,7 +591,7 @@ test(`REAL rhwp + MOCK provider: same-document late ${lateResponse} response pre
   try {
     const state = await setup(page);
     const thread = await page.getByRole("combobox", { name: "대화 선택" }).inputValue();
-    const generate = page.getByRole("button", { name: "로컬·사내 모델로 후보 2개 요청" });
+    const generate = page.getByRole("button", { name: "수정 후보 2개 만들기" });
     await page.getByRole("textbox", { name: "문체 개선 요청" }).fill(instructionA);
     await generate.click();
     await expect.poll(() => acceptedA).toBe(true);
@@ -576,13 +601,14 @@ test(`REAL rhwp + MOCK provider: same-document late ${lateResponse} response pre
     expect((await (await request.get(path)).json())[0].status).toBe("running");
     stages.push("A model gate entered; still running");
     // Same Editor instance and document; only the conversation panel is remounted.
-    await page.getByRole("button", { name: "대화 · AI 닫기" }).click();
-    await page.getByRole("button", { name: "대화 · AI 열기" }).click();
+    await page.getByRole("button", { name: "문서 AI 대화 닫기" }).click();
+    await page.getByRole("button", { name: "문서 AI 대화 열기" }).click();
     await expect(page.locator(`select[aria-label="대화 선택"] option[value="${thread}"]`)).toHaveCount(1);
     await page.getByRole("combobox", { name: "대화 선택" }).selectOption(thread);
+    await openConversationTools(page);
     const articleA = page.locator(`[data-task-id="${posted[0].id}"]`);
     await articleA.getByRole("button", { name: "이 작업 결과 수신 중단" }).click();
-    await expect(articleA).toContainText("cancelled");
+    await expect(articleA).toContainText("중단됨");
     stages.push("A logically cancelled after panel remount");
     await request.post(process.env.HWP_E2E_MOCK_URL + "/release");
     await request.post(process.env.HWP_E2E_MOCK_URL + "/controls", { data: {} });
@@ -670,7 +696,7 @@ test("REAL rhwp + MOCK provider: lost generation response reuses the original ta
     }
     return route.continue();
   });
-  const button = page.getByRole("button", { name: "로컬·사내 모델로 후보 2개 요청" });
+  const button = page.getByRole("button", { name: "수정 후보 2개 만들기" });
   await button.click();
   await expect(page.locator(".rewrite [role=alert]")).toContainText("요청 원문과 ID를 보관");
   await expect(button).toBeEnabled();
@@ -708,7 +734,7 @@ for (const action of ["approve", "cancel"] as const) {
         }
         return route.continue();
       });
-      const button = page.getByRole("button", { name: "로컬·사내 모델로 후보 2개 요청" });
+      const button = page.getByRole("button", { name: "수정 후보 2개 만들기" });
       await button.click();
       await expect(page.locator(".rewrite [role=alert]")).toContainText("요청 원문과 ID를 보관");
       const first = submitted[0];
@@ -718,7 +744,7 @@ for (const action of ["approve", "cancel"] as const) {
         await expect(page.getByRole("status")).toHaveText("저장 완료");
       } else {
         await article.getByRole("button", { name: "이 작업 결과 수신 중단" }).click();
-        await expect(article).toContainText("cancelled");
+        await expect(article).toContainText("중단됨");
       }
       await request.post(process.env.HWP_E2E_MOCK_URL + "/controls", { data: {} });
       const nextInstruction = "같은 사실을 유지하고 표현을 간결하게 다듬어 주세요.";
@@ -746,7 +772,7 @@ for (const failure of ["json", "http", "timeout"]) {
     try {
       const state = await setup(page);
       const responsePromise = page.waitForResponse(r => r.request().method() === "POST" && /\/rewrite-tasks$/.test(r.url()));
-      await page.getByRole("button", { name: "로컬·사내 모델로 후보 2개 요청" }).click();
+      await page.getByRole("button", { name: "수정 후보 2개 만들기" }).click();
       const response = await responsePromise;
       const path = new URL(response.url()).pathname;
       await expect.poll(async () => (await (await request.get(path)).json())[0].status, { timeout: 15000 }).toBe("failed");
@@ -768,13 +794,13 @@ test("REAL rhwp + MOCK delayed provider: cancel rejects late result and preserve
   try {
     const state = await setup(page);
     const responsePromise = page.waitForResponse(r => r.request().method() === "POST" && /\/rewrite-tasks$/.test(r.url()));
-    await page.getByRole("button", { name: "로컬·사내 모델로 후보 2개 요청" }).click();
+    await page.getByRole("button", { name: "수정 후보 2개 만들기" }).click();
     const response = await responsePromise;
     const path = new URL(response.url()).pathname;
     const id = (await response.json()).id;
     const article = page.locator(`[data-task-id="${id}"]`);
     await article.getByRole("button", { name: "이 작업 결과 수신 중단" }).click();
-    await expect(article).toContainText("cancelled");
+    await expect(article).toContainText("중단됨");
     await expect.poll(async () => (await (await request.get(process.env.HWP_E2E_MOCK_URL + "/proof")).json()).calls.at(-1).finished,
       { timeout: 10000 }).toBe(true);
     const task = (await (await request.get(path)).json())[0];
@@ -792,7 +818,7 @@ test("REAL rhwp + MOCK delayed provider: a manual save makes the pending generat
   try {
     const state = await setup(page);
     const responsePromise = page.waitForResponse(r => r.request().method() === "POST" && /\/rewrite-tasks$/.test(r.url()));
-    await page.getByRole("button", { name: "로컬·사내 모델로 후보 2개 요청" }).click();
+    await page.getByRole("button", { name: "수정 후보 2개 만들기" }).click();
     const response = await responsePromise;
     const path = new URL(response.url()).pathname;
     await page.getByRole("button", { name: "저장", exact: true }).click();
@@ -887,10 +913,10 @@ test("REAL rhwp + MOCK provider: long-lived review holds autosave, renews its le
     await expect(page.getByRole("status")).toHaveText("저장 완료");
     expect(await (await request.get(state.docPath + "/versions")).json()).toHaveLength(2);
     if (useWritingContext) {
-      await expect(page.getByRole("button", { name: "로컬·사내 모델로 후보 2개 요청" })).toBeDisabled();
+      await expect(page.getByRole("button", { name: "수정 후보 2개 만들기" })).toBeDisabled();
       await page.getByLabel("목적·사실·기준을 확인했으며 후보 생성에 사용할 수 있습니다", { exact: true }).check();
-      await page.getByRole("button", { name: "컨텍스트 저장", exact: true }).click();
-      await expect(page.getByTestId("context-confirmation")).toContainText("리비전 2");
+      await page.getByRole("button", { name: "작성 정보 저장", exact: true }).click();
+      await expectContextRevision(page, 2);
     }
     const fresh = await requestCandidates(page);
     await page.locator(`[data-task-id="${fresh.id}"]`).getByRole("button", { name: "후보 2 승인·적용·저장" }).click();

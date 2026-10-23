@@ -19,6 +19,44 @@ HEADING = re.compile(r"^HWP Assistant TOC heading:([a-f0-9-]{36}):([12])$")
 BOX = re.compile(r"^HWP Assistant TOC box:([a-f0-9-]{36})$")
 ROOT = re.compile(r"^HWP Assistant TOC root:([a-f0-9-]{36})$")
 ENTRY = re.compile(r"^HWP Assistant TOC entry:([a-f0-9-]{36}):([a-f0-9-]{36})$")
+FRAME_SLOTS = ((0, 0, "top-left"), (0, 2, "top-right"), (1, 0, "bottom-left"), (1, 2, "bottom-right"))
+
+
+def frame_paragraphs(table, nested, root, stylemap, ident, heading_count):
+    """A fixed native title frame, never a general allowance for extra text."""
+    rows = table.findall(f"{{{HP}}}tr")
+    if table.get("colCnt") != "3" or table.get("rowCnt") != str(heading_count + 2) or len(rows) != heading_count + 2:
+        raise ValueError("Wrong reference TOC grid")
+    cells = [row.findall(f"{{{HP}}}tc") for row in rows]
+    if [len(row) for row in cells] != [3, 2] + [1] * heading_count or len(nested) != heading_count + 5:
+        raise ValueError("Wrong reference TOC cells")
+    entries, blanks = [], []
+    for y, row in enumerate(cells):
+        for offset, cell in enumerate(row):
+            x = offset if y == 0 else offset * 2 if y == 1 else 0
+            if cell.find(f"{{{HP}}}cellAddr").attrib != dict(colAddr=str(x), rowAddr=str(y)):
+                raise ValueError("Reference TOC cell position changed")
+            span = dict(colSpan="3" if y >= 2 else "1", rowSpan="2" if (y, x) == (0, 1) else "1")
+            if cell.find(f"{{{HP}}}cellSpan").attrib != span:
+                raise ValueError("Reference TOC span changed")
+            paragraphs = cell.findall(f"{{{HP}}}subList/{{{HP}}}p")
+            if len(paragraphs) != 1:
+                raise ValueError("Reference TOC cell paragraph count changed")
+            paragraph = paragraphs[0]
+            if (y, x) == (0, 1):
+                if paragraph is not root or not native_text(paragraph).strip():
+                    raise ValueError("Reference TOC title moved")
+            elif y >= 2:
+                entries.append(paragraph)
+            else:
+                slot = next(slot for row, column, slot in FRAME_SLOTS if (row, column) == (y, x))
+                style = stylemap.get(paragraph.get("styleIDRef"))
+                if style is None or style.get("name") != PREFIX + "frame:" + ident + ":" + slot or native_text(paragraph) != "":
+                    raise ValueError("Reference TOC spacer changed")
+                blanks.append(paragraph)
+    if len(blanks) != 4 or set(nested) != {root, *entries, *blanks}:
+        raise ValueError("Unexpected reference TOC paragraph")
+    return entries
 
 
 def native_text(p, anchor=False):
@@ -136,7 +174,7 @@ def inspected(data):
     managed_nested = []
     for p in sem.section.iter(f"{{{HP}}}p"):
         name = stylemap.get(p.get("styleIDRef"), E.Element("style")).get("name", "")
-        if name.startswith(PREFIX + "root:") or name.startswith(PREFIX + "entry:"):
+        if name.startswith(PREFIX + "root:") or name.startswith(PREFIX + "entry:") or name.startswith(PREFIX + "frame:"):
             managed_nested.append(p)
         if p not in top and name.startswith(PREFIX + "box:"):
             raise HTTPException(422, "목차 상자가 표나 개체 안으로 복사되었습니다.")
@@ -155,15 +193,28 @@ def inspected(data):
             nested = list(host.iter(f"{{{HP}}}p"))[1:]
             table = host.find(f"{{{HP}}}run/{{{HP}}}tbl")
             if table is None or len(host.findall(f".//{{{HP}}}tbl")) != 1 or not nested: raise ValueError("Malformed managed table")
-            rootstyle = stylemap.get(nested[0].get("styleIDRef"))
-            if rootstyle is None or rootstyle.get("name") != PREFIX + "root:" + ident: raise ValueError("Missing root marker")
+            roots = [p for p in nested if stylemap.get(p.get("styleIDRef"), E.Element("style")).get("name") == PREFIX + "root:" + ident]
+            if len(roots) != 1: raise ValueError("Missing or duplicate root marker")
+            rootstyle = stylemap[roots[0].get("styleIDRef")]
             raw_meta = rootstyle.get("engName", "")
             if len(raw_meta) > 8192: raise ValueError("Metadata too large")
             meta = json.loads(raw_meta)
             if meta.get("policy") != POLICY or meta.get("toc_id") != ident: raise ValueError("Wrong metadata identity")
             ids = meta["heading_ids"]
-            if not isinstance(ids, list) or not 1 <= len(ids) <= 30 or len(ids) != len(set(ids)) or len(nested) != len(ids) + 1: raise ValueError("Wrong heading count")
-            for p, heading_id in zip(nested[1:], ids):
+            if not isinstance(ids, list) or not 1 <= len(ids) <= 30 or len(ids) != len(set(ids)): raise ValueError("Wrong heading count")
+            from .reference_report import TOC_LAYOUT_POLICIES, TOC_LAYOUT_POLICY
+            layout = meta.get("layout")
+            if layout in TOC_LAYOUT_POLICIES:
+                entries = frame_paragraphs(table, nested, roots[0], stylemap, ident, len(ids))
+                if layout == TOC_LAYOUT_POLICY and (table.get("pageBreak") != "CELL" or table.get("textWrap") != "TOP_AND_BOTTOM"
+                    or table.find(f"{{{HP}}}pos").get("treatAsChar") != "0" or table.find(f"{{{HP}}}pos").get("flowWithText") != "1"):
+                    raise ValueError("Reference TOC row flow changed")
+            elif layout is None:
+                if roots[0] is not nested[0] or len(nested) != len(ids) + 1: raise ValueError("Wrong heading count")
+                entries = nested[1:]
+            else:
+                raise ValueError("Unsupported TOC layout")
+            for p, heading_id in zip(entries, ids):
                 uuid.UUID(heading_id)
                 entry = stylemap.get(p.get("styleIDRef"))
                 if entry is None or entry.get("name") != PREFIX + "entry:" + ident + ":" + heading_id: raise ValueError("Entry linkage changed")
@@ -171,6 +222,7 @@ def inspected(data):
             toc.update(headings=[active[x] for x in ids if x in active and not active[x].get("unsupported")], heading_ids=ids,
                        missing_ids=[x for x in ids if x not in active], unsupported_ids=[x for x in ids if x in active and active[x].get("unsupported")],
                        pages=meta["pages"], body_sha256=meta["body_sha256"], paragraph=index)
+            if layout is not None: toc["layout"] = layout
             current_hash = body_hash(sem, index)
             stale = current_hash != meta["body_sha256"] or any(x not in active or active[x].get("unsupported") for x in ids)
             toc.update(status="stale" if stale else "current", reason=("기존 제목이 삭제되었거나 지원하지 않는 구조입니다. 목차 갱신을 중단합니다." if toc["missing_ids"] or toc["unsupported_ids"] else "본문이나 제목이 바뀌었습니다. 명시적으로 쪽수를 갱신하세요.") if stale else None)
@@ -202,12 +254,57 @@ def packed(data, header, section):
 class TocBuilder(BlockBuilder):
     def __init__(self, header, section, available):
         super().__init__(header, section, available)
-        from .reference_report import toc_settings
+        from .reference_report import toc_settings, BODY_SPACING_POLICY, TOC_LAYOUT_POLICIES
         self.reference_settings = toc_settings(header)
+        self.reference_spacing = None
+        self.layout = self.reference_settings.get("toc_layout") if self.reference_settings else None
+        self.frame_source = None
         if self.reference_settings:
             from .block_hwpx import MergeStyles
             _, self.reference, _, self.formats = report_styles(visual_settings=self.reference_settings)
             self.merge = MergeStyles(header, self.reference)
+            if self.reference_settings.get("body_spacing") == BODY_SPACING_POLICY or self.layout in TOC_LAYOUT_POLICIES:
+                # The pinned example's title spans two rows with 10pt empty
+                # side cells; its entries use 14pt / 160% blank paragraphs.
+                # Keep the managed root+entry paragraph identity contract and
+                # express those spaces as margins instead of anonymous text.
+                from .document_standard import source_parts
+                _, source_header, source_section = source_parts()
+                source_table = source_section[129].find(f".//{{{HP}}}tbl")
+                self.frame_source = source_table
+                title_height = sum(max(int(tc.find(f"{{{HP}}}cellSz").get("height"))
+                    for tc in tr.findall(f"{{{HP}}}tc") if tc.find(f"{{{HP}}}cellSpan").get("rowSpan") == "1")
+                    for tr in source_table.findall(f"{{{HP}}}tr")[:2])
+                blank = source_table.findall(f"{{{HP}}}tr")[-1].find(f"{{{HP}}}tc/{{{HP}}}subList/{{{HP}}}p")
+                char = next(c for c in source_header.iter(f"{{{HH}}}charPr")
+                            if c.get("id") == blank.find(f"{{{HP}}}run").get("charPrIDRef"))
+                para = next(p for p in source_header.iter(f"{{{HH}}}paraPr") if p.get("id") == blank.get("paraPrIDRef"))
+                line = next(para.iter(f"{{{HH}}}lineSpacing"))
+                if self.reference_settings.get("body_spacing") == BODY_SPACING_POLICY:
+                    self.reference_spacing = (title_height, int(char.get("height")) * int(line.get("value")) / 100)
+
+    def paragraph_spacing(self, role, previous=None):
+        if not self.reference_settings:
+            return None
+        prefix = {"root": "toc_title", "major": "toc_major", "minor": "toc_minor"}[role]
+        before, after = (self.reference_settings[prefix + suffix] for suffix in ("_before_pt", "_after_pt"))
+        if role == "root" and self.layout:
+            # Native merged title cells now supply the title band's geometry.
+            return before, after
+        if self.reference_spacing is None or before or after:
+            return before, after
+        title_height, entry_gap = self.reference_spacing
+        if role == "root":
+            padding = sum(round(self.reference_settings[f"toc_padding_{side}_mm"] * 7200 / 25.4) for side in ("top", "bottom"))
+            title_line = self.reference_settings["toc_title_size_pt"] * self.reference_settings["toc_title_line_percent"]
+            gap = max(0, title_height - title_line - padding)
+            return round(gap / 2) / 100, (gap - round(gap / 2)) / 100
+        previous_prefix = {"root": "toc_title", "major": "toc_major", "minor": "toc_minor"}.get(previous)
+        if previous_prefix and self.reference_settings[previous_prefix + "_after_pt"]:
+            return before, after
+        if role == "major" or previous in ("root", "major"):
+            before = entry_gap / 100
+        return before, after
 
     def own_style(self, cid, pid, name, metadata=None):
         sid = self.merge.own_style(cid, pid, name)
@@ -229,25 +326,28 @@ class TocBuilder(BlockBuilder):
         if metadata is not None: next(x for x in self.header.iter(f"{{{HH}}}style") if x.get("id") == sid).set("engName", metadata)
         return sid
 
-    def toc_style(self, role, name):
+    def toc_style(self, role, name, spacing=None):
         source_role = "title" if role == "root" else "heading" if role == "major" else "minor_heading" if role == "minor" else "empty"
         cid, pid = self.formats[source_role]
         chars = self.reference.find(f".//{{{HH}}}charProperties"); paras = self.reference.find(f".//{{{HH}}}paraProperties")
         char = copy.deepcopy(next(c for c in chars if c.get("id") == cid)); para = copy.deepcopy(next(p for p in paras if p.get("id") == pid))
         cid = str(max(int(c.get("id")) for c in chars) + 1); pid = str(max(int(p.get("id")) for p in paras) + 1)
-        char.set("id", cid); char.set("height", "2000" if role == "root" else "1600" if role == "major" else "1400" if role == "minor" else "100")
+        char.set("id", cid); char.set("height", "2000" if role == "root" else "1600" if role == "major" else "1400" if role == "minor" else "1000" if role == "frame" else "100")
         para.set("id", pid); para.find(f"{{{HH}}}align").set("horizontal", "CENTER" if role == "root" else "LEFT")
         para.find(f"{{{HH}}}border").attrib.update(borderFillIDRef="1", offsetTop="0", offsetBottom="0", connect="0", ignoreMargin="0")
         left = 3500 if role == "minor" else 2000 if role == "major" else 0
         set_margins(para, left=left, right=2000 if role in ("major", "minor") else 0)
         right = 2000
-        if self.reference_settings and role != "host":
+        if self.reference_settings and role in ("root", "major", "minor"):
             from .reference_source import apply_character, apply_paragraph
             reference_role = {"root": "toc_title", "major": "toc_major", "minor": "toc_minor"}[role]
             apply_character(self.reference, char, reference_role, self.reference_settings)
             from .reference_report import native_character
             native_character(char)
             apply_paragraph(para, reference_role, self.reference_settings)
+            if spacing is not None:
+                apply_paragraph(para, reference_role, {
+                    reference_role + "_before_pt": spacing[0], reference_role + "_after_pt": spacing[1]})
             left = round(self.reference_settings[reference_role + "_left_indent_pt"] * 100)
             right = round(self.reference_settings[reference_role + "_right_indent_pt"] * 100)
         if role in ("major", "minor"):
@@ -260,14 +360,17 @@ class TocBuilder(BlockBuilder):
             fallback = E.SubElement(switch, f"{{{HP}}}default")
             E.SubElement(fallback, f"{{{HH}}}tabItem", dict(pos=str(position * 2), type="RIGHT", leader="DASH"))
             self.reference.find(f".//{{{HH}}}tabProperties").append(tab); para.set("tabPrIDRef", tab.get("id"))
-        if not self.reference_settings or role == "host":
+        if not self.reference_settings or role in ("host", "frame"):
             for spacing in para.iter(f"{{{HH}}}lineSpacing"): spacing.set("value", "100" if role == "host" else "160")
+        if role == "frame":
+            from .reference_report import native_character
+            native_character(char)
         chars.append(char); paras.append(para)
         mapped_cid = self.merge.mapped("charProperties", cid); mapped_pid = self.merge.mapped("paraProperties", pid)
         return mapped_cid, mapped_pid, self.own_style(mapped_cid, mapped_pid, name)
 
-    def text_p(self, text, role, name, page=None):
-        cid, pid, sid = self.toc_style(role, name)
+    def text_p(self, text, role, name, page=None, spacing=None):
+        cid, pid, sid = self.toc_style(role, name, spacing)
         p = E.Element(f"{{{HP}}}p", dict(id=self.next_id(), paraPrIDRef=pid, styleIDRef=sid, pageBreak="0", columnBreak="0", merged="0"))
         run = E.SubElement(p, f"{{{HP}}}run", {"charPrIDRef":cid}); t = E.SubElement(run, f"{{{HP}}}t"); t.text = text
         if page is not None:
@@ -293,18 +396,93 @@ class TocBuilder(BlockBuilder):
                 fill.remove(child)
         return self.merge.append("borderFills", fill)
 
+    def frame_border(self, source_id):
+        fill = copy.deepcopy(next(e for e in self.reference.iter(f"{{{HH}}}borderFill") if e.get("id") == source_id))
+        for child in list(fill):
+            kind = local(child)
+            if kind in ("fillBrush", "diagonal"):
+                fill.remove(child)
+            elif kind.endswith("Border"):
+                child.attrib.update(type=self.reference_settings["toc_border_style"] if child.get("type") != "NONE" else "NONE",
+                    width=f"{self.reference_settings['toc_border_width_mm']:g} mm", color=self.reference_settings["toc_border_color"])
+        return self.merge.append("borderFills", fill)
+
+    def add_reference_frame(self, table, ident):
+        """Copy the pinned frame's five cells; keep entries individually pageable."""
+        if self.frame_source is None:
+            raise ValueError("Missing frozen reference TOC frame")
+        old_rows = table.findall(f"{{{HP}}}tr")
+        title_row = old_rows[0]
+        title_cell = title_row.find(f"{{{HP}}}tc")
+        source_rows = self.frame_source.findall(f"{{{HP}}}tr")[:2]
+        source_cells = [row.findall(f"{{{HP}}}tc") for row in source_rows]
+        source_width = int(self.frame_source.find(f"{{{HP}}}sz").get("width"))
+        original_center = int(source_cells[0][1].find(f"{{{HP}}}cellSz").get("width"))
+        source_heights = [max(int(cell.find(f"{{{HP}}}cellSz").get("height")) for cell in cells
+                             if cell.find(f"{{{HP}}}cellSpan").get("rowSpan") == "1") for cells in source_cells]
+        # Preserve the original proportions by default; a larger selected font
+        # may widen the central opening instead of forcing an accidental wrap.
+        text = plain_text(title_cell.find(f"{{{HP}}}subList/{{{HP}}}p"))
+        width = math.ceil(sum(1 if ord(ch) > 255 else .5 for ch in text) * self.reference_settings["toc_title_size_pt"] * 100)
+        padding = title_cell.find(f"{{{HP}}}cellMargin")
+        width += int(padding.get("left")) + int(padding.get("right"))
+        width += round(100 * (self.reference_settings["toc_title_left_indent_pt"] + self.reference_settings["toc_title_right_indent_pt"]))
+        center = min(self.available - 2, max(round(self.available * original_center / source_width), width))
+        left = (self.available - center) // 2
+        widths = (left, center, self.available - left - center)
+        old_title_height = int(title_cell.find(f"{{{HP}}}cellSz").get("height"))
+        title_height = max(sum(source_heights), old_title_height)
+        upper = round(title_height * source_heights[0] / sum(source_heights))
+        heights = (upper, title_height - upper)
+        frames = [E.Element(f"{{{HP}}}tr"), E.Element(f"{{{HP}}}tr")]
+        for y, cells in enumerate(source_cells):
+            for source_cell in cells:
+                x = int(source_cell.find(f"{{{HP}}}cellAddr").get("colAddr"))
+                if (y, x) == (0, 1):
+                    cell = title_cell
+                    cell.find(f"{{{HP}}}cellAddr").attrib.update(colAddr="1", rowAddr="0")
+                    cell.find(f"{{{HP}}}cellSpan").set("rowSpan", "2")
+                    cell.find(f"{{{HP}}}cellSz").attrib.update(width=str(center), height=str(title_height))
+                else:
+                    cell = copy.deepcopy(source_cell)
+                    sublist = cell.find(f"{{{HP}}}subList")
+                    for child in list(sublist): sublist.remove(child)
+                    slot = next(slot for row, column, slot in FRAME_SLOTS if (row, column) == (y, x))
+                    paragraph, _ = self.text_p("", "frame", PREFIX + "frame:" + ident + ":" + slot)
+                    sublist.append(paragraph)
+                    cell.find(f"{{{HP}}}cellSz").attrib.update(width=str(widths[x]), height=str(heights[y]))
+                cell.set("borderFillIDRef", self.frame_border(source_cell.get("borderFillIDRef")))
+                frames[y].append(cell)
+        table.remove(title_row)
+        first_row = list(table).index(old_rows[1])
+        for offset, row in enumerate(frames): table.insert(first_row + offset, row)
+        for y, row in enumerate(old_rows[1:], 2):
+            cell = row.find(f"{{{HP}}}tc")
+            cell.find(f"{{{HP}}}cellAddr").set("rowAddr", str(y))
+            cell.find(f"{{{HP}}}cellSpan").set("colSpan", "3")
+        table.attrib.update(rowCnt=str(len(old_rows) + 1), colCnt="3")
+        size = table.find(f"{{{HP}}}sz")
+        size.set("height", str(int(size.get("height")) + title_height - old_title_height))
+
     def toc_table(self, ident, headings, pages):
+        from .reference_report import TOC_LAYOUT_POLICY
         cid, pid, sid = self.toc_style("host", PREFIX + "box:" + ident)
         host = E.Element(f"{{{HP}}}p", dict(id=self.next_id(), paraPrIDRef=pid, styleIDRef=sid, pageBreak="0", columnBreak="0", merged="0"))
         run = E.SubElement(host, f"{{{HP}}}run", {"charPrIDRef":cid})
         table = E.SubElement(run, f"{{{HP}}}tbl", dict(id=self.next_id(), zOrder="0", numberingType="TABLE", textWrap="TOP_AND_BOTTOM", textFlow="BOTH_SIDES", lock="0", dropcapstyle="None", pageBreak="CELL", repeatHeader="0", rowCnt=str(len(headings)+1), colCnt="1", cellSpacing="0", borderFillIDRef=self.border(True, True), noAdjust="0"))
         size = E.SubElement(table, f"{{{HP}}}sz", dict(width=str(self.available), height="0", widthRelTo="ABSOLUTE", heightRelTo="ABSOLUTE", protect="0"))
-        E.SubElement(table, f"{{{HP}}}pos", dict(treatAsChar="1", affectLSpacing="0", flowWithText="1", allowOverlap="0", holdAnchorAndSO="0", vertRelTo="PARA", horzRelTo="PARA", vertAlign="TOP", horzAlign="LEFT", vertOffset="0", horzOffset="0"))
+        # Native inline tables defer an oversized merged frame as one object,
+        # leaving a blank page. Flow the new frame by cells without reducing
+        # its font, row heights or spacing; old frozen layouts stay inline.
+        E.SubElement(table, f"{{{HP}}}pos", dict(treatAsChar="0" if self.layout == TOC_LAYOUT_POLICY else "1", affectLSpacing="0", flowWithText="1", allowOverlap="0", holdAnchorAndSO="0", vertRelTo="PARA", horzRelTo="PARA", vertAlign="TOP", horzAlign="LEFT", vertOffset="0", horzOffset="0"))
         E.SubElement(table, f"{{{HP}}}outMargin", dict(left="0", right="0", top="0", bottom="700"))
         cell_padding = {side: str(round(self.reference_settings[f"toc_padding_{side}_mm"] * 7200 / 25.4)) for side in ("left", "right", "top", "bottom")} if self.reference_settings else dict(left="510", right="510", top="141", bottom="141")
         E.SubElement(table, f"{{{HP}}}inMargin", cell_padding)
-        rootp, root_sid = self.text_p("< 목 차 >", "root", PREFIX + "root:" + ident)
-        paragraphs = [rootp] + [self.text_p(h["text"], "major" if h["level"]==1 else "minor", PREFIX + "entry:" + ident + ":" + h["id"], pages[h["id"]])[0] for h in headings]
+        roles = ["root"] + ["major" if h["level"] == 1 else "minor" for h in headings]
+        spacing = [self.paragraph_spacing(role, roles[i-1] if i else None) for i, role in enumerate(roles)]
+        title = plain_text(self.frame_source.findall(f"{{{HP}}}tr")[0].findall(f"{{{HP}}}tc")[1].find(f"{{{HP}}}subList/{{{HP}}}p")) if self.layout else "< 목 차 >"
+        rootp, root_sid = self.text_p(title, "root", PREFIX + "root:" + ident, spacing=spacing[0])
+        paragraphs = [rootp] + [self.text_p(h["text"], roles[i+1], PREFIX + "entry:" + ident + ":" + h["id"], pages[h["id"]], spacing[i+1])[0] for i, h in enumerate(headings)]
         total = 0
         for row, p in enumerate(paragraphs):
             tr = E.SubElement(table, f"{{{HP}}}tr")
@@ -317,8 +495,7 @@ class TocBuilder(BlockBuilder):
                 point = self.reference_settings[reference_role + "_size_pt"]
                 room = self.available - int(cell_padding["left"]) - int(cell_padding["right"]) - 100 * (self.reference_settings[reference_role + "_left_indent_pt"] + self.reference_settings[reference_role + "_right_indent_pt"])
                 estimated_lines = max(1, math.ceil(text_length * point * 80 / max(10000, room)))
-                height = math.ceil(estimated_lines * point * self.reference_settings[reference_role + "_line_percent"] + 100 * (
-                    self.reference_settings[reference_role + "_before_pt"] + self.reference_settings[reference_role + "_after_pt"])) + int(cell_padding["top"]) + int(cell_padding["bottom"])
+                height = math.ceil(estimated_lines * point * self.reference_settings[reference_role + "_line_percent"] + 100 * sum(spacing[row])) + int(cell_padding["top"]) + int(cell_padding["bottom"])
             else:
                 height = math.ceil(estimated_lines * point * 160 + 282)
             total += height
@@ -327,6 +504,8 @@ class TocBuilder(BlockBuilder):
             E.SubElement(tc, f"{{{HP}}}cellSz", dict(width=str(self.available), height=str(height)))
             E.SubElement(tc, f"{{{HP}}}cellMargin", cell_padding)
         size.set("height", str(total))
+        if self.layout:
+            self.add_reference_frame(table, ident)
         return host, root_sid
 
 
@@ -346,6 +525,10 @@ def compose_toc(data, value):
         selected = []
         stylemap = styles(header)
         builder = TocBuilder(header, section, available)
+        if toc:
+            # Existing managed layouts are frozen even if a document's general
+            # formatting marker was changed or upgraded independently.
+            builder.layout = toc.get("layout")
         for chosen in value.headings:
             index = chosen.paragraph
             if index >= len(section) or toc and index == toc["paragraph"]: raise HTTPException(409, "선택한 제목 문단이 없습니다.")
@@ -368,6 +551,7 @@ def compose_toc(data, value):
         planned = TocSemantic(preliminary)
         metadata = dict(policy=POLICY, toc_id=ident, heading_ids=[h["id"] for h in selected], pages=pages,
                         body_sha256=body_hash(planned, target+1), managed_sha256=digest(canonical(planned.node(planned.section[target+1])).encode()))
+        if builder.layout is not None: metadata["layout"] = builder.layout
         rootstyle = next(x for x in header.iter(f"{{{HH}}}style") if x.get("id") == root_sid)
         rootstyle.set("engName", canonical(metadata))
         result = packed(data, header, section)

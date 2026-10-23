@@ -201,7 +201,12 @@ def citation_marker(identifier, style):
     return f"주{number})" if style == "NOTE" else f"*{number}" if style == "ASTERISK" else f"[{identifier}]"
 
 
-def presentation_text(value, settings, source_ids, *, body=False, marks=None):
+def citation_style_for_scope(style, source_count):
+    """AUTO is a new explicit setting; legacy fixed marker styles keep their meaning."""
+    return ("STARS" if source_count <= 1 else "NOTE") if style == "AUTO" else style
+
+
+def presentation_text(value, settings, source_ids, *, body=False, marks=None, marker_numbers=None):
     if body and settings.get("body_parenthetical_labels") is False:
         # Only the bounded lead-label grammar used by the existing emphasis
         # contract is eligible. Conditions and parentheses later in prose stay.
@@ -209,16 +214,24 @@ def presentation_text(value, settings, source_ids, *, body=False, marks=None):
         value = re.sub(r"^(\s*(?:[□ㅇ○-]\s*)?)\((" + label + r")\)(\s*)",
                        lambda match: match[1] if match[3] else match[0], value, count=1)
     style = settings.get("citation_style", "BRACKET_S")
+    if style == "AUTO":
+        count = len(marker_numbers) if marker_numbers is not None else len({identifier for identifier in re.findall(r"\[(S\d+)\]", value) if identifier in source_ids})
+        style = citation_style_for_scope(style, count)
     offset = 0
+    previous_end = None
     def replace(match):
-        nonlocal offset
+        nonlocal offset, previous_end
         if match[1] not in source_ids:
             return match[0]
-        result = citation_marker(match[1], style)
+        identifier = f"S{marker_numbers[match[1]]}" if marker_numbers is not None else match[1]
+        result = citation_marker(identifier, style)
+        separator = ", " if marker_numbers is not None and previous_end == match.start() else ""
         if marks is not None:
-            marks.append((match.start() + offset, match.start() + offset + len(result)))
-        offset += len(result) - len(match[0])
-        return result
+            start = match.start() + offset + len(separator)
+            marks.append((start, start + len(result)))
+        previous_end = match.end()
+        offset += len(separator) + len(result) - len(match[0])
+        return separator + result
     return re.sub(r"\[(S\d+)\]", replace, value)
 
 
@@ -231,12 +244,24 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
     rendered_marks = {}
     def present(value, *, body=False):
         marks = []
-        result = presentation_text(value, settings, source_ids, body=body, marks=marks)
-        if reference and settings.get("citation_superscript") and marks:
+        # New reference notes are numbered per logical paragraph/visual below,
+        # before the plan is frozen or any HWPX command is applied.
+        display = {**settings, "citation_style": "BRACKET_S"} if reference else settings
+        result = presentation_text(value, display, source_ids, body=body, marks=marks)
+        if not reference and settings.get("citation_superscript") and marks:
             rendered_marks[result] = marks
         return result
     emphasis = [{**item.model_dump(), "text": present(item.text, body=True)} for item in draft.emphasis]
     blocks = [(draft.title, "title", False, {})]
+    if reference:
+        from .reference_report import BODY_SPACING_POLICY, TITLE_OVERFLOW_POLICY
+        # New plans opt in explicitly; a previously frozen plan/layout is never
+        # restyled merely because the application code has been updated.
+        blocks[0][3]["body_spacing"] = BODY_SPACING_POLICY
+        blocks[0][3]["title_overflow"] = TITLE_OVERFLOW_POLICY
+        if settings["preset_id"] in ("appendix-2", "appendix-3"):
+            from .reference_report import TOC_LAYOUT_POLICY
+            blocks[0][3]["toc_layout"] = TOC_LAYOUT_POLICY
     if reference and settings["preset_id"] == "appendix-1":
         from .reference_report import TITLE_LAYOUT_POLICY
         blocks[0][3]["title_layout"] = TITLE_LAYOUT_POLICY
@@ -262,7 +287,12 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
                 # bullet with a numbered marker; (1)/(가) are structural text.
                 prose = presentation_text(prose, {**settings, "citation_style": "BRACKET_S"}, source_ids, body=True)
                 text, reference_role = body_item(prose, settings, counters)
-                blocks.append((present(text), "body", False, {"style_kind": reference_role}))
+                item_meta = {"style_kind": reference_role}
+                # A numbered display of a square body item is still prose.
+                # Only an explicit subordinate title joins the native TOC.
+                if reference_role == "subheading" and re.match(r"^[가-하]\.\s", prose):
+                    item_meta["toc_level"] = 2
+                blocks.append((present(text), "body", False, item_meta))
         else:
             blocks.append((f"{i}. {section.heading}", "heading", True, {}))
             blocks.extend((present(p, body=True), "body", False, {}) for p in section.paragraphs)
@@ -273,17 +303,22 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
             number = table_number if is_table else diagram_number
             kind = "table" if is_table else "diagram"
             # All cell/label/connector text is staged through the same fenced commands.
-            blocks.append((f"{'표' if is_table else '그림'} {number}. {present(visual.caption)}", "source", False,
-                           {"visual_caption": kind} if rich else {}))
+            # The reference example uses the supplied caption itself. Keep
+            # legacy numbering, but do not add an unrequested prefix in V3.
+            caption = present(visual.caption) if reference else f"{'표' if is_table else '그림'} {number}. {present(visual.caption)}"
+            note_visual = {"note_visual_group": f"{kind}-{number}", "note_visual_kind": kind} if reference else {}
+            blocks.append((caption, "source", False,
+                           {**({"visual_caption": kind} if rich else {}), **note_visual,
+                            **({"note_visual_caption": True} if reference else {})}))
             rows = [visual.columns, *visual.rows] if is_table else [[part for j, step in enumerate(visual.steps) for part in (["→", step] if j else [step])]]
             for y, row in enumerate(rows):
                 for x, cell in enumerate(row):
-                    blocks.append((present(cell), "source", False, {"visual_id": f"{kind}-{number}", "visual_kind": kind,
-                        "visual_row": y, "visual_column": x, "visual_columns": len(row)} if rich else {}))
-    if draft.sources or draft.limitations:
-        blocks.append(("출처 및 확인 사항", "heading", True, {}))
+                    blocks.append((present(cell), "source", False, {**note_visual, **({"visual_id": f"{kind}-{number}", "visual_kind": kind,
+                        "visual_row": y, "visual_column": x, "visual_columns": len(row)} if rich else {})}))
+    if (draft.sources and not reference) or draft.limitations:
+        blocks.append(("확인 사항" if reference else "출처 및 확인 사항", "heading", True, {}))
         page_chars = 0
-        for s in draft.sources:
+        for s in ([] if reference else draft.sources):
             value = f"{citation_marker(s.id, settings.get('citation_style', 'BRACKET_S'))} {s.title} ({s.published or '발행일 미확인'}) · {s.url}"
             new_page = page_chars + len(value) > 1100
             page_chars = len(value) if new_page else page_chars + len(value)
@@ -293,6 +328,9 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
             new_page = page_chars + len(value) > 1100
             page_chars = len(value) if new_page else page_chars + len(value)
             blocks.append((value, "body", new_page, {}))
+    if reference:
+        from .report_notes import localize_notes
+        blocks = localize_notes(blocks, draft.sources, settings)
     if concise and not reference:
         from .report_outline import split_bullet
         blocks = [(part, kind, forced and i == 0, meta) for text, kind, forced, meta in blocks
@@ -307,6 +345,11 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
         while kind == "body" and len(remaining) > 380:
             cut = remaining.rfind(" ", 250, 380)
             cut = cut + 1 if cut >= 250 else 380
+            offset = len(text) - len(remaining)
+            for start, end in meta.get("citation_ranges", ()):
+                if start < offset + cut < end:
+                    cut = start - offset
+                    break
             chunks.append(remaining[:cut]); remaining = remaining[cut:]
         chunks.append(remaining)
         chunk_offset = 0
@@ -320,13 +363,20 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
             used = cost if new_page else used + cost
             result.append({"text": chunk, "kind": kind, "page_break": new_page, **meta})
             if reference and (kind != "source" or meta.get("visual_id") or meta.get("visual_caption")):
-                ranges = [(start - chunk_offset, end - chunk_offset) for start, end in rendered_marks.get(text, ())
+                ranges = [(start - chunk_offset, end - chunk_offset) for start, end in meta.get("citation_ranges", rendered_marks.get(text, ()))
                           if chunk_offset <= start < end <= chunk_offset + len(chunk)]
+                result[-1].pop("citation_ranges", None)
                 if ranges:
                     result[-1]["citation_ranges"] = ranges
             chunk_offset += len(chunk)
             if rich:
-                result[-1]["emphasis"] = [item for item in emphasis if item["text"] in chunk]
+                local_ids = meta.get("citation_source_ids")
+                local_emphasis = emphasis
+                if local_ids:
+                    numbers = {identifier: n for n, identifier in enumerate(local_ids, 1)}
+                    local_emphasis = [{**item, "text": presentation_text(item["text"], settings, source_ids, marker_numbers=numbers)}
+                                     for item in emphasis if all(ref in numbers for ref in re.findall(r"\[(S\d+)\]", item["text"]))]
+                result[-1]["emphasis"] = [item for item in local_emphasis if item["text"] in chunk]
             if style_kind in ("square", "circle", "dash", "dot"):
                 result[-1]["style_kind"] = style_kind + ("_continuation" if index else "")
     return result

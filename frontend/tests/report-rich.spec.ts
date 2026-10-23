@@ -6,11 +6,11 @@ test('REAL rhwp + RECORDED rich report: actual Codex visuals render and export w
   test.skip(!process.env.HWP_REPORT_FIXTURES, 'Requires explicitly recorded Codex result; no new model call.');
   const before = (await (await request.get('/api/documents')).json()).length;
   await page.goto('/'); await page.getByRole('button', { name: '보고서 작성', exact: true }).click();
-  await expect(page.getByLabel('문서 서식 표준', { exact: true })).toBeEnabled();
-  await page.getByLabel('문서 서식 표준', { exact: true }).selectOption(''); // Preserve the recorded legacy visual contract.
+  await expect(page.getByLabel('문서 양식', { exact: true })).toBeEnabled();
+  await page.getByLabel('문서 양식', { exact: true }).selectOption(''); // Preserve the recorded legacy visual contract.
   await page.getByLabel('보고서 작성 요청', { exact: true }).fill('가상 금융회사 합성 보안 대응 훈련 보고서를 작성해줘.');
   const posted = page.waitForResponse(r => r.url().endsWith('/api/report-tasks') && r.request().method() === 'POST');
-  await page.getByRole('button', { name: 'Codex로 보고서 초안 만들기', exact: true }).click();
+  await page.getByRole('button', { name: '초안 작성하기', exact: true }).click();
   const id = (await (await posted).json()).id;
   await page.getByRole('button', { name: '이 내용으로 문서 만들기', exact: true }).click();
   await expect(page.getByRole('button', { name: '초안 확정·서버 저장', exact: true })).toBeVisible({ timeout: 90000 });
@@ -58,11 +58,11 @@ test('REAL rhwp + MOCK report: streamed table diagram emphasis, edited save retr
   });
   try {
     await page.goto('/'); await page.getByRole('button', { name: '보고서 작성', exact: true }).click();
-    await expect(page.getByLabel('문서 서식 표준', { exact: true })).toBeEnabled();
-    await page.getByLabel('문서 서식 표준', { exact: true }).selectOption(''); // Keep the existing summary/emphasis/TOC assertions on their original standard.
+    await expect(page.getByLabel('문서 양식', { exact: true })).toBeEnabled();
+    await page.getByLabel('문서 양식', { exact: true }).selectOption(''); // Keep the existing summary/emphasis/TOC assertions on their original standard.
     await page.getByLabel('보고서 작성 요청', { exact: true }).fill('[STREAM] [RICH] 표와 흐름도 및 강조가 있는 합성 보고서 시험');
     const posted = page.waitForResponse(r => r.url().endsWith('/api/report-tasks') && r.request().method() === 'POST');
-    await page.getByRole('button', { name: 'Codex로 보고서 초안 만들기', exact: true }).click(); id = (await (await posted).json()).id;
+    await page.getByRole('button', { name: '초안 작성하기', exact: true }).click(); id = (await (await posted).json()).id;
     const paper = page.getByLabel('생성 중인 보고서', { exact: true });
     await expect(paper.locator('strong').filter({ hasText: '(요약)' })).toBeVisible();
     expect((await request.post(`/api/test/report-stream/${id}/release`)).ok()).toBeTruthy();

@@ -44,7 +44,6 @@ async def generate(request: Request):
     if value.get("model") != "hwp-synthetic-fixture":
         raise HTTPException(400, "Only the synthetic fixture model is supported")
     payload = json.loads(value["messages"][1]["content"])
-    original = payload["selected_paragraph"]
     call = {"model": value["model"], "input": payload, "finished": False,
             "input_sha256": hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode()).hexdigest()}
     calls.append(call)
@@ -56,6 +55,18 @@ async def generate(request: Request):
     call["finished"] = True
     if settings["failure"] == "http":
         raise HTTPException(503, "Synthetic provider failure")
+    if payload.get("_assistant_contract") == "live-document-conversation-v1":
+        # Deliberately fixed language: this verifies transport/context contracts,
+        # never actual model quality or reasoning about the document.
+        content = json.dumps({
+            "answer": "MOCK 문서 대화 응답: " + payload["message"],
+            "rewrite_instruction": "사실과 부정 표현을 유지하며 업무 문체로 다듬어 주세요."
+                if payload.get("selection") and "다듬" in payload["message"] else None,
+        }, ensure_ascii=False)
+        if settings["failure"] == "json":
+            content = '{"answer":'
+        return {"model": "hwp-synthetic-fixture", "choices": [{"finish_reason": "stop", "message": {"role": "assistant", "content": content}}]}
+    original = payload["selected_paragraph"]
     candidates = [{"replacement": original + " 확인했습니다.", "reason": "MOCK 시험 후보 1"},
                   {"replacement": original + " 검토했습니다.", "reason": "MOCK 시험 후보 2"}]
     if settings["failure"] == "page-growth":

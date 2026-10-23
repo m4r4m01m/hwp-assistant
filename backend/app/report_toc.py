@@ -71,6 +71,15 @@ def normalize_generated_layout(data):
     return packed(data,header,section)
 
 
+def heading_level(item, plan):
+    from .reference_report import has_body_spacing
+    if item["kind"] == "heading":
+        return 1
+    if has_body_spacing(plan) and item.get("toc_level") == 2 and item.get("style_kind") == "subheading" and not item.get("visual_id"):
+        return 2
+    return None
+
+
 def initial_config(preview, source, request_id):
     header,section,_,_=parsed(source)
     from .reference_report import toc_anchor_index, TOC_ANCHOR_STYLE, COVER_SPACER_STYLE
@@ -81,12 +90,13 @@ def initial_config(preview, source, request_id):
         while index < len(section) and section[index].get("styleIDRef") in anchor_styles:
             index += 1
         item=preview["plan"][position]
-        if item["kind"]=="heading":
+        level = heading_level(item, preview["plan"])
+        if level is not None:
             if index>=len(section):raise HTTPException(422,"보고서 제목 위치를 확인할 수 없습니다.")
             d=descriptor(section[index],index)
             if d["text"]!=item["text"]:raise HTTPException(422,"고정한 보고서 제목과 문서 내용이 다릅니다.")
             selected.append(dict(heading_id=str(uuid.uuid5(uuid.UUID(preview["id"]),"heading:"+item["command_id"])),
-                                 paragraph=index,level=1,expected_text_sha256=d["text_sha256"]))
+                                 paragraph=index,level=level,expected_text_sha256=d["text_sha256"]))
         if item.get("visual_id"):
             ident=item["visual_id"]
             while position<len(preview["plan"]) and preview["plan"][position].get("visual_id")==ident:position+=1

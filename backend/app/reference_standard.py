@@ -16,7 +16,7 @@ from pydantic import Field, create_model, model_validator
 
 from .document_standard import HP, HH, HC, load_standard, normalize_no_fill
 from .hwpx import digest, validate
-from .report_contract import ReportValue, citation_marker
+from .report_contract import ReportValue, citation_marker, citation_style_for_scope
 from . import reference_source as source
 
 PRESETS = {
@@ -26,6 +26,14 @@ PRESETS = {
 }
 MAX_PAGES = 32
 WIDTHS = (.1, .12, .15, .2, .25, .3, .4, .5, .6, .7, 1., 1.5, 2., 3., 4., 5.)
+# New editable defaults requested after reviewing generated appendix reports.
+# Keep these distinct from the source extractor: the example's geometry is
+# evidence, while registered settings and frozen requests own their exact values.
+REPORT_DEFAULT_OVERRIDES = {
+    "square_first_line_indent_pt": -21,
+    "circle_first_line_indent_pt": -21,
+    "dash_first_line_indent_pt": -14,
+}
 ROLE_LABELS = {
     "title": "본문 문서 제목", "heading": "대제목 · 첫째 항목", "subheading": "중제목 · 둘째 항목",
     "minor_heading": "소제목 · 셋째 항목", "body": "일반 본문", "source": "참고·출처", "note": "본문 주석",
@@ -99,12 +107,16 @@ def source_metadata():
     profile, _ = load_standard()
     return dict(name=profile["name"], reference_sha256=profile["reference_sha256"],
                 profile_sha256=profile["profile_sha256"], raw_endpoint_internal=True,
-                default_precedence="규정표에 명시된 값 우선, 미명시 값은 원문 예시 XML에서 추출",
+                default_precedence="규정표에 명시된 값 우선, 미명시 값은 원문 예시 XML에서 추출. 새 표 폭·기호 내어쓰기·주석 자동 표식의 사용자 요청 기본값은 structural_provenance에 별도 기록",
                 preview_presentation="별첨의 본문 문구는 보존하며 번호·기호·주석 표식은 선택한 표시 설정에 연결합니다. 원문의 혼합 주석 표식과 달라질 수 있습니다.",
                 provenance=source.source_profile()["roles"],
                 structural_provenance={
                     "table_width_percent": dict(part="Contents/section0.xml", top_level_index=99, table_id="1872749261", source_width=29907,
-                        basis="폭의 수치 규정이 없어 원문 표 폭29907과 본문 폭48190에서 추출"),
+                        source_percent=round(29907 / 48190 * 100, 6), default_percent=100,
+                        basis="원문 예시 표 폭은 본문 폭의 약 62%입니다. 2026-10-23 사용자 검수 요청에 따라 새 기본값은 용지 좌우 여백 안의 본문 폭 100%이며 저장한 사용자 너비는 유지합니다."),
+                    "bullet_hanging_indents": dict(defaults=dict(REPORT_DEFAULT_OVERRIDES),
+                        basis="2026-10-23 사용자 검수 요청에 따라 새 기본값은 원문 기호의 계층 위치를 유지하고 후속 줄을 기호 뒤 본문 위치에 맞춥니다. 원문 추출값·기존 등록·동결된 들여쓰기 값은 유지합니다."),
+                    "citation_style": dict(default="AUTO", basis="사용자 검수 요청에 따라 새 기본값은 같은 문단·표·도식의 주석 1개는 *, 2개 이상은 첫 주석부터 주1), 주2)로 표시합니다. 다음 단위에서 초기화하며 기존 고정 표식·등록·동결 설정은 유지합니다."),
                     "citation_links": [dict(id="S1", inline_ordinal=407, description_ordinal=421, original="*"),
                         dict(id="S2", inline_ordinal=411, description_ordinal=419, original="주1)"),
                         dict(id="S3", inline_ordinal=412, description_ordinal=420, original="주2)")],
@@ -137,7 +149,7 @@ def _catalog():
             if key not in role_values:
                 raise ValueError("Original role extraction is missing " + key)
             item = dict(key=key, label=name, group=label, type=kind, min=minimum, max=maximum,
-                        step=step, unit=unit, default=role_values[key])
+                        step=step, unit=unit, default=REPORT_DEFAULT_OVERRIDES.get(key, role_values[key]))
             if suffix == "font":
                 item.update(min_length=1, max_length=80)
             elif suffix == "underline":
@@ -161,7 +173,8 @@ def _catalog():
         *[_numeric("table_padding_" + side + "_mm", label, "표 구조", value, 0, 20, .1, "mm")
           for side, label, value in (("left", "셀 왼쪽 여백", 1.8), ("right", "셀 오른쪽 여백", 1.8), ("top", "셀 위 여백", .5), ("bottom", "셀 아래 여백", .5))],
         _numeric("table_min_row_height_mm", "최소 셀 높이", "표 구조", 7, 3, 80, .1, "mm"),
-        _numeric("table_width_percent", "본문 폭 대비 표 너비", "표 구조", round(29907 / 48190 * 100, 6), 20, 100, 1, "%"),
+        _numeric("table_width_percent", "본문 폭 대비 표 너비", "표 구조", 100, 20, 100, 1, "%",
+                 help="기본값 100%는 용지 좌우 여백 안의 본문 폭을 채웁니다. 원하는 너비를 직접 지정할 수 있습니다."),
         dict(key="table_repeat_header", label="다음 쪽에 첫 행 반복", group="표 구조", type="boolean", unit="", default=True),
         _numeric("title_frame_height_mm", "본문 제목 상자 높이", "제목 상자", 15, 5, 60, .1, "mm"),
         _choice("title_rule_width_mm", "본문 제목 상하선 두께", "제목 상자", 1., [(value, f"{value:g} mm") for value in WIDTHS]),
@@ -177,7 +190,8 @@ def _catalog():
         _choice("emphasis_color", "선택 강조 색", "글자 강조", "#0000FF", [("#0000FF", "파랑"), ("#FF0000", "빨강")], help="원문에서 허용한 빨강 또는 파랑 중 한 가지를 선택합니다."),
         _choice("page_number_style", "면 표시 형식", "면 표시·주석", "DASH", [("DASH", "- 1 -"), ("PAGE_TOTAL", "일련번호 / 전체면수"), ("PLAIN", "1"), ("NONE", "없음")]),
         _choice("page_number_position", "면 표시 위치", "면 표시·주석", "BOTTOM_CENTER", [("BOTTOM_LEFT", "아래 왼쪽"), ("BOTTOM_CENTER", "아래 가운데"), ("BOTTOM_RIGHT", "아래 오른쪽")]),
-        _choice("citation_style", "주석 표식", "면 표시·주석", "STARS", [("STARS", "*, **, ***"), ("NOTE", "주1), 주2)")]),
+        _choice("citation_style", "주석 표식", "면 표시·주석", "AUTO", [("AUTO", "자동 · 1개 *, 2개 이상 주1)"), ("STARS", "별표 고정 · *, **, ***"), ("NOTE", "번호 고정 · 주1), 주2)")],
+                help="자동은 같은 문단·표·도식의 서로 다른 주석이 1개면 *, 2개 이상이면 첫 주석부터 주1), 주2)로 표시합니다. 같은 출처의 반복 인용은 하나로 세며 다음 단위에서 다시 시작합니다."),
         dict(key="citation_superscript", label="본문 주석 표식 윗첨자", group="면 표시·주석", type="boolean", unit="", default=True),
         dict(key="body_parenthetical_labels", label="항목 요약 말머리", group="문서 구성", type="boolean", unit="", default=False,
              help="원문 별첨 예시에 없는 추가 말머리를 새 보고서에 표시할지 선택합니다."),
@@ -379,6 +393,8 @@ def render_preset(settings):
                     if settings["citation_superscript"]:
                         E.SubElement(char, f"{{{HH}}}supscript")
                 run.set("charPrIDRef", char.get("id"))
+        if settings["citation_style"] == "AUTO":
+            _order_auto_sample_notes(section, role_positions)
         _apply_sample_tables(header, section, settings)
         # Current page numbers are native fields, never literal example totals.
         # The source states a page-number rule but has no actual field. The
@@ -469,6 +485,9 @@ def _sample_presentation(positions, settings):
     """Known source marker links only; prose, dates and quantities stay intact."""
     from .reference_report import numbered_marker
     result, citations = [], {}
+    # The original's three verified links all annotate this one sample table
+    # (caption and cells). Only its presentation is changed, never source prose.
+    sample_style = citation_style_for_scope(settings["citation_style"], 3)
     counters = {role: 0 for role in ("heading", "subheading", "minor_heading", "square", "circle", "dash")}
     patterns = {"heading": r"^(\s*)(\d+\.)(\s)", "subheading": r"^(\s*)([가-하]\.)(\s)",
                 "minor_heading": r"^(\s*)((?:\d+\)|\(\d+\)))(\s)",
@@ -506,12 +525,31 @@ def _sample_presentation(positions, settings):
                 link = (note.start(1), note.end(1), {"*": "S1", "주1)": "S2", "주2)": "S3"}[note[1]])
         if link:
             start, stop, identifier = link
-            marker = citation_marker(identifier, settings["citation_style"])
+            marker = citation_marker(identifier, sample_style)
             _splice(paragraph, start, stop, marker)
             if inline:
                 citations[paragraph] = marker
         result.append((paragraph, role))
     return result, citations
+
+
+def _order_auto_sample_notes(section, positions):
+    """Only the new AUTO projection puts the verified table notes in citation order."""
+    notes = {paragraph for paragraph, role in positions if role == "table_source"}
+    if not notes:
+        return
+    slots = [index for index, paragraph in enumerate(section) if paragraph in notes]
+    by_marker = {}
+    for paragraph in notes:
+        match = re.match(r"^\s*주([1-3])\)(?=\s)", _text(paragraph))
+        if match:
+            by_marker[int(match[1])] = paragraph
+    if len(slots) != 3 or len(notes) != 3 or set(by_marker) != {1, 2, 3}:
+        raise ValueError("원문 표 예시의 주석 연결을 확인할 수 없습니다.")
+    # The paragraph objects retain every original run/text/formatting property.
+    # Source bytes, fixed STARS/NOTE projections and registered blobs never enter here.
+    for index, number in zip(slots, (1, 2, 3)):
+        section[index] = by_marker[number]
 
 
 def _apply_sample_tables(header, section, settings):

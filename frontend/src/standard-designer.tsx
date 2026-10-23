@@ -126,6 +126,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
   const [dialogOpen, setDialogOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(() => window.matchMedia("(min-width: 721px)").matches);
   const [filter, setFilter] = useState("");
+  const [settingsMode, setSettingsMode] = useState<"common" | "all">("common");
   const host = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const adapter = useRef<EditorAdapter | null>(null);
@@ -366,7 +367,8 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
   }
   function canLeave() {
     if (locked) return false;
-    if (source || currentKey !== settingsKey(definition?.defaults || {})) {
+    const loaded = catalog?.items.find(item => item.id === source);
+    if (currentKey !== settingsKey({ ...definition?.defaults, ...loaded?.settings })) {
       if (!saved && !window.confirm("아직 등록하지 않은 서식 설정이 있습니다. 문서 표준 편집을 닫을까요?")) return false;
     }
     return true;
@@ -379,8 +381,22 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
   }
 
   const fields = (definition?.fields || []).filter(field => field.key !== "preset_id");
-  const groups = Array.from(new Set(fields.map(field => field.group)));
-  const filteredFields = fields.filter(field => !filter.trim() || `${field.group} ${field.label} ${field.help || ""}`.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase()));
+  const groupOrder = ["면 표시·주석", "쪽번호·주석", "문서 구성", "용지·여백", "본문 문서 제목", "제목 상자", "일반 본문", "항목 번호·기호",
+    "□ 기호 항목", "ㅇ 기호 항목", "- 기호 항목", "대제목 · 첫째 항목", "중제목 · 둘째 항목", "소제목 · 셋째 항목",
+    "표 구조", "표 내용", "표·그림 제목", "표·그림 단위", "표·그림 아래 주석", "본문 주석", "참고·출처",
+    "표지 제목", "표지 일자", "표지 부서명", "목차 상자", "목차 제목", "목차 첫째 항목", "목차 둘째 항목", "작성 규정"];
+  const groups = Array.from(new Set(fields.map(field => field.group))).sort((a, b) => {
+    const aIndex = groupOrder.indexOf(a), bIndex = groupOrder.indexOf(b);
+    return (aIndex < 0 ? groupOrder.length : aIndex) - (bIndex < 0 ? groupOrder.length : bIndex);
+  });
+  const commonKeys = new Set(["citation_style", "citation_superscript", "page_number_style", "page_number_position",
+    "body_parenthetical_labels", "show_core_summary", "numbering_style", "margin_top_mm", "margin_bottom_mm", "margin_left_mm", "margin_right_mm",
+    "title_font", "title_size_pt", "title_line_percent", "title_vertical_offset_pt", "body_font", "body_size_pt", "body_line_percent", "body_horizontal_align",
+    "table_header_fill", "table_border_color", "table_border_scope", "table_width_percent", "table_horizontal_align", "table_vertical_align"]);
+  const searching = !!filter.trim();
+  const filteredFields = fields.filter(field => searching
+    ? `${field.group} ${field.label} ${field.help || ""}`.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase())
+    : settingsMode === "all" || commonKeys.has(field.key));
   const sourceSelection = catalog?.items.find(item => item.id === source);
   const olderSource = sourceSelection && sourceSelection.revision < 3 && !!catalog?.presets?.length;
   function fieldDisabled(field: Field) {
@@ -418,49 +434,49 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
   }}>
     <WorkspaceNav active="standards" compact className="standard-workspace-rail" label="표준 편집 도구" onBack={close} onNavigate={onNavigate ? section => { if (canLeave()) onNavigate(section); } : undefined} disabled={locked}>
       <button aria-label={`문서 표준 설정 ${settingsOpen ? "닫기" : "열기"}`} aria-expanded={settingsOpen} aria-controls="standard-settings-panel" onClick={() => setSettingsOpen(value => !value)}><WorkspaceIcon name="settings" /><span>설정</span></button>
-      {catalog?.reference_preview_url && <button aria-label={view === "reference" ? "서식 미리보기로 돌아가기" : "기준서 전체 보기"} aria-pressed={view === "reference"} disabled={locked} onClick={() => switchView(view === "reference" ? "settings" : "reference")}><WorkspaceIcon name="documents" /><span>{view === "reference" ? "미리보기" : "기준서"}</span></button>}
-      <button aria-label={saved ? "표준 등록 완료" : "표준 등록 열기"} title="표준 템플릿으로 등록" className="primary" disabled={!current || locked || !!saved} onClick={() => setDialogOpen(true)}><WorkspaceIcon name="plus" /><span>{saved ? "완료" : "등록"}</span></button>
     </WorkspaceNav>
     <div className={`standard-designer-grid${settingsOpen ? " settings-visible" : ""}`}>
       <aside id="standard-settings-panel" className="standard-settings" hidden={!settingsOpen} aria-label="문서 표준 설정">
-    <header className="standard-designer-header">
-      <div><small>기준서에서 시작하는 보고서 서식</small><h1>문서 표준 편집</h1><p>기준서의 서식과 규정을 확인하고 새 표준으로 등록합니다.</p></div>
-      <div className="standard-designer-actions">
-        <button className="primary" disabled={!current || locked || !!saved} onClick={() => setDialogOpen(true)}>{saved ? "등록 완료" : "표준 템플릿으로 등록"}</button>
-      </div>
-    </header>
-        {catalog?.reference_preview_url && <div className="standard-view-tabs" role="tablist" aria-label="기준서와 서식 보기"><button role="tab" aria-selected={view === "settings"} disabled={locked} onClick={() => switchView("settings")}>서식 미리보기</button><button role="tab" aria-selected={view === "reference"} disabled={locked} onClick={() => switchView("reference")}>기준서 전체</button></div>}
-        <div className="standard-preview-toolbar"><strong>{view === "reference" ? "기준서 전체" : "서식 미리보기"}</strong><span className="standard-preview-state" role="status"><i className={`standard-preview-dot${current || view === "reference" && phase === "ready" ? "" : " pending"}`} aria-hidden="true" />{stateText}</span></div>
-        {displayError && <div className="standard-designer-error" role="alert">{displayError}{(view === "reference" || !checked.error) && !locked && catalog && seed && <><br /><button onClick={() => setRetry(value => value + 1)}>미리보기 다시 확인</button></>}</div>}
-        <div className="standard-settings-intro"><strong>{catalog?.source?.name || "서식 설정"}</strong>{view === "reference" ? "기준서 전체를 읽기 전용으로 표시합니다. 서식 변경과 등록은 서식 미리보기에서 진행하세요." : "기준서에서 읽은 서식값을 바탕으로 조정합니다. 기본 양식을 바꿔도 현재 수치와 문구는 유지하며, 등록하면 별도의 새 표준으로 보관합니다."}</div>
-        {view === "settings" && settingsRevision >= 3 && catalog?.source?.preview_presentation && <p className="standard-source-note">{catalog.source.preview_presentation}</p>}
-        {catalog && <div className="standard-setting-fields standard-source"><label className="standard-field"><span>설정 불러오기</span><select aria-label="설정 불러오기" value={source} disabled={locked} onChange={event => selectSource(event.target.value)}><option value="">기준서 기반 새 표준</option>{catalog.items.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label></div>}
+        <header className="standard-designer-header"><h1>문서 표준 편집</h1><p>새 보고서의 여백·글자·표 서식을 정하고 저장합니다.</p></header>
+        {view === "reference" ? <div className="standard-settings-intro"><strong>{catalog?.source?.name || "문서작성 기준서"}</strong>원본 기준서 전체를 읽기 전용으로 봅니다. 설정을 이어서 바꾸려면 ‘서식 미리보기’를 선택하세요.</div> : <>
+        {catalog && <div className="standard-setting-fields standard-source"><label className="standard-field"><span>설정 불러오기</span><select aria-label="설정 불러오기" value={source} disabled={locked} onChange={event => selectSource(event.target.value)}><option value="">새 보고서 기본값</option>{catalog.items.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label></div>}
         {olderSource && <p className="standard-source-note" role="note">이전 등록 표준의 설정을 그대로 불러왔습니다. 기존 설정과 파일은 보존하고, 수정하면 같은 형식의 새 표준으로 등록합니다.</p>}
-        {settingsRevision >= 3 && !!catalog?.presets?.length && <div className="standard-setting-fields standard-source standard-preset"><label className="standard-field"><span>기본 양식</span><select aria-label="기본 양식" value={values.preset_id || ""} disabled={locked || view === "reference"} onChange={event => change("preset_id", event.target.value)}>{catalog.presets.map(preset => <option key={preset.id} value={String(preset.settings.preset_id)}>{preset.name}</option>)}</select></label><p className="standard-preset-description">{selectedPreset?.description}</p></div>}
-        {catalog && <div className="standard-settings-search"><label htmlFor="standard-settings-filter">설정 찾기</label><div><input id="standard-settings-filter" type="search" value={filter} onChange={event => setFilter(event.target.value)} placeholder="정렬, 테두리, 쪽번호…" />{filter && <button aria-label="설정 검색 지우기" onClick={() => setFilter("")}>×</button>}</div></div>}
-        {groups.filter(group => filteredFields.some(field => field.group === group)).map(group => <details className="standard-setting-group" key={`${filter ? "filtered" : "all"}-${group}`} open={!!filter || groups.indexOf(group) < 3}>
-          <summary>{group}</summary><div className="standard-setting-fields">{filteredFields.filter(field => field.group === group).map(field => <label className={`standard-field${field.type === "select" ? " standard-field-select" : ""}${field.type === "text" || field.type === "textarea" ? " standard-field-text" : ""}${fieldDisabled(field) ? " standard-field-disabled" : ""}`} key={field.key}>
+        {settingsRevision >= 3 && !!catalog?.presets?.length && <div className="standard-setting-fields standard-source standard-preset"><label className="standard-field"><span>기본 양식</span><select aria-label="기본 양식" value={values.preset_id || ""} disabled={locked} onChange={event => change("preset_id", event.target.value)}>{catalog.presets.map(preset => <option key={preset.id} value={String(preset.settings.preset_id)}>{preset.name}</option>)}</select></label><p className="standard-preset-description">{selectedPreset?.description}</p></div>}
+        {catalog && <><div className="standard-settings-modes" role="tablist" aria-label="설정 범위">
+          <button role="tab" aria-selected={settingsMode === "common"} onClick={() => setSettingsMode("common")}>자주 쓰는 설정</button>
+          <button role="tab" aria-selected={settingsMode === "all"} onClick={() => setSettingsMode("all")}>상세 설정</button>
+        </div><div className="standard-settings-search"><label htmlFor="standard-settings-filter">설정 찾기</label><div><input id="standard-settings-filter" type="search" value={filter} onChange={event => setFilter(event.target.value)} placeholder="주석, 여백, 정렬, 테두리…" />{filter && <button aria-label="설정 검색 지우기" onClick={() => setFilter("")}>×</button>}</div><p>{searching ? `전체 설정에서 ${filteredFields.length}개를 찾았습니다.` : settingsMode === "common" ? "주석·여백·글자·표를 빠르게 조절합니다. 들여쓰기 등 모든 항목은 상세 설정에서 볼 수 있습니다." : "기준서의 모든 서식과 작성 규정을 조절합니다."}</p></div></>}
+        {groups.filter(group => filteredFields.some(field => field.group === group)).map(group => <details className="standard-setting-group" key={`${searching ? "filtered" : settingsMode}-${group}`} open={searching || groups.indexOf(group) === 0}>
+          <summary>{group}</summary><div className="standard-setting-fields">{filteredFields.filter(field => field.group === group).map(field => <label className={`standard-field${field.type === "select" ? " standard-field-select" : ""}${field.type === "text" || field.type === "textarea" || field.key === "citation_style" ? " standard-field-text" : ""}${fieldDisabled(field) ? " standard-field-disabled" : ""}`} key={field.key}>
             <span>{field.label}</span>{fieldControl(field)}
             {field.help && <small className="standard-field-help" id={`standard-help-${field.key}`}>{field.help}</small>}
           </label>)}</div>
         </details>)}
         {catalog && !filteredFields.length && <p className="standard-settings-no-results" role="status">일치하는 설정이 없습니다.</p>}
+        {catalog && <div className="standard-settings-footer"><button disabled={locked} onClick={() => selectSource("")}>새 표준 기본값 복원</button><p>현재 설정을 새 보고서 기본값으로 되돌립니다. 저장한 표준은 유지됩니다.</p></div>}
+        {settingsRevision >= 3 && <details className="standard-source-rules"><summary>기본값과 미리보기 안내</summary><p>기준서에서 읽은 서식에 사용자 요청 기본값인 표 너비 100%, 기호 내어쓰기와 주석 자동 표식을 적용합니다.</p><p>기본 양식을 바꿔도 현재 수치와 문구는 유지합니다. 원본 기준서와 저장된 문서는 바뀌지 않습니다.</p>{catalog?.source?.preview_presentation && <p>{catalog.source.preview_presentation}</p>}<p>글꼴은 표시 환경에 따라 대체될 수 있습니다.</p></details>}
+        </>}
         {!!catalog?.rules?.length && <details className="standard-source-rules"><summary>기준서 원문 규정</summary>{catalog.rules.map(rule => <section key={rule.id}><h2>{rule.title}</h2><p>{rule.text}</p></section>)}</details>}
-        {catalog && <div className="standard-settings-footer"><button disabled={locked} onClick={() => selectSource("")}>원본 기본값 복원</button><p>원본 기준서와 이전 등록 파일은 변경하지 않습니다. 글꼴은 예시를 표시하는 환경에 따라 대체될 수 있습니다.</p></div>}
       </aside>
       <section className="standard-preview" aria-label={view === "reference" ? "기준서 전체 실제 보기" : "문서 표준 실제 미리보기"}>
+        <div className="standard-preview-toolbar">
+          {catalog?.reference_preview_url ? <div className="standard-view-tabs" role="tablist" aria-label="기준서와 서식 보기"><button role="tab" aria-selected={view === "settings"} disabled={locked} onClick={() => switchView("settings")}>서식 미리보기</button><button role="tab" aria-selected={view === "reference"} disabled={locked} onClick={() => switchView("reference")}>기준서 전체</button></div> : <strong>서식 미리보기</strong>}
+          <span className="standard-preview-state" role="status"><i className={`standard-preview-dot${current || view === "reference" && phase === "ready" ? "" : " pending"}`} aria-hidden="true" />{stateText}</span>
+          {view === "settings" && <button className="primary" disabled={!current || locked || !!saved} onClick={() => setDialogOpen(true)}>{saved ? "등록 완료" : "새 표준 등록"}</button>}
+        </div>
+        {displayError && <div className="standard-designer-error" role="alert">{displayError}{(view === "reference" || !checked.error) && !locked && catalog && seed && <><br /><button onClick={() => setRetry(value => value + 1)}>미리보기 다시 확인</button></>}</div>}
         <div className="standard-preview-pages" aria-busy={phase !== "ready" || view === "settings" && !current}
           data-preview-sha256={view === "reference" ? reference?.preview_sha256 : preview?.preview_sha256}
           data-settings-sha256={view === "settings" ? preview?.settings_sha256 : undefined}>
           {saved && view === "settings" && <div className="standard-registration" role="status"><h2>‘{saved.name}’ 등록 완료</h2><p>새 보고서를 만들 때 이 표준을 선택할 수 있습니다.</p>{onReport && <button className="primary" onClick={() => onReport(saved)}>이 표준으로 보고서 작성</button>}</div>}
           {!displayedPages && <div className="standard-preview-empty">{stateText}</div>}
-          {displayedPages?.map((url, index) => <figure key={url}><img src={url} alt={`${view === "reference" ? "기준서" : "문서 표준 예시"} ${index + 1}쪽`} /><figcaption>{index + 1} / {displayedPages.length}쪽 · 실제 한글 엔진 {view === "reference" ? "기준서 보기" : "미리보기"}</figcaption></figure>)}
+          {displayedPages?.map((url, index) => <figure key={url}><img src={url} alt={`${view === "reference" ? "기준서" : "문서 표준 예시"} ${index + 1}쪽`} /><figcaption>{index + 1} / {displayedPages.length}쪽</figcaption></figure>)}
         </div>
       </section>
     </div>
     <div className="standard-renderer" ref={host} aria-hidden="true" inert />
     <dialog className="standard-register-dialog" ref={dialog} onCancel={event => { if (locked) event.preventDefault(); else setDialogOpen(false); }} aria-labelledby="standard-register-title">
-      <h2 id="standard-register-title">표준 템플릿 등록</h2><p>현재 미리보기의 서식 설정을 새 표준으로 보관합니다. 이후 수정은 다시 새 표준으로 등록합니다.</p>
+      <h2 id="standard-register-title">새 표준 등록</h2><p>현재 설정을 이름을 붙여 저장합니다. 보고서 작성의 ‘문서 양식’에서 선택할 수 있습니다.</p>
       <label htmlFor="standard-register-name">표준 이름</label><input id="standard-register-name" value={name} maxLength={120} disabled={locked} onChange={event => setName(event.target.value)} autoFocus placeholder="예: 부서 업무보고 표준" />
       {registration && !registering && <p role="status">입력과 요청 ID를 유지하고 있습니다. 같은 등록 결과를 재확인하세요.</p>}
       {registrationError && <p role="alert">{registrationError}</p>}

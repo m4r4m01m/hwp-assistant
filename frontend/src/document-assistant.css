@@ -1,0 +1,33 @@
+.document-assistant { display: flex; flex-direction: column; gap: 16px; }
+.conversation-switcher { display: flex; align-items: center; gap: 6px; margin: 14px 0; }
+.conversation-switcher select { flex: 1; min-width: 0; width: 0; font-size: 12px; }
+.conversation-switcher button { display: inline-flex; align-items: center; justify-content: center; margin: 0; padding: 8px; white-space: nowrap; font-size: 12px; }
+.assistant-context-card { display: grid; gap: 7px; padding: 12px; background: #f2f6fa; border: 1px solid #dce6ef; border-radius: 9px; }
+.assistant-context-card > strong { overflow-wrap: anywhere; font-size: 13px; }
+.assistant-context-card > span, .assistant-context-card small, .assistant-composer small, .assistant-rewrite-action small { color: #536b7e; font-size: 11px; line-height: 1.6; }
+.assistant-context-card button { justify-self: start; margin: 0; font-size: 12px; }
+.assistant-context-card details { font-size: 12px; }
+.assistant-context-text { max-height: 170px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: white; padding: 10px; font: inherit; line-height: 1.7; }
+.assistant-welcome { padding: 12px 2px; color: #526b7e; font-size: 13px; line-height: 1.8; }
+.assistant-turns { display: grid; gap: 22px; overflow-anchor: none; }
+.assistant-turns article { border: 0; padding: 0; margin: 0; }
+.assistant-user-message { padding: 12px 14px; border-radius: 12px 12px 3px 12px; background: #eaf1f8; margin-left: 22px; }
+.assistant-answer { padding: 12px 0 0; }
+.assistant-turns .text { margin: 6px 0 0; font-size: 13px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.assistant-turns small { font-size: 11px; color: #526b7e; }
+.assistant-rewrite-action { display: grid; gap: 5px; padding: 12px; margin-top: 12px; border: 1px solid #d6e3f0; border-radius: 8px; }
+.assistant-rewrite-action button { margin: 0; }
+.assistant-rewrite-action summary { font-size: 12px; }
+.assistant-composer { position: sticky; bottom: 0; z-index: 2; display: grid; gap: 8px; padding: 12px 0 16px; background: white; border-top: 1px solid #dce4ed; box-shadow: 0 -6px 10px #ffffffed; }
+.assistant-composer label { font-size: 13px; font-weight: 600; }
+.assistant-composer textarea { width: 100%; min-height: 86px; resize: vertical; line-height: 1.6; }
+.assistant-composer > button { margin: 0; min-height: 40px; }
+.assistant-secondary-tools { margin-top: 20px; padding-top: 14px; border-top: 1px solid #dce4ed; }
+.assistant-secondary-tools > summary { color: #526b7e; font-size: 13px; }
+.editor-workspace .conversation-panel { padding-top: 12px; }
+.conversation-panel > .panel-close { float: right; }
+.conversation-panel .collaboration > h2 { font-size: 18px; margin: 5px 50px 10px 0; }
+.editor-discard-dialog { position: fixed; z-index: 100; inset: 0; background: #13283b55; display: grid; place-items: center; }
+.editor-discard-dialog > section { width: min(440px, calc(100vw - 32px)); padding: 24px; border-radius: 12px; background: white; box-shadow: 0 12px 40px #13283b30; }
+.editor-discard-dialog h2 { margin: 0 0 12px; font-size: 18px; }
+.editor-discard-dialog p { line-height: 1.7; }

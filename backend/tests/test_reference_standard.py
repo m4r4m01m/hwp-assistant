@@ -42,6 +42,13 @@ def _assert_preset_content(section, source_section, settings):
     before = _paragraph_texts(list(source_section)[start:stop])
     after = _paragraph_texts(list(section))
     assert len(before) == len(after)
+    if preset_id == "appendix-1" and settings["citation_style"] == "AUTO":
+        # Only the new AUTO derivative orders the three verified explanations
+        # by first citation. Match each unchanged source paragraph at its new slot.
+        indices = [i for i, p in enumerate(source_paragraphs) if ordinals[p] in (419, 420, 421)]
+        originals = {ordinals[source_paragraphs[i]]: (source_paragraphs[i], before[i]) for i in indices}
+        for index, ordinal in zip(indices, (421, 419, 420)):
+            source_paragraphs[index], before[index] = originals[ordinal]
     # Pristine appendix 1 has these exact numbering/linked-note slots. Cover/TOC
     # examples and all prose, dates, quantities, spaces and reading order remain.
     numbered = {393: ("1.", "1."), 395: ("가.", "가."), 397: ("1)", "(1)"),
@@ -50,7 +57,7 @@ def _assert_preset_content(section, source_section, settings):
         (399, "square", "□", "(가)"), (401, "circle", "ㅇ", "①"), (403, "dash", "-", "㉮")):
         numbered[ordinal] = literal, (replacement if settings["numbering_style"] == "NUMBERED"
                                       else settings[f"bullet_{name}_marker"])
-    marks = ("주1)", "주2)", "주3)") if settings["citation_style"] == "NOTE" else ("*", "**", "***")
+    marks = ("주1)", "주2)", "주3)") if settings["citation_style"] in ("NOTE", "AUTO") else ("*", "**", "***")
     citations = {407: ("*", marks[0], "end"), 411: ("주1)", marks[1], "end"),
                  412: ("주2)", marks[2], "end"), 419: ("주1)", marks[1], "start"),
                  420: ("주2)", marks[2], "start"), 421: ("*", marks[0], "start")}
@@ -99,6 +106,7 @@ def test_revision_three_defaults_follow_written_original_rules_over_sample_xml()
     assert settings["body_parenthetical_labels"] is False
     assert settings["show_core_summary"] is False
     assert settings["numbering_style"] == "BULLETS"
+    assert settings["citation_style"] == "AUTO"
     assert [settings[role + "_left_indent_pt"] for role in
             ("heading", "subheading", "minor_heading", "numbered_4", "numbered_5", "numbered_6")] == [0, 7.5, 14, 21, 28, 35]
 
@@ -163,6 +171,50 @@ def test_original_projection_changes_only_presentation_parameters_and_no_fill_en
                 assert after == before, name
     assert _paragraph_texts([_parts(projection)[1]]) == _paragraph_texts([_parts(original)[1]])
     assert digest(load_standard()[1]) == REFERENCE_SHA256
+
+
+def _archive_contents(raw):
+    # DEFLATE bytes/offsets can differ across zlib versions, even
+    # when every HWPX member is identical. Pin all member bytes, their order,
+    # and stable ZIP metadata, not a particular compressor's bitstream.
+    with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+        return {"comment": archive.comment.hex(), "members": [
+            {"name": entry.filename, "sha256": digest(archive.read(entry)),
+             "date_time": entry.date_time, "compression": entry.compress_type,
+             "create_system": entry.create_system, "create_version": entry.create_version,
+             "extract_version": entry.extract_version, "flags": entry.flag_bits,
+             "internal_attr": entry.internal_attr, "external_attr": entry.external_attr,
+             "extra": entry.extra.hex(), "comment": entry.comment.hex()}
+            for entry in archive.infolist()
+        ]}
+
+
+# Content snapshots were derived from pre-AUTO reference_standard.py at
+# 5977f337b17a6f6e35aa5cf20b4496194cf3ce16 with these exact settings. Its
+# output and the current STARS renderer were also byte-identical in the same
+# runtime. Persisted preview-byte/retry preservation has separate API tests.
+@pytest.mark.parametrize("preset_id,settings_sha,preview_contents_sha", [
+    ("appendix-1", "59ad7f985800bdcac06ee607a0bba9a9609259ab914397257bc770aaf693460a", "7a4449373aed8c87d7534a391fa878d545af4ce4f08fe8b151ed443b479204ed"),
+    ("appendix-2", "2499f9a07ea2945e3816a6976b8efb57014ead3b071d66db45519fd8b29cbb81", "96fd36fe3262fb71bb7c739069ec30ef96165f30be6013a0bb32fa5b37e7be64"),
+    ("appendix-3", "dca24e30b4acffbff151e83b46e0e73a544466967f923b94a415442b85ffd330", "eceea33babde5c8bea3e1cbca3479b6ccba6a6deda88d7a5b84b51b00e7d15ac"),
+])
+def test_frozen_star_settings_and_preview_keep_pre_auto_contents(preset_id, settings_sha, preview_contents_sha):
+    from app.report_contract import report_hash
+    settings = {**defaults(preset_id), "citation_style": "STARS"}
+    assert VisualSettingsV3.model_validate(settings).model_dump(mode="json") == settings
+    assert report_hash(settings) == settings_sha
+    assert report_hash(_archive_contents(render_preset(settings))) == preview_contents_sha
+
+
+def test_auto_sample_uses_numbered_markers_for_the_same_three_note_table():
+    _, section = _parts(render_preset(defaults()))
+    texts = _paragraph_texts(list(section))
+    assert "대표기업주2)" in texts and "서비스 실적주3)" in texts
+    assert any(text.endswith("현황주1)") for text in texts)
+    assert any(text.lstrip().startswith("주1) ") for text in texts)
+    assert any(text.lstrip().startswith("주2) ") for text in texts)
+    assert any(text.lstrip().startswith("주3) ") for text in texts)
+    assert [re.match(r"^\s*(주[1-3]\))\s", text)[1] for text in texts if re.match(r"^\s*(주[1-3]\))\s", text)] == ["주1)", "주2)", "주3)"]
 
 
 def test_preset_applies_font_size_page_and_cell_border_controls_without_rewriting_content():

@@ -28,12 +28,6 @@ type Catalog = {
   total: number;
   categories: { name: string; count: number }[];
 };
-type Standard = {
-  id: string;
-  name: string;
-  reference_url: string;
-  reference_sha256: string;
-};
 type Fields = {
   name: string;
   description: string;
@@ -71,15 +65,14 @@ const payload = (fields: Fields) => ({
   category: fields.category.trim() || "기타",
 });
 const categories = ["보고서", "회의록", "계획서", "점검표", "기타"];
-function PinnedPreview({ item, standard, cache }: {
-  item?: Template; standard?: Standard; cache: PreviewCache;
+function PinnedPreview({ item, cache }: {
+  item: Template; cache: PreviewCache;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const [pages, setPages] = useState<string[]>([]), [count, setCount] = useState(0),
     [busy, setBusy] = useState(true), [phase, setPhase] = useState(""),
     [error, setError] = useState(""), [attempt, setAttempt] = useState(0);
-  const identity = item ? `${item.id}:${item.version_id}:${item.sha256}`
-    : `${standard?.id}:${standard?.reference_sha256}`;
+  const identity = `${item.id}:${item.version_id}:${item.sha256}`;
   useEffect(() => {
     const controller = new AbortController();
     let live = true, adapter: EditorAdapter | null = null;
@@ -99,16 +92,16 @@ function PinnedPreview({ item, standard, cache }: {
       return instance;
     };
     async function load() {
-      if (!host.current || (!item && !standard)) return;
+      if (!host.current) return;
       const signature = downloadFile(publicPath("rhwp/build-info.json"), { signal: controller.signal, timeoutMs: 10000 })
         .then(digest).catch(() => "");
       const candidate = cache.has(identity);
       // Start a cold engine together with the file read; warm candidates avoid
       // creating an engine, but still require an authorized file GET and SHA.
       const engine = candidate ? null : mount();
-      const file = downloadFile(item ? publicPath(`api/template-market/${item.id}/file`) : publicPath(standard!.reference_url), { signal: controller.signal });
+      const file = downloadFile(publicPath(`api/template-market/${item.id}/file`), { signal: controller.signal });
       const bytes = engine ? (await Promise.all([file, engine]))[0] : await file;
-      if (await digest(bytes) !== (item?.sha256 || standard?.reference_sha256)) throw new Error("등록된 고정 버전과 파일 해시가 다릅니다.");
+      if (await digest(bytes) !== item.sha256) throw new Error("등록된 고정 버전과 파일 해시가 다릅니다.");
       if (!live || controller.signal.aborted) return;
       if (candidate) {
         const cached = cache.get(identity, await signature);
@@ -122,7 +115,7 @@ function PinnedPreview({ item, standard, cache }: {
       }
       const instance = adapter || await mount();
       setPhase("한글 엔진에서 양식을 여는 중…");
-      await instance.load(bytes, item?.source_name || standard!.name + ".hwpx");
+      await instance.load(bytes, item.source_name);
       if (!live || controller.signal.aborted) return;
       const total = await instance.sdk.pageCount();
       if (!Number.isSafeInteger(total) || total < 1) throw new Error("양식의 페이지를 확인하지 못했습니다.");
@@ -191,8 +184,6 @@ export function TemplateMarket({
     [offset, setOffset] = useState(0),
     [refresh, setRefresh] = useState(0),
     [selected, setSelected] = useState<Template | null>(null),
-    [standard, setStandard] = useState<Standard | null>(null),
-    [standardOpen, setStandardOpen] = useState(false),
     [registering, setRegistering] = useState(!!registerDocument),
     [docs, setDocs] = useState<Document[]>(
       registerDocument ? [registerDocument] : [],
@@ -219,19 +210,6 @@ export function TemplateMarket({
     detailGeneration = useRef(0);
   const locked = busy || !!pending;
   useEffect(() => {
-    let live = true;
-    void api<Standard>("/document-standard")
-      .then((value) => {
-        if (live) setStandard(value);
-      })
-      .catch((e) => {
-        if (live) setError(String(e));
-      });
-    return () => {
-      live = false;
-    };
-  }, []);
-  useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     const params = new URLSearchParams({
@@ -246,7 +224,12 @@ export function TemplateMarket({
       signal: controller.signal,
     })
       .then((rows) => {
-        if (!controller.signal.aborted) setCatalog(rows);
+        if (controller.signal.aborted) return;
+        // Removing a favorite or losing access can shrink the current result set.
+        // Return to a valid page before hiding pagination for a one-page result.
+        const lastOffset = Math.max(0, Math.ceil(rows.total / 24) - 1) * 24;
+        if (offset > lastOffset) setOffset(lastOffset);
+        else setCatalog(rows);
       })
       .catch((e) => {
         if (!controller.signal.aborted) setError(String(e));
@@ -302,7 +285,6 @@ export function TemplateMarket({
     if (locked || operationBusy.current) return;
     const generation = ++detailGeneration.current;
     setSelected(null);
-    setStandardOpen(false);
     setEditing(false);
     setError("");
     setNotice("");
@@ -426,7 +408,6 @@ export function TemplateMarket({
     if (locked || operationBusy.current) return;
     detailGeneration.current++;
     setSelected(null);
-    setStandardOpen(false);
     setRegistering(true);
     setEditing(false);
     setFields(emptyFields());
@@ -491,19 +472,17 @@ export function TemplateMarket({
   return (
     <div className="workspace-shell market-shell">
       <WorkspaceNav active="templates" onNavigate={onNavigate} onBack={onClose} backLabel="← 문서함" disabled={locked || registering || editing}>
-        <button className="primary workspace-nav-action" disabled={locked || registering || editing} onClick={registration}><WorkspaceIcon name="plus"/><span>+ 양식 등록</span></button>
-        <p className="workspace-nav-note">저장된 HWPX 버전을 양식으로 등록하고 새 문서에 재사용합니다.</p>
+        <button className="primary workspace-nav-action" disabled={locked || registering || editing} onClick={registration}><WorkspaceIcon name="plus"/><span>양식 등록</span></button>
       </WorkspaceNav>
-    <main className="template-market market-workspace" data-detail-open={!!selected || registering || standardOpen}>
+    <main className="template-market market-workspace" data-detail-open={!!selected || registering}>
       <header>
         <div>
-          <small>저장된 HWPX · 문서 접근 권한 적용</small>
-          <h1>템플릿 마켓</h1>
+          <h1>양식 보관함</h1>
           <p>
-            서식과 표를 미리 보고, 고정된 양식 버전으로 새 문서를 시작하세요.
+            저장된 문서 양식으로 새 문서를 시작합니다.
           </p>
         </div>
-        <button className="market-mobile-back" disabled={locked || editing} onClick={() => { detailGeneration.current++; setSelected(null); setRegistering(false); setEditing(false); setStandardOpen(false); }}>양식 목록으로</button>
+        <button className="market-mobile-back" disabled={locked || editing} onClick={() => { detailGeneration.current++; setSelected(null); setRegistering(false); setEditing(false); }}>양식 목록으로</button>
       </header>
       {error && (
         <p role="alert" className="error">
@@ -535,34 +514,10 @@ export function TemplateMarket({
         </div>
       )}
       <div className="market-layout">
-        <section className="market-catalog" aria-label="템플릿 목록">
-          <article className="market-standard">
-            <span className="market-badge">기본 보고서 기준</span>
-            <h2>문서작성 표준</h2>
-            <p>파란 제목선 · □ ㅇ - 문단 · 표와 흐름도 · 핵심 강조</p>
-            <small>새 AI 보고서는 항상 이 기준을 사용합니다.</small>
-            <div className="market-actions">
-              {onDesignStandard && <button disabled={locked || registering || editing || !!selected} onClick={onDesignStandard}>표준 설정 편집</button>}
-              <button
-                disabled={locked || !standard}
-                onClick={() => {
-                  detailGeneration.current++;
-                  setSelected(null);
-                  setRegistering(false);
-                  setEditing(false);
-                  setStandardOpen(true);
-                }}
-              >
-                기준 미리보기
-              </button>
-              <button className="primary" disabled={locked} onClick={onReport}>
-                이 기준으로 보고서 작성
-              </button>
-            </div>
-          </article>
+        <section className="market-catalog" aria-label="양식 목록">
           <div className="market-filters">
             <input
-              aria-label="템플릿 검색"
+              aria-label="양식 검색"
               placeholder="이름, 설명, 태그 검색"
               value={query}
               onKeyDown={event => { if (event.key === "Enter") flushSearch(); }}
@@ -573,7 +528,7 @@ export function TemplateMarket({
               }}
             />
             <select
-              aria-label="템플릿 분류 필터"
+              aria-label="양식 분류 필터"
               value={category}
               disabled={locked}
               onChange={(e) => {
@@ -589,7 +544,7 @@ export function TemplateMarket({
               ))}
             </select>
             <select
-              aria-label="템플릿 정렬"
+              aria-label="양식 정렬"
               value={sort}
               disabled={locked}
               onChange={(e) => {
@@ -615,15 +570,13 @@ export function TemplateMarket({
             </label>
           </div>
           <p className="market-count">
-            접근 가능한 양식 {catalog.total}개 {loading && "· 불러오는 중…"}
+            양식 {catalog.total}개 {loading && "· 불러오는 중…"}
           </p>
           {!loading && !catalog.items.length && (
             <div className="market-empty">
-              <h2>등록된 양식이 없습니다</h2>
-              <p>문서함의 저장된 문서를 양식으로 등록해 보세요.</p>
-              <button disabled={locked} onClick={registration}>
-                양식 등록하기
-              </button>
+              <h2>{query || category || favorite ? "조건에 맞는 양식이 없습니다" : "등록된 양식이 없습니다"}</h2>
+              <p>{query || category || favorite ? "검색어나 분류, 즐겨찾기 조건을 바꿔 보세요." : "문서함에 저장한 문서를 양식으로 등록하면 여기서 다시 사용할 수 있습니다."}</p>
+              {query || category || favorite ? <button disabled={locked} onClick={() => { setQuery(""); setCategory(""); setFavorite(false); setOffset(0); }}>검색 조건 지우기</button> : <button disabled={locked} onClick={registration}>양식 등록하기</button>}
             </div>
           )}
           <div className="market-cards">
@@ -655,13 +608,13 @@ export function TemplateMarket({
                   {new Date(t.created_at * 1000).toLocaleDateString("ko-KR")} ·{" "}
                   {Math.ceil(t.size / 1024)} KB
                 </small>
-                <button disabled={locked} onClick={() => void select(t)}>
-                  미리보기 · 사용
+                <button disabled={locked || registering || editing} onClick={() => void select(t)}>
+                  양식 보기
                 </button>
               </article>
             ))}
           </div>
-          <nav className="market-pages" aria-label="템플릿 목록 페이지">
+          {catalog.total > 24 && <nav className="market-pages" aria-label="양식 목록 페이지">
             <button
               disabled={locked || searching || offset === 0}
               onClick={() => setOffset(Math.max(0, offset - 24))}
@@ -678,9 +631,9 @@ export function TemplateMarket({
             >
               다음
             </button>
-          </nav>
+          </nav>}
         </section>
-        <section className="market-detail" aria-label="템플릿 상세">
+        <section className="market-detail" aria-label="양식 상세">
           {registering ? (
             <form
               className="market-form"
@@ -706,8 +659,7 @@ export function TemplateMarket({
             >
               <h2>양식 등록</h2>
               <p>
-                서버에 저장된 버전을 고정합니다. 열린 문서의 미저장 편집은
-                포함되지 않습니다.
+                선택한 저장본의 내용과 서식을 함께 보관합니다. 미저장 편집을 포함하려면 먼저 문서를 저장하세요.
               </p>
               <label>
                 원본 문서
@@ -735,7 +687,7 @@ export function TemplateMarket({
                 </select>
               </label>
               <label>
-                저장된 고정 버전
+                사용할 저장본
                 <select
                   aria-label="양식 고정 버전"
                   value={version}
@@ -768,7 +720,7 @@ export function TemplateMarket({
                     !versions.some((v) => v.id === version)
                   }
                 >
-                  고정 버전으로 양식 등록
+                  이 저장본을 양식으로 등록
                 </button>
                 <button
                   type="button"
@@ -786,7 +738,7 @@ export function TemplateMarket({
                 <h2>{selected.name}</h2>
                 <p>{selected.description}</p>
                 <small>
-                  고정 버전 {selected.version_id.slice(0, 8)} · 원본{" "}
+                  원본{" "}
                   {selected.source_name}
                 </small>
               </div>
@@ -888,8 +840,7 @@ export function TemplateMarket({
                     )}
                   </div>
                   <p className="market-hint">
-                    이 양식의 HWPX를 복제해 편집합니다. AI 보고서는 기본
-                    문서작성 표준을 사용합니다.
+                    저장된 내용과 서식을 복사해 새 문서를 만듭니다. 새 문서의 내용은 직접 편집할 수 있습니다.
                   </p>
                 </div>
               )}
@@ -898,19 +849,11 @@ export function TemplateMarket({
                 item={selected}
               />
             </>
-          ) : standardOpen && standard ? (
-            <>
-              <h2>{standard.name}</h2>
-              <p>원본 해시로 고정된 기본 보고서 서식입니다.</p>
-              <PinnedPreview cache={previewCache.current} key={standard.id} standard={standard} />
-            </>
           ) : (
             <div className="market-detail-empty">
               <h2>양식을 선택하세요</h2>
-              <p>실제 한글 엔진으로 서식과 표를 확인할 수 있습니다.</p>
-              <small>
-                보고서 작성에서는 검증된 자동 목차를 사용합니다. 사용자 양식으로 AI 초안을 생성하는 기능은 후속 범위입니다.
-              </small>
+              <p>내용과 서식을 미리 보고 새 문서로 복사할 수 있습니다.</p>
+              <details className="market-help"><summary>AI 보고서의 양식을 바꾸려면</summary><p>여백·글자·표 설정은 ‘문서 표준 편집’에서 저장하고, ‘보고서 작성’에서 선택합니다.</p><div className="market-actions">{onDesignStandard && <button disabled={locked || registering || editing} onClick={onDesignStandard}>표준 설정 편집</button>}<button disabled={locked || registering || editing} onClick={onReport}>보고서 작성으로</button></div></details>
             </div>
           )}
         </section>

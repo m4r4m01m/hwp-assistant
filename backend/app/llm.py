@@ -85,7 +85,7 @@ class OpenAICompatible:
             async with client.stream(
                 method, self.base + route, json=body,
                 timeout=httpx.Timeout(self.timeout, connect=min(5, self.timeout), pool=min(2, self.timeout)),
-                headers={"Authorization": f"Bearer {self.key}"},
+                headers={"Authorization": f"Bearer {self.key}"} if self.key else {},
             ) as response:
                 response.raise_for_status()
                 declared = response.headers.get("content-length")

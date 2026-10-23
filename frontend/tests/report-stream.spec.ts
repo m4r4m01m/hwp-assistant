@@ -11,7 +11,7 @@ test('REAL rhwp + MOCK report stream: received text before completion, reload an
     await page.goto('/'); await page.getByRole('button', { name:'보고서 작성', exact:true }).click();
     await page.getByLabel('보고서 작성 요청', { exact:true }).fill('[STREAM] 금융권 보안 보고서 합성 실시간 시험');
     const posted = page.waitForResponse(r => r.url().endsWith('/api/report-tasks') && r.request().method() === 'POST');
-    await page.getByRole('button', { name:'Codex로 보고서 초안 만들기', exact:true }).click();
+    await page.getByRole('button', { name:'초안 작성하기', exact:true }).click();
     id = (await (await posted).json()).id;
     const paper = page.getByLabel('생성 중인 보고서', { exact:true });
     await expect(paper.getByTestId('stream-report-paragraph').first()).toContainText('금융권 해킹 대응 보고서');
@@ -54,7 +54,7 @@ test('MOCK report stream: cancel keeps partial text and new request is independe
     await page.goto('/'); await page.getByRole('button', { name:'보고서 작성', exact:true }).click();
     await page.getByLabel('보고서 작성 요청', { exact:true }).fill('[STREAM] 중단 보존 합성 보고서');
     const posted = page.waitForResponse(r => r.url().endsWith('/api/report-tasks') && r.request().method() === 'POST');
-    await page.getByRole('button', { name:'Codex로 보고서 초안 만들기', exact:true }).click(); id=(await (await posted).json()).id;
+    await page.getByRole('button', { name:'초안 작성하기', exact:true }).click(); id=(await (await posted).json()).id;
     await expect(page.getByTestId('stream-report-paragraph').first()).toBeVisible();
     await expect(page.getByRole('button', { name:'작성 진행', exact:true })).toHaveAttribute('aria-expanded', 'true');
     await page.getByRole('button', { name:'결과 수신 중단', exact:true }).click();
@@ -64,7 +64,7 @@ test('MOCK report stream: cancel keeps partial text and new request is independe
     expect((await (await request.get(`/api/report-tasks/${id}`)).json()).status).toBe('cancelled');
     await page.getByRole('button', { name:'작성 요청', exact:true }).click();
     await page.getByLabel('보고서 작성 요청', { exact:true }).fill('새 독립 보고서 요청 합성 시험');
-    await page.getByRole('button', { name:'Codex로 보고서 초안 만들기', exact:true }).click();
+    await page.getByRole('button', { name:'초안 작성하기', exact:true }).click();
     await page.getByRole('button', { name:'이 내용으로 문서 만들기', exact:true }).click();
     await expect(page.getByRole('button', { name:'초안 확정·서버 저장', exact:true })).toBeVisible({timeout:60000});
     expect((await (await request.get(`/api/report-tasks/${id}`)).json()).status).toBe('cancelled');
