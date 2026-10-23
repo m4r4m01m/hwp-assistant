@@ -20,3 +20,8 @@ frontend/public/rhwp
 frontend/dist
 **/__pycache__
 **/test-results
+# A runner installed below a checkout contains registration credentials and jobs.
+**/actions-runner
+**/.runner
+**/.credentials
+**/.credentials_rsaparams
