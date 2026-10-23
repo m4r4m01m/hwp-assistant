@@ -106,6 +106,9 @@
   grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
 }
+.report-editor-workspace .report-request-drawer:has(> .capability-notice) {
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
 .report-request-drawer > .report-input { min-height: 0; overflow: auto; padding-right: 4px; overscroll-behavior: contain; }
 .report-request-submit { padding-top: 12px; border-top: 1px solid #e1e8ef; background: #fff; }
 .report-request-submit > button { width: 100%; min-height: 42px; }

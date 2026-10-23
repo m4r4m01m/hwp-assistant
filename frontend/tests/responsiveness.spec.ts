@@ -224,12 +224,39 @@ test("MOCK UI: unconfigured AI blocks new report calls but retains existing draf
   await library(page);
   await page.getByRole("button", { name: "보고서 작성", exact: true }).click();
   await page.getByLabel("보고서 작성 요청", { exact: true }).fill("새 보고서 요청 내용");
-  await expect(page.getByRole("button", { name: "초안 작성하기", exact: true })).toBeDisabled();
-  await expect(page.locator(".capability-notice")).toContainText(feature.message);
-  const bounds = (await page.getByLabel("보고서 작성 요청 도구", { exact: true }).boundingBox())!;
+  await prepareScreenshotFont(page);
+  await page.screenshot({ path: info.outputPath("mobile-report-capability-layout.png") });
+  const drawer = page.getByRole("complementary", { name: "보고서 작성 요청 도구", exact: true });
+  const notice = drawer.locator(".capability-notice");
+  const recheck = notice.getByRole("button", { name: "사용 가능 여부 다시 확인", exact: true });
+  const submit = drawer.getByRole("button", { name: "초안 작성하기", exact: true });
+  await expect(submit).toBeDisabled();
+  await expect(notice).toContainText(feature.message);
+  for (const control of [notice, recheck, submit]) await expect(control).toBeInViewport({ ratio: 1 });
+  const submitBefore = await submit.boundingBox(), noticeBefore = (await notice.boundingBox())!;
+  const recheckBounds = (await recheck.boundingBox())!;
+  const drawerScrollBefore = await drawer.evaluate(node => node.scrollTop);
+  const inputs = drawer.locator(".report-input");
+  const inputBounds = (await inputs.boundingBox())!;
+  expect(recheckBounds.y + recheckBounds.height, "retry button must fit inside the capability notice")
+    .toBeLessThanOrEqual(noticeBefore.y + noticeBefore.height);
+  expect(inputBounds.y, "scrolling inputs must begin below the capability notice controls")
+    .toBeGreaterThanOrEqual(recheckBounds.y + recheckBounds.height);
+  await recheck.click({ trial: true });
+  const scroll = await inputs.evaluate(node => {
+    node.scrollTop = node.scrollHeight;
+    return { top: node.scrollTop, maximum: node.scrollHeight - node.clientHeight };
+  });
+  expect(scroll.maximum).toBeGreaterThan(0);
+  expect(scroll.top).toBeGreaterThan(0);
+  expect(Math.abs(scroll.maximum - scroll.top)).toBeLessThanOrEqual(1);
+  expect(await submit.boundingBox()).toEqual(submitBefore);
+  expect(await notice.boundingBox()).toEqual(noticeBefore);
+  expect(await drawer.evaluate(node => node.scrollTop)).toBe(drawerScrollBefore);
+  for (const control of [notice, recheck, submit]) await expect(control).toBeInViewport({ ratio: 1 });
+  const bounds = (await drawer.boundingBox())!;
   expect(bounds.width).toBeCloseTo(336, 1);
   await expect(page.locator(".report-workspace-canvas")).toHaveJSProperty("inert", true);
-  await prepareScreenshotFont(page);
   await page.screenshot({ path: info.outputPath("mobile-report-request.png") });
   await page.getByRole("button", { name: "최근 보고서", exact: true }).click();
   await page.getByRole("button", { name: draft.title, exact: true }).click();

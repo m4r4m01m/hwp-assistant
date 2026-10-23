@@ -111,9 +111,21 @@ async function expectDesignerScrollContained(page: Page) {
     const settings = page.getByRole("complementary", { name: "문서 표준 설정", exact: true });
     const visible = await settings.isVisible();
     const bounds = visible ? (await settings.boundingBox())! : null;
-    if (bounds) { expect(bounds.x).toBeCloseTo(navigationRight, 1); expect(bounds.height).toBe(page.viewportSize()!.height); }
+    if (bounds) {
+      expect(bounds.x).toBeCloseTo(navigationRight, 1);
+      expect(bounds.height).toBe(page.viewportSize()!.height);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+    }
+    const wrapper = (await page.locator(".standard-designer-grid").boundingBox())!;
+    expect(wrapper.x).toBeCloseTo(navigationRight, 1);
+    expect(wrapper.x + wrapper.width).toBeCloseTo(page.viewportSize()!.width, 1);
     expect(preview.x).toBeCloseTo(bounds ? bounds.x + bounds.width : navigationRight, 1);
     expect(preview.width).toBeCloseTo(page.viewportSize()!.width - preview.x, 1);
+    expect(preview.x + preview.width).toBeCloseTo(page.viewportSize()!.width, 1);
+    if (!bounds) {
+      expect(preview.width).toBeGreaterThan(0);
+      await expect(registerButton(page)).toBeInViewport();
+    }
   };
   const previewBounds = (await page.locator(".standard-preview").boundingBox())!;
   expect(previewBounds.y).toBe(0);
@@ -187,8 +199,10 @@ test("REAL rhwp standard designer: settings change the sample and immutable regi
   expect(await page.evaluate(() => document.activeElement?.getAttribute("aria-label"))).not.toBe("절 제목 글자 크기");
   await page.getByLabel("설정 불러오기", { exact: true }).selectOption(legacy.id);
   await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
+  await openGroup(page, "본문");
   await page.getByLabel("본문 글자 크기", { exact: true }).fill("16");
   await page.getByLabel("본문 줄 간격", { exact: true }).fill("180");
+  await openGroup(page, "절 제목");
   await page.getByLabel("절 제목 글자 크기", { exact: true }).fill("18");
   await openGroup(page, "표");
   await page.getByLabel("표 머리글 채움색", { exact: true }).fill("#DDEFE5");
@@ -281,6 +295,7 @@ test("REAL rhwp standard designer: settings change the sample and immutable regi
   await expect(page.getByLabel("문서 양식", { exact: true })).toContainText(name);
   await expect(page.getByLabel("새 요청에 사용할 서식", { exact: true })).toContainText("항목 요약 말머리 숨김 · 핵심 요약 미포함");
   await expect(page.getByLabel("새 요청에 사용할 서식", { exact: true })).not.toContainText("말머리는 굵게 표시");
+  await page.getByText("양식 관리·연결 정보", { exact: true }).click();
   await expect(page.getByRole("button", { name: "문서작성 기준 열기", exact: true })).toBeEnabled();
   await expect(page.getByRole("link", { name: /기준서.*(다운로드|사본)/ })).toHaveCount(0);
   expect(modelPosts).toHaveLength(0);
@@ -400,6 +415,7 @@ test("REAL rhwp standard designer: original rules, three presets, full reference
   expect(catalog.presets).toHaveLength(3);
   expect(catalog.presets.every((preset: any) => preset.revision === 3 && preset.base_standard.reference_sha256 === hash(originalFile))).toBe(true);
   expect(catalog.rules.length).toBeGreaterThan(0);
+  await page.getByRole("tab", { name: "상세 설정", exact: true }).click();
   for (const field of catalog.fields.filter((field: any) => field.key !== "preset_id"))
     await expect(page.getByLabel(`${field.group} ${field.label}`, { exact: true })).toHaveCount(1);
   const ruleFields = catalog.fields.filter((field: any) => field.type === "textarea");
@@ -562,7 +578,10 @@ test("REAL rhwp + MOCK standard designer: a fresh report freezes the original ap
     exportedSection: strFromU8(unzipSync(bytes)["Contents/section0.xml"]), exportedHeader: strFromU8(unzipSync(bytes)["Contents/header.xml"]) });
   expect(semantic.exported).toEqual(semantic.baseline);
   expect(semantic.exported.paragraphs.length).toBeGreaterThan(0);
-  expect(semantic.exported.settings).toEqual(Object.fromEntries(Object.entries(selection.settings).filter(([key]) => key.startsWith("toc_") || key === "preset_id")));
+  expect(semantic.exported.settings).toEqual({
+    ...Object.fromEntries(Object.entries(selection.settings).filter(([key]) => key.startsWith("toc_") || key === "preset_id")),
+    body_spacing: "reference-body-spacing-v1",
+  });
   const pages = await engine.evaluate(() => (window as any).hwpAssistantBridge.documentState().pageCount);
   expect(pages).toBeGreaterThan(0);
   await page.screenshot({ path: info.outputPath("original-appendix1-report.png"), fullPage: true });

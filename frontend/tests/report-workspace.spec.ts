@@ -106,8 +106,10 @@ test("REAL rhwp + MOCK report workspace: full height editor, local drawers and p
         await expect(page.getByLabel("보고서 작성 요청", { exact: true })).toHaveValue(prompt);
         await expect(page.getByLabel("공개 웹 자료를 검색하고 출처 포함")).not.toBeChecked();
         const drawer = page.getByRole("complementary", { name: panel.name, exact: true });
-        await drawer.evaluate(node => { node.scrollTop = node.scrollHeight; });
-        expect(await drawer.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
+        const inputs = drawer.locator(".report-input");
+        await inputs.evaluate(node => { node.scrollTop = node.scrollHeight; });
+        expect(await inputs.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
+        await expect(drawer.getByRole("button", { name: "초안 작성하기", exact: true })).toBeInViewport();
         await expectViewport(page, true, panel.name);
       }
       if (panel.button === "초안 상태와 진행 정보")

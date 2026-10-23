@@ -123,7 +123,7 @@
   .standard-designer-header { align-items: flex-start; }
   .standard-designer-header h1 { font-size: 20px; }
   .standard-designer-header p { max-width: 400px; }
-  .standard-designer-grid { --standard-settings-width: min(280px, 55vw); }
+  .standard-designer-grid { --standard-settings-width: min(280px, 55vw, 100%); }
   .standard-setting-fields { grid-template-columns: 1fr; gap: 12px; }
   .standard-field { grid-template-columns: minmax(0, 1fr) 95px; gap: 8px; }
   .standard-field-select { grid-template-columns: minmax(0, 1fr) 120px; }
