@@ -5,18 +5,82 @@ A successful HTTP/DB smoke is NOT a successful Hancom/editor/real-model test.
 Never prints auth tokens or complete HTTP request/response bodies.
 """
 import argparse
+import errno
 import hashlib
 from http.cookiejar import CookieJar
 import json
+import math
 from pathlib import Path
 import re
+import socket
 import ssl
 import sys
-from urllib.error import HTTPError
+import time
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, urlunsplit, quote
 from urllib.request import Request, build_opener, HTTPCookieProcessor, HTTPSHandler
 import uuid
 from config import read_env
+
+
+def _connection_unavailable(error):
+    if isinstance(error, ssl.SSLError):
+        return False
+    if isinstance(error, socket.gaierror):
+        return error.errno == socket.EAI_AGAIN
+    return isinstance(error, (ConnectionError, TimeoutError)) or (
+        isinstance(error, OSError) and error.errno in {
+            errno.ECONNREFUSED, errno.ECONNRESET, errno.ECONNABORTED,
+            errno.EHOSTUNREACH, errno.ENETUNREACH, errno.ETIMEDOUT,
+        }
+    )
+
+
+def wait_for_health(opener, base, origin, *, timeout=60.0):
+    """Wait for the actual proxy route; never replay authentication or writes."""
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("Readiness timeout must be a finite positive number")
+    deadline = time.monotonic() + timeout
+    last_problem = "no response"
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise AssertionError(
+                f"GET api/health: readiness timed out after {timeout:g}s ({last_problem})"
+            )
+        request = Request(base + "api/health", headers={"Origin": origin}, method="GET")
+        try:
+            try:
+                response = opener.open(request, timeout=min(5.0, remaining))
+            except HTTPError as error:
+                response = error
+            with response:
+                if response.status in (502, 503, 504):
+                    last_problem = f"HTTP {response.status}"
+                elif response.status != 200:
+                    raise AssertionError(f"GET api/health: expected 200, received {response.status}")
+                else:
+                    body = response.read(65537)
+                    if len(body) > 65536:
+                        raise AssertionError("GET api/health: response exceeded readiness size bound")
+                    try:
+                        health = json.loads(body)
+                    except ValueError:
+                        raise AssertionError("GET api/health: expected valid JSON") from None
+                    if not isinstance(health, dict) or health.get("ok") is not True:
+                        raise AssertionError("GET api/health: expected JSON object with ok=true")
+                    return
+        except URLError as error:
+            if not _connection_unavailable(error.reason):
+                raise
+            last_problem = "connection unavailable"
+        except OSError as error:
+            if not _connection_unavailable(error):
+                raise
+            last_problem = "connection unavailable"
+        remaining = deadline - time.monotonic()
+        if remaining > 0:
+            time.sleep(min(1.0, remaining))
 
 
 def main():
@@ -28,6 +92,8 @@ def main():
     parser.add_argument("--receipt", default=".deploy/smoke-receipt.json")
     parser.add_argument("--verify-receipt", action="store_true", help="Read the same synthetic version after restart")
     parser.add_argument("--insecure-localhost", action="store_true", help="Only for the self-signed CI localhost gateway")
+    parser.add_argument("--ready-timeout", type=float, default=60.0,
+                        help="Maximum seconds to wait for GET api/health through the actual route (default: 60)")
     args = parser.parse_args()
     base = args.url.rstrip("/") + "/"
     parts = urlsplit(base)
@@ -68,7 +134,7 @@ def main():
             raise AssertionError("Asset URL escaped /hwp-assistant/: " + url)
         return request(url[len(prefix):])
 
-    assert json.loads(request("api/health")[0]).get("ok") is True
+    wait_for_health(opener, base, origin, timeout=args.ready_timeout)
     assert json.loads(request("api/auth/status")[0]).get("authentication_required") is True
     request("api/documents", expected=401)
     for page in ("", "rhwp/index.html", "compare-renderer.html"):

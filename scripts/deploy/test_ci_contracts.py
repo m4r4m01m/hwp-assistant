@@ -1,9 +1,11 @@
 """Offline build/TLS contracts and mocked shell orchestration, not Docker/browser execution."""
+import json
 import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -78,6 +80,61 @@ class BuildCacheContracts(unittest.TestCase):
             self.assertIn("cache-to: type=gha,mode=max,scope=" + scope, workflow)
         self.assertLess(workflow.index("bash ../scripts/deploy/run-browser-checks.sh"), workflow.index("Authenticate to GHCR only after verification"))
         self.assertLess(workflow.index("--grep 'CI TLS:'"), workflow.index("  build-verify-publish:"))
+
+
+class RestartSmokeOrchestration(unittest.TestCase):
+    def run_restart_step(self, fail_operation=""):
+        # Execute the actual workflow shell with recording tools. This checks
+        # orchestration only; the manual workflow validates real Docker/TLS.
+        workflow = (ROOT / ".github/workflows/hwp-deploy.yml").read_text()
+        step = workflow.split("      - name: HTTPS authentication, upload, and persisted bytes\n", 1)[1]
+        step = step.split("      - ", 1)[0]
+        script = "\n".join(line[10:] for line in step.splitlines() if line.startswith("          "))
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            record = directory / "calls.jsonl"
+            shim = (f"#!{sys.executable}\n"
+                    "import json, os, pathlib, sys\n"
+                    "name = pathlib.Path(sys.argv[0]).name\n"
+                    "with open(os.environ['RECORD'], 'a') as out:\n"
+                    "    out.write(json.dumps([name, *sys.argv[1:]]) + '\\n')\n"
+                    "failed = name == 'docker' and os.environ.get('FAIL_OPERATION') in sys.argv[1:]\n"
+                    "sys.exit(7 if failed else 0)\n")
+            for name in ("docker", "python3"):
+                executable = directory / name
+                executable.write_text(shim)
+                executable.chmod(0o755)
+            env = {**os.environ, "PATH": str(directory) + os.pathsep + os.environ["PATH"],
+                   "HWP_ENV_FILE": str(directory / "synthetic.env"), "RECORD": str(record),
+                   "FAIL_OPERATION": fail_operation}
+            result = subprocess.run(["bash", "-e", "-c", script], env=env,
+                                    capture_output=True, text=True, timeout=10)
+            calls = [json.loads(line) for line in record.read_text().splitlines()]
+        return result, calls
+
+    def test_restart_retains_gateway_and_uploads_only_once(self):
+        result, calls = self.run_restart_step()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([call[0] for call in calls], ["python3", "docker", "docker", "python3"])
+        self.assertIn("--upload-sample", calls[0])
+        self.assertIn("--verify-receipt", calls[3])
+        self.assertNotIn("--upload-sample", calls[3])
+        for command in calls[1:3]:
+            files = [command[index + 1] for index, argument in enumerate(command) if argument == "-f"]
+            self.assertEqual(files, ["compose.deploy.yaml", "compose.ci-gateway.yaml"])
+            self.assertNotIn("--remove-orphans", command)
+        self.assertEqual(calls[1][-3:], ["restart", "api", "web"])
+        self.assertIn("--wait", calls[2])
+        self.assertIn("--no-build", calls[2])
+
+    def test_failed_restart_does_not_verify_receipt_or_retry_upload(self):
+        for operation, call_count in (("restart", 2), ("up", 3)):
+            with self.subTest(operation=operation):
+                result, calls = self.run_restart_step(operation)
+                self.assertEqual(result.returncode, 7)
+                self.assertEqual(len(calls), call_count)
+                self.assertEqual(sum("--upload-sample" in call for call in calls), 1)
+                self.assertFalse(any("--verify-receipt" in call for call in calls))
 
 
 class BrowserTLSContracts(unittest.TestCase):
