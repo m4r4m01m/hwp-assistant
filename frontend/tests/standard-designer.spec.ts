@@ -1182,11 +1182,37 @@ test("REAL rhwp standard designer: settings change the sample and immutable regi
   expect(header).toContain('faceColor="#DDEFE5"');
   expect(header).toContain('height="1600"');
   const section = strFromU8(zip["Contents/section0.xml"]);
-  expect(section).not.toContain("(핵심 항목)");
-  expect(section).not.toContain("핵심 항목");
-  expect(section).toContain("하나의 논점은 한 항목으로 작성하고");
-  expect(section).not.toContain(">핵심 요약<");
-  expect(section).toContain("주1)");
+  const savedSample = await page.evaluate(({ section, header }) => {
+    const parser = new DOMParser(), document = parser.parseFromString(section, "application/xml");
+    const styles = parser.parseFromString(header, "application/xml");
+    const textOf = (node: Element) => Array.from(node.getElementsByTagNameNS("*", "t")).map(text => text.textContent || "").join("");
+    const paragraphs = Array.from(document.getElementsByTagNameNS("*", "p"));
+    const body = paragraphs.find(node => textOf(node).startsWith("□ 합성 점검 대상 20건"))!;
+    const charId = body.getElementsByTagNameNS("*", "run")[0].getAttribute("charPrIDRef");
+    const char = Array.from(styles.getElementsByTagNameNS("*", "charPr")).find(node => node.getAttribute("id") === charId)!;
+    const para = Array.from(styles.getElementsByTagNameNS("*", "paraPr")).find(node => node.getAttribute("id") === body.getAttribute("paraPrIDRef"))!;
+    return { paragraphs: paragraphs.map(textOf), bodySize: Number(char.getAttribute("height")),
+      bodyLineSpacing: Array.from(para.getElementsByTagNameNS("*", "lineSpacing")).map(node => ({ type: node.getAttribute("type"), value: Number(node.getAttribute("value")) })),
+      tables: Array.from(document.getElementsByTagNameNS("*", "tbl")).map(table => ({
+        rows: Number(table.getAttribute("rowCnt")), columns: Number(table.getAttribute("colCnt")),
+        cells: Array.from(table.getElementsByTagNameNS("*", "tr")).map(row => Array.from(row.getElementsByTagNameNS("*", "tc")).map(textOf)),
+      })) };
+  }, { section, header });
+  expect(savedSample.paragraphs.filter(text => text === "문서 관리 개선 계획")).toHaveLength(1);
+  expect(savedSample.paragraphs).toContain("□ 합성 점검 대상 20건 중 5건의 필수 항목을 확인함. 나머지 15건은 동일한 기준으로 점검할 예정임.");
+  const savedText = savedSample.paragraphs.join("\n").replace(/\s/g, "");
+  for (const fact of sampleFacts) expect(savedText).toContain(fact.replace(/\s/g, ""));
+  expect(savedSample.paragraphs.some(text => /^(?:[□ㅇ\-․]\s*)?\((?:현황|조치|결론|핵심|목적|방안|일정|요약)\)/.test(text))).toBe(false);
+  expect(savedText).not.toContain("핵심요약");
+  expect(savedText).not.toContain("문서수집과검토절차를정비하여자료의누락을줄이고담당자의확인기준을통일함.");
+  expect(savedSample.tables).toEqual([{ rows: 3, columns: 3, cells: [
+    ["정비 항목", "담당", "완료 기준"],
+    ["필수 항목 확인", "작성 담당", "문서명·부서 확인 주1)"],
+    ["검토 결과 기록", "검토 담당", "확인 결과 기록 주2)"],
+  ] }]);
+  expect(savedSample.bodySize).toBe(1600);
+  expect(savedSample.bodyLineSpacing.length).toBeGreaterThan(0);
+  for (const spacing of savedSample.bodyLineSpacing) expect(spacing).toEqual({ type: "PERCENT", value: 180 });
   expect((await (await request.get("/api/visual-standards")).json()).defaults).toEqual(fullCatalog.defaults);
   expect(await (await request.get("/api/document-standard")).json()).toEqual(original);
   await page.getByRole("button", { name: "이 표준으로 보고서 작성", exact: true }).click();
