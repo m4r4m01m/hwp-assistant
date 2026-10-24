@@ -182,6 +182,49 @@ test("REAL rhwp standard designer: saved settings load only after explicit confi
     prior_policy_remains_absent: true, prior_parenthetical_scope_remains_absent: true,
     frozen_settings_sha256: saved.settings_sha256, frozen_file_sha256: hash(frozenFile) }, null, 2));
 });
+test("REAL rhwp standard designer: dirty prompts preserve invalid edits and recognize normalized saved settings", async ({ page, request }) => {
+  test.setTimeout(240000);
+  await openDesigner(page);
+  const catalog = await (await request.get("/api/visual-standards")).json();
+  const size = page.getByLabel(fieldLabel(catalog, "body_size_pt"), { exact: true });
+  const leave = page.getByRole("alertdialog", { name: "서식 설정을 닫을까요?", exact: true });
+  await openGroup(page, catalog.fields.find((field: any) => field.key === "body_size_pt").group);
+  await size.fill("");
+  await documentListButton(page).click();
+  await expect(leave).toBeVisible();
+  await leave.getByRole("button", { name: "계속 편집", exact: true }).click();
+  await expect(size).toHaveValue("");
+
+  // A different numeric spelling of the same default is not an unsaved edit.
+  await size.fill(Number(catalog.defaults.body_size_pt).toFixed(1));
+  await expectDesignerReady(page);
+  await documentListButton(page).click();
+  await expect(page.getByRole("heading", { name: "HWPX 문서함", exact: true })).toBeVisible();
+  await expect(leave).toBeHidden();
+
+  await openDesigner(page);
+  const changedSize = Number(catalog.defaults.body_size_pt) + 1;
+  await setCatalogField(page, catalog, "body_size_pt", changedSize.toFixed(1));
+  await expectDesignerReady(page);
+  await documentListButton(page).click();
+  await expect(leave).toBeVisible();
+  await leave.getByRole("button", { name: "계속 편집", exact: true }).click();
+  await registerButton(page).click();
+  const name = `수치 정규화 표준 ${Date.now()}`;
+  await page.getByLabel("표준 이름", { exact: true }).fill(name);
+  const registration = page.waitForResponse(response => response.request().method() === "POST" &&
+    new URL(response.url()).pathname === "/api/visual-standards/sample-register");
+  await submitRegistration(page).click();
+  const response = await registration;
+  expect(response.ok(), await response.text()).toBeTruthy();
+  expect((await response.json()).settings.body_size_pt).toBe(changedSize);
+  await expect(page.getByRole("heading", { name: `‘${name}’ 등록 완료`, exact: true })).toBeVisible();
+  await expect(size).toHaveValue(changedSize.toFixed(1));
+  await documentListButton(page).click();
+  await expect(page.getByRole("heading", { name: "HWPX 문서함", exact: true })).toBeVisible();
+  await expect(leave).toBeHidden();
+});
+
 async function previewImageHashes(page: Page, outputPath?: (index: number) => string) {
   const hashes: string[] = [];
   await forEachPreviewPage(page, async index => {
@@ -702,6 +745,51 @@ test("REAL rhwp standard designer: shared sample fonts, real target highlights a
     left_margin_mm: 30, actual_hwpx_left_margin: actualMargin, margin_bands: bands,
     final_preview_sha256: marginSample.receipt.preview_sha256 }, null, 2));
 });
+test("REAL rhwp standard designer: locating a target stays stable after scrolling in actual and fit views", async ({ page, request }) => {
+  await page.setViewportSize({ width: 876, height: 560 });
+  await openDesigner(page);
+  const catalog = await (await request.get("/api/visual-standards")).json();
+  const field = catalog.fields.find((item: any) => item.key === "table_header_fill");
+  await openGroup(page, field.group);
+  await page.getByLabel(fieldLabel(catalog, field.key), { exact: true }).focus();
+  const locate = page.getByRole("button", { name: "예시에서 위치 보기", exact: true });
+  await locate.click();
+  const pane = page.locator(".standard-preview-pages");
+  const highlight = pane.locator(`.standard-region-highlight rect[data-setting-key="${field.key}"]`).first();
+  await expect(highlight).toBeVisible();
+  const originalPage = await pane.getAttribute("data-page-index");
+  const zoom = page.getByRole("group", { name: "미리보기 확대", exact: true });
+  const scrollPosition = () => pane.evaluate(element => ({ top: element.scrollTop, left: element.scrollLeft }));
+
+  for (const [mode, width] of [["100%", 876], ["폭 맞춤", 1366]] as const) {
+    await page.setViewportSize({ width, height: 560 });
+    await zoom.getByRole("button", { name: mode, exact: true }).click();
+    await pane.evaluate(element => element.scrollTo(0, 0));
+    await locate.click();
+    const canonical = await scrollPosition();
+    if (mode === "100%") expect(canonical.top > 0 || canonical.left > 0,
+      "The target needs scrolling, so repeating locate cannot pass only by clamping to zero").toBe(true);
+    const position = await highlight.boundingBox();
+    expect(position).not.toBeNull();
+
+    await pane.evaluate(element => element.scrollTo(element.scrollWidth, element.scrollHeight));
+    expect((await scrollPosition()).top).toBeGreaterThan(0);
+    for (let repeat = 0; repeat < 2; repeat++) {
+      await locate.click();
+      await expect.poll(async () => {
+        const current = await scrollPosition();
+        return Math.max(Math.abs(current.top - canonical.top), Math.abs(current.left - canonical.left));
+      }).toBeLessThanOrEqual(1);
+      await expect(pane).toHaveAttribute("data-page-index", originalPage!);
+      const located = (await highlight.boundingBox())!, viewport = (await pane.boundingBox())!;
+      expect(located.y).toBeCloseTo(position!.y, 0);
+      expect(located.x).toBeCloseTo(position!.x, 0);
+      expect(located.y).toBeGreaterThanOrEqual(viewport.y);
+      expect(located.y + located.height).toBeLessThanOrEqual(viewport.y + viewport.height);
+    }
+  }
+});
+
 type SampleBox = { left: number; top: number; right: number; bottom: number };
 type SampleGlyph = SampleBox & { text: string; start: number; end: number; baseline: number; clip: SampleBox | null };
 type SampleGeometry = { width: number; height: number; text: string; glyphs: SampleGlyph[];

@@ -108,6 +108,46 @@ def test_adjacent_marker_and_role_specific_emphasis_keep_the_selected_text():
     assert draft == frozen
 
 
+@pytest.mark.parametrize("space", ["\u00a0", "\u3000"])
+@pytest.mark.parametrize("marker,level,role", [
+    ("가.", 2, "subheading"), ("(1)", 3, "minor_heading"),
+    ("①", 5, "numbered_5"), ("㉮", 6, "numbered_6"),
+])
+def test_numbered_report_prose_accepts_unicode_marker_spacing(space, marker, level, role):
+    draft = copy.deepcopy(standard_samples.SAMPLE)
+    draft["sections"][0]["paragraphs"] = [marker + space + "검토 대상"]
+    frozen = copy.deepcopy(draft)
+    blocks = report_blocks(draft, visual_settings={**defaults(), f"numbered_{level}_marker": "제1항"})
+    item = next(item for item in blocks if item.get("style_kind") == role)
+    assert item["text"] == "제1항 검토 대상"
+    assert draft == frozen
+
+
+@pytest.mark.parametrize("ordinal", [21, 2026, 999999999999])
+def test_decimal_report_ordinals_do_not_evaluate_unused_unicode_markers(ordinal):
+    draft = copy.deepcopy(standard_samples.SAMPLE)
+    draft["sections"][0]["paragraphs"] = [f"({ordinal}) 검토 대상"]
+    blocks = report_blocks(draft, visual_settings={**defaults(), "numbered_3_marker": "제1항"})
+    item = next(item for item in blocks if item.get("style_kind") == "minor_heading")
+    assert item["text"] == f"제{ordinal}항 검토 대상"
+
+
+@pytest.mark.parametrize("ordinal,marker,expected", [
+    (14, "(가)", "(하)"), (20, "①", "⑳"),
+    (15, "(가)", "(15)"), (15, "㉮", "(15)"),
+    (21, "①", "(21)"), (2026, "①", "(2026)"),
+    (999999999999, "①", "(999999999999)"), (0, "가)", "(0)"),
+])
+def test_numbered_report_prose_preserves_ordinals_outside_selected_alphabet(ordinal, marker, expected):
+    draft = copy.deepcopy(standard_samples.SAMPLE)
+    draft["sections"][0]["paragraphs"] = [f"({ordinal}) 검토 대상"]
+    frozen = copy.deepcopy(draft)
+    blocks = report_blocks(draft, visual_settings={**defaults(), "numbered_3_marker": marker})
+    item = next(item for item in blocks if item.get("style_kind") == "minor_heading")
+    assert item["text"] == expected + " 검토 대상"
+    assert draft == frozen
+
+
 @pytest.mark.parametrize("template", catalog()["items"], ids=lambda item: item["id"])
 def test_scope_reaches_actual_report_execution_input_without_model_calls(monkeypatch, template):
     captured = {}

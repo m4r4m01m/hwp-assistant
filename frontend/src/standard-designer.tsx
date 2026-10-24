@@ -196,7 +196,13 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
   const current = view === "settings" && valid && phase === "ready" && preview?.key === currentKey;
   const locked = registering || !!registration;
   const sourceSelection = catalog?.items.find(item => item.id === source);
-  const changedSettings = !!catalog && settingsKey(values) !== settingsKey(inputValues(sourceSettings(definition?.defaults, sourceSelection)));
+  const baselineValues = inputValues(sourceSettings(definition?.defaults, sourceSelection));
+  const baseline = readSettings(definition?.fields || [], baselineValues, settingsRevision < 3);
+  // Compare the persisted meaning of valid numbers/colors, but keep incomplete
+  // or invalid input dirty so navigating away cannot silently discard it.
+  const changedSettings = !!catalog && (checked.error || baseline.error
+    ? settingsKey(values) !== settingsKey(baselineValues)
+    : currentKey !== settingsKey(baseline.settings));
 
   useEffect(() => {
     if (!preview) { setExpired(false); return; }
@@ -621,7 +627,10 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
       if (surface && rect) {
         const area = surface.getBoundingClientRect(), viewport = pane.getBoundingClientRect();
         const scale = area.width / preview.geometry[shownPage].width;
-        pane.scrollTo({ top: area.top - viewport.top + rect.y * scale - pane.clientHeight * .25, left: Math.max(0, area.left - viewport.left + rect.x * scale - 24) });
+        // Client rectangles already reflect scrolling. Convert back to content
+        // coordinates so locating the same target is stable after scrolling.
+        pane.scrollTo({ top: pane.scrollTop + area.top - viewport.top + rect.y * scale - pane.clientHeight * .25,
+          left: Math.max(0, pane.scrollLeft + area.left - viewport.left + rect.x * scale - 24) });
       }
     }
     setPendingImpact(null);

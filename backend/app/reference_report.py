@@ -96,11 +96,22 @@ def is_reference(settings):
     return bool(settings and settings.get("preset_id") in ("appendix-1", "appendix-2", "appendix-3"))
 
 
-def numbered_marker(pattern, index):
-    """Expand the first reference marker, retaining user-selected punctuation."""
-    for token, replacement in (("1", str(index)), ("가", "가나다라마바사아자차카타파하"[(index - 1) % 14]),
-                               ("①", chr(ord("①") + index - 1)), ("㉮", chr(ord("㉮") + (index - 1) % 14))):
+def numbered_marker(pattern, index, *, fallback=None):
+    """Expand one marker; explicit ordinals retain unrepresentable originals."""
+    for token, maximum in (("1", None), ("가", 14), ("①", 20), ("㉮", 14)):
         if token in pattern:
+            if fallback is not None and (index < 1 or (maximum is not None and index > maximum)):
+                return fallback
+            # Only compute the chosen representation. A decimal ordinal may
+            # exceed Unicode's range without ever needing a circled character.
+            if token == "1":
+                replacement = str(index)
+            elif token == "가":
+                replacement = "가나다라마바사아자차카타파하"[(index - 1) % 14]
+            elif token == "①":
+                replacement = chr(ord("①") + index - 1)
+            else:
+                replacement = chr(ord("㉮") + (index - 1) % 14)
             return pattern.replace(token, replacement, 1)
     return pattern
 
@@ -116,19 +127,22 @@ def body_item(text, settings, counters, *, apply_numbered_markers=False):
             if found and apply_numbered_markers and role != "note":
                 # This is a new-plan presentation transform, never a rewrite of
                 # a frozen plan or existing HWPX. Preserve the ordinal/prose.
-                token = found[0].strip("().) ")
+                original_marker = found[0].rstrip()
+                token = original_marker.strip("().)")
                 if token.isdecimal():
                     index = int(token)
-                elif token in "가나다라마바사아자차카타파하":
+                elif len(token) == 1 and token in "가나다라마바사아자차카타파하":
                     index = "가나다라마바사아자차카타파하".index(token) + 1
-                elif "①" <= token <= "⑳":
+                elif len(token) == 1 and "①" <= token <= "⑳":
                     index = ord(token) - ord("①") + 1
                 elif len(token) == 1 and "㉮" <= token <= "㉻":
                     index = ord(token) - ord("㉮") + 1
                 else:
                     return text, role
                 level = {"subheading": 2, "minor_heading": 3, "numbered_4": 4, "numbered_5": 5, "numbered_6": 6}[role]
-                marker = numbered_marker(settings[f"numbered_{level}_marker"], index)
+                marker = numbered_marker(settings[f"numbered_{level}_marker"], index, fallback=original_marker)
+                if marker == original_marker:
+                    return text, role
                 return marker + " " + text[found.end():], role
             if found:
                 return text, role
