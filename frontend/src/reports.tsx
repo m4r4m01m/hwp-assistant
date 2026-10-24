@@ -330,7 +330,14 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
   }
   const frozenVisual = job?.input.visual_standard;
   const formatName = (visual?: VisualSelection) => visual?.name || "이전 기본 서식 (호환용)";
-  const formatDescription = (visual?: VisualSelection) => `항목 요약 말머리 ${visual?.settings.body_parenthetical_labels === false ? "숨김" : "표시"} · 핵심 요약 ${visual?.settings.show_core_summary === false ? "미포함" : "포함"}`;
+  const formatDescription = (visual?: VisualSelection) => {
+    const settings = visual?.settings, scope = settings?.body_parenthetical_scope;
+    const labels: Record<string, string> = { square: "□", circle: "ㅇ", dash: "-", dot: "․", body: "일반 문단", summary: "핵심 요약" };
+    const targets = typeof scope === "string" ? scope.split(",").map(key => labels[key]).filter(Boolean) : null;
+    const description = settings?.body_parenthetical_labels === false || targets?.length === 0
+      ? "사용 안 함" : targets ? targets.join("·") : "모든 본문 항목";
+    return `괄호 요약어: ${description} · 핵심 요약 ${settings?.show_core_summary === false ? "미포함" : "포함"}`;
+  };
   return <main ref={workspaceRoot} className="report-workspace report-editor-workspace">
     <WorkspaceNav active="reports" compact className="report-workspace-rail" label="보고서 작업 도구" onBack={onClose} onNavigate={onNavigate} disabled={locked || job?.status === "running"}>
       <button aria-label="작성 요청" title="새 보고서의 주제와 양식 선택" aria-expanded={workspacePanel === "request"} aria-controls="report-request-panel" onClick={() => setWorkspacePanel(value => value === "request" ? null : "request")}><WorkspaceIcon name="rename" /><span>작성 요청</span></button>

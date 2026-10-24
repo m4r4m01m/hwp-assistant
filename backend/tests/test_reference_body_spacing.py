@@ -89,10 +89,10 @@ def test_body_emphasis_does_not_recolor_or_bolden_matching_titles_in_new_plan():
     raw, _ = generated(draft=draft)
     header, section = parts(raw)
     chars = {c.get("id"): c for c in header.iter(f"{{{HH}}}charPr")}
-    for prefix in ("자료 정비 검수", "1. 자료 정비", "가. 자료 정비", "1) 자료 정비"):
+    for prefix in ("자료 정비 검수", "1. 자료 정비", "가. 자료 정비", defaults()["numbered_3_marker"] + " 자료 정비"):
         p = next(p for p in section.iter(f"{{{HP}}}p") if text(p).startswith(prefix))
         assert all(chars[r.get("charPrIDRef")].get("textColor") == "#000000" for r in p.findall(f"{{{HP}}}run"))
-        if prefix != "1) 자료 정비":
+        if prefix != defaults()["numbered_3_marker"] + " 자료 정비":
             assert all(chars[r.get("charPrIDRef")].find(f"{{{HH}}}bold") is None for r in p.findall(f"{{{HP}}}run"))
     body = next(p for p in section.iter(f"{{{HP}}}p") if text(p).startswith("□ 자료 정비"))
     assert any(chars[r.get("charPrIDRef")].get("textColor") == "#0000FF" for r in body.findall(f"{{{HP}}}run"))
@@ -114,7 +114,7 @@ def test_consecutive_heading_chain_moves_with_first_body_to_the_next_page():
     draft["sections"][1]["paragraphs"] = ["가. 세부 방안", "1) 세부 범위", "□ 업무 자료를 확인함."]
     raw, _ = generated(settings={"page_height_mm": 185}, draft=draft)
     header, section = parts(raw)
-    chain = [paragraph_named(header, section, prefix)[0] for prefix in ("2. 정비 방안", "가. 세부 방안", "1) 세부 범위", "□ 업무")]
+    chain = [paragraph_named(header, section, prefix)[0] for prefix in ("2. 정비 방안", "가. 세부 방안", defaults()["numbered_3_marker"] + " 세부 범위", "□ 업무")]
     assert [p.get("pageBreak") for p in chain] == ["1", "0", "0", "0"]
 
 

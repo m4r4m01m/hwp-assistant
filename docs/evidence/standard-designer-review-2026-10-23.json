@@ -1,0 +1,75 @@
+{
+  "result": "passed",
+  "backend_passed": 52,
+  "unique_browser_tests_passed": 6,
+  "actual_model_calls": 0,
+  "real_engine": true,
+  "native_hancom": false,
+  "runs": {
+    "e2e-layout": "common settings and saved settings passed; geometry reader corrected separately",
+    "e2e-layout-b": "fixed appendix geometry passed",
+    "e2e-final": "geometry, frozen registration retry and appendix-2 report save/reopen passed; legacy test selector matched two notes",
+    "e2e-legacy-final": "legacy test passed after narrowing the note selector; no product change"
+  },
+  "source_preserved": {
+    "backend/app/assets/document-standard/reference.hwpx": "6c68b50656867f1fc724c50549e60e1109e2f7a00219f2928ef58de0a45711f1",
+    "backend/app/assets/document-standard/profile.json": "7b2a0cb0fd540a83fea952abd891b8fc3e535ed3ac92a5affa6898313d7e4271"
+  },
+  "defaults_page_counts": [
+    1,
+    2,
+    1
+  ],
+  "remaining_test_listeners": [],
+  "verified_at": "2026-10-23T14:35:57.928412+00:00",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "head_before_changes": "ac190b80482e99dd4307dc8ea82edf029ac73083",
+  "committed": false,
+  "pushed": false,
+  "problems_fixed": [
+    "Separated optional saved-standard loading from appendix composition selection",
+    "Removed duplicate alignment from original spaces and new paragraph/table settings",
+    "Replaced large merged TOC sample cell with per-entry cells, preserving labels and example page numbers"
+  ],
+  "live_url": "http://127.0.0.1:15201/",
+  "runtime_root": "C:\\Users\\alsdu\\Documents\\ChatGPT\\hwp-assistant\\.cache\\standard-designer-review-20261023\\source",
+  "runtime_source_fingerprint": "08ffc72f0000184c809dce2f7313f94beafb91b938fccc61876187b96d4f04b6",
+  "desktop_shortcut_reuses_verified_run": true,
+  "live_browser_checked": [
+    "Saved-standard menu and appendix choice",
+    "Narrow-screen settings/preview switching",
+    "Appendix-2 page numbers and final attachment inside frame"
+  ],
+  "storage_preservation": {
+    "added_documents": 0,
+    "added_files": 0,
+    "added_other_rows": 0,
+    "added_tables": 0,
+    "added_versions": 0,
+    "added_visual_standards": 0,
+    "changed_existing_blobs": 0,
+    "changed_existing_rows": 0,
+    "manifest_sha256": "f36ab2b7444da814de3de791f23da7b91f7e225d9f82028adb341427f6bc9ece",
+    "missing_existing_blobs": 0,
+    "missing_existing_rows": 0,
+    "mode": "verify",
+    "result": "passed",
+    "verified_existing_files": 15
+  },
+  "report_reopen": {
+    "preset": "appendix-2",
+    "cover_page": 1,
+    "toc_page": 2,
+    "first_body_page": 3,
+    "heading_uuid_hash_pages_equal": true,
+    "saved_reopened_sha256_equal": true,
+    "saved_sha256": "4c6d52bf11569a078cd25ede7d10b8fad294af99bec4d4fa2a4a8c77561c9bcf"
+  },
+  "evidence_root": ".cache/standard-designer-review-20261023",
+  "backend_evidence": ".cache/standard-preview-audit-20261023/backend-summary.json",
+  "limits": [
+    "Actual model not invoked; report workflow uses synthetic model fixture",
+    "No native Hancom validation in this task",
+    "Historical registrations and frozen previews retain their previous layout contract"
+  ]
+}

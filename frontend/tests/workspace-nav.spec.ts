@@ -55,8 +55,18 @@ for (const viewport of [{ width: 1366, height: 900 }, { width: 400, height: 760 
     const settingsButton = page.getByRole("button", { name: /문서 표준 설정 (열기|닫기)/ });
     const wasOpen = await settingsButton.getAttribute("aria-expanded") === "true";
     await settingsButton.click();
+    await expect(settingsButton).toHaveAttribute("aria-expanded", String(!wasOpen));
     const after = (await page.locator(".standard-preview").boundingBox())!;
-    expect(wasOpen ? after.width > before!.width : after.width < before!.width).toBeTruthy();
+    if (viewport.width > 860) expect(wasOpen ? after.width > before!.width : after.width < before!.width).toBeTruthy();
+    if (wasOpen) {
+      // On a narrow screen the open two-pane layout scrolls horizontally;
+      // closing settings must fit the preview, not make its 360px minimum wider.
+      await expect(page.getByRole("complementary", { name: "문서 표준 설정", exact: true })).toBeHidden();
+      expect(after.x).toBeCloseTo(expectedNavWidth, 1);
+      expect(after.width).toBeCloseTo(viewport.width - expectedNavWidth, 1);
+      await expect(page.getByRole("img", { name: "문서 표준 예시 1쪽", exact: true })).toBeInViewport({ ratio: 1 });
+      await expect(page.getByRole("button", { name: "설정 열기", exact: true })).toBeInViewport();
+    }
     if (!wasOpen) {
       const panel = (await page.getByRole("complementary", { name: "문서 표준 설정", exact: true }).boundingBox())!;
       expect(after.x).toBeCloseTo(panel.x + panel.width, 1);

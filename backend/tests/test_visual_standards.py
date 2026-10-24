@@ -252,6 +252,71 @@ def test_new_report_uses_frozen_selection_and_retries_without_registry_resolutio
     assert calls == [task]
 
 
+@pytest.mark.parametrize("legacy", [False, True])
+def test_native_and_legacy_builtin_choices_remain_distinct_and_exact(secured, legacy):
+    client, app, _, folder = secured
+    advertised = client.get("/api/visual-standards").json()["presets"]
+    legacy_ids = {"abd3b26a-9e24-526c-bdb1-4ebd42c5ffcd", "103d544e-1407-57a9-bfc4-910c02742c3f", "49b0b63a-ecdd-5bad-be4c-5de58efedf1a"}
+    assert not {item["id"] for item in advertised} & legacy_ids
+    for builtin in visual.builtin_presets(legacy=legacy):
+        snapshot = visual._selection_only(visual._complete_builtin(builtin))
+        assert (snapshot["id"] in legacy_ids) == legacy
+        assert ("preview_layout_policy" not in snapshot["settings"]) == legacy
+        selected = visual.VisualSelection.model_validate(snapshot)
+        assert selected.model_dump(mode="json") == snapshot
+        with transaction(app.state.engine) as db:
+            assert visual.validate_visual_selection(db, "alice", selected, folder=folder) == snapshot
+        changed = {**snapshot, "settings": {**snapshot["settings"], "toc_minor_size_pt": 15.0}}
+        changed["settings_sha256"] = report_hash(changed["settings"])
+        with transaction(app.state.engine) as db, pytest.raises(HTTPException) as error:
+            visual.validate_visual_selection(db, "alice", visual.VisualSelection.model_validate(changed), folder=folder)
+        assert error.value.status_code == 409
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_preview_policy_registration_keeps_receipt_and_stored_bytes(secured, monkeypatch, legacy):
+    client, app, _, folder = secured
+    source = visual.reference_standard
+    settings = (source.legacy_defaults if legacy else source.defaults)("appendix-3")
+    body = {"settings": settings, "seed_base64": base64.b64encode(seed()).decode()}
+    response = client.post("/api/visual-standards/preview", json=body)
+    assert response.status_code == 200, response.text
+    preview = response.json()
+    request = {**body, "id": str(uuid.uuid4()), "name": "원문 별첨 검증",
+               **{key: preview[key] for key in ("settings_sha256", "preview_sha256", "base_standard")}}
+    created = client.post("/api/visual-standards", json=request)
+    assert created.status_code == 200, created.text
+    snapshot = created.json()
+    assert ("preview_layout_policy" not in snapshot["settings"]) == legacy
+    saved = client.get(f"/api/visual-standards/{snapshot['id']}/file").content
+    assert saved == base64.b64decode(preview["preview_base64"])
+    before = {path.name: path.read_bytes() for path in folder.iterdir()}
+    monkeypatch.setattr(visual, "render_preview", lambda *_: (_ for _ in ()).throw(AssertionError("retry rerendered")))
+    assert client.post("/api/visual-standards", json=request).json() == snapshot
+    assert client.get(f"/api/visual-standards/{snapshot['id']}/file").content == saved
+    assert {path.name: path.read_bytes() for path in folder.iterdir()} == before
+
+
+def test_native_builtin_settings_reach_new_report_and_frozen_preview(report_env, monkeypatch):
+    (client, _, _, _), calls = report_env
+    snapshot = visual._selection_only(client.get("/api/visual-standards").json()["presets"][0])
+    task = {"id": str(uuid.uuid4()), "prompt": "합성 업무 자료로 보고서를 작성해주세요.", "research": False,
+            "template": client.get("/api/report-templates").json()["items"][0], "visual_standard": snapshot}
+    assert client.post("/api/report-tasks", json=task).status_code == 200
+    job = ready(client, task)
+    assert job["status"] == "ready" and calls == [task]
+    assert calls[0]["visual_standard"]["settings"]["preview_layout_policy"] == "NATIVE_V1"
+    prepare = {"id": str(uuid.uuid4()), "draft_sha256": job["draft_sha256"], "seed_base64": base64.b64encode(seed()).decode()}
+    response = client.post(f"/api/report-tasks/{task['id']}/preview", json=prepare)
+    assert response.status_code == 200, response.text
+    frozen = response.json()
+    assert frozen["visual_standard"] == snapshot
+    monkeypatch.setattr(reports, "validate_visual_selection", lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("retry resolved policy")))
+    assert client.post("/api/report-tasks", json=task).json()["input"] == task
+    assert client.post(f"/api/report-tasks/{task['id']}/preview", json=prepare).json() == frozen
+    assert calls == [task]
+
+
 @pytest.mark.parametrize("damage,expected", [("missing", 503), ("corrupt", 422), ("owner", 404)])
 def test_invalid_registered_selection_blocks_ai_start(report_env, damage, expected):
     (client, app, _, folder), calls = report_env
