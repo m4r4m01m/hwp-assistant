@@ -13,8 +13,8 @@ from app import visual_standards as visual
 from app.db import VisualStandard, transaction
 from app.document_standard import load_standard, HP, HH
 from app.hwpx import digest
-from app.reference_standard import VisualSettingsV3, defaults, render_preset
-from app.report_contract import report_hash
+from app.reference_standard import VisualSettingsV3, defaults, legacy_defaults, render_preset
+from app.report_contract import PARENTHETICAL_SCOPES, report_hash
 from test_collaboration import secured
 from test_reports import seed
 
@@ -29,7 +29,19 @@ def test_source_catalog_has_complete_fields_exact_builtin_bindings_and_legacy_co
     assert response.status_code == 200, response.text
     value = response.json()
     assert value["revision"] == 3 and value["max_pages"] == 32
-    assert {field["key"] for field in value["fields"]} == set(value["defaults"]) == set(VisualSettingsV3.model_fields)
+    editable = {field["key"] for field in value["fields"]}
+    # Layout policy is internal metadata, while the optional scope has its own
+    # selector. Neither belongs to the generic editable-field catalogue.
+    assert editable.isdisjoint({"preview_layout_policy", "body_parenthetical_scope"})
+    assert editable | {"preview_layout_policy"} == set(value["defaults"])
+    assert editable | {"preview_layout_policy", "body_parenthetical_scope"} == set(VisualSettingsV3.model_fields)
+    assert value["defaults"]["preview_layout_policy"] == "NATIVE_V1"
+    assert "body_parenthetical_scope" not in value["defaults"]
+    assert value["parenthetical_scopes"] == [{"value": key, "label": label} for key, label in PARENTHETICAL_SCOPES]
+    assert VisualSettingsV3.model_validate(value["defaults"]).model_dump(mode="json") == value["defaults"]
+    legacy = legacy_defaults()
+    assert set(legacy) == editable
+    assert VisualSettingsV3.model_validate(legacy).model_dump(mode="json") == legacy
     assert value["legacy"]["1"]["defaults"] == visual.LEGACY_DEFAULTS
     assert value["legacy"]["2"]["defaults"] == visual.DEFAULTS
     assert {field["key"] for field in value["legacy"]["1"]["fields"]} == set(visual.LEGACY_DEFAULTS)
