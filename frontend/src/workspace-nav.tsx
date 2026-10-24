@@ -1,4 +1,5 @@
-import { useSyncExternalStore, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { useAiConnection } from "./ai-connection";
 import "./workspace-nav.css";
 
 export type WorkspaceSection = "documents" | "reports" | "templates" | "standards";
@@ -85,17 +86,25 @@ export function WorkspaceNav({ active, onNavigate, onBack, backLabel = "← 문�
   label?: string;
 }) {
   const mode = useSyncExternalStore(subscribeMode, readMode, () => "expanded" as const);
-  return <nav className={`workspace-nav ${className}`} data-mode={mode} aria-label={label}>
-    {mode === "hidden" && <button className="workspace-nav-restore" onClick={() => setMode("expanded")} aria-label="사이드바 열기" title="사이드바 열기"><WorkspaceIcon name="sidebar-expanded"/><span>메뉴</span></button>}
+  const aiConnection = useAiConnection();
+  const [edgeY, setEdgeY] = useState(() => window.innerHeight / 2);
+  const hidden = mode === "hidden";
+  const chooseMode = setMode;
+  return <>
+    {hidden && <div className="workspace-nav-edge-zone" onPointerEnter={event => setEdgeY(Math.max(32, Math.min(event.clientY, window.innerHeight - 32)))} onPointerMove={event => { if (event.target === event.currentTarget) setEdgeY(Math.max(32, Math.min(event.clientY, window.innerHeight - 32))); }}>
+      <button className="workspace-nav-edge" style={{ top: edgeY }} aria-label="사이드바 열기" aria-expanded={false} title="클릭하여 사이드바 펼치기" onClick={() => chooseMode("expanded")}><WorkspaceIcon name="sidebar-expanded"/></button>
+    </div>}
+    <nav className={`workspace-nav ${className}`} data-mode={mode} data-hidden={hidden || undefined} aria-label={label}>
     <div className="workspace-brand" title="HWP Assistant"><span className="workspace-brand-mark" aria-hidden="true">H</span><span className="workspace-brand-name">HWP Assistant<small>문서 작업 공간</small></span></div>
     <div className="workspace-nav-mode" role="group" aria-label="사이드바 표시">
-      <button aria-label="사이드바 펼침" title="아이콘과 메뉴 이름 표시" aria-pressed={mode === "expanded"} onClick={() => setMode("expanded")}><WorkspaceIcon name="sidebar-expanded" size={18}/><span>펼침</span></button>
-      <button aria-label="사이드바 아이콘만" title="아이콘만 표시" aria-pressed={mode === "icons"} onClick={() => setMode("icons")}><WorkspaceIcon name="sidebar-icons" size={18}/><span>아이콘</span></button>
-      <button aria-label="사이드바 숨기기" title="사이드바 숨기기" aria-pressed={false} onClick={() => setMode("hidden")}><WorkspaceIcon name="sidebar-hidden" size={18}/><span>숨김</span></button>
+      <button aria-label="사이드바 펼침" title="아이콘과 메뉴 이름 표시" aria-pressed={mode === "expanded"} onClick={() => chooseMode("expanded")}><WorkspaceIcon name="sidebar-expanded" size={18}/><span>펼침</span></button>
+      <button aria-label="사이드바 아이콘만" title="아이콘만 표시" aria-pressed={mode === "icons"} onClick={() => chooseMode("icons")}><WorkspaceIcon name="sidebar-icons" size={18}/><span>아이콘</span></button>
+      <button aria-label="사이드바 숨기기" title="사이드바 숨기기" aria-pressed={false} onClick={() => chooseMode("hidden")}><WorkspaceIcon name="sidebar-hidden" size={18}/><span>숨김</span></button>
     </div>
     {onBack && !onNavigate && <button className="workspace-nav-back" aria-label={backLabel} title={backLabel} disabled={disabled} onClick={onBack}><WorkspaceIcon name="back"/><span>문서 목록으로</span></button>}
     {onNavigate && <div className="workspace-nav-routes" role="group" aria-label="화면 이동">{sections.map(group => <div className="workspace-nav-section" key={group.title} role="group" aria-label={group.title}><p className="workspace-nav-caption">{group.title}</p>{group.items.map(section => <button key={section.id} className="workspace-nav-route" aria-label={section.label} title={section.label} aria-current={section.id === active ? "page" : undefined} disabled={disabled} onClick={() => { if (section.id !== active) onNavigate(section.id); }}><WorkspaceIcon name={section.id}/><span>{section.label}</span></button>)}</div>)}</div>}
     {children && <div className="workspace-nav-tools" role="group" aria-label="현재 화면 도구"><p className="workspace-nav-caption">현재 화면 도구</p>{children}</div>}
+    {aiConnection.available && <div className="workspace-nav-connection"><button className="workspace-nav-route" type="button" aria-label="AI 연결" title="AI 연결 설정" onClick={aiConnection.open}><WorkspaceIcon name="settings"/><span>AI 연결</span></button></div>}
     {footer && <div className="workspace-nav-footer">{footer}</div>}
-  </nav>;
+  </nav></>;
 }

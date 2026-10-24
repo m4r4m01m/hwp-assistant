@@ -1,0 +1,177 @@
+{
+  "date": "2026-10-24T11:58:22.072865+00:00",
+  "result": "passed",
+  "scope": "User standard management, native wrapping, comparison and reusable table/title designs",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "head": "1b4e1a054c47e4ee4087b3f8cea1b0cfadf032e5",
+  "backend": {
+    "passed": 132,
+    "command": "pytest test_standard_management.py test_report_rich.py test_report_toc.py test_report_preview.py test_standard_samples.py test_reference_standard.py test_reference_report.py test_standard_policy.py"
+  },
+  "typecheck": "tsc --noEmit passed",
+  "diff_check": "passed",
+  "real_engine": {
+    "unique_scenarios": 3,
+    "runs": {
+      "e2e-2": {
+        "result": "passed",
+        "commands": [
+          {
+            "built_app": false,
+            "command": "Playwright E2E",
+            "pattern": "REAL rhwp standard management:|shared sample keeps facts across three compositions",
+            "exit_code": 0
+          }
+        ],
+        "remaining_listeners": []
+      },
+      "e2e-3": {
+        "result": "passed",
+        "commands": [
+          {
+            "built_app": false,
+            "command": "Playwright E2E",
+            "pattern": "REAL rhwp standard management:|a fresh report freezes the original appendix 1 default and reopens",
+            "exit_code": 0
+          }
+        ],
+        "remaining_listeners": []
+      }
+    },
+    "engine_changed": false
+  },
+  "actual_model_calls": 0,
+  "model_prose_quality_verified": false,
+  "hancom_verified": false,
+  "human_review": false,
+  "wrapping": {
+    "cause": "RichLayout inserted manual lineBreak nodes; new plans opt into reference-native-wrap-v1; frozen plans without the marker retain legacy layout",
+    "character_lines": "문서관리체계와업무인수인계절차를함께점검하여자료의누락여\n부를확인하고담당자별검토결과를기록함.",
+    "word_lines": "문서관리체계와업무인수인계절차를함께점검하여자료의누락\n여부를확인하고담당자별검토결과를기록함."
+  },
+  "table_boxes": [
+    {
+      "left": 75.58666666666673,
+      "right": 718.12
+    },
+    {
+      "left": 105.58666666666667,
+      "right": 718.12
+    }
+  ],
+  "custom_toc": {
+    "sample_id": "standard-business-report-v5",
+    "sample_sha256": "a3737818ddaeae8b6ebe9c1553e8d2ae86d2cf39686782f80461a57e5877d86f",
+    "preview_sha256": "245b2d1747762bda049e308d257734594ef2dc6fdb5b2175422c26210ff049ca",
+    "settings_sha256": "5d331852bec806a1fde41e1cbcd68896848d96f290460ce43571866617810c74",
+    "page_count": 4,
+    "needs_toc": true,
+    "verification": {
+      "verified": true,
+      "converged": true,
+      "can_adopt": true,
+      "exhausted": false,
+      "measured_pages": {
+        "7474802e-6779-591d-9020-9eff9d86e89c": 2,
+        "9fde30bc-c578-5be9-b0d8-7337a6c9b606": 2,
+        "b60d685c-61c0-5bf1-a50b-627c74e7ad28": 2,
+        "569655d2-142e-54b7-91db-f98e7cc102cf": 3
+      },
+      "pass_index": 2,
+      "toc_id": "bf1d3cf1-5a14-5893-a64d-32870afe6c57",
+      "body_sha256": "f94d2d22856a1261ec58ccda831ab27ca4a52a0007f4803a1ec9508030bbefc5",
+      "headings": [
+        {
+          "section": 0,
+          "paragraph": 5,
+          "text": "1. 정비 필요성",
+          "native_text": "1. 정비 필요성",
+          "text_sha256": "a34f959cecaed8f4cbfbfcb6ecdde67a84769333712ce81d95462cabaacac68f",
+          "length": 9,
+          "cp_length": 9,
+          "id": "7474802e-6779-591d-9020-9eff9d86e89c",
+          "heading_id": "7474802e-6779-591d-9020-9eff9d86e89c",
+          "level": 1
+        },
+        {
+          "section": 0,
+          "paragraph": 6,
+          "text": "가. 적용 범위",
+          "native_text": "가. 적용 범위",
+          "text_sha256": "3c17177dfe1c165cedfef222820272393a03d950ae8691e23b278e8584c2e69c",
+          "length": 8,
+          "cp_length": 8,
+          "id": "9fde30bc-c578-5be9-b0d8-7337a6c9b606",
+          "heading_id": "9fde30bc-c578-5be9-b0d8-7337a6c9b606",
+          "level": 2
+        },
+        {
+          "section": 0,
+          "paragraph": 12,
+          "text": "2. 정비 방안",
+          "native_text": "2. 정비 방안",
+          "text_sha256": "bfaa3e75cbb48eb71444c000b0e2e034a67db30bdf17fab34c2b769d2a8ea47d",
+          "length": 8,
+          "cp_length": 8,
+          "id": "b60d685c-61c0-5bf1-a50b-627c74e7ad28",
+          "heading_id": "b60d685c-61c0-5bf1-a50b-627c74e7ad28",
+          "level": 1
+        },
+        {
+          "section": 0,
+          "paragraph": 23,
+          "text": "3. 추진 일정",
+          "native_text": "3. 추진 일정",
+          "text_sha256": "5fa2e730bab018ddd9a97078923f08aee84f574014ea8b06d7841f959bae4e44",
+          "length": 8,
+          "cp_length": 8,
+          "id": "569655d2-142e-54b7-91db-f98e7cc102cf",
+          "heading_id": "569655d2-142e-54b7-91db-f98e7cc102cf",
+          "level": 1
+        }
+      ]
+    }
+  },
+  "preservation": {
+    "original_sha256": "6c68b50656867f1fc724c50549e60e1109e2f7a00219f2928ef58de0a45711f1",
+    "old_default_settings_hash": "e9895a9204a8ee1e144d65cc038df3f115d4d879d08e5354cafa2e928cb355dc",
+    "immutable_versions": true,
+    "catalog_changes_only": true,
+    "historical_fixtures_retained": true
+  },
+  "comparison": "Two actual rendered versions of the same synthetic report; highlighted setting impact regions, not pixel-diff detection",
+  "library": "Reusable table/title style fields applied in the standard editor; whole-document templates retained separately",
+  "live_url": "http://127.0.0.1:15201/",
+  "live_rollout": "verified",
+  "live_receipt": {
+    "kind": "started and verified local run",
+    "verified_at": "2026-10-24T12:01:21.4069208Z",
+    "project_root": "C:\\Users\\alsdu\\Documents\\ChatGPT\\hwp-assistant\\.cache\\standard-management-20261024\\source",
+    "web_url": "http://127.0.0.1:15201/",
+    "run_directory": "C:\\Users\\alsdu\\Documents\\ChatGPT\\hwp-assistant\\.cache\\standard-management-20261024\\source\\.cache\\developer\\runs\\20261024-210107-2fe92281",
+    "data_directory": "C:\\Users\\alsdu\\Documents\\ChatGPT\\hwp-assistant\\.cache\\local-ui-qa-2026-10-22\\data",
+    "source_fingerprint": "7213109e2721cf4a97fd78150d4cf41bb0c749eba4a4d34c88eff028ba1514f4",
+    "identities": [
+      {
+        "pid": 2676,
+        "started_at": "2026-10-24T12:01:14.5900933Z"
+      },
+      {
+        "pid": 15680,
+        "started_at": "2026-10-24T12:01:17.4719518Z"
+      },
+      {
+        "pid": 17824,
+        "started_at": "2026-10-24T12:01:14.5484913Z"
+      }
+    ]
+  },
+  "live_preservation": {
+    "existing_files": 17,
+    "changed_existing_rows": 0,
+    "changed_existing_blobs": 0,
+    "added_tables": 2
+  },
+  "live_ui_screenshot": ".cache/standard-management-20261024/live-comparison.png",
+  "final_visual_polish": "Comparison overlay uses translucent fill without glyph-obscuring outlines; verified in live browser"
+}

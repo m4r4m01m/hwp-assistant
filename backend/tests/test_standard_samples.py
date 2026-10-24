@@ -93,7 +93,8 @@ def test_same_validated_report_and_shared_layout_without_ai_or_document_rows(sec
     assert stage["sample_id"] == samples.SAMPLE_ID and stage["sample_sha256"] == report_hash(samples.SAMPLE)
     assert stage["needs_toc"] == (preset != "appendix-1")
     roles = {r["role"] for r in stage["sample_regions"]}
-    assert {"heading", "subheading", "minor_heading", "numbered_4", "numbered_5", "numbered_6", "body", "square", "circle", "dash", "dot", "table", "note", "table_source"} <= roles
+    assert {"heading", "subheading", "minor_heading", "numbered_4", "numbered_5", "numbered_6", "square", "circle", "dash", "dot", "table", "note", "table_source"} <= roles
+    assert "body" not in roles
     content = strings(stage["preview_base64"])
     for text in (samples.SAMPLE["title"], "20건", "5건", "15건", "2026년 10월 30일", "필수 항목 충족 시", "합성 문서 점검 기준", "합성 검토 기록 기준"):
         assert text in content
@@ -235,3 +236,15 @@ def test_both_builtin_identity_sets_stay_reserved(secured, legacy):
     body = registration(finish(client, stage))
     body["id"] = visual.builtin_presets(legacy=legacy)[0]["id"]
     assert client.post("/api/visual-standards/sample-register", json=body).status_code == 409
+
+
+def test_symbol_sample_preserves_previous_words_and_draft():
+    previous = copy.deepcopy(samples.SAMPLE_V2)
+    current = copy.deepcopy(samples.SAMPLE_V3)
+    assert current["sections"][1]["paragraphs"][0].startswith("□ ")
+    current["sections"][1]["paragraphs"][0] = current["sections"][1]["paragraphs"][0][2:]
+    assert current == previous
+    for before, after in zip(samples.SAMPLE_V3["sections"], samples.SAMPLE_V4["sections"]):
+        assert sorted(before["paragraphs"]) == sorted(after["paragraphs"])
+        assert {k: v for k, v in before.items() if k != "paragraphs"} == {k: v for k, v in after.items() if k != "paragraphs"}
+    assert report_hash(samples.SAMPLE) != report_hash(samples.SAMPLE_V2)

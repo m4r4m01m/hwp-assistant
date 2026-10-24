@@ -35,6 +35,7 @@ import { SavedDownload } from "./saved-download";
 import { useComparisonDialog } from "./version-comparison";
 import { CapabilitiesProvider, CapabilityNotice, useFeature } from "./capabilities";
 import { useDebouncedValue, useMobileDrawerCanvas } from "./ui-state";
+import { AiConnectionProvider, useAiSetupLanding } from "./ai-connection";
 
 class WorkspaceLoadBoundary extends React.Component<{ children: React.ReactNode; onBack: () => void }, { failed: boolean }> {
   state = { failed: false };
@@ -77,6 +78,7 @@ function App({
   const uploadBusy = useRef(false), dragDepth = useRef(0);
   const frozenUpload = useRef<{ bytes: Uint8Array; name: string; id: string; key: string } | null>(null);
   const inLibrary = !active && !creating && !standardDesigner && !reports && !templates;
+  useAiSetupLanding(inLibrary && !loading && !copying && !uploading && !history && !sharing);
   useEffect(() => {
     if (!inLibrary) return;
     const clearDrag = () => { dragDepth.current = 0; setDragOver(false); };
@@ -1372,7 +1374,7 @@ function AuthGate() {
     return () => controller.abort();
   }, [attempt]);
   if (loading) return <main className="drive"><p role="status">문서함 연결 중…</p></main>;
-  if (account) return <CapabilitiesProvider><App account={account} /></CapabilitiesProvider>;
+  if (account) return <CapabilitiesProvider><AiConnectionProvider><App account={account} /></AiConnectionProvider></CapabilitiesProvider>;
   return <main className="drive auth-screen">
     <h1>HWPX 문서함 로그인</h1><p>관리자가 발급한 사용자별 토큰을 입력하세요.</p>
     <form onSubmit={async event => {

@@ -6,7 +6,204 @@ import { fileURLToPath } from "node:url";
 import { unzipSync, strFromU8 } from "fflate";
 
 const hash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
-const registerButton = (page: Page) => page.locator(".standard-preview-toolbar").getByRole("button", { name: "새 표준 등록", exact: true });
+
+test("REAL rhwp comparison: align inserted cover TOC and word anchored note labels", async ({ page, request }, info) => {
+  test.setTimeout(240000);
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  const observed = await observeSharedSample(page);
+  await openDesigner(page);
+  const catalog = await (await request.get('/api/visual-standards')).json();
+  expect(catalog.fields.find((f: any) => f.key === 'line_space_policy').options[0].label).toContain('0%');
+  await changeSharedSample(page, () => setCatalogField(page, catalog, 'citation_style', 'NOTE'), s => s.citation_style === 'NOTE');
+  await expect(page.getByLabel(fieldLabel(catalog, 'citation_style'), { exact: true }).locator('option[value="NOTE_SHORT"]')).toHaveCount(0);
+  await changeSharedSample(page, () => setCatalogField(page, catalog, 'citation_note_abbreviated', true), s => s.citation_note_abbreviated === true);
+  const snapshot = await sharedSampleSnapshot(page, observed);
+  expect(snapshot.content.text).toContain('부서주1)를');
+  expect(snapshot.content.text).toContain('결과주2)를');
+  expect(snapshot.content.paragraphs.some((p: string) => p.startsWith('2) 합성 검토 기록 기준'))).toBeTruthy();
+  const index = snapshot.content.rendered.findIndex(text => text.includes('부서주1)를'));
+  const geometry = await measureSampleSvg(page, snapshot.svgs[index], info.outputPath('word-note-superscript.png'));
+  const whole = sampleRange(geometry, '부서주1)를');
+  const mark = sampleRange(geometry, '주1)', whole.start + 2);
+  const word = sampleRange(geometry, '부서', whole.start);
+  expect(Math.max(...mark.glyphs.map(g => g.baseline))).toBeLessThan(Math.min(...word.glyphs.map(g => g.baseline)) - 2);
+  await page.getByRole('button', { name: '변경 전·후 비교', exact: true }).click();
+  await changeSharedSample(page, () => page.getByLabel('기본 양식', { exact: true }).selectOption('appendix-2'));
+  const picker = page.getByLabel('미리보기 쪽', { exact: true });
+  await expect(picker.locator('option').filter({ hasText: /^전 1 · 후 3쪽$/ })).toHaveCount(1);
+  await picker.selectOption({ label: '전 1 · 후 3쪽' });
+  await expect(page.getByRole('img', { name: '변경 전 1쪽', exact: true })).toBeVisible();
+  await expect(page.getByRole('img', { name: '문서 표준 예시 3쪽', exact: true })).toBeVisible();
+  await page.screenshot({ path: info.outputPath('aligned-body-comparison.png'), fullPage: true });
+  await picker.selectOption({ label: '전 2 · 후 4쪽' });
+  await expect(page.locator('.comparison-highlight rect[data-setting-key="citation_note_abbreviated"]').first()).toBeVisible();
+  await page.screenshot({ path: info.outputPath('aligned-notes-comparison.png'), fullPage: true });
+  await picker.selectOption({ label: '전 없음 · 후 1쪽' });
+  await expect(page.getByText('추가된 쪽입니다. 다음 비교에서 같은 본문을 이어서 볼 수 있습니다.', { exact: true })).toBeVisible();
+  await changeSharedSample(page, () => page.getByLabel('기본 양식', { exact: true }).selectOption('appendix-1'));
+  await expect(picker.locator('option').filter({ hasText: /^전 1 · 후 1쪽$/ })).toHaveCount(1);
+  await expect(picker.locator('option').filter({ hasText: '없음' })).toHaveCount(0);
+  await writeFile(info.outputPath('note-alignment-proof.json'), JSON.stringify({ inline_superscript: true, full_inline_marks: true, abbreviated_explanation_only: true, appendix2_body_pair: [1, 3], original_no_cover_restored: true }, null, 2));
+});
+
+test("REAL rhwp comparison: default split precise labels and space compression", async ({ page, request }, info) => {
+  test.setTimeout(300000);
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  const observed = await observeSharedSample(page);
+  await openDesigner(page, true);
+  const compare = page.getByRole('button', { name: '변경 전·후 비교', exact: true });
+  await expect(compare).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('img', { name: '변경 전 1쪽', exact: true })).toBeVisible();
+  await expect(page.locator('.comparison-highlight rect')).toHaveCount(0);
+  const catalog = await (await request.get('/api/visual-standards')).json();
+  await changeSharedSample(page, () => setCatalogField(page, catalog, 'body_parenthetical_labels', true), s => s.body_parenthetical_labels === true);
+  const marks = page.locator('.comparison-highlight rect');
+  await expect(marks.first()).toBeVisible();
+  const labelMarks = await marks.evaluateAll(nodes => nodes.map(n => ({ role: n.getAttribute('data-target-role'), key: n.getAttribute('data-setting-key'), width: Number(n.getAttribute('width')), height: Number(n.getAttribute('height')) })));
+  expect(labelMarks.every(mark => mark.role === 'parenthetical_square' && mark.key === 'body_parenthetical_labels' && mark.width < 130 && mark.height <= 2), JSON.stringify(labelMarks)).toBeTruthy();
+  await expect(page.locator('.standard-region-highlight:not(.comparison-highlight)')).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath('precise-label-comparison.png'), fullPage: true });
+  await changeSharedSample(page, () => setCatalogField(page, catalog, 'square_color', '#2255BB'), s => s.square_color === '#2255BB');
+  const colors = await marks.evaluateAll(nodes => [...new Set(nodes.map(n => (n as SVGElement).style.fill))]);
+  expect(colors.length).toBeGreaterThan(1);
+  await changeSharedSample(page, () => setCatalogField(page, catalog, 'body_parenthetical_labels', false), s => s.body_parenthetical_labels === false);
+  await expect(page.locator('.comparison-highlight rect[data-setting-key="body_parenthetical_labels"]')).toHaveCount(0);
+  await compare.click();
+  await changeSharedSample(page, () => setCatalogField(page, catalog, 'line_break_unit', 'WORD'), s => s.line_break_unit === 'WORD');
+  await changeSharedSample(page, () => setCatalogField(page, catalog, 'line_space_policy', 'NONE'), s => s.line_space_policy === 'NONE');
+  const none = await sharedSampleSnapshot(page, observed);
+  await changeSharedSample(page, () => setCatalogField(page, catalog, 'line_space_policy', 'TIGHTER'), s => s.line_space_policy === 'TIGHTER');
+  const compressed = await sharedSampleSnapshot(page, observed);
+  expectSharedSampleFacts(compressed);
+  expect(compressed.content.text).toBe(none.content.text);
+  expect(strFromU8(unzipSync(compressed.bytes)['Contents/header.xml'])).toContain('condense="20"');
+  const phrase = '문서관리체계와 업무인수인계절차를 함께 점검하여 자료의 누락 여부를 확인하고 담당자별 검토 결과를 기록함.';
+  const lines: string[] = [];
+  for (const [label, snapshot] of [['none', none], ['compressed', compressed]] as const) {
+    const index = snapshot.content.rendered.findIndex(text => text.includes(phrase.replace(/\s/g, '')));
+    expect(index).toBeGreaterThanOrEqual(0);
+    const geometry = await measureSampleSvg(page, snapshot.svgs[index], info.outputPath(`${label}-compression.png`));
+    const range = sampleRange(geometry, phrase), rows = new Map<number, string>();
+    for (const glyph of range.glyphs) rows.set(glyph.baseline, (rows.get(glyph.baseline) || '') + glyph.text);
+    lines.push([...rows.values()].join('\n'));
+  }
+  expect(lines[0]).toBe(lines[1]); // Compression cannot pull every word onto the preceding line.
+  const compressionLines: string[] = [];
+  const affected = '예시 운영팀은 2026년 10월 30일까지 합성 점검 대상 20건의 확인을 완료할 계획임.';
+  for (const [label, snapshot] of [['none', none], ['compressed', compressed]] as const) {
+    const index = snapshot.content.rendered.findIndex(text => text.includes(affected.replace(/\s/g, '')));
+    const geometry = await measureSampleSvg(page, snapshot.svgs[index], info.outputPath(`${label}-affected.png`));
+    const rows = new Map<number, string>();
+    for (const glyph of sampleRange(geometry, affected).glyphs) rows.set(glyph.baseline, (rows.get(glyph.baseline) || '') + glyph.text);
+    compressionLines.push([...rows.values()].join('\n'));
+  }
+  expect(compressionLines[0].split('\n')[0]).not.toContain('확인을');
+  expect(compressionLines[1].split('\n')[0]).toContain('확인을');
+  await compare.click();
+  await openGroup(page, '줄바꿈·줄 채움');
+  const compressionLocation = page.locator('.standard-setting-row').filter({ has: page.locator('[data-setting-key="line_space_policy"]') }).locator('+ .standard-change-locations');
+  await expect(compressionLocation.getByRole('button', { name: '전 2 · 후 2쪽', exact: true })).toBeVisible();
+  await compressionLocation.getByRole('button', { name: '전 2 · 후 2쪽', exact: true }).click();
+  await expect(page.getByLabel('미리보기 쪽', { exact: true })).toHaveValue('2');
+  await page.screenshot({ path: info.outputPath('compression-comparison.png'), fullPage: true });
+  await writeFile(info.outputPath('compression-proof.json'), JSON.stringify({ unchanged_lines: lines, affected_lines: compressionLines, labelMarks, colors, preserved_text: true, exported_condense: 20 }, null, 2));
+});
+
+test("REAL rhwp standard management: compare clamp cascade custom composition and reusable designs", async ({ page, request }, info) => {
+  test.setTimeout(300000);
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  const observed = await observeSharedSample(page);
+  await openDesigner(page);
+  const catalog = await (await request.get('/api/visual-standards')).json();
+  await changeSharedSample(page, () => setCatalogField(page, catalog, 'line_break_unit', 'CHARACTER'), s => s.line_break_unit === 'CHARACTER');
+  const character = await sharedSampleSnapshot(page, observed);
+  await changeSharedSample(page, () => setCatalogField(page, catalog, 'line_break_unit', 'WORD'), s => s.line_break_unit === 'WORD');
+  const word = await sharedSampleSnapshot(page, observed);
+  expectSharedSampleFacts(word);
+  const phrase = '문서관리체계와 업무인수인계절차를 함께 점검하여 자료의 누락 여부를 확인하고 담당자별 검토 결과를 기록함.';
+  const lines: string[] = [];
+  for (const [label, snapshot] of [['character', character], ['word', word]] as const) {
+    const index = snapshot.content.rendered.findIndex(text => text.includes(phrase.replace(/\s/g,'')));
+    expect(index).toBeGreaterThanOrEqual(0);
+    const geometry = await measureSampleSvg(page, snapshot.svgs[index], info.outputPath(`${label}-wrapping.png`));
+    const range = sampleRange(geometry, phrase);
+    const rows = new Map<number,string>();
+    for (const glyph of range.glyphs) rows.set(glyph.baseline, (rows.get(glyph.baseline) || '') + glyph.text);
+    lines.push([...rows.values()].join('\n'));
+  }
+  expect(lines[0]).not.toBe(lines[1]);
+  await changeSharedSample(page, async () => { await setCatalogField(page, catalog, 'body_tracking_percent', 99); await page.getByLabel(fieldLabel(catalog,'body_tracking_percent'),{exact:true}).blur(); }, s => s.body_tracking_percent === 50);
+  await expect(page.getByLabel(fieldLabel(catalog,'body_tracking_percent'),{exact:true})).toHaveValue('50');
+  await changeSharedSample(page, async () => { await setCatalogField(page, catalog, 'body_tracking_percent', -99); await page.getByLabel(fieldLabel(catalog,'body_tracking_percent'),{exact:true}).blur(); }, s => s.body_tracking_percent === -20);
+  await expect(page.getByLabel(fieldLabel(catalog,'body_tracking_percent'),{exact:true})).toHaveValue('-20');
+  await changeSharedSample(page, () => setCatalogField(page,catalog,'body_tracking_percent',0), s => s.body_tracking_percent === 0);
+  await openGroup(page, '문단 구분 · 4단계');
+  await changeSharedSample(page, () => page.getByLabel('문단 구분 · 4단계 사용',{exact:true}).uncheck(), s => s.enabled_heading_roles === 'heading,subheading,minor_heading');
+  for (const n of [4,5,6]) await expect(page.getByLabel(`문단 구분 · ${n}단계 사용`,{exact:true})).not.toBeChecked();
+  await changeSharedSample(page, () => setCatalogField(page,catalog,'table_anchor_role','circle'), s => s.table_anchor_role === 'circle');
+  await changeSharedSample(page, () => setCatalogField(page,catalog,'citation_style','NOTE'), s => s.citation_style === 'NOTE');
+  await changeSharedSample(page, () => setCatalogField(page,catalog,'citation_note_abbreviated',true), s => s.citation_note_abbreviated === true);
+  await changeSharedSample(page, () => setCatalogField(page,catalog,'toc_mode','SEPARATE'), s => s.toc_mode === 'SEPARATE');
+  const custom = await sharedSampleSnapshot(page, observed);
+  expect(custom.receipt.verification.converged).toBeTruthy();
+  expect(custom.content.text).toContain('주1)'); expect(custom.content.text).toContain('2)');
+  expect(custom.content.text).toContain('부서주1)를');
+  expect(custom.content.text).toContain('결과주2)를');
+  const tableBoxes: { left: number; right: number }[] = [];
+  for (const [label, snapshot] of [['page-width', word], ['circle-width', custom]] as const) {
+    const index = snapshot.content.rendered.findIndex(text => text.includes('담당별정비항목'));
+    const geometry = await measureSampleSvg(page, snapshot.svgs[index], info.outputPath(`${label}-table.png`));
+    const clips = sampleRange(geometry, '필수 항목 확인').glyphs.map(glyph => glyph.clip).filter(Boolean);
+    expect(clips.length).toBeGreaterThan(0);
+    const tableClips = geometry.glyphs.map(glyph=>glyph.clip).filter(Boolean);
+    tableBoxes.push({left:Math.min(...clips.map(clip=>clip!.left)),right:Math.max(...tableClips.map(clip=>clip!.right))});
+  }
+  expect(tableBoxes[1].left - tableBoxes[0].left).toBeGreaterThan(20);
+  expect(Math.abs(tableBoxes[1].right - tableBoxes[0].right)).toBeLessThan(2);
+  await page.getByRole('button',{name:'변경 전·후 비교',exact:true}).click();
+  const pairs = page.getByLabel('미리보기 쪽', {exact:true});
+  for (const option of await pairs.locator('option').all()) {
+    await pairs.selectOption((await option.getAttribute('value'))!);
+    if (await page.locator('.comparison-highlight rect').count()) break;
+  }
+  await expect(page.locator('.comparison-highlight rect').first()).toBeVisible();
+  await page.screenshot({path:info.outputPath('before-after.png'),fullPage:true});
+  await page.getByRole('button',{name:'변경 전·후 비교',exact:true}).click();
+  await page.getByText('디자인 보관함 · 표와 제목',{exact:true}).click();
+  await page.getByLabel('디자인 이름',{exact:true}).fill('검수용 ㅇ 들여쓰기 표');
+  await page.getByRole('button',{name:'디자인 저장',exact:true}).click();
+  await expect(page.getByRole('status').filter({hasText:'디자인을 보관함에 저장했습니다.'})).toBeVisible();
+  await changeSharedSample(page, () => setCatalogField(page,catalog,'table_anchor_role','PAGE'), s => s.table_anchor_role === 'PAGE');
+  await changeSharedSample(page, () => page.getByRole('button',{name:'현재 표준에 적용',exact:true}).click(), s => s.table_anchor_role === 'circle');
+  await registerButton(page).click();
+  await page.getByLabel('표준 이름',{exact:true}).fill('구성 조절 검수 표준');
+  const firstResponse = page.waitForResponse(r => r.request().method()==='POST' && r.url().endsWith('/sample-register'));
+  await submitRegistration(page).click();
+  const first = await (await firstResponse).json();
+  await expect(page.getByRole('dialog',{name:'표준 저장'})).not.toBeVisible();
+  await changeSharedSample(page, () => setCatalogField(page,catalog,'table_header_fill','#DDEEFF'), s => s.table_header_fill === '#DDEEFF');
+  await registerButton(page).click();
+  const replaceResponse = page.waitForResponse(r => r.request().method()==='POST' && r.url().endsWith('/sample-register'));
+  await page.getByRole('dialog').getByRole('button',{name:'현재 표준 덮어쓰기',exact:true}).click();
+  const replacement = await (await replaceResponse).json();
+  expect(replacement.id).not.toBe(first.id);
+  expect((await (await request.get(`/api/visual-standards/${first.id}`)).json()).settings).toEqual(first.settings);
+  const items = (await (await request.get('/api/visual-standards')).json()).items;
+  expect(items.some((item:any)=>item.id===first.id)).toBeFalsy();
+  expect(items.some((item:any)=>item.id===replacement.id)).toBeTruthy();
+  await page.getByRole('button',{name:'현재 표준 삭제',exact:true}).click();
+  await page.getByRole('alertdialog',{name:'사용자 표준 삭제'}).getByRole('button',{name:'삭제 확인'}).click();
+  await expectDesignerReady(page);
+  expect((await (await request.get(`/api/visual-standards/${replacement.id}`)).json()).id).toBe(replacement.id);
+  await documentListButton(page).click();
+  await page.getByRole('button',{name:'양식 보관함',exact:true}).click();
+  await expect(page.getByText('검수용 ㅇ 들여쓰기 표',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'삭제',exact:true}).click();
+  await page.getByRole('alertdialog',{name:'디자인 삭제'}).getByRole('button',{name:'삭제 확인',exact:true}).click();
+  await expect(page.getByText('검수용 ㅇ 들여쓰기 표',{exact:true})).toHaveCount(0);
+  await writeFile(info.outputPath('management-proof.json'),JSON.stringify({real_engine:true,actual_model_calls:0,character_lines:lines[0],word_lines:lines[1],table_boxes:tableBoxes,custom_receipt:custom.receipt,first_id:first.id,replacement_id:replacement.id},null,2));
+});
+const registerButton = (page: Page) => page.locator(".standard-preview-toolbar").getByRole("button", { name: /^(새 표준 등록|변경사항 저장)$/ });
 const submitRegistration = (page: Page) => page.getByRole("dialog").getByRole("button", { name: "새 표준 등록", exact: true });
 const documentListButton = (page: Page) => page.locator(".workspace-nav").getByRole("button", { name: "문서함", exact: true });
 async function showSettings(page: Page) {
@@ -19,10 +216,10 @@ async function confirmSettingsChange(page: Page) {
 }
 async function loadSavedStandard(page: Page, id: string) {
   await showSettings(page);
-  const summary = page.getByText("저장한 표준에서 시작", { exact: true });
+  const summary = page.getByText("사용자 표준 관리", { exact: true });
   if (await summary.locator("..").getAttribute("open") === null) await summary.click();
   await page.getByLabel("저장한 표준", { exact: true }).selectOption(id);
-  await page.getByRole("button", { name: "불러오기", exact: true }).click();
+  await page.getByRole("button", { name: "선택한 표준 편집", exact: true }).click();
   await confirmSettingsChange(page);
 }
 async function restoreDefaults(page: Page) {
@@ -53,7 +250,7 @@ async function expectDesignerReady(page: Page) {
   expect(await alerts.allTextContents(), "The actual preview must finish without a server/engine error").toEqual([]);
   await expect(registerButton(page)).toBeEnabled();
 }
-async function openDesigner(page: Page) {
+async function openDesigner(page: Page, compare = false) {
   const preview = page.waitForRequest(value => value.method() === "POST" &&
     ["/api/visual-standards/preview", "/api/visual-standards/sample-preview"].includes(new URL(value.url()).pathname));
   await page.goto("/");
@@ -61,6 +258,7 @@ async function openDesigner(page: Page) {
   await expect(page.getByRole("heading", { name: "문서 표준 편집", exact: true })).toBeVisible();
   await expectDesignerReady(page);
   await expect(page.getByRole("img", { name: "문서 표준 예시 1쪽", exact: true })).toBeVisible();
+  if (!compare && await page.getByRole("button", { name: "변경 전·후 비교", exact: true }).getAttribute("aria-pressed") === "true") await page.getByRole("button", { name: "변경 전·후 비교", exact: true }).click();
   return (await preview).postDataJSON().seed_base64 as string;
 }
 async function legacyDesigner(page: Page, request: APIRequestContext, revision: 1 | 2 = 2) {
@@ -80,49 +278,201 @@ async function legacyDesigner(page: Page, request: APIRequestContext, revision: 
   await documentListButton(page).click();
   await openDesigner(page);
   await loadSavedStandard(page, registered.id);
-  await page.getByRole("tab", { name: "상세 설정", exact: true }).click();
   for (const group of ["대제목", "절 제목", "본문"]) await openGroup(page, group);
   await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
   return { catalog, definition, registered, seed };
 }
 async function openGroup(page: Page, group: string) {
   await showSettings(page);
-  await page.getByRole("tab", { name: "상세 설정", exact: true }).click();
-  const section = page.locator(".standard-setting-group").filter({ has: page.locator("summary", { hasText: new RegExp(`^${group}$`) }) });
-  if (!(await section.getAttribute("open")) && await section.getAttribute("open") !== "")
-    await section.locator("summary").click();
+  const section = page.locator(".standard-setting-section").filter({ has: page.locator(".standard-group-toggle", { hasText: group }) });
+  const category = page.locator(".standard-setting-category").filter({ has: section });
+  if (await category.count() && await category.getAttribute("open") === null) await category.locator(":scope > summary").click();
+  const toggle = section.locator(".standard-group-toggle");
+  if (await toggle.getAttribute("aria-expanded") !== "true") await toggle.click();
 }
 
-test("REAL rhwp standard designer: common settings expose automatic notes and detailed settings remain searchable", async ({ page, request }, info) => {
-  await page.setViewportSize({ width: 1366, height: 900 });
+test("REAL rhwp standard designer: group favorites continuous wheel edge navigation and hover explanations", async ({ page, request }, info) => {
+  test.setTimeout(180000);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const observed = await observeSharedSample(page);
+  await openDesigner(page);
+  await changeSharedSample(page, () => page.getByLabel("기본 양식", { exact: true }).selectOption("appendix-2"));
+  const pane = page.locator(".standard-preview-pages"), picker = page.getByLabel("미리보기 쪽", { exact: true });
+  const before = await pane.getAttribute("data-preview-sha256"), count = observed.requests.length;
+  await pane.hover();
+  await page.mouse.wheel(0, 330);
+  await expect(picker).toHaveValue("4");
+  await page.mouse.wheel(0, -200);
+  await expect(picker).toHaveValue("2");
+  await page.mouse.wheel(0, 100);
+  await expect(picker).toHaveValue("3");
+  await openGroup(page, "문단 내용 · □ 항목");
+  const group = page.locator('[data-setting-group="문단 내용 · □ 항목"]');
+  await expect(group.locator(".standard-favorite")).toHaveCount(1);
+  await expect(page.locator(".standard-setting-row .standard-favorite")).toHaveCount(0);
+  await group.getByRole("button", { name: "문단 내용 · □ 항목 즐겨찾기 추가", exact: true }).click();
+  await expect(page.locator(".standard-setting-section").first()).toHaveAttribute("data-setting-group", "문단 내용 · □ 항목");
+  await group.locator(".standard-group-toggle").hover();
+  await expect(page.getByRole("tooltip")).toContainText("문단 내용 · □ 항목");
+  await expect.poll(() => page.locator('.standard-region-highlight rect[data-target-role="square"]').count()).toBeGreaterThan(0);
+  await expect(page.locator(".standard-setting-impact")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "예시에서 위치 보기" })).toHaveCount(0);
+  await page.locator('[data-setting-group="용지·여백"] .standard-group-toggle').hover();
+  await expect(page.getByRole("tooltip")).toContainText("용지·여백");
+  await expect.poll(() => page.locator('.standard-region-highlight rect[data-target-role="margin_left"]').count()).toBeGreaterThan(0);
+  await page.getByRole("button", { name: "사이드바 숨기기", exact: true }).click();
+  const settings = page.getByRole("complementary", { name: "문서 표준 설정", exact: true });
+  expect((await settings.boundingBox())!.x).toBe(0);
+  await page.mouse.move(2, 350);
+  const opener = page.getByRole("button", { name: "사이드바 열기", exact: true });
+  await expect(opener).toHaveCSS("opacity", "1");
+  await expect(page.locator(".workspace-nav")).toBeHidden();
+  expect((await settings.boundingBox())!.x).toBe(0);
+  await opener.click();
+  await expect(page.locator('.workspace-nav[data-mode="expanded"]')).toBeVisible();
+  await expect(page.getByRole("button", { name: "AI 연결", exact: true })).toBeVisible();
+  expect((await settings.boundingBox())!.x).toBeGreaterThan(0);
+  await page.getByRole("button", { name: "사이드바 숨기기", exact: true }).click();
+  await page.mouse.move(500, 350);
+  await expect(page.locator(".workspace-nav")).toBeHidden();
+  await page.getByRole("button", { name: "사이드바 열기", exact: true }).press("Enter");
+  await expect(page.locator('.workspace-nav[data-mode="expanded"]')).toBeVisible();
+  for (const size of [{ width: 1280, height: 800 }, { width: 876, height: 730 }]) {
+    await page.setViewportSize(size);
+    await expectWholePreviewPage(page);
+    await expectOuterViewportContained(page);
+    await page.screenshot({ path: info.outputPath(`standard-interaction-${size.width}.png`), fullPage: true });
+  }
+  expect(await pane.getAttribute("data-preview-sha256")).toBe(before);
+  expect(observed.requests).toHaveLength(count);
+  await page.reload();
+  await page.getByRole("button", { name: "문서 표준 편집", exact: true }).click();
+  await expectDesignerReady(page);
+  await expect(page.locator(".standard-setting-section").first()).toHaveAttribute("data-setting-group", "문단 내용 · □ 항목");
+});
+
+test("REAL rhwp standard designer: role usage and line filling persist without losing content", async ({ page, request }, info) => {
+  test.setTimeout(240000);
+  const observed = await observeSharedSample(page);
   await openDesigner(page);
   const catalog = await (await request.get("/api/visual-standards")).json();
-  const citation = page.getByLabel(fieldLabel(catalog, "citation_style"), { exact: true });
-  await expect(page.getByRole("tab", { name: "자주 쓰는 설정", exact: true })).toHaveAttribute("aria-selected", "true");
-  const citationGroup = page.locator(".standard-setting-group").filter({ has: page.locator("summary", {
-    hasText: new RegExp(`^${catalog.fields.find((field: any) => field.key === "citation_style").group}$`),
-  }) });
-  if (await citationGroup.getAttribute("open") === null) await citationGroup.locator("summary").click();
-  await expect(citation).toBeVisible();
-  await expect(citation).toHaveValue("AUTO");
-  await expect(page.getByLabel(fieldLabel(catalog, "square_first_line_indent_pt"), { exact: true })).toHaveCount(0);
-  const automaticHashes = await previewImageHashes(page);
-  await citation.selectOption("STARS");
-  await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
-  const fixedHashes = await previewImageHashes(page);
-  expect(fixedHashes).not.toEqual(automaticHashes);
-  await citation.selectOption("AUTO");
-  await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
-  await page.getByLabel("설정 찾기", { exact: true }).fill("첫 줄 들여쓰기");
-  await expect(page.getByLabel(fieldLabel(catalog, "square_first_line_indent_pt"), { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "설정 검색 지우기", exact: true }).click();
-  await page.getByRole("tab", { name: "상세 설정", exact: true }).click();
-  await openGroup(page, "□ 기호 항목");
-  await expect(page.getByLabel(fieldLabel(catalog, "square_first_line_indent_pt"), { exact: true })).toBeVisible();
-  await page.getByRole("tab", { name: "자주 쓰는 설정", exact: true }).click();
-  await expect(citation).toHaveValue("AUTO");
-  await page.screenshot({ path: info.outputPath("standard-common-auto-notes.png"), fullPage: true });
+  const original = await sharedSampleSnapshot(page, observed);
+  await changeSharedSample(page, () => setCatalogField(page, catalog, "body_parenthetical_labels", true), settings => settings.body_parenthetical_scope === "square");
+  const fold = page.locator(".standard-scope-fold");
+  await fold.locator("summary").click();
+  const scopes = page.getByRole("group", { name: "괄호 요약어 표시 위치", exact: true });
+  await expect(scopes.locator('input[value="square"]')).toBeChecked();
+  await expect(scopes.locator('input[value="circle"]')).not.toBeChecked();
+  await expect(scopes.locator('input[value="summary"]')).toHaveCount(0);
+  await changeSharedSample(page, async () => {
+    await openGroup(page, "문단 내용 · ㅇ 항목");
+    await page.getByLabel("문단 내용 · ㅇ 항목 사용", { exact: true }).uncheck();
+    await openGroup(page, "문단 구분 · 2단계");
+    await page.getByLabel("문단 구분 · 2단계 사용", { exact: true }).uncheck();
+    await setCatalogField(page, catalog, "line_break_unit", "WORD");
+    await setCatalogField(page, catalog, "line_space_policy", "TIGHTER");
+    await setCatalogField(page, catalog, "body_tracking_percent", -3);
+  }, settings => settings.body_tracking_percent === -3 && !settings.enabled_body_roles.includes("circle") && !settings.enabled_heading_roles.includes("subheading"));
+  await openGroup(page, "문서 구성");
+  await expect(scopes.locator('input[value="circle"]')).toHaveCount(0);
+  await openGroup(page, "문단 내용 · ㅇ 항목");
+  await expect(page.getByLabel(fieldLabel(catalog, "circle_font"), { exact: true })).toBeDisabled();
+  const changed = await sharedSampleSnapshot(page, observed);
+  expectSharedSampleFacts(changed);
+  expect(changed.receipt.sample_sha256).toBe(original.receipt.sample_sha256);
+  expect(changed.receipt.preview_sha256).not.toBe(original.receipt.preview_sha256);
+  expect(changed.content.rendered.join("")).toContain("□(조치)작성담당자");
+  const archive = unzipSync(changed.bytes);
+  const styles = await page.evaluate(({ header, section }) => {
+    const parser = new DOMParser(), h = parser.parseFromString(header, "application/xml"), s = parser.parseFromString(section, "application/xml");
+    const p = Array.from(s.getElementsByTagNameNS("*", "p")).find(node => node.textContent?.includes("작성 담당자가 문서명"))!;
+    const pr = Array.from(h.getElementsByTagNameNS("*", "paraPr")).find(node => node.getAttribute("id") === p.getAttribute("paraPrIDRef"))!;
+    const cr = Array.from(h.getElementsByTagNameNS("*", "charPr")).find(node => node.getAttribute("id") === p.getElementsByTagNameNS("*", "run")[0].getAttribute("charPrIDRef"))!;
+    return { latin: pr.getElementsByTagNameNS("*", "breakSetting")[0].getAttribute("breakLatinWord"), korean: pr.getElementsByTagNameNS("*", "breakSetting")[0].getAttribute("breakNonLatinWord"), condense: pr.getAttribute("condense"), tracking: cr.getElementsByTagNameNS("*", "spacing")[0].getAttribute("hangul") };
+  }, { header: strFromU8(archive["Contents/header.xml"]), section: strFromU8(archive["Contents/section0.xml"]) });
+  expect(styles).toEqual({ latin: "KEEP_WORD", korean: "BREAK_WORD", condense: "20", tracking: "-3" });
+  const geometries: SampleGeometry[] = [];
+  for (const [index, svg] of changed.svgs.entries()) geometries.push(await measureSampleSvg(page, svg, info.outputPath(`word-wrap-${index + 1}.png`)));
+  const phrase = "합성 점검 대상 20건 중 5건의 필수 항목을 확인함. 나머지 15건은 동일한 기준으로 점검할 예정임.";
+  const geometry = geometries.find(item => item.text.includes(phrase.replace(/\s/g, "")))!;
+  expect(geometry).toBeTruthy();
+  const range = sampleRange(geometry, phrase);
+  expect(new Set(range.glyphs.map(glyph => Math.round(glyph.baseline))).size).toBeGreaterThan(1);
+  let cursor = range.start;
+  for (const word of phrase.split(" ")) {
+    const token = sampleRange(geometry, word, cursor);
+    expect(new Set(token.glyphs.map(glyph => Math.round(glyph.baseline))).size, `${word} remains on one line`).toBe(1);
+    cursor = token.end;
+  }
+  await writeFile(info.outputPath("line-fill-sample.hwpx"), changed.bytes);
+  await writeFile(info.outputPath("line-fill-proof.json"), JSON.stringify({ real_engine: true, actual_model_calls: 0, styles, facts_preserved: true, words_kept_on_same_line: phrase.split(" ").length, sample_sha256: changed.receipt.sample_sha256 }, null, 2));
+  const saving = page.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith("/sample-register"));
+  await registerButton(page).click();
+  await page.getByLabel("표준 이름", { exact: true }).fill(`항목 사용과 줄 채움 ${Date.now()}`);
+  await submitRegistration(page).click();
+  const saved = await (await saving).json();
+  expect(saved.settings.body_tracking_percent).toBe(-3);
+  await documentListButton(page).click();
+  await openDesigner(page);
+  await loadSavedStandard(page, saved.id);
+  await expectDesignerReady(page);
+  await openGroup(page, "문단 내용 · ㅇ 항목");
+  await expect(page.getByLabel("문단 내용 · ㅇ 항목 사용", { exact: true })).not.toBeChecked();
+  expect(hash(await (await request.get(`/api/visual-standards/${saved.id}/file`)).body())).toBe(changed.receipt.preview_sha256);
 });
+
+test("REAL rhwp standard designer: grouped composition merges disabled deep headings and explains absent elements", async ({ page, request }, info) => {
+  test.setTimeout(240000);
+  const observed = await observeSharedSample(page);
+  await openDesigner(page);
+  const catalog = await (await request.get("/api/visual-standards")).json();
+  const original = await sharedSampleSnapshot(page, observed);
+  await expect(page.locator('[data-setting-category="목차"] > summary')).toContainText("없음");
+  await openGroup(page, "목차 제목");
+  await expect(page.locator('[data-setting-group="목차 제목"]')).toContainText("현재 구성에 목차가 없습니다");
+  await expect(page.getByLabel(fieldLabel(catalog, "toc_title_font"), { exact: true })).toHaveCount(0);
+  await openGroup(page, "참고·출처");
+  await expect(page.locator('[data-setting-group="참고·출처"]')).toContainText("별도 참고자료 목록은 없습니다");
+  await expect(page.locator('[data-setting-group="참고·출처"] .standard-absence')).toHaveText("없음");
+  await openGroup(page, "문단 구분 · 5단계");
+  await expect(page.locator('[data-setting-group="문단 구분 · 5단계"] .standard-category-help')).toContainText("각각 설명할 내용이 충분할 때");
+  await page.screenshot({ path: info.outputPath("deep-headings-before.png") });
+  await changeSharedSample(page, async () => {
+    await page.getByLabel("문단 구분 · 5단계 사용", { exact: true }).uncheck();
+    await page.getByLabel("문단 구분 · 6단계 사용", { exact: true }).uncheck();
+  }, settings => settings.heading_structure_policy === "CONTENT_V1" && !settings.enabled_heading_roles.includes("numbered_5") && !settings.enabled_heading_roles.includes("numbered_6"));
+  const collapsed = await sharedSampleSnapshot(page, observed);
+  expectSharedSampleFacts(collapsed);
+  expect(collapsed.receipt.sample_sha256).toBe(original.receipt.sample_sha256);
+  expect(collapsed.content.paragraphs.filter(text => /^\(가\) /.test(text))).toHaveLength(1);
+  expect(collapsed.content.rendered.join("")).toContain("확인순서:합성점검대상20건중5건");
+  expect(collapsed.content.rendered.join("")).toContain("세부기준:작성담당자가문서명과담당부서를확인");
+  expect(collapsed.receipt.sample_regions.some((region: any) => ["numbered_5", "numbered_6"].includes(region.role))).toBe(false);
+  await writeFile(info.outputPath("four-level-example.hwpx"), collapsed.bytes);
+  await page.screenshot({ path: info.outputPath("deep-headings-after.png") });
+  await changeSharedSample(page, () => page.getByLabel("기본 양식", { exact: true }).selectOption("appendix-2"));
+  await expect(page.locator('[data-setting-category="목차"] > summary')).not.toContainText("없음");
+  await openGroup(page, "목차 제목");
+  await expect(page.getByLabel(fieldLabel(catalog, "toc_title_font"), { exact: true })).toBeEnabled();
+  const withToc = await sharedSampleSnapshot(page, observed);
+  expect(withToc.receipt.verification.converged).toBe(true);
+  expect(withToc.receipt.verification.headings.every((heading: any) => withToc.receipt.verification.measured_pages[heading.id] >= 1)).toBe(true);
+  const saving = page.waitForResponse(response => response.request().method() === "POST" && response.url().endsWith("/sample-register"));
+  await registerButton(page).click();
+  await page.getByLabel("표준 이름", { exact: true }).fill(`문단 구분 네 단계 ${Date.now()}`);
+  await submitRegistration(page).click();
+  const saved = await (await saving).json();
+  expect(saved.settings.heading_structure_policy).toBe("CONTENT_V1");
+  await documentListButton(page).click();
+  await openDesigner(page);
+  await loadSavedStandard(page, saved.id);
+  await expectDesignerReady(page);
+  const reopened = await sharedSampleSnapshot(page, observed);
+  expect(reopened.content.rendered.join("")).toContain("확인순서:합성점검대상20건중5건");
+  expect(hash(await (await request.get(`/api/visual-standards/${saved.id}/file`)).body())).toBe(withToc.receipt.preview_sha256);
+  await writeFile(info.outputPath("structure-proof.json"), JSON.stringify({ real_engine: true, actual_model_calls: 0, sample_sha256: collapsed.receipt.sample_sha256, saved: saved.id, facts_preserved: true, toc: withToc.receipt.verification }, null, 2));
+});
+
 test("REAL rhwp standard designer: saved settings load only after explicit confirmation and keep legacy preview policy", async ({ page, request }, info) => {
   const posted: any[] = [];
   page.on("request", value => { if (value.method() === "POST" && new URL(value.url()).pathname === "/api/visual-standards/sample-preview") posted.push(value.postDataJSON()); });
@@ -151,25 +501,25 @@ test("REAL rhwp standard designer: saved settings load only after explicit confi
   const frozenFile = await (await request.get(`/api/visual-standards/${saved.id}/file`)).body();
   await documentListButton(page).click();
   await openDesigner(page);
-  const modifiedSize = catalog.defaults.body_size_pt + 1;
-  await setCatalogField(page, catalog, "body_size_pt", modifiedSize);
+  const modifiedSize = catalog.defaults.square_size_pt + 1;
+  await setCatalogField(page, catalog, "square_size_pt", modifiedSize);
   await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
   const before = posted.at(-1).settings;
-  const summary = page.getByText("저장한 표준에서 시작", { exact: true });
+  const summary = page.getByText("사용자 표준 관리", { exact: true });
   await expect(page.getByLabel("저장한 표준", { exact: true })).toBeHidden();
   await summary.click();
   await page.getByLabel("저장한 표준", { exact: true }).selectOption(saved.id);
-  await expect(page.getByLabel(fieldLabel(catalog, "body_size_pt"), { exact: true })).toHaveValue(String(modifiedSize));
-  await page.getByRole("button", { name: "불러오기", exact: true }).click();
+  await expect(page.getByLabel(fieldLabel(catalog, "square_size_pt"), { exact: true })).toHaveValue(String(modifiedSize));
+  await page.getByRole("button", { name: "선택한 표준 편집", exact: true }).click();
   const confirm = page.getByRole("alertdialog", { name: "서식 설정 바꾸기", exact: true });
   await expect(confirm).toBeVisible();
   await confirm.getByRole("button", { name: "계속 편집", exact: true }).click();
-  await expect(page.getByLabel(fieldLabel(catalog, "body_size_pt"), { exact: true })).toHaveValue(String(modifiedSize));
+  await expect(page.getByLabel(fieldLabel(catalog, "square_size_pt"), { exact: true })).toHaveValue(String(modifiedSize));
   expect(posted.at(-1).settings).toEqual(before);
-  await page.getByRole("button", { name: "불러오기", exact: true }).click();
+  await page.getByRole("button", { name: "선택한 표준 편집", exact: true }).click();
   await expect(confirm).toBeVisible();
   const loaded = page.waitForResponse(value => value.request().method() === "POST" && new URL(value.url()).pathname === "/api/visual-standards/sample-preview" &&
-    value.request().postDataJSON().settings.body_size_pt === previousSettings.body_size_pt &&
+    value.request().postDataJSON().settings.square_size_pt === previousSettings.square_size_pt &&
     !("preview_layout_policy" in value.request().postDataJSON().settings));
   await confirm.getByRole("button", { name: "설정 바꾸기", exact: true }).click();
   expect((await loaded).ok()).toBeTruthy();
@@ -186,25 +536,24 @@ test("REAL rhwp standard designer: dirty prompts preserve invalid edits and reco
   test.setTimeout(240000);
   await openDesigner(page);
   const catalog = await (await request.get("/api/visual-standards")).json();
-  const size = page.getByLabel(fieldLabel(catalog, "body_size_pt"), { exact: true });
+  const size = page.getByLabel(fieldLabel(catalog, "square_size_pt"), { exact: true });
   const leave = page.getByRole("alertdialog", { name: "서식 설정을 닫을까요?", exact: true });
-  await openGroup(page, catalog.fields.find((field: any) => field.key === "body_size_pt").group);
+  await openGroup(page, catalog.fields.find((field: any) => field.key === "square_size_pt").group);
   await size.fill("");
-  await documentListButton(page).click();
-  await expect(leave).toBeVisible();
-  await leave.getByRole("button", { name: "계속 편집", exact: true }).click();
-  await expect(size).toHaveValue("");
+  await size.press("Tab");
+  await expect(size).toHaveValue(String(catalog.defaults.square_size_pt));
+  await expectDesignerReady(page);
 
   // A different numeric spelling of the same default is not an unsaved edit.
-  await size.fill(Number(catalog.defaults.body_size_pt).toFixed(1));
+  await size.fill(Number(catalog.defaults.square_size_pt).toFixed(1));
   await expectDesignerReady(page);
   await documentListButton(page).click();
   await expect(page.getByRole("heading", { name: "HWPX 문서함", exact: true })).toBeVisible();
   await expect(leave).toBeHidden();
 
   await openDesigner(page);
-  const changedSize = Number(catalog.defaults.body_size_pt) + 1;
-  await setCatalogField(page, catalog, "body_size_pt", changedSize.toFixed(1));
+  const changedSize = Number(catalog.defaults.square_size_pt) + 1;
+  await setCatalogField(page, catalog, "square_size_pt", changedSize.toFixed(1));
   await expectDesignerReady(page);
   await documentListButton(page).click();
   await expect(leave).toBeVisible();
@@ -217,9 +566,9 @@ test("REAL rhwp standard designer: dirty prompts preserve invalid edits and reco
   await submitRegistration(page).click();
   const response = await registration;
   expect(response.ok(), await response.text()).toBeTruthy();
-  expect((await response.json()).settings.body_size_pt).toBe(changedSize);
+  expect((await response.json()).settings.square_size_pt).toBe(changedSize);
   await expect(page.getByRole("heading", { name: `‘${name}’ 등록 완료`, exact: true })).toBeVisible();
-  await expect(size).toHaveValue(changedSize.toFixed(1));
+  await expect(size).toHaveValue(String(changedSize));
   await documentListButton(page).click();
   await expect(page.getByRole("heading", { name: "HWPX 문서함", exact: true })).toBeVisible();
   await expect(leave).toBeHidden();
@@ -349,7 +698,7 @@ const sampleFacts = [
   "완료 여부(필수 항목 충족 시)를 기록함.",
   "2026년 10월 30일까지 합성 점검 대상 20건의 확인을 완료할 계획임.",
   "2026년 10월 23일 기준 완료 5건과 미완료 15건",
-  "담당별 정비 항목", "문서명·부서 확인", "검토 결과 기록", "합성 문서 점검 기준", "합성 검토 기록 기준",
+  "담당별 정비 항목", "문서명·부서", "검토 결과 기록", "합성 문서 점검 기준", "합성 검토 기록 기준",
 ];
 function expectSharedSampleFacts(snapshot: Awaited<ReturnType<typeof sharedSampleSnapshot>>) {
   for (const fact of sampleFacts) {
@@ -357,7 +706,7 @@ function expectSharedSampleFacts(snapshot: Awaited<ReturnType<typeof sharedSampl
     expect(snapshot.content.text, `Saved HWPX includes ${fact}`).toContain(normalized);
     expect(snapshot.content.rendered.join(""), `Actual SVG includes ${fact}`).toContain(normalized);
   }
-  expect(snapshot.receipt.sample_id).toBe("standard-business-report-v2");
+  expect(snapshot.receipt.sample_id).toBe("standard-business-report-v6");
   expect(snapshot.receipt.sample_sha256).toMatch(/^[0-9a-f]{64}$/);
 }
 test("REAL rhwp standard designer: shared sample keeps facts across three compositions and saved settings", async ({ page, request }, info) => {
@@ -420,7 +769,7 @@ test("REAL rhwp standard designer: shared sample keeps facts across three compos
   await page.getByRole("tab", { name: "서식 미리보기", exact: true }).click();
   await expect(page.locator(".standard-preview-pages")).toHaveAttribute("data-preview-sha256", saved.preview_sha256);
   await expect(page.locator(".standard-preview-pages")).toHaveAttribute("aria-busy", "false");
-  await expect(page.getByRole("button", { name: "등록 완료", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "저장 완료", exact: true })).toBeDisabled();
   await documentListButton(page).click();
   await openDesigner(page);
   await changeSharedSample(page, () => loadSavedStandard(page, saved.id), settings => settings.preset_id === "appendix-3");
@@ -453,19 +802,18 @@ test("REAL rhwp standard designer: shared sample composition controls change act
   }, settings => settings.show_core_summary && settings.body_parenthetical_labels);
   const enabled = await sharedSampleSnapshot(page, observed);
   expectSharedSampleFacts(enabled);
-  for (const text of ["핵심요약", "(요약)", "(현황)", "(핵심)"])
+  for (const text of ["핵심요약", "(현황)"])
     expect(enabled.content.rendered.join("")).toContain(text);
   expect(enabled.content.text).toContain("완료여부(필수항목충족시)를기록함.");
   const markers = { numbered_1_marker: "[1]", numbered_2_marker: "{가}", numbered_3_marker: "1)",
     numbered_4_marker: "가)", numbered_5_marker: "(①)", numbered_6_marker: "(㉮)" };
   await changeSharedSample(page, async () => {
     for (const [key, value] of Object.entries(markers)) await setCatalogField(page, catalog, key, value);
-    await setCatalogField(page, catalog, "numbering_style", "NUMBERED");
-  }, settings => settings.numbering_style === "NUMBERED" && Object.entries(markers).every(([key, value]) => settings[key] === value));
+  }, settings => settings.numbering_style === "BULLETS" && Object.entries(markers).every(([key, value]) => settings[key] === value));
   const numbered = await sharedSampleSnapshot(page, observed);
   expectSharedSampleFacts(numbered);
   for (const text of ["[1] 정비 필요성", "{가} 적용 범위", "1) 검토 대상", "가) 자료 분류", "(①) 확인 순서", "(㉮) 세부 기준",
-    "{가} (현황) 합성 점검 대상 20건", "1) (조치) 작성 담당자"])
+    "□ (현황) 합성 점검 대상 20건", "ㅇ (조치) 작성 담당자"])
     expect(numbered.content.rendered.join("")).toContain(text.replace(/\s/g, ""));
   await changeSharedSample(page, async () => {
     await setCatalogField(page, catalog, "show_core_summary", false);
@@ -495,14 +843,15 @@ test("REAL rhwp standard designer: selected parenthetical scopes preserve facts 
   }, settings => settings.show_core_summary && settings.body_parenthetical_labels);
   const initial = await sharedSampleSnapshot(page, observed);
   expect(observed.requests.filter(item => item.path.endsWith("/sample-preview")).at(-1)!.body.settings)
-    .not.toHaveProperty("body_parenthetical_scope");
-  const scopeOrder = ["square", "circle", "dash", "dot", "body", "summary"];
+    .toHaveProperty("body_parenthetical_scope", "square");
+  const scopeOrder = ["square", "circle", "dash", "dot", "summary"];
+  const scopeCsv = (selected: string[]) => ["square", "circle", "dash", "dot", "summary"].filter(key => selected.includes(key)).join(",");
   const targets = [
     { scope: "square", label: "현황", text: "합성 점검 대상 20건 중 5건의 필수 항목을 확인함." },
     { scope: "circle", label: "조치", text: "작성 담당자가 문서명과 담당 부서를 확인하고 검토 담당자가 확인 결과를 기록함." },
     { scope: "dash", label: "결론", text: "필수 항목이 모두 확인된 자료만 정비 완료로 분류함." },
     { scope: "dot", label: "핵심", text: "확인 일자와 담당자를 함께 기록함." },
-    { scope: "body", label: "목적", text: "이 문서는 서식 비교를 위한 고정 합성 업무 자료이며 실제 업무 실적을 나타내지 않음." },
+    { scope: "square", label: "목적", text: "이 문서는 서식 비교를 위한 고정 합성 업무 자료이며 실제 업무 실적을 나타내지 않음." },
     { scope: "summary", label: "요약", text: "문서 수집과 검토 절차를 정비하여 자료의 누락을 줄이고 담당자의 확인 기준을 통일함." },
   ];
   const citationText = (snapshot: Awaited<ReturnType<typeof sharedSampleSnapshot>>) => snapshot.content.paragraphs
@@ -522,15 +871,17 @@ test("REAL rhwp standard designer: selected parenthetical scopes preserve facts 
     }
     expect(snapshot.content.text).toContain("완료여부(필수항목충족시)를기록함.");
   };
-  verifyScopes(initial, scopeOrder);
+  verifyScopes(initial, ["square"]);
   const scopeGroup = page.getByRole("group", { name: "괄호 요약어 표시 위치", exact: true });
   const snapshots: any[] = [];
   const chooseScopes = async (selected: string[]) => {
     await openGroup(page, catalog.fields.find((field: any) => field.key === "body_parenthetical_labels").group);
+    const fold = page.locator(".standard-scope-fold");
+    if (await fold.getAttribute("open") === null) await fold.locator("summary").click();
     for (const key of scopeOrder) await scopeGroup.locator(`input[value="${key}"]`).setChecked(selected.includes(key));
   };
-  for (const selected of [["square", "dot", "body"], ["circle", "dash", "summary"], []]) {
-    const csv = scopeOrder.filter(key => selected.includes(key)).join(",");
+  for (const selected of [["square", "dot"], ["circle", "dash", "summary"], []]) {
+    const csv = scopeCsv(selected);
     await changeSharedSample(page, () => chooseScopes(selected), settings => settings.body_parenthetical_scope === csv);
     const snapshot = await sharedSampleSnapshot(page, observed);
     verifyScopes(snapshot, selected);
@@ -539,7 +890,7 @@ test("REAL rhwp standard designer: selected parenthetical scopes preserve facts 
   await changeSharedSample(page, async () => {
     await chooseScopes(scopeOrder);
     await setCatalogField(page, catalog, "body_parenthetical_labels", false);
-  }, settings => settings.body_parenthetical_scope === scopeOrder.join(",") && !settings.body_parenthetical_labels);
+  }, settings => settings.body_parenthetical_scope === scopeCsv(scopeOrder) && !settings.body_parenthetical_labels);
   const masterOff = await sharedSampleSnapshot(page, observed);
   verifyScopes(masterOff, scopeOrder, false);
   for (const key of scopeOrder) {
@@ -547,12 +898,12 @@ test("REAL rhwp standard designer: selected parenthetical scopes preserve facts 
     await expect(scopeGroup.locator(`input[value="${key}"]`)).toBeDisabled();
   }
   await changeSharedSample(page, () => setCatalogField(page, catalog, "body_parenthetical_labels", true),
-    settings => settings.body_parenthetical_scope === scopeOrder.join(",") && settings.body_parenthetical_labels);
+    settings => settings.body_parenthetical_scope === scopeCsv(scopeOrder) && settings.body_parenthetical_labels);
   const all = await sharedSampleSnapshot(page, observed);
   verifyScopes(all, scopeOrder);
   // Persist a partial choice, so reopening cannot silently turn it into all.
   const finalScope = ["circle", "dash", "summary"];
-  await changeSharedSample(page, () => chooseScopes(finalScope), settings => settings.body_parenthetical_scope === finalScope.join(","));
+  await changeSharedSample(page, () => chooseScopes(finalScope), settings => settings.body_parenthetical_scope === scopeCsv(finalScope));
   const selected = await sharedSampleSnapshot(page, observed);
   verifyScopes(selected, finalScope);
   await writeFile(info.outputPath("selected-scope-sample.hwpx"), selected.bytes);
@@ -562,7 +913,7 @@ test("REAL rhwp standard designer: selected parenthetical scopes preserve facts 
   await page.getByLabel("표준 이름", { exact: true }).fill(`요약어 범위 검증 ${Date.now()}`);
   await submitRegistration(page).click();
   const saved = await (await registering).json();
-  expect(saved.settings.body_parenthetical_scope).toBe(finalScope.join(","));
+  expect(saved.settings.body_parenthetical_scope).toBe(scopeCsv(finalScope));
   expect(saved.preview_sha256).toBe(selected.receipt.preview_sha256);
   const frozen = await (await request.get(`/api/visual-standards/${saved.id}/file`)).body();
   expect(hash(frozen)).toBe(saved.preview_sha256);
@@ -576,7 +927,7 @@ test("REAL rhwp standard designer: selected parenthetical scopes preserve facts 
   await writeFile(info.outputPath("parenthetical-scope-proof.json"), JSON.stringify({ real_engine: true, actual_model_calls: 0,
     sample_sha256: initial.receipt.sample_sha256, independent_scope_pairs: snapshots, master_off_hides_all_without_losing_choices: true,
     facts_conditions_citations_preserved: true, saved_id: saved.id, settings_sha256: saved.settings_sha256,
-    frozen_file_sha256: hash(frozen), reloaded_scope: finalScope.join(",") }, null, 2));
+    frozen_file_sha256: hash(frozen), reloaded_scope: scopeCsv(finalScope) }, null, 2));
 });
 
 test("REAL rhwp standard designer: shared sample fonts, real target highlights and both panes stay usable", async ({ page, request }, info) => {
@@ -623,20 +974,20 @@ test("REAL rhwp standard designer: shared sample fonts, real target highlights a
   await expectWholePreviewPage(page);
   await picker.selectOption("1");
   await expect(page.getByRole("button", { name: "이전 쪽", exact: true })).toBeDisabled();
-  const bodyField = catalog.fields.find((field: any) => field.key === "body_font");
+  const bodyField = catalog.fields.find((field: any) => field.key === "square_font");
   await openGroup(page, bodyField.group);
-  const font = page.getByRole("combobox", { name: fieldLabel(catalog, "body_font"), exact: true });
-  await expect(font).toHaveValue(catalog.defaults.body_font);
-  for (const family of [catalog.defaults.body_font, "Noto Serif KR", "Nanum Gothic"])
+  const font = page.getByRole("combobox", { name: fieldLabel(catalog, "square_font"), exact: true });
+  await expect(font).toHaveValue(catalog.defaults.square_font);
+  for (const family of [catalog.defaults.square_font, "Noto Serif KR", "Nanum Gothic"])
     await expect(font.locator("option").filter({ hasText: new RegExp(`^${family}$`) })).toHaveCount(1);
   const requestsBeforeCustom = observed.requests.length;
   await font.selectOption("__custom__");
-  await expect(page.getByLabel(`${fieldLabel(catalog, "body_font")} 직접 입력`, { exact: true })).toHaveValue(catalog.defaults.body_font);
+  await expect(page.getByLabel(`${fieldLabel(catalog, "square_font")} 직접 입력`, { exact: true })).toHaveValue(catalog.defaults.square_font);
   expect(observed.requests.length).toBe(requestsBeforeCustom);
   const fontProof: any[] = [];
   let snapshot: Awaited<ReturnType<typeof sharedSampleSnapshot>>;
   for (const family of ["Noto Serif KR", "Nanum Gothic"]) {
-    await changeSharedSample(page, () => font.selectOption(family), settings => settings.body_font === family);
+    await changeSharedSample(page, () => font.selectOption(family), settings => settings.square_font === family);
     snapshot = await sharedSampleSnapshot(page, observed);
     expectSharedSampleFacts(snapshot);
     expect(snapshot.content.body_font).toBe(family);
@@ -656,22 +1007,21 @@ test("REAL rhwp standard designer: shared sample fonts, real target highlights a
   const interactionRequests = observed.requests.length, overlayProof: any[] = [];
   for (const target of [
     { key: "title_size_pt", role: "title", text: "문서 관리 개선 계획", trigger: "focus" },
-    { key: "body_font", role: "body", text: "이 문서는 서식 비교를 위한 고정 합성 업무 자료이며 실제 업무 실적을 나타내지 않음.", trigger: "hover" },
+    { key: "square_font", role: "square", text: "이 문서는 서식 비교를 위한 고정 합성 업무 자료이며 실제 업무 실적을 나타내지 않음.", trigger: "hover" },
     { key: "table_header_fill", role: "table", text: "완료 기준", trigger: "focus" },
   ]) {
     await picker.selectOption(String(await picker.locator("option").count()));
+    // A body role can occur on several pages. Show the page whose text we measure;
+    // locating a setting intentionally keeps the current page when it has that role.
+    await picker.selectOption(String(geometry.findIndex(value => value.text.includes(target.text.replace(/\s/g, ""))) + 1));
     const pageBefore = await picker.inputValue();
     const field = catalog.fields.find((field: any) => field.key === target.key);
     await openGroup(page, field.group);
     const control = page.getByLabel(fieldLabel(catalog, target.key), { exact: true });
     await page.mouse.move(1350, 20);
     if (target.trigger === "hover") await control.hover(); else await control.focus();
-    await expect(page.locator(".standard-setting-impact")).toHaveAttribute("data-setting-key", target.key);
+    await expect(page.getByRole("tooltip")).toHaveAttribute("data-setting-key", target.key);
     const windowBefore = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
-    const locate = page.getByRole("button", { name: "예시에서 위치 보기", exact: true });
-    await locate.hover();
-    await expect(page.locator(".standard-setting-impact")).toHaveAttribute("data-setting-key", target.key);
-    await locate.click();
     const rectangles = page.locator(`.standard-region-highlight rect[data-setting-key="${target.key}"][data-target-role="${target.role}"]`);
     await expect.poll(() => rectangles.count()).toBeGreaterThan(0);
     const actual = await rectangles.evaluateAll(nodes => nodes.map(node => ({ page: Number(node.getAttribute("data-page-index")),
@@ -745,49 +1095,19 @@ test("REAL rhwp standard designer: shared sample fonts, real target highlights a
     left_margin_mm: 30, actual_hwpx_left_margin: actualMargin, margin_bands: bands,
     final_preview_sha256: marginSample.receipt.preview_sha256 }, null, 2));
 });
-test("REAL rhwp standard designer: locating a target stays stable after scrolling in actual and fit views", async ({ page, request }) => {
+test("REAL rhwp standard designer: hover help does not jump pages or scroll the document", async ({ page, request }) => {
   await page.setViewportSize({ width: 876, height: 560 });
   await openDesigner(page);
-  const catalog = await (await request.get("/api/visual-standards")).json();
-  const field = catalog.fields.find((item: any) => item.key === "table_header_fill");
-  await openGroup(page, field.group);
-  await page.getByLabel(fieldLabel(catalog, field.key), { exact: true }).focus();
-  const locate = page.getByRole("button", { name: "예시에서 위치 보기", exact: true });
-  await locate.click();
   const pane = page.locator(".standard-preview-pages");
-  const highlight = pane.locator(`.standard-region-highlight rect[data-setting-key="${field.key}"]`).first();
-  await expect(highlight).toBeVisible();
-  const originalPage = await pane.getAttribute("data-page-index");
-  const zoom = page.getByRole("group", { name: "미리보기 확대", exact: true });
-  const scrollPosition = () => pane.evaluate(element => ({ top: element.scrollTop, left: element.scrollLeft }));
-
-  for (const [mode, width] of [["100%", 876], ["폭 맞춤", 1366]] as const) {
-    await page.setViewportSize({ width, height: 560 });
-    await zoom.getByRole("button", { name: mode, exact: true }).click();
-    await pane.evaluate(element => element.scrollTo(0, 0));
-    await locate.click();
-    const canonical = await scrollPosition();
-    if (mode === "100%") expect(canonical.top > 0 || canonical.left > 0,
-      "The target needs scrolling, so repeating locate cannot pass only by clamping to zero").toBe(true);
-    const position = await highlight.boundingBox();
-    expect(position).not.toBeNull();
-
-    await pane.evaluate(element => element.scrollTo(element.scrollWidth, element.scrollHeight));
-    expect((await scrollPosition()).top).toBeGreaterThan(0);
-    for (let repeat = 0; repeat < 2; repeat++) {
-      await locate.click();
-      await expect.poll(async () => {
-        const current = await scrollPosition();
-        return Math.max(Math.abs(current.top - canonical.top), Math.abs(current.left - canonical.left));
-      }).toBeLessThanOrEqual(1);
-      await expect(pane).toHaveAttribute("data-page-index", originalPage!);
-      const located = (await highlight.boundingBox())!, viewport = (await pane.boundingBox())!;
-      expect(located.y).toBeCloseTo(position!.y, 0);
-      expect(located.x).toBeCloseTo(position!.x, 0);
-      expect(located.y).toBeGreaterThanOrEqual(viewport.y);
-      expect(located.y + located.height).toBeLessThanOrEqual(viewport.y + viewport.height);
-    }
-  }
+  const pageBefore = await pane.getAttribute("data-page-index");
+  await page.getByRole("button", { name: "100%", exact: true }).click();
+  await pane.evaluate(element => element.scrollTop = 120);
+  await openGroup(page, "표 구조");
+  await page.locator('[data-setting-group="표 구조"] .standard-group-toggle').hover();
+  await expect(page.getByRole("tooltip")).toContainText("표 구조");
+  expect(await pane.getAttribute("data-page-index")).toBe(pageBefore);
+  expect(await pane.evaluate(element => element.scrollTop)).toBe(120);
+  await expect(page.getByRole("button", { name: "예시에서 위치 보기" })).toHaveCount(0);
 });
 
 type SampleBox = { left: number; top: number; right: number; bottom: number };
@@ -1272,13 +1592,13 @@ test("REAL rhwp standard designer: settings change the sample and immutable regi
   await expect(page.getByLabel(`${labelField.group} ${labelField.label}`, { exact: true })).not.toBeChecked();
   await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
   await restoreDefaults(page);
-  await expect(page.getByLabel(fieldLabel(fullCatalog, "body_size_pt"), { exact: true })).toHaveValue(String(fullCatalog.defaults.body_size_pt));
+  await expect(page.getByLabel(fieldLabel(fullCatalog, "square_size_pt"), { exact: true })).toHaveValue(String(fullCatalog.defaults.square_size_pt));
   await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
   await page.getByLabel("설정 찾기", { exact: true }).fill(fullCatalog.fields.find((field: any) => field.key === "page_number_style").group);
-  expect(await page.locator(".standard-setting-group").count()).toBeGreaterThan(0);
-  await expect(page.getByLabel(fieldLabel(fullCatalog, "body_size_pt"), { exact: true })).toHaveCount(0);
+  expect(await page.locator(".standard-setting-section").count()).toBeGreaterThan(0);
+  await expect(page.getByLabel(fieldLabel(fullCatalog, "square_size_pt"), { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "설정 검색 지우기", exact: true }).click();
-  await expect(page.getByLabel(fieldLabel(fullCatalog, "body_size_pt"), { exact: true })).toHaveCount(1);
+  await expect(page.getByLabel(fieldLabel(fullCatalog, "square_size_pt"), { exact: true })).toHaveCount(1);
   await page.setViewportSize({ width: 400, height: 760 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(400);
   await expectDesignerScrollContained(page);
@@ -1317,7 +1637,7 @@ test("REAL rhwp standard designer: stale preview cannot register and invalid val
   await page.getByLabel("본문 글자 크기", { exact: true }).fill("18.0");
   await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
   const settledSources = await page.locator(".standard-preview-pages figure img").evaluateAll(elements => elements.map(element => (element as HTMLImageElement).src));
-  await page.getByLabel("본문 글자 크기", { exact: true }).fill("99");
+  await page.getByLabel("본문 글자 크기", { exact: true }).fill("");
   await expect(registerButton(page)).toBeDisabled();
   await expect(page.getByRole("alert")).toContainText("범위의 수치");
   expect(await page.locator(".standard-preview-pages figure img").evaluateAll(elements => elements.map(element => (element as HTMLImageElement).src))).toEqual(settledSources);
@@ -1379,7 +1699,6 @@ test("REAL rhwp standard designer: original rules, three presets, full reference
   expect(catalog.presets).toHaveLength(3);
   expect(catalog.presets.every((preset: any) => preset.revision === 3 && preset.base_standard.reference_sha256 === hash(originalFile))).toBe(true);
   expect(catalog.rules.length).toBeGreaterThan(0);
-  await page.getByRole("tab", { name: "상세 설정", exact: true }).click();
   for (const field of catalog.fields.filter((field: any) => field.key !== "preset_id"))
     await expect(page.getByLabel(`${field.group} ${field.label}`, { exact: true })).toHaveCount(1);
   const ruleFields = catalog.fields.filter((field: any) => field.type === "textarea");

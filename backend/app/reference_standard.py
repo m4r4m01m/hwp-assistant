@@ -18,6 +18,7 @@ from .document_standard import HP, HH, HC, load_standard, normalize_no_fill
 from .hwpx import digest, validate
 from .report_contract import ReportValue, citation_marker, citation_style_for_scope, validate_parenthetical_scope
 from . import reference_source as source
+from .standard_policy import BODY_ROLES, HEADING_ROLES, OPTIONAL_KEYS, validate_roles, line_fields
 
 PRESETS = {
     "appendix-1": ("별첨 1 · 표지·목차 없는 보고서", "문서표지 및 목차가 불필요한 경우의 원문 구성", 81, 106),
@@ -41,14 +42,14 @@ NATIVE_PREVIEW_DEFAULTS = {
     "unit_horizontal_align": "RIGHT",
 }
 ROLE_LABELS = {
-    "title": "본문 문서 제목", "heading": "대제목 · 첫째 항목", "subheading": "중제목 · 둘째 항목",
-    "minor_heading": "소제목 · 셋째 항목", "body": "일반 본문", "source": "참고·출처", "note": "본문 주석",
+    "title": "문서 제목", "heading": "문단 구분 · 1단계", "subheading": "문단 구분 · 2단계",
+    "minor_heading": "문단 구분 · 3단계", "body": "일반 본문", "source": "참고·출처", "note": "본문 주석",
     "caption": "표·그림 제목", "unit": "표·그림 단위", "table": "표 내용",
     "table_source": "표·그림 아래 주석", "cover_title": "표지 제목", "cover_date": "표지 일자",
-    "cover_department": "표지 부서명", "toc_title": "목차 제목", "toc_major": "목차 첫째 항목",
-    "toc_minor": "목차 둘째 항목", "attachment": "붙임·별첨 제목", "square": "□ 기호 항목",
-    "circle": "ㅇ 기호 항목", "dash": "- 기호 항목", "dot": "․ 기호 항목",
-    "numbered_4": "넷째 번호 항목", "numbered_5": "다섯째 번호 항목", "numbered_6": "여섯째 번호 항목",
+    "cover_department": "표지 부서명", "toc_title": "목차 제목", "toc_major": "목차 · 1단계 제목",
+    "toc_minor": "목차 · 2단계 제목", "attachment": "붙임·별첨 제목", "square": "문단 내용 · □ 항목",
+    "circle": "문단 내용 · ㅇ 항목", "dash": "문단 내용 · - 항목", "dot": "문단 내용 · ․ 항목",
+    "numbered_4": "문단 구분 · 4단계", "numbered_5": "문단 구분 · 5단계", "numbered_6": "문단 구분 · 6단계",
 }
 SUFFIXES = {
     "font": ("글꼴", "text", None, None, None, ""),
@@ -198,7 +199,7 @@ def _catalog():
         _choice("emphasis_color", "선택 강조 색", "글자 강조", "#0000FF", [("#0000FF", "파랑"), ("#FF0000", "빨강")], help="원문에서 허용한 빨강 또는 파랑 중 한 가지를 선택합니다."),
         _choice("page_number_style", "면 표시 형식", "면 표시·주석", "DASH", [("DASH", "- 1 -"), ("PAGE_TOTAL", "일련번호 / 전체면수"), ("PLAIN", "1"), ("NONE", "없음")]),
         _choice("page_number_position", "면 표시 위치", "면 표시·주석", "BOTTOM_CENTER", [("BOTTOM_LEFT", "아래 왼쪽"), ("BOTTOM_CENTER", "아래 가운데"), ("BOTTOM_RIGHT", "아래 오른쪽")]),
-        _choice("citation_style", "주석 표식", "면 표시·주석", "AUTO", [("AUTO", "자동 · 1개 *, 2개 이상 주1)"), ("STARS", "별표 고정 · *, **, ***"), ("NOTE", "번호 고정 · 주1), 주2)")],
+        _choice("citation_style", "주석 표식", "면 표시·주석", "AUTO", [("AUTO", "자동 · 1개 *, 2개 이상 주1)"), ("STARS", "별표 고정 · *, **, ***"), ("NOTE", "번호 고정 · 주1), 주2)"), ("NOTE_SHORT", "번호 축약 · 주1), 2)")],
                 help="자동은 같은 문단·표·도식의 서로 다른 주석이 1개면 *, 2개 이상이면 첫 주석부터 주1), 주2)로 표시합니다. 같은 출처의 반복 인용은 하나로 세며 다음 단위에서 다시 시작합니다."),
         dict(key="citation_superscript", label="본문 주석 표식 윗첨자", group="면 표시·주석", type="boolean", unit="", default=True),
         dict(key="body_parenthetical_labels", label="괄호 요약어", group="문서 구성", type="boolean", unit="", default=False,
@@ -208,9 +209,9 @@ def _catalog():
         _choice("numbering_style", "본문 항목 구성", "항목 번호·기호", "BULLETS", [("BULLETS", "기호 항목"), ("NUMBERED", "번호 항목")]),
     ])
     for index, value in enumerate(("1.", "가.", "(1)", "(가)", "①", "㉮"), 1):
-        fields.append(dict(key=f"numbered_{index}_marker", label=f"{index}째 번호 표식", group="항목 번호·기호", type="text", unit="", default=value, min_length=1, max_length=16))
+        fields.append(dict(key=f"numbered_{index}_marker", label="번호 표시", group=ROLE_LABELS[{1: "heading", 2: "subheading", 3: "minor_heading"}.get(index, f"numbered_{index}")], type="text", unit="", default=value, min_length=1, max_length=16))
     for key, value in (("square", "□"), ("circle", "ㅇ"), ("dash", "-"), ("dot", "․")):
-        fields.append(dict(key=f"bullet_{key}_marker", label=value + " 항목 표식", group="항목 번호·기호", type="text", unit="", default=value, min_length=1, max_length=16))
+        fields.append(dict(key=f"bullet_{key}_marker", label="기호 표시", group=ROLE_LABELS[key], type="text", unit="", default=value, min_length=1, max_length=16))
     rules_by_id = {rule["id"]: rule for rule in rules()}
     for key, rule_id in (("scope_rule", "scope"), ("principles_rule", "principles"), ("number_rule", "number"),
                          ("date_rule", "date"), ("time_rule", "time"), ("punctuation_rule", "punctuation"),
@@ -227,7 +228,7 @@ def field_catalog():
     for field in fields:
         if field["key"] in NATIVE_PREVIEW_DEFAULTS:
             field["default"] = NATIVE_PREVIEW_DEFAULTS[field["key"]]
-    return fields
+    return fields + line_fields()
 
 
 def defaults(preset_id="appendix-1"):
@@ -249,13 +250,28 @@ class _SettingsBase(ReportValue):
     # field must keep every historical settings hash and frozen retry unchanged.
     preview_layout_policy: Literal["NATIVE_V1"] | None = None
     body_parenthetical_scope: str | None = Field(default=None, max_length=64)
+    enabled_body_roles: str | None = None
+    enabled_heading_roles: str | None = None
+    heading_structure_policy: Literal["CONTENT_V1"] | None = None
+    line_break_unit: Literal["ORIGINAL", "WORD", "CHARACTER"] | None = None
+    line_space_policy: Literal["ORIGINAL", "NONE", "TIGHT", "TIGHTER"] | None = None
+    body_tracking_percent: int | None = Field(default=None, strict=True, ge=-20, le=50)
+    cover_mode: Literal["ORIGINAL", "OFF", "ON"] | None = None
+    toc_mode: Literal["ORIGINAL", "NONE", "SEPARATE", "COVER"] | None = None
+    reference_list: Literal["LOCAL", "ALL"] | None = None
+    table_anchor_role: Literal["PAGE", "square", "circle", "dash", "dot", "note"] | None = None
+    table_anchor_percent: int | None = Field(default=None, strict=True, ge=0, le=100)
+    citation_note_abbreviated: bool | None = Field(default=None, strict=True)
+
+    _body_roles = field_validator("enabled_body_roles", mode="before")(lambda value: validate_roles(value, BODY_ROLES))
+    _heading_roles = field_validator("enabled_heading_roles", mode="before")(lambda value: validate_roles(value, HEADING_ROLES))
 
     _scope = field_validator("body_parenthetical_scope", mode="before")(validate_parenthetical_scope)
 
     @model_serializer(mode="wrap")
     def preserve_legacy_settings(self, handler):
         value = handler(self)
-        for key in ("preview_layout_policy", "body_parenthetical_scope"):
+        for key in ("preview_layout_policy", "body_parenthetical_scope", *OPTIONAL_KEYS):
             if value.get(key) is None:
                 value.pop(key, None)
         return value
@@ -286,6 +302,11 @@ class _SettingsBase(ReportValue):
             raise ValueError("용지 너비보다 좌우 여백이 큽니다.")
         if value["margin_top_mm"] + value["margin_bottom_mm"] + 30 > value["page_height_mm"]:
             raise ValueError("용지 높이보다 위아래 여백이 큽니다.")
+        if value.get("table_anchor_role", "PAGE") != "PAGE":
+            from .standard_policy import table_geometry
+            _, width = table_geometry(value, (value["page_width_mm"] - value["margin_left_mm"] - value["margin_right_mm"]) * 72 / 25.4)
+            if width < 30:
+                raise ValueError("표 들여쓰기를 줄이거나 용지 본문 폭을 넓히세요. 표 폭이 30pt보다 작습니다.")
         return self
 
 

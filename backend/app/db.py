@@ -3,6 +3,7 @@ from sqlalchemy import (
     create_engine,
     String,
     Integer,
+    Boolean,
     Float,
     ForeignKey,
     UniqueConstraint,
@@ -26,6 +27,14 @@ class AuthSession(Base):
     expires_at: Mapped[float] = mapped_column(Float, index=True)
     last_seen_at: Mapped[float] = mapped_column(Float)
     revoked_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class AIConnectionSetup(Base):
+    """Non-secret onboarding receipt; never changes providers or document content."""
+    __tablename__ = "ai_connection_setup"
+    user_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    choice: Mapped[str] = mapped_column(String(16))
+    updated_at: Mapped[float] = mapped_column(Float)
 
 
 class Document(Base):
@@ -149,6 +158,24 @@ class VisualStandard(Base):
     storage_key: Mapped[str] = mapped_column(String(100), unique=True)
     size: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[float] = mapped_column(Float)
+
+
+class VisualStandardState(Base):
+    __tablename__ = "visual_standard_state"
+    standard_id: Mapped[str] = mapped_column(ForeignKey("visual_standards.id"), primary_key=True)
+    replacement_id: Mapped[str | None] = mapped_column(ForeignKey("visual_standards.id"), nullable=True)
+    hidden: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class DesignFragment(Base):
+    __tablename__ = "design_fragments"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    owner_id: Mapped[str] = mapped_column(String(80), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    kind: Mapped[str] = mapped_column(String(20))
+    settings: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[float] = mapped_column(Float)
+    hidden: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class Proposal(Base):

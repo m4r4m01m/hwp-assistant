@@ -568,6 +568,8 @@ def create_app(database_url=None, storage_dir=None):
     from .reports import install_reports
     install_reports(app, publish, check_lease, doc_dict)
     install_capabilities(app)
+    from .ai_connection import install_ai_connection
+    install_ai_connection(app)
     app.add_middleware(RequestTelemetry, runtime=app)
     return app
 

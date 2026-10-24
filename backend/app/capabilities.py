@@ -1,6 +1,7 @@
 """Cheap feature availability; never contact a model or infer connectivity from config."""
 import os
 import re
+import shutil
 from fastapi import HTTPException, Request
 from . import codex_runner
 from .llm import OpenAICompatible
@@ -48,7 +49,7 @@ def codex_feature(user, *, stream=False):
     except HTTPException:
         return feature(False, allowed, "invalid_configuration",
                        "서버의 Codex 연결 설정을 확인해야 합니다. 관리자에게 문의하세요.", stream=stream)
-    if not settings.executable:
+    if not codex_executable_available(settings.executable):
         return feature(False, allowed, "codex_not_installed",
                        "서버에 Codex 실행기가 준비되지 않았습니다. 문서 편집과 저장은 사용할 수 있습니다.", stream=stream)
     if not allowed:
@@ -57,13 +58,31 @@ def codex_feature(user, *, stream=False):
     return feature(True, True, message="Codex 실행기가 설정되어 있습니다. 로그인 상태는 실행 시 확인합니다.", stream=stream)
 
 
+def codex_executable_available(executable):
+    """Check the configured executable only; never start it or inspect credentials."""
+    return bool(executable and shutil.which(executable))
+
+
+def provider_feature(user, provider):
+    if provider == "llm":
+        return http_feature(user)
+    if provider == "codex":
+        return codex_feature(user)
+    return feature(False, False, "invalid_configuration", "AI 실행기 설정을 확인하세요.")
+
+
+def feature_statuses(user):
+    """Same cheap configuration facts for the capability and connection screens."""
+    http = http_feature(user)
+    return {
+        "rewrite": provider_feature(user, os.getenv("HWP_REWRITE_PROVIDER", "codex")),
+        "document_assistant": provider_feature(user, os.getenv("HWP_DOCUMENT_ASSISTANT_PROVIDER",
+                                                               os.getenv("HWP_REWRITE_PROVIDER", "codex"))),
+        "chat": http, "review": http, "reports": codex_feature(user, stream=True),
+    }
+
+
 def install_capabilities(app):
     @app.get("/api/capabilities")
     def capabilities(request: Request):
-        user = request.state.user
-        http = http_feature(user)
-        provider = os.getenv("HWP_REWRITE_PROVIDER", "codex")
-        rewrite = (http if provider == "llm" else codex_feature(user) if provider == "codex" else
-                   feature(False, False, "invalid_configuration", "문체 개선 실행기 설정을 확인하세요."))
-        return {"features": {"rewrite": rewrite, "chat": http, "review": http,
-                             "reports": codex_feature(user, stream=True)}}
+        return {"features": feature_statuses(request.state.user)}

@@ -1,3 +1,4 @@
+from .standard_policy import cover_enabled, toc_mode
 """Reference-standard formatting for newly requested reports (revision 3 only)."""
 import copy
 import json
@@ -118,6 +119,7 @@ def numbered_marker(pattern, index, *, fallback=None):
 
 def body_item(text, settings, counters, *, apply_numbered_markers=False):
     """Resolve structural tokens before freezing text; never change claim prose."""
+    from .standard_policy import enabled_role, HEADING_ROLES
     match = re.match(r"^([□ㅇ○\-․])\s+", text)
     if not match:
         for pattern, role in ((r"^[가-하]\.\s", "subheading"), (r"^(?:\(\d+\)|\d+\))\s", "minor_heading"),
@@ -139,7 +141,8 @@ def body_item(text, settings, counters, *, apply_numbered_markers=False):
                     index = ord(token) - ord("㉮") + 1
                 else:
                     return text, role
-                level = {"subheading": 2, "minor_heading": 3, "numbered_4": 4, "numbered_5": 5, "numbered_6": 6}[role]
+                role = enabled_role(role, settings)
+                level = HEADING_ROLES.index(role) + 1
                 marker = numbered_marker(settings[f"numbered_{level}_marker"], index, fallback=original_marker)
                 if marker == original_marker:
                     return text, role
@@ -148,13 +151,15 @@ def body_item(text, settings, counters, *, apply_numbered_markers=False):
                 return text, role
         return text, "body"
     level = {"□": 0, "ㅇ": 1, "○": 1, "-": 2, "․": 3}[match[1]]
+    body_roles = ("square", "circle", "dash", "dot")
+    level = body_roles.index(enabled_role(body_roles[level], settings))
     counters[level] += 1
     counters[level + 1:] = [0] * (3 - level)
     if settings["numbering_style"] == "NUMBERED":
         marker = numbered_marker(settings[f"numbered_{level + 2}_marker"], counters[level])
         role = ("subheading", "minor_heading", "numbered_4", "numbered_5")[level]
     else:
-        role = ("square", "circle", "dash", "dot")[level]
+        role = enabled_role(("square", "circle", "dash", "dot")[level], settings)
         marker = settings[f"bullet_{role}_marker"]
     return marker + " " + text[match.end():], role
 
@@ -294,9 +299,25 @@ def arrange_report(header, section, settings, *, plan=None):
         if has_toc_layout(plan):
             raw["toc_layout"] = plan[0]["toc_layout"]
         marker.set("engName", json.dumps(raw, ensure_ascii=False, sort_keys=True))
-    if settings["preset_id"] == "appendix-1":
+    if not cover_enabled(settings):
         if has_title_layout(plan):
             arrange_source_title(header, section, settings, overflow_padding=has_title_overflow(plan))
+        if toc_mode(settings) != "NONE":
+            # Explicit empty anchor before the title frame; the frame itself is
+            # an object and cannot satisfy the TOC's plain-text preimage fence.
+            anchor = copy.deepcopy(section[0])
+            cid = anchor.find(f"{{{HP}}}run").get("charPrIDRef")
+            for child in list(anchor):
+                anchor.remove(child)
+            E.SubElement(E.SubElement(anchor, f"{{{HP}}}run", dict(charPrIDRef=cid)), f"{{{HP}}}t")
+            styles = header.find(f".//{{{HH}}}styles")
+            marker = copy.deepcopy(styles[0])
+            marker.attrib.update(name=TOC_ANCHOR_STYLE, engName=TOC_ANCHOR_STYLE,
+                                 charPrIDRef=cid, paraPrIDRef=anchor.get("paraPrIDRef"))
+            serial = max((int(e.get("id")) for e in section.iter() if (e.get("id") or "").isdigit()), default=980000) + 1
+            anchor.attrib.update(id=str(serial), pageBreak="0", styleIDRef=append_style(styles, marker))
+            section[1].set("pageBreak", "1")
+            section.insert(1, anchor)
         return
     if has_cover_layout(plan):
         arrange_source_cover(header, section, settings, plan)
@@ -484,11 +505,11 @@ def arrange_source_cover(header, section, settings, plan):
         cid = run.get("charPrIDRef")
         for child in list(node): node.remove(child)
         E.SubElement(E.SubElement(node, f"{{{HP}}}run", dict(charPrIDRef=cid)), f"{{{HP}}}t")
-        node.attrib.update(pageBreak="1" if settings["preset_id"] == "appendix-2" else "0", columnBreak="0")
+        node.attrib.update(pageBreak="1" if toc_mode(settings) == "SEPARATE" else "0", columnBreak="0")
         return identity(marker(node, TOC_ANCHOR_STYLE))
 
     def title_box(title):
-        index = 112 if settings["preset_id"] == "appendix-2" else 132
+        index = 132 if toc_mode(settings) == "COVER" else 112
         host = blank(index)
         host.set("styleIDRef", "0")
         return identity(source_title_box(header, section, title, settings, host, index, "cover", overflow_padding=has_title_overflow(plan)))
@@ -509,10 +530,10 @@ def arrange_source_cover(header, section, settings, plan):
     body[0].set("pageBreak", "1")
     date = cover_nodes.get("cover_date")
     department = cover_nodes.get("cover_department")
-    if settings["preset_id"] == "appendix-2":
+    if toc_mode(settings) != "COVER":
         cover = [blank(111), title_box(title), blank(113), date if date is not None else blank(114, "cover_date")]
         cover.extend(blank(i) for i in range(115, 124))
-        cover.extend([department if department is not None else blank(124, "cover_department"), anchor()])
+        cover.extend([department if department is not None else blank(124, "cover_department"), *([anchor()] if toc_mode(settings) != "NONE" else [])])
     else:
         cover = [blank(131), title_box(title), blank(133), date if date is not None else blank(134, "cover_date"),
                  blank(135), anchor(), blank(137), department if department is not None else blank(138, "cover_department")]

@@ -29,7 +29,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Engine verification failed; no services were s
 
 $children = [Collections.Generic.List[object]]::new()
 $ports = [Collections.Generic.HashSet[int]]::new()
-$environmentNames = @('DATABASE_URL','STORAGE_DIR','HWP_AUTH_TOKENS','HWP_LEGACY_OWNER','HWP_CODEX_USER',
+$environmentNames = @('DATABASE_URL','STORAGE_DIR','HWP_AUTH_TOKENS','HWP_LEGACY_OWNER','HWP_CODEX_USER','HWP_LOCAL_AI_SETUP',
   'HWP_REWRITE_PROVIDER','HWP_REWRITE_MAX_ACTIVE','LLM_PROVIDER','LLM_BASE_URL','LLM_MODEL','LLM_API_KEY','LLM_TIMEOUT_SECONDS',
   'HWP_E2E_URL','HWP_E2E_AUTH_URL','HWP_E2E_LOCAL_URL','HWP_E2E_MOCK_URL','HWP_E2E_SOAK_SECONDS','HWP_E2E_CONTEXT_SOAK','HWP_E2E_REPORT_MOCK','HWP_REPORT_FIXTURES','PYTHONPATH','NO_COLOR','FORCE_COLOR')
 $savedEnvironment = @{}
@@ -126,6 +126,7 @@ try {
     $env:HWP_AUTH_TOKENS = if ($kind -eq 'auth') { '{"alice":"alice-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","bob":"bob-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","eve":"eve-eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"}' } else { '' }
     $env:HWP_CODEX_USER = if ($kind -eq 'auth') { 'alice' } elseif ($kind -eq 'local') { 'not-local' } else { 'local' }
     $env:HWP_REWRITE_PROVIDER = if ($kind -eq 'local') { 'llm' } else { 'codex' }
+    $env:HWP_LOCAL_AI_SETUP = '0'
     # The existing general suite explicitly verifies that editing works without AI.
     $env:LLM_PROVIDER = if ($kind -eq 'local') { 'openai-compatible' } else { '' }
     $env:LLM_BASE_URL = if ($kind -eq 'local') { "http://127.0.0.1:$mockPort/v1" } else { '' }

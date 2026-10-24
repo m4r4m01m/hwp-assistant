@@ -1,0 +1,46 @@
+.ai-connection-dialog {
+  width: min(640px, calc(100vw - 32px)); max-width: none; max-height: min(800px, calc(100dvh - 32px));
+  margin: auto; padding: 0; border: 1px solid #d5e0ea; border-radius: 16px;
+  color: #29435b; background: #fff; box-shadow: 0 24px 80px #112c4840; overflow: hidden;
+}
+.ai-connection-dialog[open] { display: flex; flex-direction: column; }
+.ai-connection-dialog::backdrop { background: #19324c66; }
+.ai-connection-header { display: flex; align-items: center; justify-content: space-between; flex: 0 0 auto; gap: 16px; padding: 22px 26px 17px; border-bottom: 1px solid #e2e9f0; }
+.ai-connection-header .ai-connection-eyebrow { margin: 0 0 5px; color: #71859a; font-size: 11px; }
+.ai-connection-header h2 { margin: 0; color: #203b55; font-size: 21px; line-height: 1.5; }
+.ai-connection-header h2:focus { outline: none; }
+.ai-connection-dialog button { min-height: 38px; padding: 8px 13px; font-size: 12px; line-height: 1.5; border-radius: 7px; }
+.ai-connection-dialog button:focus-visible, .ai-connection-dialog a:focus-visible { outline: 2px solid #3e83bc; outline-offset: 3px; }
+.ai-connection-dialog .ai-connection-close { border-color: transparent; background: transparent; color: #62798e; }
+.ai-connection-content { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 20px 26px 24px; font-size: 13px; line-height: 1.7; }
+.ai-connection-description { margin: 0 0 18px; color: #5d7286; word-break: keep-all; }
+.ai-connection-status { padding: 16px 18px; background: #f5f8fc; border: 1px solid #e0e8f1; border-radius: 10px; }
+.ai-connection-status-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.ai-connection-dialog h3 { margin: 0; font-size: 14px; line-height: 1.6; color: #29465f; }
+.ai-connection-status p { margin: 10px 0; }
+.ai-connection-badge { padding: 3px 8px; border-radius: 5px; background: #e7edf5; color: #526a81; font-size: 11px; }
+.ai-connection-badge.is-verified { color: #246048; background: #e1f1e9; }
+.ai-connection-check { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.ai-connection-dialog .ai-connection-muted { color: #758699; font-size: 11px; }
+.ai-connection-dialog .ai-connection-help { margin: 13px 0 0; padding-top: 12px; border-top: 1px solid #dfe7ef; color: #62778b; font-size: 12px; }
+.ai-connection-dialog a { color: #225f98; text-underline-offset: 3px; white-space: nowrap; }
+.ai-connection-dialog code { color: #3f5970; background: #e7edf4; padding: 1px 4px; border-radius: 3px; }
+.ai-connection-features { margin-top: 23px; }
+.ai-connection-features ul { margin: 9px 0; padding: 0; list-style: none; }
+.ai-connection-features li { display: grid; grid-template-columns: minmax(120px, .85fr) minmax(0, 1.4fr); gap: 16px; padding: 12px 0; border-bottom: 1px solid #edf1f5; }
+.ai-connection-features li strong { display: block; font-size: 12px; font-weight: 600; }
+.ai-connection-features li span { color: #8090a0; font-size: 11px; }
+.ai-connection-features li b { color: #8b7353; font-size: 11px; font-weight: 550; }
+.ai-connection-features li b.is-configured { color: #53738b; }
+.ai-connection-features li p { margin: 2px 0 0; color: #758699; font-size: 11px; overflow-wrap: anywhere; }
+.ai-connection-error { margin-top: 16px; padding: 12px 14px; border: 1px solid #edc9c4; border-radius: 8px; background: #fff6f4; color: #9a4036; font-size: 12px; }
+.ai-connection-error p { margin: 0 0 8px; }
+.ai-connection-actions { display: flex; justify-content: flex-end; gap: 9px; flex: 0 0 auto; padding: 16px 26px; border-top: 1px solid #e2e9f0; background: #fbfcfe; }
+@media (max-width: 540px) {
+  .ai-connection-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); border-radius: 12px; }
+  .ai-connection-header { padding: 17px 18px 13px; }
+  .ai-connection-content { padding: 16px 18px; }
+  .ai-connection-actions { padding: 13px 18px; flex-wrap: wrap; }
+  .ai-connection-status { padding: 13px; }
+  .ai-connection-features li { grid-template-columns: minmax(95px, .8fr) minmax(0, 1.2fr); gap: 10px; }
+}

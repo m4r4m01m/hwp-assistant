@@ -18,7 +18,7 @@ from .collaboration import NewContext
 from .db import Access, Application, Conversation, RewriteCandidate, RewriteTask, Version, transaction
 from .hwpx import digest
 from .llm import OpenAICompatible
-from .capabilities import require_llm_access, llm_allowed
+from .capabilities import require_llm_access, llm_allowed, codex_executable_available
 from .rewrite_contract import CandidateInput, CandidatePair, PROMPT_CONTRACT
 from .rewrite_capacity import ExecutionSlot, configured_capacity
 from .rewrite_context import freeze_context, frozen_context, context_stale, generation_input, input_hash, CONTEXT_PROMPT_CONTRACT
@@ -162,9 +162,10 @@ def install_rewrite(app, check_lease):
         try:
             provider, client = configured_generator()
             allowed = llm_allowed(request.state.user) if provider == "llm" else request.state.user == os.getenv("HWP_CODEX_USER", "local")
+            configured = provider != "codex" or codex_executable_available(client.executable)
             return {"provider": provider, "model": client.model if client else None,
-                    "configured": True, "allowed": allowed, "context_used": False, "supports_writing_context": True,
-                    "reason": "" if allowed else "이 서버의 본인 Codex 계정에 연결된 사용자만 실행할 수 있습니다."}
+                    "configured": configured, "allowed": allowed and configured, "context_used": False, "supports_writing_context": True,
+                    "reason": "설치된 Codex CLI가 필요합니다." if not configured else "" if allowed else "이 서버의 본인 Codex 계정에 연결된 사용자만 실행할 수 있습니다."}
         except HTTPException as exc:
             return {"provider": os.getenv("HWP_REWRITE_PROVIDER", "codex"), "model": None,
                     "configured": False, "allowed": False, "context_used": False, "reason": str(exc.detail)}

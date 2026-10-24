@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { DesignLibrary } from "./design-library";
+import "./standard-designer.css";
 import { api, ApiError, downloadFile, errorMessage, isAbortError, jsonRequest, type Document, type Version } from "./api";
 import { EditorAdapter } from "./editor";
 import { previewSvg } from "./preview-svg";
@@ -157,7 +159,7 @@ function PinnedPreview({ item, cache }: {
   </section>;
 }
 
-export function TemplateMarket({
+function DocumentTemplateMarket({
   onClose,
   onApply,
   onReport,
@@ -860,4 +862,10 @@ export function TemplateMarket({
       </div>
     </main></div>
   );
+}
+
+export function TemplateMarket(props: Parameters<typeof DocumentTemplateMarket>[0]) {
+  const [documents, setDocuments] = useState(!!props.registerDocument);
+  if (documents) return <><button className="market-design-return" onClick={() => setDocuments(false)}>← 표·제목 디자인 보관함</button><DocumentTemplateMarket {...props} /></>;
+  return <div className="workspace-shell"><WorkspaceNav active="templates" onNavigate={props.onNavigate} onBack={props.onClose} backLabel="← 문서함" /><main className="design-library-page"><h1>양식 보관함</h1><p>자주 쓰는 표와 제목 디자인을 모아 두세요.</p><div className="market-actions"><button onClick={props.onDesignStandard}>표준 편집에서 디자인 만들기·적용</button><button onClick={() => setDocuments(true)}>기존 문서 양식</button></div><DesignLibrary /><p>기존 문서 양식은 등록 당시 문서 전체로 새 문서를 만드는 기능입니다. 표·제목 디자인은 표준 편집에서 현재 서식의 일부만 바꿉니다.</p></main></div>;
 }

@@ -1,0 +1,44 @@
+{
+  "date": "2026-10-24",
+  "result": "passed",
+  "scope": "Zero-width hidden navigation with edge overlay; continuous page wheel; group favorites and usage; conditional parenthetical labels; group hover help; optional native line-fill controls",
+  "source_head": "1b4e1a054c47e4ee4087b3f8cea1b0cfadf032e5",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "tests": {
+    "backend": {
+      "passed": 121,
+      "files": ["test_reference_standard.py", "test_standard_samples.py", "test_parenthetical_scope.py", "test_reference_report.py", "test_standard_policy.py"]
+    },
+    "real_rhwp_e2e": {
+      "unique_scenarios_passed": 4,
+      "evidence": {
+        "group_favorites_wheel_edge_hover": ".cache/standard-interaction-20261024/e2e-4",
+        "roles_native_line_fill_registration": ".cache/standard-interaction-20261024/e2e-3",
+        "three_presets_saved_settings_and_hover_scroll": ".cache/standard-interaction-20261024/e2e-1"
+      },
+      "initial_failures": ["Escape immediately reopened navigation under the pointer; fixed with hover suppression until pointer exit"],
+      "actual_model_calls": 0,
+      "mock_ai_environment": true,
+      "real_engine": true,
+      "native_word_wrap": {"multiline_sample_words_kept_on_same_line": 15, "latin": "KEEP_WORD", "korean": "BREAK_WORD", "condense": 20, "fixed_tracking": -3}
+    },
+    "typescript_no_emit": "passed",
+    "git_diff_check": "passed"
+  },
+  "preservation": {
+    "optional_fields_absent_in_old_settings": true,
+    "prior_model_default_settings_sha256": "e9895a9204a8ee1e144d65cc038df3f115d4d879d08e5354cafa2e928cb355dc",
+    "source_sample_sha256": "a58b7802befe23a3da462867fbe8728283c367db25459b47727ba5cb67d4d2c9",
+    "source_text_and_facts_preserved": true,
+    "disabled_role_uses_enabled_style_without_deleting_content": true,
+    "semantic_heading_links_preserved": true,
+    "local_pre_rollout_snapshot": ".cache/standard-interaction-20261024/storage-before",
+    "documents": 10, "versions": 13, "registered_standards": 3, "files": 16
+  },
+  "limits": [
+    "No new model output or Hancom manual verification in this run",
+    "Automatic space compression and fixed character tracking are supported; automatic per-line character tracking is not implemented",
+    "Word-wrap geometry is verified on a fixed synthetic paragraph, not a universal restriction on every valid document",
+    "Existing original and historical files and frozen requests are not rewritten"
+  ]
+}

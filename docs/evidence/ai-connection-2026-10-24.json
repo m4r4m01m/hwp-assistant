@@ -1,0 +1,67 @@
+{
+  "date": "2026-10-24",
+  "feature": "Local first-launch AI connection guidance and sidebar status dialog",
+  "base_commit": "1b4e1a054c47e4ee4087b3f8cea1b0cfadf032e5",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "result": "passed",
+  "behavior": {
+    "local_opt_in": "HWP_LOCAL_AI_SETUP=1 from native loopback launchers; no configured authentication users; current Codex owner only",
+    "probe": "initialize, initialized, account/read with refreshToken=false; no thread, turn, login or model call",
+    "choice": "codex or later, committed in additive ai_connection_setup table; existing providers/jobs unchanged",
+    "server": "Information only; check/setup POSTs denied",
+    "editor": "Global dialog leaves current editor and unsaved content mounted"
+  },
+  "automated": {
+    "backend_unique_cases": 156,
+    "backend_final_onboarding_cases": 25,
+    "ui_mock_cases": 7,
+    "typescript": "passed",
+    "powershell_syntax_files": 4,
+    "git_diff_check": "passed",
+    "ui_cases": [
+      "Explicit single-flight check and persisted choice",
+      "Compact keyboard navigation, background isolation and defer/reload",
+      "Missing CLI, signed-out, timeout and unsupported authentication recovery",
+      "Server mode never probes or changes configuration",
+      "Late responses ignored and failed setup remains dismissible",
+      "Failed initial status leaves library usable and retry recovers",
+      "Unsaved mock editor and underlying menu survive open/check/save/Escape"
+    ]
+  },
+  "actual_checks": {
+    "installed_codex_account_read": "chatgpt",
+    "installed_codex_probe_seconds": 1.42,
+    "built_app_first_launch_and_check_button": "passed in Codex in-app browser",
+    "served_build_identity": "passed",
+    "repeat_launcher_reuses_verified_processes": "passed",
+    "source_mirror_equivalent": true,
+    "model_calls": 0,
+    "setup_choice_left_for_user": true
+  },
+  "preservation": {
+    "documents": 10,
+    "versions": 13,
+    "visual_standards": 3,
+    "files": 16,
+    "changed_or_missing_existing_rows": 0,
+    "changed_or_missing_existing_blobs": 0,
+    "added_tables": 1,
+    "new_table": "ai_connection_setup",
+    "source_reference_and_engine": "unchanged"
+  },
+  "scope_limits": [
+    "UI automated cases use mocked HTTP and editor; they do not establish real HWPX layout correctness.",
+    "Actual installed CLI check establishes saved ChatGPT authentication type, not model entitlement or generation success.",
+    "No full regression, new rhwp/Hancom rendering test, Docker rollout or isolated-network verification.",
+    "Missing bundled Chromium initially blocked UI startup; final tests used installed Chrome.",
+    "Native dialog Tab behavior was diagnosed separately; final assertions verify modal isolation without overriding browser focus behavior."
+  ],
+  "local_artifacts": [
+    ".cache/ai-connection-20261024/backend-summary.json",
+    ".cache/ai-connection-20261024/backend-ai-connection.xml",
+    ".cache/ai-connection-20261024/ui-final.json",
+    ".cache/ai-connection-20261024/native-account-check.json",
+    ".cache/ai-connection-20261024/native-dialog-focus.json",
+    ".cache/ai-connection-20261024/live-ai-connection.png"
+  ]
+}

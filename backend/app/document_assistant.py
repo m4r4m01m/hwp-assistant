@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from .auth import require_access, require_lease_owner
-from .capabilities import llm_allowed, require_llm_access
+from .capabilities import llm_allowed, require_llm_access, codex_executable_available
 from .db import Access, Conversation, ConversationTurn, Document, Message, transaction
 from .hwpx import digest
 from .rewrite import TaskInput
@@ -207,7 +207,7 @@ def install_document_assistant(app, check_lease):
         try:
             provider, settings = configured_provider()
             allowed = llm_allowed(request.state.user) if provider == "llm" else request.state.user == os.getenv("HWP_CODEX_USER", "local")
-            configured = provider != "codex" or bool(settings.executable)
+            configured = provider != "codex" or codex_executable_available(settings.executable)
             reason = "이 사용자는 서버의 AI 연결을 실행할 권한이 없습니다." if provider == "llm" else "이 서버에 연결된 Codex 계정의 사용자만 질문할 수 있습니다."
             return {"provider": provider, "model": settings.model, "configured": configured, "allowed": allowed and configured,
                 "reason": "설치된 Codex CLI가 필요합니다." if not configured else "" if allowed else reason}

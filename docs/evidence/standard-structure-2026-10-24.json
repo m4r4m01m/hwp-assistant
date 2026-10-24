@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-24",
+  "result": "passed",
+  "source_head": "1b4e1a054c47e4ee4087b3f8cea1b0cfadf032e5",
+  "scope": "Grouped standard controls, paragraph division/content terminology, meaningful deep-level explanations, absent-element indicators, opt-in integration of disabled heading labels into body context",
+  "tests": {
+    "backend_passed": 122,
+    "backend_files": ["test_reference_standard.py", "test_standard_samples.py", "test_parenthetical_scope.py", "test_reference_report.py", "test_standard_policy.py"],
+    "real_engine_unique_scenarios_passed": 4,
+    "real_engine_evidence": [".cache/standard-structure-20261024/e2e-1", ".cache/standard-structure-20261024/e2e-2"],
+    "initial_failure_fixed": "Deep heading style guidance was masked by the generic numbered-marker prefix; narrowed matching to marker fields and reran the composition scenario",
+    "typescript_no_emit": "passed",
+    "diff_check": "passed",
+    "actual_model_calls": 0,
+    "hancom_manual_verification": false
+  },
+  "sample": {
+    "id": "standard-business-report-v4",
+    "sha256": "603ca654d7b8ab3d4078bdb75477a8bfd2dda2200f8ef8081bc9fc7ae328b901",
+    "v2_and_v3_definitions_preserved": true,
+    "v3_paragraph_words_and_facts_preserved": true,
+    "deep_headings_reordered_next_to_their_content": true,
+    "disabled_levels_5_6": "Level 4 stays single; 확인 순서 and 세부 기준 become body context, with all figures and sources retained",
+    "three_appendices_verified": true,
+    "toc_actual_pages_verified": true,
+    "registration_and_reopen_verified": true
+  },
+  "compatibility": {
+    "policy": "heading_structure_policy=CONTENT_V1",
+    "activation": "An explicit heading-usage change in the designer",
+    "absent_policy_retains_previous_behavior_and_hash": true,
+    "stored_drafts_originals_historical_files_not_rewritten": true,
+    "missing_elements_do_not_erase_settings_or_citations": true
+  },
+  "local_data_snapshot": ".cache/standard-structure-20261024/storage-before",
+  "limitations": ["Synthetic preview structure and prompt delivery were verified; new model writing quality was not tested in this run"]
+}

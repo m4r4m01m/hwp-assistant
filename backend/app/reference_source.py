@@ -311,6 +311,8 @@ def apply_character(header, char, role, settings):
         char.set("textColor", color.upper())
     for field, name in (("ratio_percent", "ratio"), ("spacing_percent", "spacing")):
         value = setting(field)
+        if field == "spacing_percent" and role in ("body", "square", "circle", "dash", "dot") and settings.get("body_tracking_percent") is not None:
+            value = min(50, max(-20, (value or 0) + settings["body_tracking_percent"]))
         if value is not None:
             child = _character_child(char, name)
             child.attrib.update({language: str(round(value)) for language in LANGUAGES})
@@ -333,6 +335,19 @@ def apply_character(header, char, role, settings):
 
 def apply_paragraph(para, role, settings):
     """Apply role spacing and signed first-line indent in both unit branches."""
+    # These optional controls never change a historical standard with absent keys.
+    if role not in ("title", "cover_title", "cover_date", "cover_department", "toc_title", "toc_major", "toc_minor"):
+        unit = settings.get("line_break_unit")
+        if unit in ("WORD", "CHARACTER"):
+            breaking = para.find(f"{{{HH}}}breakSetting")
+            if breaking is not None:
+                # Hancom's Korean lexical enum is inverse to the Latin enum;
+                # the pinned renderer's composer/line_breaking.rs documents it.
+                breaking.set("breakNonLatinWord", "BREAK_WORD" if unit == "WORD" else "KEEP_WORD")
+                breaking.set("breakLatinWord", "KEEP_WORD" if unit == "WORD" else "BREAK_WORD")
+        condense = {"NONE": 0, "TIGHT": 10, "TIGHTER": 20}.get(settings.get("line_space_policy"))
+        if condense is not None:
+            para.set("condense", str(condense))
     alignment = settings.get(f"{role}_horizontal_align")
     if alignment is not None:
         para.find(f"{{{HH}}}align").set("horizontal", alignment)
