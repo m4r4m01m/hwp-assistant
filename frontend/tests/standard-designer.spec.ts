@@ -1,4 +1,4 @@
-import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
+import { test, expect, type Page, type Locator, type APIRequestContext } from "@playwright/test";
 import { createHash, randomUUID } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -982,11 +982,16 @@ test("REAL rhwp standard designer: fixed appendix examples keep TOC numbers on r
 });
 async function expectOuterViewportContained(page: Page) {
   const bounds = await page.evaluate(() => ({
+    width: window.innerWidth,
     height: window.innerHeight,
+    scrollWidth: document.scrollingElement!.scrollWidth,
     scrollHeight: document.scrollingElement!.scrollHeight,
+    scrollX: window.scrollX,
     scrollY: window.scrollY,
   }));
+  expect(bounds.scrollWidth).toBeLessThanOrEqual(bounds.width + 1);
   expect(bounds.scrollHeight).toBeLessThanOrEqual(bounds.height + 1);
+  expect(bounds.scrollX).toBe(0);
   expect(bounds.scrollY).toBe(0);
 }
 async function expectDesignerScrollContained(page: Page) {
@@ -1003,7 +1008,11 @@ async function expectDesignerScrollContained(page: Page) {
     if (bounds) {
       expect(bounds.x).toBeCloseTo(navigationRight - gridSize.scrollLeft, 1);
       expect(bounds.height).toBe(gridSize.height);
-      expect(bounds.x + bounds.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+      if (bounds.width <= gridSize.width) expect(bounds.x + bounds.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+      else {
+        expect(gridSize.compact).toBe(true);
+        expect(gridSize.scrollWidth).toBeGreaterThan(gridSize.width);
+      }
     }
     const wrapper = (await page.locator(".standard-designer-grid").boundingBox())!;
     expect(wrapper.x).toBeCloseTo(navigationRight, 1);
@@ -1024,6 +1033,36 @@ async function expectDesignerScrollContained(page: Page) {
     if (!bounds) {
       expect(preview!.width).toBeGreaterThan(0);
       await expect(page.getByRole("group", { name: "미리보기 확대", exact: true })).toBeInViewport();
+    }
+    if (bounds && bounds.width > gridSize.width) {
+      // An explicitly expanded rail can leave less room than the settings
+      // panel on a phone. Both panes must remain operable through the grid's
+      // own horizontal scroll; merely allowing offscreen boxes is not enough.
+      const expectReachable = async (control: Locator) => {
+        await control.scrollIntoViewIfNeeded();
+        await control.click({ trial: true });
+        const box = (await control.boundingBox())!, viewport = (await grid.boundingBox())!;
+        // Browser scroll rounding can leave a fractional border pixel clipped.
+        expect(box.x).toBeGreaterThanOrEqual(Math.max(0, viewport.x) - 1);
+        expect(box.x + box.width).toBeLessThanOrEqual(Math.min(page.viewportSize()!.width, viewport.x + viewport.width) + 1);
+        expect(box.y).toBeGreaterThanOrEqual(Math.max(0, viewport.y) - 1);
+        expect(box.y + box.height).toBeLessThanOrEqual(Math.min(page.viewportSize()!.height, viewport.y + viewport.height) + 1);
+      };
+      try {
+        const close = settings.getByRole("button", { name: "설정 접기", exact: true });
+        await expectReachable(close);
+        const settingsOffset = await grid.evaluate(element => element.scrollLeft);
+        expect(settingsOffset).toBeGreaterThan(0);
+        const zoom = page.getByRole("group", { name: "미리보기 확대", exact: true });
+        for (const name of ["한 쪽 보기", "100%"]) {
+          const control = zoom.getByRole("button", { name, exact: true });
+          await expectReachable(control);
+          const offset = await grid.evaluate(element => element.scrollLeft);
+          expect(offset).toBeGreaterThan(settingsOffset);
+          expect(offset).toBeLessThanOrEqual(gridSize.scrollWidth - gridSize.width);
+          await expectOuterViewportContained(page);
+        }
+      } finally { await grid.evaluate((element, left) => { element.scrollLeft = left; }, gridSize.scrollLeft); }
     }
   };
   if (!(await page.locator(".standard-preview").isVisible()))
