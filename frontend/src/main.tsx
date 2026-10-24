@@ -33,7 +33,8 @@ import { assistantDocumentContext } from "./document-assistant-context";
 import type { AssistantTurn } from "./document-assistant";
 import { SavedDownload } from "./saved-download";
 import { useComparisonDialog } from "./version-comparison";
-import { CapabilitiesProvider, CapabilityNotice, useFeature } from "./capabilities";
+import { CapabilitiesProvider, CapabilityNotice, AIDataNotice, useFeature } from "./capabilities";
+import { aiConnectionMessage, canRequestAI, type AIConnection } from "./ai-connection";
 import { useDebouncedValue, useMobileDrawerCanvas } from "./ui-state";
 
 class WorkspaceLoadBoundary extends React.Component<{ children: React.ReactNode; onBack: () => void }, { failed: boolean }> {
@@ -488,7 +489,7 @@ function Editor({
     [conversationMounted, setConversationMounted] = useState(false),
     [aiBusy, setAiBusy] = useState(false),
     [aiError, setAiError] = useState(""),
-    [aiConnection, setAiConnection] = useState<{ configured_model: string; models: string[]; model_available: boolean } | null>(null),
+    [aiConnection, setAiConnection] = useState<AIConnection | null>(null),
     [aiConnectionChecking, setAiConnectionChecking] = useState(false),
     [proposal, setProposal] = useState<{
       snapshot: Snapshot;
@@ -1260,7 +1261,8 @@ function Editor({
               검토할 본문 문단에 커서를 놓으세요. 승인 전에는 문서를 변경하지
               않습니다.
             </p>
-            <button disabled={!ready || aiBusy || !reviewFeature.available || !aiConnection?.model_available || aiConnectionChecking} onClick={() => void review()}>
+            <AIDataNotice feature="review" scope="선택한 문단을" />
+            <button disabled={!ready || aiBusy || !reviewFeature.available || !canRequestAI(aiConnection) || aiConnectionChecking} onClick={() => void review()}>
               {aiBusy ? "검토 중…" : "현재 문단 검토"}
             </button>
             <button
@@ -1269,7 +1271,7 @@ function Editor({
             >
               {aiConnectionChecking ? "연결 확인 중…" : "AI 연결 확인"}
             </button>
-            {aiConnection && <p role="status">{aiConnection.model_available ? `${aiConnection.configured_model} 연결됨` : "설정한 모델을 사용할 수 없습니다. 서버의 모델 설정을 확인하세요."}</p>}
+            {aiConnection && <p role="status">{aiConnectionMessage(aiConnection)}</p>}
             {aiError && <p role="alert">{aiError}</p>}
             {proposal && (
               <>

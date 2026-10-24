@@ -9,6 +9,11 @@ export type FeatureCapability = {
   reason_code: string | null;
   message: string;
   supports_stream: boolean;
+  supports_research?: boolean;
+  backend?: "codex" | "llm";
+  provider?: string;
+  model?: string;
+  external?: boolean;
 };
 type Capabilities = { features: Record<FeatureName, FeatureCapability> };
 type State = { data: Capabilities | null; loading: boolean; error: string; refresh: () => void };
@@ -56,4 +61,14 @@ export function CapabilityNotice({ feature, label }: { feature: FeatureName; lab
     <p>{state.message}</p>
     {!state.loading && <button type="button" onClick={state.refresh}>사용 가능 여부 다시 확인</button>}
   </div>;
+}
+
+export function AIDataNotice({ feature, scope }: { feature: FeatureName; scope: string }) {
+  const { capability } = useFeature(feature);
+  if (!capability?.configured || !capability.provider) return null;
+  const names: Record<string, string> = { openrouter: "OpenRouter", nvidia: "NVIDIA", openai: "OpenAI", "openai-compatible": "연결한 AI" };
+  return <p className="hint" data-testid={`${feature}-ai-data-notice`}>
+    사용 AI: {names[capability.provider] || capability.provider}{capability.model ? ` · ${capability.model}` : ""}.
+    {capability.external ? ` ${scope} 외부 AI 공급자에게 전송합니다.` : ` ${scope} 관리자가 설정한 AI 서버에 전송합니다.`}
+  </p>;
 }

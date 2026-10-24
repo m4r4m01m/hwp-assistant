@@ -7,6 +7,7 @@ from pathlib import Path
 from .document_assistant import AssistantResponse, CONTRACT, canonical, parse_response
 from .report_rpc import ReportRpc
 from .report_stream import stream_command
+from .llm import completion_text
 
 PROMPT = """You are the Korean document assistant inside an editable HWP document.
 Answer the user's message in Korean, using the supplied current document text, selected paragraph and prior conversation.
@@ -40,15 +41,11 @@ def generate_answer(value, provider, settings, active=lambda: True):
 
 
 async def local_answer(value, client):
-    result = await client.request("POST", "/chat/completions", {"model": client.model,
-        "temperature": 0.2, "max_tokens": 8000,
-        "messages": [{"role": "system", "content": PROMPT}, {"role": "user", "content": canonical(value)}]})
+    result = await client.complete(
+        [{"role": "system", "content": PROMPT}, {"role": "user", "content": canonical(value)}],
+        max_tokens=8000, response_schema=AssistantResponse.model_json_schema(), schema_name="document_assistant")
     try:
-        choice = result["choices"][0]
-        message = choice["message"]
-        if choice.get("finish_reason") != "stop" or message.get("tool_calls") or message.get("refusal"):
-            raise ValueError("incomplete answer")
-        return parse_response(message["content"])
+        return parse_response(completion_text(result))
     except (KeyError, IndexError, TypeError, ValueError) as exc:
         raise ValueError("AI 답변 형식이 올바르지 않거나 응답이 끝나지 않았습니다.") from exc
 

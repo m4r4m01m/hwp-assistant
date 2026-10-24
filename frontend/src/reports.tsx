@@ -9,7 +9,7 @@ import type { VisualSelection } from "./standard-designer";
 import { WorkspaceNav, WorkspaceIcon, type WorkspaceSection } from "./workspace-nav";
 import "./report-editor-workspace.css";
 import { SavedDownload } from "./saved-download";
-import { CapabilityNotice, useFeature } from "./capabilities";
+import { CapabilityNotice, AIDataNotice, useFeature } from "./capabilities";
 import { usePageVisible, useMobileDrawerCanvas } from "./ui-state";
 
 type Template = { id: string; revision: number; standard_id: string; reference_sha256: string;
@@ -19,7 +19,7 @@ type Cover = { date: string; department: string };
 type ReportInput = { id: string; prompt: string; research: boolean; template?: Template; visual_standard?: VisualSelection; cover?: Cover };
 type RevisionRequest = { sourceId: string; body: { id: string; draft_sha256: string; feedback: string } };
 type Job = { id: string; input: { prompt: string; research: boolean; template?: Template; visual_standard?: VisualSelection; cover?: Cover }; status: string; preview_id?: string | null; draft: Draft | null;
-  draft_sha256: string | null; error: string; created_at?: number; execution?: { progress?: LiveReport; timings?: Record<string, number | null>; revision_of?: string };
+  draft_sha256: string | null; error: string; created_at?: number; execution?: { executor?: string; progress?: LiveReport; timings?: Record<string, number | null>; revision_of?: string };
   approval: { id: string; document_id: string; saved_version?: string } | null };
 type Approved = { id: string; document_id: string; base_version: string; saved_version?: string; document: Document;
   scaffold_base64: string; plan: { paragraph: number; before: string; text: string; command_id: string }[] };
@@ -27,6 +27,11 @@ const examples = [
   "최근 금융권 해킹 문제에 대한 경영진 보고서를 만들어줘. 국내 공개 사례와 주요 위험, 경영진 결정 사항, 30·60·90일 대응 계획을 정리해줘. 사실과 제안을 구분하고 공식 출처와 날짜를 표시해줘.",
   "금융회사 외부 업체·클라우드 보안 위험 보고서를 만들어줘. 공급망 침해와 서비스 중단 관점에서 점검 항목, 책임자, 우선순위를 제안하고 공식 출처를 제시해줘.",
   "금융권 고객정보 유출 사고의 고객 보호 대응 보고서를 만들어줘. 사고 인지부터 초기 대응, 안내, 피해 예방, 사후 개선까지 설명하고 확인되지 않은 사항은 구분해줘.",
+];
+const suppliedExamples = [
+  "다음 가상 점검 결과를 경영진 보고서 초안으로 정리해줘. 점검 대상 12개 시스템 중 3개에서 보안 패치 지연, 2개에서 비상 연락망 갱신 필요가 확인됐어. 확인된 현황과 향후 대응 제안을 구분하고, 외부 사례나 출처는 추가하지 마.",
+  "외부 업체·클라우드 보안 점검 계획의 보고서 초안을 만들어줘. 입력 자료: 대상 업체 5개, 점검 기간 4주, 확인 항목은 접근 권한·백업·사고 통보 체계야. 계획과 미확인 사항을 구분하고 외부 조사 없이 구성해줘.",
+  "고객정보 유출 대응 모의훈련 계획을 보고서 초안으로 만들어줘. 입력 자료: 실제 사고가 아닌 훈련이며, 고객 안내 문안 검토와 내부 연락망 점검을 예정하고 있어. 확인되지 않은 사실·수치·출처는 추가하지 마.",
 ];
 function encode(bytes: Uint8Array) {
   const parts = []; for (let i = 0; i < bytes.length; i += 8192) parts.push(String.fromCharCode(...bytes.subarray(i, i + 8192)));
@@ -40,6 +45,7 @@ function selectionSnapshot(value: VisualSelection): VisualSelection {
 
 export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: { onClose: () => void; onOpen: (doc: Document) => void; initialVisualStandard?: VisualSelection; onNavigate?: (section: WorkspaceSection) => void }) {
   const feature = useFeature("reports"), visible = usePageVisible();
+  const supportsResearch = feature.capability?.supports_research !== false;
   const workspaceRoot = useRef<HTMLElement>(null);
   useMobileDrawerCanvas(workspaceRoot, ".report-workspace-canvas", ".report-workspace-drawer:not([hidden])");
   const [pollError, setPollError] = useState("");
@@ -189,7 +195,7 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
     if (!pending && !template) { setError("내용 구성을 선택한 뒤 요청하세요."); return; }
     if (!pending && !visualCatalogReady) { setError("문서 표준을 확인한 뒤 요청하세요."); return; }
     if (!pending && visualId && !visual) { setError("선택한 문서 표준을 다시 확인하세요."); return; }
-    const frozen = pending || { id: crypto.randomUUID(), prompt, research, template, ...(visual ? { visual_standard: selectionSnapshot(visual) } : {}),
+    const frozen = pending || { id: crypto.randomUUID(), prompt, research: supportsResearch && research, template, ...(visual ? { visual_standard: selectionSnapshot(visual) } : {}),
       ...(visual?.revision === 3 && ["appendix-2", "appendix-3"].includes(String(visual.settings.preset_id)) ? { cover: { date: coverDate.trim(), department: coverDepartment.trim() } } : {}) };
     setPending(frozen); active.current = frozen.id; setRestoreTaskId(null); setBusy(true); setError("");
     sessionStorage.setItem("hwp-report-task", frozen.id);
@@ -361,16 +367,18 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
             <label htmlFor="report-cover-date">표지 작성일</label><input id="report-cover-date" value={coverDate} maxLength={60} disabled={locked || job?.status === "running"} placeholder="예: 2026. 10. 20." onChange={e => setCoverDate(e.target.value)} />
             <label htmlFor="report-cover-department">표지 작성 부서</label><input id="report-cover-department" value={coverDepartment} maxLength={100} disabled={locked || job?.status === "running"} placeholder="예: 운영지원부 문서관리팀" onChange={e => setCoverDepartment(e.target.value)} />
           </div>}
-          <label className="check-label"><input type="checkbox" checked={research} disabled={locked || job?.status === "running"} onChange={e => setResearch(e.target.checked)} />공개 웹 자료를 검색하고 출처 포함</label>
+          <label className="check-label"><input type="checkbox" checked={supportsResearch && research} disabled={!supportsResearch || locked || job?.status === "running"} onChange={e => setResearch(e.target.checked)} />공개 웹 자료를 검색하고 출처 포함</label>
+          {!supportsResearch && <p className="hint">현재 AI 연결은 웹 검색을 지원하지 않습니다. 요청에 입력한 자료를 바탕으로 초안을 작성합니다.</p>}
+          <AIDataNotice feature="reports" scope="작성 요청·선택한 작성 기준·보완 시 이전 초안과 의견을" />
         </div>
         <details><summary>요청 예시</summary>
-          <div className="report-examples">{["금융권 해킹 대응", "외부 업체·클라우드 보안", "고객정보 유출 대응"].map((name, i) => <button key={name} disabled={locked || job?.status === "running"} onClick={() => setPrompt(examples[i])}>{name}</button>)}</div>
+          <div className="report-examples">{["금융권 해킹 대응", "외부 업체·클라우드 보안", "고객정보 유출 대응"].map((name, i) => <button key={name} disabled={locked || job?.status === "running"} onClick={() => setPrompt((supportsResearch ? examples : suppliedExamples)[i])}>{name}</button>)}</div>
         </details>
         <details><summary>양식 관리·연결 정보</summary>
           <button className="report-open-standard" disabled={locked || job?.status === "running" || !onNavigate} onClick={() => onNavigate?.("standards")}>문서작성 기준 열기</button>
           <button disabled={locked} onClick={() => void refreshTemplates()}>내용 구성 목록 다시 확인</button>
           <button disabled={locked} onClick={() => void loadVisualStandards().then(() => setError("")).catch(e => setError(String(e)))}>문서 표준 목록 다시 확인</button>
-          <p className="hint">기존 Codex 로그인으로 처리합니다. 공개자료 검색에는 검색어가 사용됩니다.</p>
+          <p className="hint">{feature.capability?.backend === "llm" ? "서버에 설정한 AI 모델이 초안을 작성합니다. 전체 응답을 받은 뒤 형식을 검증하고 검토 화면에 표시합니다." : "기존 Codex 로그인으로 처리합니다. 공개자료 검색에는 검색어가 사용됩니다."}</p>
         </details>
       </section>
       <div className="report-request-submit">
@@ -395,7 +403,7 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
       {pollError && <p className="report-workspace-error error" role="alert">{pollError}</p>}
       {error && <p className="report-workspace-error error" role="alert">{error}{restoreTaskId && <button onClick={() => { setError(""); setRestoreAttempt(value => value + 1); }}>이전 요청 다시 열기</button>}</p>}
       {!error && job?.status === "failed" && <p className="report-workspace-error error" role="alert">{job.error}</p>}
-      {job?.status === "running" || (!job?.draft && !!job?.execution?.progress?.blocks.length) ? <ReportWriting key={job.id} startedAt={job.created_at} progress={job.execution?.progress} stopped={job.status !== "running"} controlsHost={writingTools} /> : job?.draft ? <>
+      {job?.status === "running" || (!job?.draft && !!job?.execution?.progress?.blocks.length) ? <ReportWriting key={job.id} startedAt={job.created_at} progress={job.execution?.progress} stopped={job.status !== "running"} controlsHost={writingTools} streaming={job.execution?.executor !== "llm-http"} /> : job?.draft ? <>
         {!job.approval && !hasPreview && <ReportReview draft={job.draft} formatName={formatName(frozenVisual)} includesSummary={frozenVisual?.settings.show_core_summary !== false} feedback={feedback} onFeedback={changeFeedback} onRevise={() => void reviseDraft()} onFormat={beginFormatting} busy={busy} retry={!!pendingRevision} revisionAvailable={feature.available} />}
         {hasPreview && <ReportPreview key={job.id} taskId={job.id} draftHash={job.draft_sha256!} onLock={setPreviewLocked} toolbarHost={previewTools} detailsHost={previewDetails}
           workspacePanelOpen={workspacePanel !== null} onShowDetails={() => setWorkspacePanel(null)}

@@ -32,13 +32,14 @@ def http_feature(user):
     except HTTPException as exc:
         return feature(False, False, "invalid_configuration", str(exc.detail))
     try:
-        OpenAICompatible()  # Validates local config only; never calls /models.
+        client = OpenAICompatible()  # Validates config only; never calls a provider.
     except HTTPException:
         return feature(False, allowed, "llm_not_configured",
                        "서버의 AI 연결이 아직 준비되지 않았습니다. 문서 편집과 저장은 사용할 수 있습니다.")
+    metadata = client.metadata()
     if not allowed:
-        return feature(True, False, "user_not_allowed", "이 사용자는 AI 실행 권한이 없습니다.")
-    return feature(True, True, message="AI 연결이 설정되어 있습니다. 실제 연결 상태는 실행 시 확인합니다.")
+        return {**feature(True, False, "user_not_allowed", "이 사용자는 AI 실행 권한이 없습니다."), **metadata}
+    return {**feature(True, True, message="AI 연결이 설정되어 있습니다. 실제 연결 상태는 실행 시 확인합니다."), **metadata}
 
 
 def codex_feature(user, *, stream=False):
@@ -65,5 +66,13 @@ def install_capabilities(app):
         provider = os.getenv("HWP_REWRITE_PROVIDER", "codex")
         rewrite = (http if provider == "llm" else codex_feature(user) if provider == "codex" else
                    feature(False, False, "invalid_configuration", "문체 개선 실행기 설정을 확인하세요."))
-        return {"features": {"rewrite": rewrite, "chat": http, "review": http,
-                             "reports": codex_feature(user, stream=True)}}
+        from .report_llm import report_provider
+        try:
+            report_backend = report_provider()
+            reports = ({**http, "supports_research": False, "backend": "llm"}
+                       if report_backend == "llm" else
+                       {**codex_feature(user, stream=True), "supports_research": True, "backend": "codex"})
+        except HTTPException:
+            reports = {**feature(False, False, "invalid_configuration", "보고서 실행기 설정을 확인하세요."),
+                       "supports_research": False}
+        return {"features": {"rewrite": rewrite, "chat": http, "review": http, "reports": reports}}

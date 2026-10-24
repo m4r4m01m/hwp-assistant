@@ -23,7 +23,7 @@ export function ReportProgress({ stage, count, total }: { stage: ReportStage; co
       {i === 2 && stage === "applying" && total ? <small>문서 입력 {count || 0}/{total} 문단</small> : null}</li>)}
   </ol>;
 }
-export function ReportWriting({ startedAt, progress, stopped, controlsHost }: { startedAt?: number; progress?: LiveReport; stopped?: boolean; controlsHost?: HTMLElement | null }) {
+export function ReportWriting({ startedAt, progress, stopped, controlsHost, streaming = true }: { startedAt?: number; progress?: LiveReport; stopped?: boolean; controlsHost?: HTMLElement | null; streaming?: boolean }) {
   const [seconds, setSeconds] = useState(0);
   const paper = useRef<HTMLDivElement>(null), follow = useRef(true);
   useEffect(() => { if (follow.current && paper.current) paper.current.scrollTop = paper.current.scrollHeight; }, [progress?.revision]);
@@ -33,7 +33,7 @@ export function ReportWriting({ startedAt, progress, stopped, controlsHost }: { 
     if (stopped) { setSeconds(Math.floor((progress?.elapsed_ms || 0) / 1000)); return; }
     tick(); const timer = setInterval(tick, 1000); return () => clearInterval(timer);
   }, [startedAt, stopped]);
-  const label = stopped ? "작성 중인 내용 보존" : progress?.stage === "researching" ? "공개자료 확인 중…" : progress?.stage === "writing" ? "본문 작성 중…" : progress?.stage === "validating" ? "내용 검증 중…" : "Codex 응답 준비 중…";
+  const label = stopped ? "작성 중인 내용 보존" : progress?.stage === "researching" ? "공개자료 확인 중…" : progress?.stage === "writing" ? "본문 작성 중…" : progress?.stage === "validating" ? "내용 검증 중…" : streaming ? "Codex 응답 준비 중…" : "AI 초안 응답 대기 중…";
   const controls = <><ReportProgress stage="writing" />
     <div className="report-stream-status" role="status">{!stopped && <span className="report-pulse" />}<b>{label}</b>
       <small>{Math.floor(seconds / 60)}분 {seconds % 60}초 경과{progress?.research_calls ? ` · 자료 조회 ${progress.research_calls}회 완료` : ""}</small>
@@ -45,7 +45,7 @@ export function ReportWriting({ startedAt, progress, stopped, controlsHost }: { 
       const el = e.currentTarget; follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     }}><div className="report-draft-content">
       <ReportContent blocks={progress?.blocks || []} testId="stream-report-paragraph" />
-      {!progress?.blocks.length && <p className="hint">첫 문장이 도착하면 이곳에서 바로 이어집니다. 자료 조사 중에는 본문이 아직 없을 수 있습니다.</p>}
-      <p className="report-live-caption">{stopped ? "생성이 완료되지 않은 내용입니다. 한글 문서로 확정하거나 저장하지 않았습니다." : "실시간 생성 초안 · 내용이 바뀔 수 있으며, 최종 줄바꿈과 페이지 배치는 생성 완료 후 적용합니다."}</p>
+      {!progress?.blocks.length && <p className="hint">{streaming ? "첫 문장이 도착하면 이곳에서 바로 이어집니다. 자료 조사 중에는 본문이 아직 없을 수 있습니다." : "전체 응답을 받은 뒤 검증된 초안을 표시합니다. 작성 중인 텍스트는 아직 제공되지 않습니다."}</p>}
+      <p className="report-live-caption">{stopped ? "생성이 완료되지 않은 내용입니다. 한글 문서로 확정하거나 저장하지 않았습니다." : streaming ? "실시간 생성 초안 · 내용이 바뀔 수 있으며, 최종 줄바꿈과 페이지 배치는 생성 완료 후 적용합니다." : "내용 검토 후 서식과 페이지 배치를 적용합니다."}</p>
     </div></div></div>;
 }

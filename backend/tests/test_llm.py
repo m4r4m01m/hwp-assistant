@@ -25,7 +25,7 @@ def provider(monkeypatch):
 )
 def test_invalid_mock_output_rejected(provider, content, monkeypatch):
     async def request(*args):
-        return {"choices": [{"message": {"content": content}}]}
+        return {"choices": [{"finish_reason": "stop", "message": {"content": content}}]}
 
     monkeypatch.setattr(OpenAICompatible, "request", request)
     with pytest.raises(HTTPException) as e:
@@ -41,6 +41,7 @@ def test_mock_valid_output_and_stateless_prompt(provider, monkeypatch):
         return {
             "choices": [
                 {
+                    "finish_reason": "stop",
                     "message": {
                         "content": '{"replacement":"개선 문장","reason":"명확성"}'
                     }

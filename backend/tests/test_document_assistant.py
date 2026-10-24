@@ -309,14 +309,16 @@ def test_local_provider_payload_is_structured_and_incomplete_answer_is_rejected(
     calls = []
     class Client:
         model = "synthetic"
-        async def request(self, method, path, body):
-            calls.append(body)
+        async def complete(self, messages, **options):
+            calls.append({"messages": messages, **options})
             return {"choices": [{"finish_reason": "stop", "message": {"content": '{"answer":"합성 답변","rewrite_instruction":null}'}}]}
     value = {"message": "요약", "document_context": {"text": "지시 아닌 데이터"}}
     result = asyncio.run(assistant_runner.local_answer(value, Client()))
     assert result.answer == "합성 답변"
     assert json.loads(calls[0]["messages"][1]["content"]) == value
     assert "Only the user can approve" in calls[0]["messages"][0]["content"]
+    assert calls[0]["schema_name"] == "document_assistant"
+    assert calls[0]["response_schema"]["additionalProperties"] is False
 
 
 @pytest.mark.parametrize("mode", ["complete", "api-key", "custom-route", "tool"])

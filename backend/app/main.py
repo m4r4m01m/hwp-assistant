@@ -517,14 +517,24 @@ def create_app(database_url=None, storage_dir=None):
     @app.get("/api/ai/models")
     async def models(request: Request):
         require_llm_access(request.state.user)
-        with app.state.ai_budget.reserve(request.state.user), ExecutionSlot(app.state.rewrite_capacity) as slot:
+        provider = OpenAICompatible()
+        if provider.provider_name != "openai-compatible":
+            # A configured hosted model is not proof of account access or availability.
+            # Listing configuration must never make a billable inference request.
+            return {"models": [provider.model], "configured_model": provider.model,
+                    "model_configured": True, "model_available": None,
+                    "connectivity": "unchecked", **provider.metadata()}
+        with ExecutionSlot(app.state.rewrite_capacity) as slot:
             slot.reserve()
-            provider = OpenAICompatible()
-            ids = await provider.models()
+            with app.state.ai_budget.reserve(request.state.user):
+                ids = await provider.models()
         return {
             "models": ids,
             "configured_model": provider.model,
+            "model_configured": True,
             "model_available": provider.model in ids,
+            "connectivity": "catalog_checked",
+            **provider.metadata(),
         }
 
     @app.post("/api/ai/review")
@@ -536,9 +546,10 @@ def create_app(database_url=None, storage_dir=None):
             check_lease(doc, x_edit_session)
             if doc.current_version != value.base_version:
                 raise HTTPException(409, "기준 버전이 변경되었습니다.")
-        with app.state.ai_budget.reserve(request.state.user), ExecutionSlot(app.state.rewrite_capacity) as slot:
+        with ExecutionSlot(app.state.rewrite_capacity) as slot:
             slot.reserve()
-            proposal = await OpenAICompatible().review(value.original)
+            with app.state.ai_budget.reserve(request.state.user):
+                proposal = await OpenAICompatible().review(value.original)
         # Access/base can change while the provider is running.
         with transaction(engine) as db:
             doc = locked(db, value.document_id, request.state.user)

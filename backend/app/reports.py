@@ -4,17 +4,21 @@ import json
 import os
 import time
 import uuid
+from contextlib import ExitStack
 from threading import Thread
 from fastapi import HTTPException, Request, Response
 from pydantic import Field, field_validator
 from sqlalchemy import select, text
 from .auth import require_access, require_lease_owner
 from .codex_runner import capture_settings
+from .capabilities import require_llm_access
+from .llm import OpenAICompatible
 from .db import Access, Document, ReportTask, Version, transaction
 from .hwpx import digest, validate
 from .report_contract import ReportValue, ReportDraft, canonical, report_hash, report_blocks, paragraph
 from .report_hwpx import scaffold, paragraphs
 from .report_runner import generate_report, CONTRACT
+from .report_llm import ReportLlmSettings, report_provider, require_supported_request
 from .rewrite_capacity import ExecutionSlot
 from .document_standard import load_standard, metadata as standard_metadata, format_signature, reference_view
 from .report_templates import ReportTemplate, catalog as template_catalog, validate_selection
@@ -61,6 +65,47 @@ class ReviseReport(ReportValue):
 
 class RevisionSourceError(ValueError):
     pass
+
+
+def require_report_access(user, provider):
+    if provider == "llm":
+        require_llm_access(user)
+    elif user != os.getenv("HWP_CODEX_USER", "local"):
+        raise HTTPException(403, "이 서버의 Codex 실행 사용자에게 보고서 작성을 요청하세요.")
+
+
+def capture_report_settings(provider, value):
+    if provider == "llm":
+        require_supported_request(value)
+        return ReportLlmSettings(OpenAICompatible())
+    return capture_settings()
+
+
+def report_execution(settings):
+    if isinstance(settings, ReportLlmSettings):
+        return settings.execution()
+    return {"backend": "codex", "executor": "codex-app-server", "model": settings.model}
+
+
+def dispatch_report(slot, budget, arguments):
+    resources = budget.pop_all()
+    def execute():
+        with resources:
+            run_report(*arguments)
+    try:
+        slot.start(Thread, execute, ())
+    except BaseException:
+        resources.close()
+        engine, task_id, user = arguments[:3]
+        with transaction(engine) as db:
+            row = lock_report(db, task_id, user)
+            if row.status == "running":
+                row.status = "failed"
+                row.error = "보고서 작업을 시작하지 못했습니다. 기존 요청은 다시 실행하지 않습니다. 새 요청을 시작해 주세요."
+                execution = json.loads(row.execution)
+                execution.update(completed=False, completed_at=time.time())
+                row.execution = canonical(execution)
+        raise
 
 
 class SaveReport(ReportValue):
@@ -138,6 +183,8 @@ def run_report(engine, task_id, user, value, settings):
                 row.status = "failed"
                 row.error = ("보완본에서 기존 출처가 달라져 적용하지 않았습니다. 원래 초안은 보존되어 있습니다. 의견을 확인한 뒤 다시 요청하세요."
                     if isinstance(exc, RevisionSourceError) else
+                    "AI API 보고서 생성을 완료하지 못했습니다. 연결·응답 형식을 확인한 뒤 새 요청을 시작하세요."
+                    if isinstance(settings, ReportLlmSettings) else
                     "Codex 보고서 생성을 완료하지 못했습니다. 로그인·연결·출력 형식을 확인한 뒤 새 요청을 시작하세요.")
                 execution = json.loads(row.execution)
                 execution.update(completed_at=time.time(), completed=False)
@@ -179,11 +226,11 @@ def install_reports(app, publish, check_lease, doc_dict):
     @app.post("/api/report-tasks")
     def create_report(value: CreateReport, request: Request):
         user, task_id = request.state.user, str(value.id)
-        if user != os.getenv("HWP_CODEX_USER", "local"):
-            raise HTTPException(403, "이 서버의 Codex 실행 사용자에게 보고서 작성을 요청하세요.")
+        provider = report_provider()
+        require_report_access(user, provider)
         # Omit an absent selection so legacy IDs retain their exact input hash.
         body = value.model_dump(mode="json", exclude_none=True)
-        with ExecutionSlot(app.state.rewrite_capacity) as slot:
+        with ExitStack() as budget, ExecutionSlot(app.state.rewrite_capacity) as slot:
             with transaction(engine) as db:
                 if engine.dialect.name == "postgresql":
                     db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": int(digest(task_id.encode())[:15], 16)})
@@ -192,26 +239,28 @@ def install_reports(app, publish, check_lease, doc_dict):
                     if row.input_sha256 != report_hash(body):
                         raise HTTPException(409, "같은 요청 ID에 다른 보고서 지시를 사용할 수 없습니다.")
                     return task_dict(row)
-                settings = capture_settings()
+                settings = capture_report_settings(provider, body)
                 if value.template is not None:
                     validate_selection(value.template)
                 if value.visual_standard is not None:
                     validate_visual_selection(db, user, value.visual_standard, folder=folder)
                 slot.reserve()
+                if provider == "llm":
+                    budget.enter_context(app.state.ai_budget.reserve(user))
                 row = ReportTask(id=task_id, owner_id=user, input=canonical(body), input_sha256=report_hash(body),
-                    status="running", created_at=time.time(), execution=canonical({"executor": "codex-app-server", "model": settings.model,
+                    status="running", created_at=time.time(), execution=canonical({**report_execution(settings),
                     "contract": CONTRACT, "research": body["research"], "input_sha256": report_hash(body), "context_used": False}))
                 db.add(row); db.flush(); result = task_dict(row)
-            slot.start(Thread, run_report, (engine, task_id, user, body, settings))
+            dispatch_report(slot, budget, (engine, task_id, user, body, settings))
         return result
 
     @app.post("/api/report-tasks/{source_task_id}/revise")
     def revise_report(source_task_id: str, value: ReviseReport, request: Request):
         user, task_id = request.state.user, str(value.id)
-        if user != os.getenv("HWP_CODEX_USER", "local"):
-            raise HTTPException(403, "이 서버의 Codex 실행 사용자에게 보고서 작성을 요청하세요.")
+        provider = report_provider()
+        require_report_access(user, provider)
         requested = {"source_task_id": source_task_id, "draft_sha256": value.draft_sha256, "feedback": value.feedback}
-        with ExecutionSlot(app.state.rewrite_capacity) as slot:
+        with ExitStack() as budget, ExecutionSlot(app.state.rewrite_capacity) as slot:
             with transaction(engine) as db:
                 if engine.dialect.name == "postgresql":
                     db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": int(digest(task_id.encode())[:15], 16)})
@@ -234,14 +283,22 @@ def install_reports(app, publish, check_lease, doc_dict):
                 # validated draft, avoiding an unbounded chain in model input.
                 body = {key: item for key, item in json.loads(source.input).items() if key not in ("id", "revision")}
                 body.update(id=task_id, revision={**requested, "draft": source_draft})
-                settings = capture_settings()
+                previous_execution = json.loads(source.execution)
+                if previous_execution.get("backend", "codex") != provider:
+                    raise HTTPException(409, "기존 초안과 보고서 생성 방식이 다릅니다. 이전 설정을 복원하거나 새 보고서로 요청해 주세요.")
+                settings = capture_report_settings(provider, body)
+                execution = report_execution(settings)
+                if provider == "llm" and previous_execution.get("configuration_sha256") != execution["configuration_sha256"]:
+                    raise HTTPException(409, "기존 초안의 AI 공급자·모델·요청 설정이 변경되었습니다. 이전 설정을 복원하거나 새 보고서로 요청해 주세요.")
                 slot.reserve()
+                if provider == "llm":
+                    budget.enter_context(app.state.ai_budget.reserve(user))
                 row = ReportTask(id=task_id, owner_id=user, input=canonical(body), input_sha256=report_hash(body),
-                    status="running", created_at=time.time(), execution=canonical({"executor": "codex-app-server", "model": settings.model,
+                    status="running", created_at=time.time(), execution=canonical({**execution,
                     "contract": CONTRACT, "research": body["research"], "input_sha256": report_hash(body), "context_used": False,
                     "revision_of": source_task_id, "reviewed_draft_sha256": value.draft_sha256}))
                 db.add(row); db.flush(); result = task_dict(row)
-            slot.start(Thread, run_report, (engine, task_id, user, body, settings))
+            dispatch_report(slot, budget, (engine, task_id, user, body, settings))
         return result
 
     @app.get("/api/report-tasks/{task_id}")

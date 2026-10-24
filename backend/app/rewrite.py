@@ -7,6 +7,7 @@ import secrets
 import time
 import uuid
 import zipfile
+from contextlib import ExitStack
 from threading import Thread
 from fastapi import HTTPException, Request, Header
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -162,9 +163,13 @@ def install_rewrite(app, check_lease):
         try:
             provider, client = configured_generator()
             allowed = llm_allowed(request.state.user) if provider == "llm" else request.state.user == os.getenv("HWP_CODEX_USER", "local")
+            reason = ("이 사용자는 서버의 AI 연결을 실행할 권한이 없습니다." if provider == "llm" else
+                      "이 서버의 본인 Codex 계정에 연결된 사용자만 실행할 수 있습니다.")
+            metadata = ({"llm_provider": client.provider_name, "external": client.external,
+                         "endpoint_scope": client.metadata()["endpoint_scope"]} if provider == "llm" else {})
             return {"provider": provider, "model": client.model if client else None,
                     "configured": True, "allowed": allowed, "context_used": False, "supports_writing_context": True,
-                    "reason": "" if allowed else "이 서버의 본인 Codex 계정에 연결된 사용자만 실행할 수 있습니다."}
+                    "reason": "" if allowed else reason, **metadata}
         except HTTPException as exc:
             return {"provider": os.getenv("HWP_REWRITE_PROVIDER", "codex"), "model": None,
                     "configured": False, "allowed": False, "context_used": False, "reason": str(exc.detail)}
@@ -173,7 +178,7 @@ def install_rewrite(app, check_lease):
     def create_task(thread_id: str, value: TaskInput, request: Request, x_edit_session: str = Header()):
         if not value.selection:
             raise HTTPException(422, "요청 시점의 선택 문단이 필요합니다.")
-        with ExecutionSlot(app.state.rewrite_capacity) as slot:
+        with ExecutionSlot(app.state.rewrite_capacity) as slot, ExitStack() as pending_budget:
             with transaction(engine) as db:
                 thread = db.get(Conversation, thread_id)
                 if not thread:
@@ -219,6 +224,9 @@ def install_rewrite(app, check_lease):
                              "snapshot_sha256": digest(snapshot.encode()),
                              "input_sha256": input_hash(payload),
                              "_request_sha256": fingerprint, "_lease_sha256": digest(x_edit_session.encode())}
+                if provider == "llm":
+                    execution.update(llm_provider=client.provider_name, external=client.external,
+                                     endpoint_scope=client.metadata()["endpoint_scope"])
                 if context is not None:
                     execution.update(_context_snapshot=context, context_id=context["id"],
                                      context_revision=context["revision"], context_sha256=input_hash(context))
@@ -228,6 +236,10 @@ def install_rewrite(app, check_lease):
                                   token_hash=digest(token.encode()) if token else "",
                                   execution=json.dumps(execution, ensure_ascii=False), created_at=time.time())
                 slot.reserve()
+                # Existing IDs returned above are read-only confirmations. Reserve
+                # global execution first so a full server does not consume quota.
+                if provider == "llm":
+                    pending_budget.enter_context(app.state.ai_budget.reserve(request.state.user))
                 db.add(row)
                 result = {"id": row.id, "status": row.status}
             # Dispatch once, only after the task commit. Never run a second provider on failure.
@@ -237,11 +249,22 @@ def install_rewrite(app, check_lease):
             else:
                 from .local_rewrite import run_local_rewrite
                 target, args = run_local_rewrite, (engine, str(value.id), client)
+            # Keep the shared user admission until the physical worker and its
+            # provider cleanup end, even if the logical task is cancelled first.
+            worker_budget = pending_budget.pop_all()
+            def execute(*arguments):
+                try:
+                    target(*arguments)
+                finally:
+                    worker_budget.close()
             try:
-                slot.start(Thread, target, args)
+                slot.start(Thread, execute, args)
             except Exception:
                 fail_task(engine, str(value.id), "후보 생성 실행기를 시작하지 못했습니다.")
                 result["status"] = "failed"
+            finally:
+                if not slot.started:
+                    worker_budget.close()
             return result
 
     @app.get("/api/rewrite-tasks/{task_id}/input")

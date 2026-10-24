@@ -10,7 +10,9 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from app import codex_runner, llm
+from app.ai_requests import AIRequest
 from app.db import Access, Conversation, transaction
+from app.hwpx import digest
 from app.main import create_app
 from test_collaboration import secured, document, thread, context, TOKENS
 from test_storage import env, create, save
@@ -190,6 +192,49 @@ def test_http_ai_and_background_jobs_share_capacity(env, monkeypatch):
         assert c.get("/api/ai/models").status_code == 429
     finally:
         for _ in range(held):
+            app.state.rewrite_capacity.release()
+
+
+def test_chat_capacity_rejection_preserves_quota_and_request_retry(secured, monkeypatch):
+    client, app, _, _ = secured
+    path, body = question(client)
+    thread_id = path.split("/")[3]
+    app.state.ai_budget.limit = 1
+    calls = []
+    class Provider:
+        async def chat(self, *_):
+            calls.append(1)
+            return "용량 해제 후 생성한 합성 답변"
+    monkeypatch.setattr("app.collaboration.OpenAICompatible", Provider)
+    held = 0
+    while app.state.rewrite_capacity.acquire(blocking=False):
+        held += 1
+    try:
+        assert client.post(path, json=body).status_code == 429
+        assert not calls and not app.state.ai_budget.recent
+        assert "alice" not in app.state.ai_budget.active
+        with transaction(app.state.engine) as db:
+            assert db.get(AIRequest, digest((thread_id + ":" + body["message_id"]).encode())) is None
+    finally:
+        for _ in range(held):
+            app.state.rewrite_capacity.release()
+
+    # No durable execution claim or minute quota was consumed by failed admission.
+    completed = client.post(path, json=body)
+    assert completed.status_code == 200, completed.text
+    assert calls == [1] and len(app.state.ai_budget.recent["alice"]) == 1
+    assert client.post(path, json=body).json() == completed.json()
+    message = client.post(f"/api/threads/{thread_id}/messages", json={
+        "request_id": "capacity-follow-up", "content": "두 번째 합성 질문"}).json()
+    assert client.post(path, json={"message_id": message["id"]}).status_code == 429
+    assert calls == [1] and "alice" not in app.state.ai_budget.active
+    available = 0
+    while app.state.rewrite_capacity.acquire(blocking=False):
+        available += 1
+    try:
+        assert available == held
+    finally:
+        for _ in range(available):
             app.state.rewrite_capacity.release()
 
 

@@ -7,6 +7,9 @@ import { prepareScreenshotFont } from "./ui-proof-font";
 const documentRow = { id: "document-one", name: "합성 문서.hwpx", current_version: "version-list", role: "owner", created_at: 1 };
 const feature = { configured: false, reachable: null, allowed: true, reason_code: "not_configured", message: "서버의 AI 연결 설정이 필요합니다.", supports_stream: false };
 const capabilities = { features: Object.fromEntries(["chat", "rewrite", "review", "reports"].map(name => [name, feature])) };
+const hostedFeature = { configured: true, reachable: null, allowed: true, reason_code: null,
+  message: "설정 확인; 실제 연결 미확인", supports_stream: false, supports_research: false,
+  backend: "llm", provider: "openrouter", model: "synthetic/pinned-model", external: true };
 const writingContext = { revision: 0, base_version: "version-lease", purpose: "", audience: "", tone: "", background: "", requirements: "", restrictions: "", facts: "", terminology: "", confirmation: null, stale: false };
 type Handler = (route: Route, path: string) => Promise<boolean | void>;
 async function json(route: Route, body: unknown, status = 200) { await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) }); }
@@ -62,6 +65,63 @@ async function openEditor(page: Page) {
   await page.getByRole("button", { name: documentRow.name, exact: true }).click();
   await expect(page.locator(".editor-current-document [role=status]")).toHaveText("저장 완료");
 }
+
+test("MOCK UI: hosted report submits supplied-material mode and never fabricates streaming", async ({ page }) => {
+  let accepted: Record<string, unknown> | null = null;
+  let running: Record<string, unknown> | null = null;
+  await mockApi(page, async (route, path) => {
+    if (path === "/capabilities") {
+      await json(route, { features: Object.fromEntries(["chat", "rewrite", "review", "reports"].map(name => [name, hostedFeature])) });
+      return true;
+    }
+    if (path === "/report-tasks" && route.request().method() === "POST") {
+      accepted = route.request().postDataJSON();
+      running = { id: accepted!.id, input: accepted, status: "running", draft: null, draft_sha256: null,
+        error: "", approval: null, created_at: Date.now() / 1000, execution: { executor: "llm-http",
+          progress: { stage: "requesting", revision: 1, blocks: [], activity: "", research_calls: 0, timings: {} } } };
+      await json(route, running); return true;
+    }
+    if (running && path === `/report-tasks/${running.id}`) { await json(route, running); return true; }
+  });
+  await library(page);
+  await page.getByRole("button", { name: "보고서 작성", exact: true }).click();
+  await page.getByLabel("보고서 작성 요청", { exact: true }).fill("제공한 가상 점검 자료를 바탕으로 검토용 초안을 작성해줘.");
+  const research = page.getByRole("checkbox", { name: "공개 웹 자료를 검색하고 출처 포함" });
+  await expect(research).toBeDisabled();
+  await expect(research).not.toBeChecked();
+  await expect(page.getByTestId("reports-ai-data-notice")).toContainText("외부 AI 공급자에게 전송");
+  await page.getByRole("button", { name: "초안 작성하기", exact: true }).click();
+  expect(accepted).not.toBeNull();
+  expect(accepted!.research).toBe(false);
+  await expect(page.getByText("AI 초안 응답 대기 중…", { exact: true })).toBeVisible();
+  await expect(page.getByText("전체 응답을 받은 뒤 검증된 초안을 표시합니다. 작성 중인 텍스트는 아직 제공되지 않습니다.")).toBeVisible();
+  await expect(page.locator(".report-live-caption")).not.toContainText("실시간");
+  await expect(page.getByTestId("stream-report-paragraph")).toHaveCount(0);
+});
+
+test("MOCK UI: hosted configuration allows a request without claiming a tested connection", async ({ page }) => {
+  await mockEditor(page);
+  let modelCalls = 0;
+  await mockApi(page, async (route, path) => {
+    if (path === "/capabilities") {
+      await json(route, { features: Object.fromEntries(["chat", "rewrite", "review", "reports"].map(name => [name, hostedFeature])) });
+      return true;
+    }
+    if (path === "/ai/models") {
+      await json(route, { configured_model: "synthetic/pinned-model", model_configured: true,
+        model_available: null, connectivity: "unchecked" }); return true;
+    }
+    if (path === "/ai/review") { modelCalls++; await json(route, {}); return true; }
+  });
+  await openEditor(page);
+  await page.getByLabel("추가 도구", { exact: true }).click();
+  await page.getByRole("button", { name: "AI 검토 열기", exact: true }).click();
+  await page.getByRole("button", { name: "AI 연결 확인", exact: true }).click();
+  await expect(page.getByText("설정된 모델: synthetic/pinned-model · 실제 연결과 사용 권한은 요청 시 확인합니다.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "현재 문단 검토", exact: true })).toBeEnabled();
+  await expect(page.getByTestId("review-ai-data-notice")).toContainText("선택한 문단을 외부 AI 공급자에게 전송");
+  expect(modelCalls).toBe(0);
+});
 
 test("MOCK UI: initial 401 is normal and repeated Enter submits one pending login", async ({ page }) => {
   let authenticated = false, logins = 0;
@@ -278,7 +338,7 @@ test("MOCK UI: idle rewrite history does not poll, and hidden tools stop active 
   await page.getByRole("button", { name: "문서 AI 대화 열기", exact: true }).click();
   await page.getByLabel("대화 선택").selectOption("thread-one");
   await page.getByText("문단 수정 후보 · 직접 요청", { exact: true }).click();
-  await expect(page.getByTestId("rewrite-provider")).toContainText("로컬·사내 모델");
+  await expect(page.getByTestId("rewrite-provider")).toContainText("연결한 AI 모델");
   const idleReads = reads;
   await page.clock.install();
   await page.clock.runFor(6500);

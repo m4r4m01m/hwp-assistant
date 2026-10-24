@@ -5,7 +5,8 @@ import { RewritePanel, type PendingRewrite } from "./rewrite";
 import { WritingContextEditor, type WritingContext } from "./context";
 import { DocumentAssistantPanel, type AssistantActions } from "./document-assistant";
 import { WorkspaceIcon } from "./workspace-nav";
-import { CapabilityNotice, useFeature } from "./capabilities";
+import { CapabilityNotice, AIDataNotice, useFeature } from "./capabilities";
+import { aiConnectionMessage, canRequestAI, type AIConnection } from "./ai-connection";
 import { useComparisonDialog } from "./version-comparison";
 
 type Thread = { id: string; title: string; visibility: "document" | "private" };
@@ -62,7 +63,7 @@ export function CollaborationPanel({
     [switchRequest, setSwitchRequest] = useState<{ id: string; label: string } | null>(null),
     [discardNew, setDiscardNew] = useState(false),
     [checkingConnection, setCheckingConnection] = useState(false),
-    [separateAi, setSeparateAi] = useState<{ ready: boolean; model: string; error: string } | null>(null);
+    [separateAi, setSeparateAi] = useState<{ ready: boolean; message: string } | null>(null);
   const generation = useRef(0);
   const [assistantDirty, setAssistantDirty] = useState(false), [assistantActive, setAssistantActive] = useState(false), [showRewrite, setShowRewrite] = useState(false);
   const assistantDirtyChanged = useCallback((dirty: boolean) => setAssistantDirty(dirty), []);
@@ -123,11 +124,10 @@ export function CollaborationPanel({
     setCheckingConnection(true);
     setSeparateAi(null);
     try {
-      const value = await api<{ configured_model: string; model_available: boolean }>("/ai/models");
-      setSeparateAi({ ready: value.model_available, model: value.configured_model,
-        error: value.model_available ? "" : "설정한 모델을 연결된 서버에서 찾지 못했습니다." });
+      const value = await api<AIConnection>("/ai/models");
+      setSeparateAi({ ready: canRequestAI(value), message: aiConnectionMessage(value) });
     } catch (cause) {
-      setSeparateAi({ ready: false, model: "", error: String(cause) });
+      setSeparateAi({ ready: false, message: String(cause) });
     } finally { setCheckingConnection(false); }
   }
   function selectThread(id: string) {
@@ -287,9 +287,10 @@ export function CollaborationPanel({
               </button>
               <details>
                 <summary>별도 AI 연결</summary>
-                <p className="hint">관리자가 연결한 로컬·사내 모델에 질문하는 기능입니다. Codex 연결만으로는 사용할 수 없습니다. 질문할 때 저장된 작성 정보와 최근 대화가 전달됩니다.</p>
+                <p className="hint">관리자가 설정한 AI 모델에 질문합니다. 질문할 때 저장된 작성 정보와 최근 대화가 전달됩니다.</p>
+                <AIDataNotice feature="chat" scope="질문·저장한 작성 정보·최근 대화를" />
                 <button disabled={busy || checkingConnection} onClick={() => void checkSeparateAi()}>{checkingConnection ? "연결 확인 중…" : "별도 AI 연결 확인"}</button>
-                {separateAi && <p role={separateAi.ready ? "status" : "alert"}>{separateAi.ready ? `연결됨 · ${separateAi.model}` : separateAi.error}</p>}
+                {separateAi && <p role={separateAi.ready ? "status" : "alert"}>{separateAi.message}</p>}
               <button
                 disabled={busy || checkingConnection || !separateAi?.ready || !message.trim() || !chatFeature.available}
                 onClick={() =>

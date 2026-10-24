@@ -1,4 +1,4 @@
-"""Bound immediate HTTP model calls in the existing single-worker deployment."""
+"""Bound HTTP model calls and jobs in the existing single-worker deployment."""
 import os
 import time
 from collections import deque

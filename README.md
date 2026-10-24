@@ -36,11 +36,11 @@ HWP Assistant는 HWPX 파일을 열고, 편집하고, AI 수정안을 비교해 
 | **HWPX 편집** | 문서 업로드·새 문서 생성, 본문·표 수동 편집, 자동 저장·다른 이름으로 저장 |
 | **안전한 저장** | 기준 버전·편집 임대 검사, 변경분 전송, 중복 요청 방지, 불변 버전 기록·다운로드·복원 |
 | **버전 문서 비교** | 두 저장 버전의 실제 페이지·본문·서식·표 변경 비교, 문단별 마지막 변경 계정과 중간 저장 기록 표시 ([사용법과 범위](docs/version-comparison.md)) |
-| **AI 문단 수정** | 요청 당시 미저장 원문 → 설정한 Codex 또는 로컬·사내 모델의 후보 2개 → 비교 → 사용자 승인 → 적용·저장 |
+| **AI 문단 수정** | 요청 당시 미저장 원문 → 설정한 Codex 또는 OpenAI 호환 모델의 후보 2개 → 비교 → 사용자 승인 → 적용·저장 |
 | **문서별 대화** | 문서 권한자가 모든 작성자의 대화·미적용 후보·적용 이력을 열람 |
 | **자체 컨텍스트** | 작성 목적·확정 사실·작성 기준·선택 문단을 문서 기준 버전과 함께 보관 |
 | **양식 재사용** | 등록한 HWPX 버전의 이름·설명·태그로 추천하고, 해당 양식으로 새 문서 생성 |
-| **보고서 기본 서식** | 주제 입력 → Codex 초안 검토·보완 → 별첨 1~3 서식·실제 쪽수 적용 → 편집·서버 저장 |
+| **보고서 기본 서식** | 주제 입력 → 설정한 Codex/API 초안 검토·보완 → 별첨 1~3 서식·실제 쪽수 적용 → 편집·서버 저장 |
 | **문서 표준 편집** | 실제 예시를 보며 표 정렬·테두리·제목 위치·요약 표시·쪽번호·출처 표식을 바꾸고 새 불변 표준으로 등록 |
 | **개발자 실행** | Windows에서 `Start HWP Assistant.cmd`로 잠금 의존성·고정 개발 엔진을 준비하고 별도 문서함 실행 |
 
@@ -53,7 +53,7 @@ HWP Assistant는 HWPX 파일을 열고, 편집하고, AI 수정안을 비교해 
 ```mermaid
 flowchart LR
     A["문단 편집·선택<br/>미저장 원문 포함"] --> B["요청 스냅샷 고정"]
-    B --> C["서버에서 선택한 제공자<br/>Codex / 로컬·사내 모델<br/>후보 2개 생성"]
+    B --> C["서버에서 선택한 제공자<br/>Codex / OpenAI 호환 모델<br/>후보 2개 생성"]
     C --> D["AS-IS / TO-BE 비교"]
     D --> E["사용자가 후보 승인"]
     E --> F["원문·리비전 재검사<br/>rhwp 문단 적용"]
@@ -181,10 +181,12 @@ npm run build
 
 AI를 설정하지 않아도 문서 업로드·편집·저장·다운로드가 동작합니다. 앱에는 다음 두 실행 경로가 있으며 연결 설정도 각각 적용됩니다.
 
+이 검토 브랜치는 **OpenRouter·NVIDIA·OpenAI 호스팅 API와 HTTP 보고서 생성**을 추가합니다. 외부 API는 명시적으로 허용하고 모델을 고정해야 하며, 보고서 기본값은 기존 `codex`입니다. 공급자 비교, 홈서버 연결, 설정 예시와 검증 한계는 **[LLM API 연결 검토 초안](docs/llm-api-draft.md)**에서 확인합니다. 실제 키·모델 품질·운영 배포 검증을 완료했다는 뜻은 아닙니다.
+
 | 경로 | 용도 | 연결 조건 |
 |---|---|---|
 | **Codex** | 현재 문서 질문·후속 대화(app-server), 선택 문단 후보 생성·비교·승인(문서 MCP) | 서버와 같은 OS 사용자의 설치된 Codex CLI와 기존 ChatGPT 로그인. 문단 후보에는 MCP 의존성 |
-| **로컬·사내 LlmProvider** | 설정된 모델에 질문·검토 요청, 선택 문단 후보 2개 | `LLM_*` 환경변수와 OpenAI 호환 `/chat/completions` 서버. 두 후보 경로는 `HWP_REWRITE_PROVIDER=llm` |
+| **HTTP LlmProvider** | 질문·검토·선택 문단 후보 2개, 제공 자료 기반 보고서 | `LLM_*`와 OpenAI 호환 `/chat/completions` 서버. 외부 프리셋은 `LLM_ALLOW_EXTERNAL=true`, 문단 후보는 `HWP_REWRITE_PROVIDER=llm`, 보고서는 `HWP_REPORT_PROVIDER=llm` |
 
 Codex 요청에는 `LLM_API_KEY`가 필요하지 않습니다. `HWP_CODEX_USER`는 본인 Codex 환경에 연결되는 앱 사용자 ID이며 기본값은 `local`입니다. `HWP_CODEX_API_URL`은 실행기에서 접근하는 앱 API 주소로 기본값은 `http://127.0.0.1:8000`입니다. 다른 앱 사용자에게 서버 소유자의 Codex 실행 권한을 자동으로 부여하지 않습니다. 로그인·사용량·연결 문제는 오류로 알리며 유료 API로 자동 전환하지 않습니다. [Codex/MCP 설정과 실제 실행 경로](docs/collaboration-and-mcp.md)
 
@@ -192,7 +194,7 @@ Codex 요청에는 `LLM_API_KEY`가 필요하지 않습니다. `HWP_CODEX_USER`�
 
 본문 문단에 커서를 놓고 수정을 요청하면 **이 문단 수정 후보 만들기 → 후보 N 승인·적용·저장**으로 이어집니다. 질문만으로 문서를 바꾸지 않으며, 질문 이후 문서나 선택이 바뀌면 새 요청이 필요합니다. 표·여러 문단·서식 일괄 수정은 이 문단 경로의 적용 범위가 아닙니다. **문단 수정 후보 · 직접 요청**에서는 기존 두 후보 기능을 바로 쓸 수 있습니다. 직접 후보 요청에는 선택 문단과 개선 지시를 전달하고, **저장한 작성 정보 사용**을 선택하면 확인·저장한 작성 목적·확인 사실·작성 기준을 고정하여 전달합니다. 이 직접 요청에 전체 대화나 자유 메모를 자동으로 넣지 않습니다. 비교 중에는 자동 저장을 보류하며 승인·적용·저장 재시도는 같은 입력을 보존합니다.
 
-문서 대화는 `HWP_DOCUMENT_ASSISTANT_PROVIDER`를 따르고, 생략하면 `HWP_REWRITE_PROVIDER`(기본 `codex`)를 사용합니다. `llm`을 명시한 경우에만 설정된 로컬·사내 모델을 사용하며 자동 전환하지 않습니다. [Codex 사람 승인 시험](docs/manual-codex-verification.md) · [로컬 모델 흐름과 재시도](docs/local-model-rewrite.md)
+문서 대화는 `HWP_DOCUMENT_ASSISTANT_PROVIDER`를 따르고, 생략하면 `HWP_REWRITE_PROVIDER`(기본 `codex`)를 사용합니다. `llm`을 명시한 경우에만 설정된 HTTP 모델을 사용하며 자동 전환하지 않습니다. HTTP 보고서는 웹 검색을 지원하지 않고 완성된 응답을 검증한 뒤 보여줍니다. [Codex 사람 승인 시험](docs/manual-codex-verification.md) · [로컬 모델 흐름과 재시도](docs/local-model-rewrite.md)
 
 ### 로컬·사내 모델 설정
 
@@ -201,7 +203,7 @@ PoC는 보존했으며 앱에서는 공용 전역 messages를 사용하지 않�
 | 환경변수 | 예시 / 의미 |
 |---|---|
 | `HWP_REWRITE_PROVIDER` | 후보 2개 생성 경로. 기본 `codex`, 로컬·사내 모델은 `llm`. 자동 전환 없음 |
-| `LLM_PROVIDER` | `openai-compatible`; 미설정이면 503 |
+| `LLM_PROVIDER` | 로컬·사내는 `openai-compatible`; 외부 프리셋은 `openrouter`, `nvidia`, `openai`. 미설정이면 503 |
 | `LLM_BASE_URL` | 네이티브: `http://127.0.0.1:1234/v1` |
 | `LLM_API_KEY` | `lm-studio`는 예시. 실제 키는 `.env` 또는 실행 환경에만 보관 |
 | `LLM_MODEL` | `google/gemma-4-e4b`는 PoC 예시. UI의 **AI 연결·모델 확인**으로 `/models` 실제 ID 확인 |
@@ -223,7 +225,7 @@ $env:LLM_TIMEOUT_SECONDS='30'
 
 `localhost`는 호출하는 프로세스가 속한 환경이다. 네이티브 API는 개발 PC, 컨테이너 API는 해당 컨테이너를 가리킨다. Compose에서 PC의 모델에 연결하려면 `host.docker.internal`을 사용하고 모델 서버의 바인딩·방화벽을 확인한다. 다른 Codex 호스트/격리 런타임이면 그 환경의 localhost이며 PC의 모델을 의미하지 않는다. 이번 실행은 이 Windows PC의 네이티브 프로세스였고 `127.0.0.1:1234/v1/models`는 **연결 거부**였다. 회사 폐쇄망 접속은 시도하지 않았다.
 
-운영 모델 명칭 **Qwen 3.8**의 정확한 ID·크기·API는 미확인이다. 임의로 다른 Qwen ID로 치환하지 않는다. Ollama 설치는 필요 없다. 외부 유료 API로 자동 대체하지 않고 OpenAI 유료 서버 도메인도 거부한다. 모델 서버 URL은 관리자가 제공하는 로컬·사내 주소만 설정한다.
+운영 모델 명칭 **Qwen 3.8**의 정확한 ID·크기·API는 미확인이다. 임의로 다른 Qwen ID로 치환하지 않는다. Ollama 설치는 필요 없다. 외부 유료 API로 자동 대체하지 않는다. 호스팅 API는 전용 프리셋·서버 키·명시적 외부 허용을 사용한다. 사용자 지정 주소는 운영자 설정이며, `LLM_ALLOW_EXTERNAL=false`만으로 DNS/IP가 사내 주소인지 검증하지는 않는다.
 
 검토는 커서가 놓인 **본문 문단 전체**를 대상으로 한다. 표 셀·필드·컨트롤·혼합 글자 서식 문단은 엔진의 안전 명령 대상이 아니다. 문서 첫 문단에 구역 설정 컨트롤이 있으면 다음 본문 문단을 사용한다. 원문·수정안·이유를 표시하며 승인 시 문서 ID/버전, 편집 리비전, 선택 위치, 원문·서식·인접 문맥 해시를 검증한다. 승인 적용은 엔진의 단일 실행 취소 트랜잭션이다.
 
@@ -298,6 +300,7 @@ npm run test:e2e
 | [기능 마감·최종 검증 · 2026-10-17](docs/development-handoff-2026-10-17.md) | 세 프로필·자동 목차·실제 Codex·Hancom 왕복과 추가 제목 개선의 실행 근거 |
 | [누적 개발 인수인계 · 2026-10-14](docs/development-handoff-2026-10-14.md) | 이번 개발 브랜치의 누적 구현, 날짜별 검증, 미완료 항목과 다음 작업 |
 | [협업·권한·Codex/MCP](docs/collaboration-and-mcp.md) | 인증, 문서 대화, 컨텍스트, 변경분, 템플릿과 실제 실행 경로 |
+| [LLM API 연결 검토 초안](docs/llm-api-draft.md) | 홈서버 Codex와 HTTP API 비교, OpenRouter·NVIDIA·OpenAI 설정, 보고서 경로와 검증 범위 |
 | [실제 Codex 수동 시험](docs/manual-codex-verification.md) | 사람이 볼 수 있는 브라우저에서 후보를 비교·승인하는 방법 |
 | [로컬·사내 모델 후보](docs/local-model-rewrite.md) | 명시적 제공자 설정, 입력 범위, 엄격한 응답 계약, 실패·재시도·사람 시험 재개 |
 | [2026-10-06 검증](docs/verification-2026-10-06.md) | 모의 모델·실제 엔진 구분, 저장 복구·서버 재시작·반복 왕복과 보존 근거 |

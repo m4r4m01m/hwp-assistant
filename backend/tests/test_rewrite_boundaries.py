@@ -4,6 +4,7 @@ import subprocess
 import threading
 import time
 import uuid
+from contextlib import nullcontext
 
 import pytest
 from fastapi import HTTPException
@@ -29,6 +30,15 @@ def history(job):
     return job[0].get(f"/api/threads/{job[3]}/rewrite-tasks").json()
 
 
+@pytest.fixture
+def isolate_global_capacity(local_jobs, monkeypatch):
+    # These cases independently exercise physical global slots with two workers
+    # for one fixture user. Real shared per-user admission is covered by
+    # test_rewrite_budget.py, including its interaction with these global slots.
+    monkeypatch.setattr(local_jobs[1].state.ai_budget, "reserve", lambda _user: nullcontext())
+
+
+@pytest.mark.usefixtures("isolate_global_capacity")
 def test_cancel_and_reissue_keeps_physical_execution_capacity_until_worker_returns(local_jobs):
     c, _, _, _, _, body, queued, _ = local_jobs
     for _ in range(2):
@@ -223,6 +233,7 @@ def test_published_success_survives_late_cancel_and_failure(local_jobs):
     assert history(local_jobs)[0] == before
 
 
+@pytest.mark.usefixtures("isolate_global_capacity")
 def test_event_held_workers_keep_slots_after_logical_cancel(local_jobs, monkeypatch):
     c, _, _, _, _, body, queued, _ = local_jobs
     entered = [threading.Event(), threading.Event()]
@@ -266,6 +277,7 @@ def test_event_held_workers_keep_slots_after_logical_cancel(local_jobs, monkeypa
 
 
 @pytest.mark.parametrize("failure", ["task_commit", "dispatch", "parse", "publication", "success"])
+@pytest.mark.usefixtures("isolate_global_capacity")
 def test_slot_released_once_after_all_exit_paths(local_jobs, monkeypatch, failure):
     _, _, _, _, _, body, queued, _ = local_jobs
     fired = False
@@ -338,6 +350,7 @@ def test_codex_and_llm_share_capacity_until_ready_worker_cleanup_finishes(local_
             target(*args)
 
 
+@pytest.mark.usefixtures("isolate_global_capacity")
 def test_unexpected_runner_exception_still_releases_slot(local_jobs, monkeypatch):
     def broken(*_): raise RuntimeError("synthetic runner failure")
     monkeypatch.setattr("app.local_rewrite.run_local_rewrite", broken)

@@ -317,37 +317,38 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
             _, _, _, existing = chat_question(db, thread_id, value.message_id, request.state.user)
             if existing:
                 return fields(existing, "id", "content", "source")
-        with app.state.ai_budget.reserve(request.state.user), ExecutionSlot(app.state.rewrite_capacity) as slot:
+        with ExecutionSlot(app.state.rewrite_capacity) as slot:
             slot.reserve()
-            with transaction(engine) as db:
-                thread, doc, message, existing = chat_question(db, thread_id, value.message_id, request.state.user, lock=True)
-                if existing:
-                    return fields(existing, "id", "content", "source")
-                ctx = context_value(db, thread, doc)
-                if ctx["stale"]:
-                    raise HTTPException(409, "컨텍스트가 오래되었습니다. 최신 기준으로 저장하세요.")
-                history = messages_value(db, thread_id, 20)
-                base = doc.current_version
-                provider = OpenAICompatible()
-                key = digest((thread_id + ":" + message.id).encode())
-                reserve_chat(db, key, request.state.user)
-            try:
-                answer = await provider.chat(ctx, history)
+            with app.state.ai_budget.reserve(request.state.user):
                 with transaction(engine) as db:
-                    thread, doc = thread_access(db, thread_id, request.state.user, "editor", lock=True)
-                    current = context_value(db, thread, doc)
-                    if doc.current_version != base or current["revision"] != ctx["revision"]:
-                        raise HTTPException(409, "응답 중 문서/컨텍스트가 바뀌었습니다. 다시 질문하세요.")
-                    row = append_message(db, thread_id, request.state.user,
-                          NewMessage(request_id="ai:" + value.message_id, content=answer), "model", "assistant")
-                    claim = db.get(AIRequest, key)
-                    claim.status, claim.finished_at = "completed", time.time()
-                    result = fields(row, "id", "content", "source")
-                return result
-            except BaseException:
-                # Do not automatically repeat a model call whose outcome is uncertain.
-                finish_chat(engine, key, "failed")
-                raise
+                    thread, doc, message, existing = chat_question(db, thread_id, value.message_id, request.state.user, lock=True)
+                    if existing:
+                        return fields(existing, "id", "content", "source")
+                    ctx = context_value(db, thread, doc)
+                    if ctx["stale"]:
+                        raise HTTPException(409, "컨텍스트가 오래되었습니다. 최신 기준으로 저장하세요.")
+                    history = messages_value(db, thread_id, 20)
+                    base = doc.current_version
+                    provider = OpenAICompatible()
+                    key = digest((thread_id + ":" + message.id).encode())
+                    reserve_chat(db, key, request.state.user)
+                try:
+                    answer = await provider.chat(ctx, history)
+                    with transaction(engine) as db:
+                        thread, doc = thread_access(db, thread_id, request.state.user, "editor", lock=True)
+                        current = context_value(db, thread, doc)
+                        if doc.current_version != base or current["revision"] != ctx["revision"]:
+                            raise HTTPException(409, "응답 중 문서/컨텍스트가 바뀌었습니다. 다시 질문하세요.")
+                        row = append_message(db, thread_id, request.state.user,
+                              NewMessage(request_id="ai:" + value.message_id, content=answer), "model", "assistant")
+                        claim = db.get(AIRequest, key)
+                        claim.status, claim.finished_at = "completed", time.time()
+                        result = fields(row, "id", "content", "source")
+                    return result
+                except BaseException:
+                    # Do not automatically repeat a model call whose outcome is uncertain.
+                    finish_chat(engine, key, "failed")
+                    raise
 
     @app.post("/api/threads/{thread_id}/proposals")
     def propose(thread_id: str, value: NewProposal, request: Request):

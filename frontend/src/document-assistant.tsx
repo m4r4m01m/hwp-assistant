@@ -3,7 +3,7 @@ import { api, ApiError, errorMessage, isAbortError, type Document } from "./api"
 import type { Snapshot } from "./editor";
 import type { AssistantCapture } from "./document-assistant-context";
 import { usePageVisible } from "./ui-state";
-import { CapabilityNotice, useFeature } from "./capabilities";
+import { CapabilityNotice, AIDataNotice, useFeature } from "./capabilities";
 import "./document-assistant.css";
 
 export type AssistantRequest = AssistantCapture & { id: string; message: string };
@@ -232,6 +232,7 @@ export function DocumentAssistantPanel({ thread, document: doc, captureDocument,
       {pending && <div className="notice"><p>접수 결과를 확인하지 못했습니다. 같은 질문과 문서 내용을 보관 중입니다.</p><p className="text">{pending.message}</p></div>}
       <button className="primary" disabled={permissionLost || busy || (!pending && (active || !message.trim() || !provider?.configured || !provider.allowed))} onClick={() => void send()}>{busy ? "요청 확인 중…" : pending ? "같은 질문 접수 재확인" : "보내기"}</button>
       <small>{provider ? `사용 AI: ${provider.provider === "llm" ? "연결한 모델" : "Codex"}${provider.model ? ` · ${provider.model}` : ""}` : "AI 연결 정보 확인 중…"} · Ctrl+Enter로 보내기</small>
+      {provider?.provider === "llm" && <AIDataNotice feature="chat" scope="질문·현재 문서의 텍스트 발췌·선택 문단·최근 대화를" />}
       {provider?.reason && <p role="alert">{provider.reason}</p>}
     </div>}
     {permissionLost && <p className="notice">문서 접근 권한을 확인할 수 없어 새 요청을 보낼 수 없습니다. 작성 중인 입력은 그대로 보관됩니다. 권한을 확인한 뒤 문서를 다시 여세요.</p>}

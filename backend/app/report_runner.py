@@ -1,4 +1,4 @@
-"""Report-only Codex execution; no shell, file editing, MCP, approval or paid fallback."""
+"""Explicit report execution; no shell, file editing, MCP, approval or paid fallback."""
 import os
 import subprocess
 import tempfile
@@ -138,6 +138,9 @@ def writing_prompt(value):
 
 
 def generate_report(value, settings, progress=lambda value: None, active=lambda: True):
+    from .report_llm import ReportLlmSettings, generate_http_report
+    if isinstance(settings, ReportLlmSettings):
+        return generate_http_report(value, settings, writing_prompt(value), CONTRACT, progress, active)
     started = time.monotonic()
     if not settings.executable:
         raise RuntimeError("설치된 Codex CLI가 필요합니다.")

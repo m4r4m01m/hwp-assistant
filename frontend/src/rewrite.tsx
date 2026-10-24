@@ -3,7 +3,7 @@ import { api, ApiError, errorMessage, isAbortError, type Document } from "./api"
 import type { Snapshot } from "./editor";
 import { ContextSnapshot, type FrozenWritingContext, type WritingContext } from "./context";
 import { CandidateText } from "./candidate-text";
-import { CapabilityNotice, useFeature } from "./capabilities";
+import { CapabilityNotice, AIDataNotice, useFeature } from "./capabilities";
 import { usePageVisible } from "./ui-state";
 
 export type RewriteTask = {
@@ -18,7 +18,7 @@ export type RewriteTask = {
 
 type RewriteProvider = { provider: string; model: string | null; configured: boolean; allowed: boolean; reason: string };
 export type PendingRewrite = { id: string; thread: string; instruction: string; contextRevision?: number };
-const providerLabel = (provider?: string) => provider === "llm" ? "로컬·사내 모델" : provider === "codex" ? "Codex" : "미확인 경로";
+const providerLabel = (provider?: string) => provider === "llm" ? "연결한 AI 모델" : provider === "codex" ? "Codex" : "미확인 경로";
 const taskStatusLabel = (status: string) => ({ running: "작성 중", ready: "검토 가능", failed: "작성 실패", cancelled: "중단됨", expired: "유효 시간 만료" }[status] || status);
 const applicationStatusLabel = (status: string) => ({ approved: "승인됨", applied: "적용됨", saved: "저장됨" }[status] || status);
 
@@ -152,6 +152,7 @@ export function RewritePanel({ thread, document: doc, context, contextDirty, req
     <p>본문 문단에 커서를 놓고 수정 방향을 적으세요. 후보 두 개를 비교한 뒤 직접 선택해 반영할 수 있습니다.</p>
     <p className="hint" data-testid="rewrite-provider">사용 AI: {provider ? providerLabel(provider.provider) : "확인 중"}{provider?.model ? ` · ${provider.model}` : ""}</p>
     <p className="hint">{useContext ? "선택 문단·수정 요청·확인한 작성 정보를 사용합니다." : "선택 문단과 수정 요청을 사용합니다."} 대화 메모는 자동으로 포함하지 않습니다.</p>
+    {provider?.provider === "llm" && <AIDataNotice feature="rewrite" scope={useContext ? "선택 문단·수정 요청·확인한 작성 정보를" : "선택 문단·수정 요청을"} />}
     {provider?.reason && <p role="alert">{provider.reason}</p>}
     {requestRewrite && pendingRequest?.thread === thread && <div className="notice" data-testid="pending-rewrite">
       <p>접수 결과가 확인되지 않은 생성 요청을 보관 중입니다. 현재 입력을 바꿔도 재확인은 보관한 원문·지시·작성 정보로 진행합니다.</p>
