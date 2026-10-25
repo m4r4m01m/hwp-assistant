@@ -4,6 +4,7 @@ import { EditorAdapter } from "./editor";
 import { captureReport, fenceReport } from "./report-toc";
 import type { LayoutHeading } from "./editor";
 import { embedStandardPreviewFonts, standardPreviewFontNames } from "./standard-preview-fonts";
+import { waitForStandardPreview } from "./standard-preview-task";
 import { alignComparisonPages, compareSampleRegions, comparisonColors, measureSampleRegions, pageSettingRegions, settingImpact, type SampleRegion, type SamplePageGeometry } from "./standard-preview-regions";
 import { WorkspaceNav, WorkspaceIcon, type WorkspaceSection } from "./workspace-nav";
 import "./standard-designer.css";
@@ -33,6 +34,8 @@ type Field = {
   unit?: string;
   options?: { value: string | number; label: string }[];
   help?: string;
+  help_by_value?: Record<string, string>;
+  option_aliases?: Record<string, string>;
   min_length?: number;
   max_length?: number;
   enabled_when?: { key: string; value: number | string | boolean };
@@ -63,7 +66,7 @@ type PreviewResponse = {
   toc_stage?: { headings: LayoutHeading[]; pass_index: number };
 };
 type PageSize = { width: number; height: number };
-type RenderedPreview = PreviewResponse & { key: string; settings: Settings; pages: string[]; pageSizes: PageSize[]; geometry: SamplePageGeometry[]; geometryError?: string };
+type RenderedPreview = PreviewResponse & { key: string; settings: Settings; pages: string[]; svgs: string[]; pageSizes: PageSize[]; geometry: SamplePageGeometry[]; geometryError?: string };
 type ReferenceResponse = { preview_base64: string; preview_sha256: string; reference_sha256: string; name: string; max_pages: number };
 type ReferencePreview = Omit<ReferenceResponse, "preview_base64"> & { pages: string[]; pageSizes: PageSize[] };
 type Comparison = { pages: string[]; geometry: SamplePageGeometry[]; pageSizes: PageSize[]; settings: Settings };
@@ -82,6 +85,20 @@ type PendingChange = { type: "source"; id: string } | { type: "leave"; section?:
 
 const inputValues = (settings: Settings) => Object.fromEntries(Object.entries(settings).map(([key, value]) => [key, String(value)]));
 const settingsKey = (settings: Settings) => JSON.stringify(Object.fromEntries(Object.entries(settings).sort(([a], [b]) => a.localeCompare(b))));
+// Display equivalence only: never rewrite a saved standard's hash-pinned input.
+function optionAliases(field: Field, settings: Settings): Record<string, string> {
+  if (field.key === "cover_mode") return { ORIGINAL: settings.preset_id === "appendix-1" ? "OFF" : "ON" };
+  if (field.key === "toc_mode") return { ORIGINAL: settings.preset_id === "appendix-2" ? "SEPARATE" : settings.preset_id === "appendix-3" ? "COVER" : "NONE" };
+  return field.option_aliases || {};
+}
+function effectiveSettings(fields: Field[], settings: Settings): Settings {
+  const result = { ...settings };
+  for (const field of fields) {
+    const value = settings[field.key] ?? field.default;
+    if (value !== undefined) result[field.key] = optionAliases(field, settings)[String(value)] ?? value;
+  }
+  return result;
+}
 const parentheticalRoles = ["square", "circle", "dash", "dot", "body", "summary"];
 const favoritesStorageKey = "hwp.standard.favorite-groups.v2";
 const bodyRoles = ["square", "circle", "dash", "dot"];
@@ -111,6 +128,11 @@ async function sha256(bytes: Uint8Array) {
   return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(bytes))))
     .map(value => value.toString(16).padStart(2, "0")).join("");
 }
+function fieldRange(field: Field) {
+  const unit = field.unit || "";
+  const upper = field.key === "body_tracking_percent" && Number(field.max) > 0 ? `+${field.max}` : field.max ?? "최댓값";
+  return `${field.min ?? "최솟값"}${unit} ~ ${upper}${unit}`;
+}
 function readSettings(fields: Field[], values: Record<string, string>, legacyIntegerPercent = false): { settings: Settings; error: string } {
   const settings: Settings = {};
   for (const field of fields) {
@@ -133,7 +155,7 @@ function readSettings(fields: Field[], values: Record<string, string>, legacyInt
     } else {
       const number = Number(input);
       if (!input.trim() || !Number.isFinite(number))
-        return { settings, error: `${field.group} ${field.label}: ${field.min ?? "최솟값"}~${field.max ?? "최댓값"}${field.unit || ""} 범위의 수치를 입력하세요.` };
+        return { settings, error: `${field.group} ${field.label}: ${fieldRange(field)} 범위의 수치를 입력하세요.` };
       if (legacyIntegerPercent && field.unit === "%" && !Number.isInteger(number)) return { settings, error: `${field.group} ${field.label}: 정수로 입력하세요.` };
       const bounded = Math.min(field.max ?? Infinity, Math.max(field.min ?? -Infinity, number));
       settings[field.key] = bounded;
@@ -246,7 +268,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
   // or invalid input dirty so navigating away cannot silently discard it.
   const changedSettings = !!catalog && (checked.error || baseline.error
     ? settingsKey(values) !== settingsKey(baselineValues)
-    : currentKey !== settingsKey(baseline.settings));
+    : settingsKey(effectiveSettings(definition?.fields || [], checked.settings)) !== settingsKey(effectiveSettings(definition?.fields || [], baseline.settings)));
 
   useEffect(() => {
     if (!preview) { setExpired(false); return; }
@@ -286,6 +308,44 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
       control.focus({ preventScroll: true });
   }
 
+  function makePreviewReadOnly(engine: EditorAdapter) {
+    // An inert host does not prevent the embedded editor from focusing its own
+    // textarea. This frame only renders generated samples; it receives no edits.
+    const element = engine.sdk.element;
+    if (element) {
+      element.inert = true;
+      element.tabIndex = -1;
+      if (element.contentDocument?.body) element.contentDocument.body.inert = true;
+    }
+  }
+
+  function resetComparison(rendered: RenderedPreview) {
+    const previous = comparisonRef.current;
+    const next = { pages: rendered.svgs.map(svg => URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }))),
+      geometry: rendered.geometry, pageSizes: rendered.pageSizes, settings: rendered.settings };
+    comparisonRef.current = next;
+    setComparison(next);
+    setTimeout(() => previous?.pages.forEach(url => URL.revokeObjectURL(url)), 0);
+  }
+
+  async function renderPreview(signal: AbortSignal, render: (engine: EditorAdapter) => Promise<void>) {
+    if (signal.aborted) throw new DOMException("예시 갱신이 취소되었습니다.", "AbortError");
+    let engine = adapter.current;
+    if (!engine) {
+      engine = await EditorAdapter.mount(host.current!, { signal });
+      adapter.current = engine;
+    }
+    makePreviewReadOnly(engine);
+    try {
+      await waitForStandardPreview(render(engine), signal);
+    } catch (cause) {
+      // A late native load must never modify the engine used by the next input.
+      // The last verified SVG and all form values remain visible and unchanged.
+      if (adapter.current === engine) { adapter.current = null; engine.destroy(); }
+      throw cause;
+    }
+  }
+
   useEffect(() => {
     mounted.current = true;
     let live = true;
@@ -300,6 +360,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
       const engine = await EditorAdapter.mount(host.current!);
       if (!live) { engine.destroy(); return; }
       adapter.current = engine;
+      makePreviewReadOnly(engine);
       await engine.bridge.newDocument();
       if (!live) return;
       const exported = engine.exportHwpx();
@@ -324,7 +385,10 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
   useEffect(() => {
     const requestGeneration = ++generation.current;
     if (!catalog || !seed || !valid || locked || view !== "settings") return;
-    if (saved && preview?.key === currentKey && saved.preview_sha256 === preview.preview_sha256 && saved.settings_sha256 === preview.settings_sha256) { setPhase("ready"); return; }
+    if (saved && preview?.key === currentKey && saved.preview_sha256 === preview.preview_sha256 && saved.settings_sha256 === preview.settings_sha256) {
+      if (!comparisonRef.current) resetComparison(preview);
+      setPhase("ready"); return;
+    }
     let live = true;
     const controller = new AbortController();
     setPhase("waiting");
@@ -336,8 +400,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
         .then(result => {
           const rendering = queue.current.catch(() => {}).then(async () => {
             if (!live || requestGeneration !== generation.current) return;
-            const engine = adapter.current;
-            if (!engine) throw new Error("미리보기 엔진을 다시 열어 주세요.");
+            return renderPreview(controller.signal, async engine => {
             setPhase("rendering");
             const binding = { settings: result.settings_sha256, sample: result.sample_sha256, base: settingsKey(result.base_standard) };
             let count = 0;
@@ -349,7 +412,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
               if (await sha256(bytes) !== result.preview_sha256) throw new Error("미리보기 파일의 해시가 서버 결과와 다릅니다. 등록하지 않았습니다.");
               if (!live || requestGeneration !== generation.current) return;
               setRenderDetail(result.phase === "toc" ? `목차 쪽수 확인 중… ${result.toc_stage?.pass_index || 1}/3회` : "같은 업무 예시에 서식·페이지 배치 중…");
-              await engine.load(bytes.buffer, "문서 표준 업무 예시.hwpx");
+              await engine.load(bytes.buffer, "문서 표준 업무 예시.hwpx", { suppressDialogs: true, skipUnsavedGuard: true });
               if (!live || requestGeneration !== generation.current) return;
               restoreSettingFocus();
               count = await engine.sdk.pageCount();
@@ -394,12 +457,13 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
               for (let index = 0; index < count; index++) {
                 if (!live || requestGeneration !== generation.current) return;
                 const svg = await embedStandardPreviewFonts(await engine.sdk.getPageSvg(index));
+                if (!live || requestGeneration !== generation.current) return;
                 svgs.push(svg);
                 const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
                 urls.push(url);
                 const image = new Image();
                 image.src = url;
-                await image.decode();
+                await waitForStandardPreview(image.decode(), controller.signal, 10000);
                 pageSizes.push({ width: image.naturalWidth, height: image.naturalHeight });
               }
               if (!live || requestGeneration !== generation.current) return;
@@ -410,16 +474,15 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
               const previous = pageUrls.current;
               pageUrls.current = urls;
               restoreSettingFocus();
-              setPreview({ ...result, key: currentKey, settings, pages: urls, pageSizes, geometry, geometryError });
-              if (!comparisonRef.current) {
-                const before = { pages: svgs.map(svg => URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }))), geometry, pageSizes, settings };
-                comparisonRef.current = before; setComparison(before);
-              }
+              const rendered = { ...result, key: currentKey, settings, pages: urls, svgs, pageSizes, geometry, geometryError };
+              setPreview(rendered);
+              if (!comparisonRef.current) resetComparison(rendered);
               setPhase("ready");
               setTimeout(() => previous.forEach(url => URL.revokeObjectURL(url)), 0);
             } finally {
               if (pageUrls.current !== urls) urls.forEach(url => URL.revokeObjectURL(url));
             }
+            });
           });
           queue.current = rendering;
           return rendering;
@@ -440,15 +503,14 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
     void api<ReferenceResponse>(path, { signal: controller.signal }).then(result => {
       const rendering = queue.current.catch(() => {}).then(async () => {
         if (!live || generation.current !== requestGeneration) return;
-        const engine = adapter.current;
-        if (!engine) throw new Error("기준서를 표시할 한글 엔진을 준비하지 못했습니다.");
+        return renderPreview(controller.signal, async engine => {
         const bytes = decode(result.preview_base64);
         const expectedSource = catalog.source?.reference_sha256 || catalog.presets?.[0]?.base_standard.reference_sha256;
         if (await sha256(bytes) !== result.preview_sha256 || !expectedSource || result.reference_sha256 !== expectedSource)
           throw new Error("기준서의 원본 근거 또는 표시 파일 해시가 다릅니다.");
         if (!live || generation.current !== requestGeneration) return;
         setPhase("rendering");
-        await engine.load(bytes.buffer, result.name + ".hwpx");
+        await engine.load(bytes.buffer, result.name + ".hwpx", { suppressDialogs: true, skipUnsavedGuard: true });
         if (!live || generation.current !== requestGeneration) return;
         restoreSettingFocus();
         const count = await engine.sdk.pageCount();
@@ -459,9 +521,11 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
         try {
           for (let index = 0; index < count; index++) {
             if (!live || generation.current !== requestGeneration) return;
-            const url = URL.createObjectURL(new Blob([await embedStandardPreviewFonts(await engine.sdk.getPageSvg(index))], { type: "image/svg+xml" }));
+            const svg = await embedStandardPreviewFonts(await engine.sdk.getPageSvg(index));
+            if (!live || generation.current !== requestGeneration) return;
+            const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
             urls.push(url);
-            const image = new Image(); image.src = url; await image.decode();
+            const image = new Image(); image.src = url; await waitForStandardPreview(image.decode(), controller.signal, 10000);
             pageSizes.push({ width: image.naturalWidth, height: image.naturalHeight });
           }
           if (!live || generation.current !== requestGeneration) return;
@@ -470,6 +534,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
           setReference({ name: result.name, preview_sha256: result.preview_sha256, reference_sha256: result.reference_sha256, max_pages: result.max_pages, pages: urls, pageSizes }); setPhase("ready");
           setTimeout(() => previous.forEach(url => URL.revokeObjectURL(url)), 0);
         } finally { if (referencePageUrls.current !== urls) urls.forEach(url => URL.revokeObjectURL(url)); }
+        });
       });
       queue.current = rendering;
       return rendering;
@@ -495,14 +560,28 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
 
   function change(key: string, value: string) {
     if (locked) return;
+    const field = definition?.fields.find(item => item.key === key);
+    const shown = values[key] ?? String(field?.default ?? "");
+    if (value === shown) return;
+    const next = { ...values, [key]: value };
+    if (field) {
+      const candidate = readSettings([field], next, settingsRevision < 3);
+      const baseValue = baseline.settings[key] ?? field.default;
+      if (!candidate.error && (optionAliases(field, checked.settings)[String(candidate.settings[key])] ?? candidate.settings[key]) ===
+          (optionAliases(field, baseline.settings)[String(baseValue)] ?? baseValue)) {
+        // Restoring an optional default restores its original representation too.
+        if (baselineValues[key] === undefined) delete next[key];
+        else if (field.type === "select") next[key] = baselineValues[key];
+      }
+    }
+    if (key === "enabled_heading_roles") next.heading_structure_policy = "CONTENT_V1";
+    if (key === "body_parenthetical_labels" && value === "true" && values.body_parenthetical_scope === undefined && settingsRevision >= 3)
+      next.body_parenthetical_scope = (values.enabled_body_roles || bodyRoles.join(",")).split(",").includes("square") ? "square" : "";
+    const nextChecked = readSettings(definition?.fields || [], next, settingsRevision < 3);
+    setValues(next);
+    if (!checked.error && !nextChecked.error && settingsKey(effectiveSettings(definition?.fields || [], nextChecked.settings)) ===
+        settingsKey(effectiveSettings(definition?.fields || [], checked.settings))) return;
     generation.current++;
-    setValues(previous => {
-      const next = { ...previous, [key]: value };
-      if (key === "enabled_heading_roles") next.heading_structure_policy = "CONTENT_V1";
-      if (key === "body_parenthetical_labels" && value === "true" && previous.body_parenthetical_scope === undefined && settingsRevision >= 3)
-        next.body_parenthetical_scope = (previous.enabled_body_roles || bodyRoles.join(",")).split(",").includes("square") ? "square" : "";
-      return next;
-    });
     setInputRevision(previous => previous + 1);
     setSaved(null);
     setPhase("waiting");
@@ -587,6 +666,9 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
         throw new Error("등록 응답이 요청한 표준과 달라 결과 재확인이 필요합니다.");
       setRegistration(null);
       setSaved(result);
+      setValues(inputValues(result.settings));
+      if (preview && preview.preview_sha256 === result.preview_sha256) resetComparison(preview);
+      setHoveredField(""); setFocusedField(""); setInputNotice("");
       setSource(result.id);
       setSourceCandidate(result.id);
       setName(result.name); setSaveMode("replace");
@@ -695,10 +777,16 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
     return locked || view === "reference" || !!unavailable(field.group) || !!(roleForGroup(field.group) && !roleEnabled(roleForGroup(field.group)!)) || !!(field.enabled_when && checked.settings[field.enabled_when.key] !== field.enabled_when.value) ||
       !!(field.disabled_when && checked.settings[field.disabled_when.key] === field.disabled_when.value);
   }
+  function fieldHelp(field?: Field) {
+    if (!field) return undefined;
+    const raw = values[field.key] ?? String(field.default ?? "");
+    const selected = optionAliases(field, checked.settings)[raw] ?? raw;
+    return field.help_by_value?.[selected] || field.help;
+  }
   function fieldControl(field: Field) {
     const label = `${field.group} ${field.label}`, disabled = fieldDisabled(field);
     const displayValue = values[field.key] ?? String(field.default ?? "");
-    const description = field.help ? `standard-help-${field.key}` : undefined;
+    const description = fieldHelp(field) ? `standard-help-${field.key}` : undefined;
     if (field.type === "text" && field.key.endsWith("_font")) {
       const currentFont = values[field.key] || "";
       const referenceFonts = Array.from(new Set([currentFont, ...Object.entries(definition?.defaults || {}).filter(([key]) => key.endsWith("_font")).map(([, value]) => String(value))])).filter(value => value && !standardPreviewFontNames.includes(value));
@@ -714,9 +802,14 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
       <input type="checkbox" role="switch" aria-label={label} aria-describedby={description} checked={values[field.key] === "true"} disabled={disabled} onChange={event => change(field.key, String(event.target.checked))} />
       <span aria-hidden="true">{values[field.key] === "true" ? "켜짐" : "꺼짐"}</span>
     </span>;
-    if (field.type === "select") return <select aria-label={label} aria-describedby={description} value={displayValue} disabled={disabled} onChange={event => change(field.key, event.target.value)}>
-      {field.options?.filter(option => field.key !== "citation_style" || option.value !== "NOTE_SHORT" || displayValue === "NOTE_SHORT").map(option => <option key={option.value} value={option.value}>{option.value === "ORIGINAL" && field.key === "cover_mode" ? `별첨 기본값 · ${values.preset_id === "appendix-1" ? "표지 없음" : "표지 사용"}` : option.value === "ORIGINAL" && field.key === "toc_mode" ? `별첨 기본값 · ${values.preset_id === "appendix-1" ? "목차 없음" : values.preset_id === "appendix-2" ? "별도 쪽" : values.cover_mode === "OFF" ? "별도 쪽 · 표지 없음" : "표지 안 목차"}` : option.value === "NOTE_SHORT" ? "이전 표준 · 본문·설명 모두 축약" : option.label}</option>)}
-    </select>;
+    if (field.type === "select") {
+      const aliases = optionAliases(field, checked.settings);
+      const baseValue = baseline.settings[field.key] ?? field.default;
+      const baselineOption = optionAliases(field, baseline.settings)[String(baseValue)] ?? String(baseValue ?? "");
+      return <select aria-label={label} aria-describedby={description} value={aliases[displayValue] ?? displayValue} disabled={disabled} onChange={event => change(field.key, event.target.value)}>
+        {field.options?.filter(option => !aliases[String(option.value)] && (field.key !== "citation_style" || option.value !== "NOTE_SHORT" || displayValue === "NOTE_SHORT")).map(option => <option key={option.value} value={option.value}>{option.value === "NOTE_SHORT" ? "이전 표준 · 본문·설명 모두 축약" : option.label}{String(option.value) === baselineOption ? " ✓ 기준" : ""}</option>)}
+      </select>;
+    }
     if (field.type === "color") return <span className="standard-color">
       <input type="color" aria-label={`${label} 선택`} aria-describedby={description} value={/^#[0-9a-f]{6}$/i.test(values[field.key] || "") ? values[field.key] : "#000000"} disabled={disabled} onChange={event => change(field.key, event.target.value)} />
       <input type="text" aria-label={label} aria-describedby={description} spellCheck={false} maxLength={7} value={displayValue} disabled={disabled} onChange={event => change(field.key, event.target.value)} />
@@ -729,7 +822,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
       const step = field.step || 1, origin = field.min ?? 0;
       const snapped = Math.min(field.max ?? Infinity, Math.max(field.min ?? -Infinity, Number((origin + Math.round((bounded - origin) / step) * step).toFixed(4))));
       if (String(snapped) !== event.target.value) { change(field.key, String(snapped)); setInputNotice(`${field.label}: ${snapped}${field.unit || ""}로 보정했습니다.`); }
-    }} /><span>{field.unit}</span></span><small>{field.min} ~ {field.max}{field.unit}</small></span>;
+    }} /><span>{field.unit}</span></span><small>입력 범위: {fieldRange(field)}</small></span>;
   }
   const stateText = view === "settings" && checked.error ? "입력값 확인 필요" : !seed || !catalog ? "예시 준비 중…" : phase === "waiting" ? "변경 반영 대기…" : phase === "loading" ? view === "reference" ? "기준서 불러오는 중…" : "예시 서식 적용 중…" : phase === "rendering" ? view === "settings" ? renderDetail || "한글 엔진으로 배치 중…" : "한글 엔진으로 배치 중…" : phase === "ready" && (current || view === "reference" && reference) ? `${view === "reference" ? "기준서 전체" : "반영 완료"} · ${view === "reference" ? reference?.pages.length : preview?.pages.length}쪽` : "미리보기 확인 필요";
   const displayError = view === "reference" ? error : checked.error || error;
@@ -762,8 +855,11 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
     const pageRects = keys.flatMap(key => pageSettingRegions(key, page, preview!.settings));
     return [...new Map([...pageRects, ...textRects].map(rect => [JSON.stringify(rect), rect])).values()];
   });
-  const changedKeys = comparison ? Array.from(new Set([...Object.keys(comparison.settings), ...Object.keys(preview?.settings || {})])).filter(key => comparison.settings[key] !== preview?.settings[key]) : [];
-  const comparisonMarks = useMemo(() => compareSampleRegions(comparison?.geometry || [], preview?.geometry || [], changedKeys, String(preview?.settings.preset_id || "")), [comparison, preview]);
+  const beforeSettings = effectiveSettings(definition?.fields || [], comparison?.settings || {});
+  const afterSettings = effectiveSettings(definition?.fields || [], checked.settings);
+  const changedKeys = comparison && valid ? Array.from(new Set([...Object.keys(beforeSettings), ...Object.keys(afterSettings)])).filter(key => beforeSettings[key] !== afterSettings[key]) : [];
+  const marksKey = changedKeys.join(",");
+  const comparisonMarks = useMemo(() => compareSampleRegions(comparison?.geometry || [], preview?.geometry || [], current ? changedKeys : [], String(preview?.settings.preset_id || "")), [comparison, preview, marksKey, current]);
   const changeColor = (key: string) => changedKeys.includes(key) ? comparisonColors[changedKeys.indexOf(key) % comparisonColors.length] : undefined;
   const changedPages = (key: string) => pairedPages.flatMap((pair, i) => [...(comparisonMarks.before[pair.before ?? -1] || []), ...(comparisonMarks.after[pair.after ?? -1] || [])].some(mark => mark.setting === key) ? [i] : []);
   const impactPages = impactRects.flatMap((rects, index) => rects.length ? [index + 1] : []);
@@ -816,10 +912,11 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
   }
   function settingRow(field: Field) {
     const locations = changedPages(field.key);
+    const help = fieldHelp(field);
     return <Fragment key={field.key}><div className="standard-setting-row">
-      <label className={`standard-field${field.type === "select" ? " standard-field-select" : ""}${field.type === "text" || field.type === "textarea" || field.key === "citation_style" ? " standard-field-text" : ""}${fieldDisabled(field) ? " standard-field-disabled" : ""}${activeField === field.key ? " standard-field-active" : ""}`} data-setting-key={field.key} data-changed={!!changeColor(field.key)} style={{ borderLeftColor: changeColor(field.key) }} onMouseEnter={event => showHelp(field.key, event.currentTarget)} onMouseLeave={() => setHoveredField("")} onFocus={event => showHelp(field.key, event.currentTarget, true)} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocusedField(""); }}>
+      <label className={`standard-field${field.type === "select" ? " standard-field-select" : ""}${field.type === "text" || field.type === "textarea" || ["citation_style", "line_break_unit", "line_space_policy"].includes(field.key) ? " standard-field-text" : ""}${fieldDisabled(field) ? " standard-field-disabled" : ""}${activeField === field.key ? " standard-field-active" : ""}`} data-setting-key={field.key} data-changed={!!changeColor(field.key)} style={{ borderLeftColor: changeColor(field.key) }} onMouseEnter={event => showHelp(field.key, event.currentTarget)} onMouseLeave={() => setHoveredField("")} onFocus={event => showHelp(field.key, event.currentTarget, true)} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocusedField(""); }}>
         <span>{field.label}</span>{fieldControl(field)}
-        {field.help && <small className="standard-field-help" id={`standard-help-${field.key}`}>{field.help}</small>}
+        {help && <small className="standard-field-help" id={`standard-help-${field.key}`}>{help}</small>}
       </label>
     </div>{compare && changeColor(field.key) && <div className="standard-change-locations" style={{ color: changeColor(field.key) }}>{locations.length ? <><span>변경 위치</span>{locations.map(index => <button key={index} onClick={() => setPageIndex(index)}>{pageLabel(index)}</button>)}</> : <small>설정 변경됨 · 별도로 강조할 위치 없음</small>}</div>}{scopeControl(field)}</Fragment>;
   }
@@ -872,7 +969,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
             {roleToggle(group)}
             {unavailable(group) && <span className="standard-absence" title={unavailable(group)}>없음</span>}
           </div>
-          {(searching || openGroups.includes(group)) && <div className="standard-setting-fields">{unavailable(group) ? <p className="standard-category-help">{unavailable(group)} 기존 설정값은 보존합니다.</p> : <>{roleForGroup(group) && <p className="standard-category-help">{settingImpact(fields.find(field => field.group === group && !field.key.endsWith("_marker"))?.key || "", values.preset_id || "").description}</p>}{group === "줄바꿈·줄 채움" && <p className="standard-category-help">자간 최종값: {bodyRoles.map(role => `${roleGroups[role].replace("문단 내용 · ", "")} ${Math.min(50, Math.max(-20, Number(values[role + "_spacing_percent"] || 0) + Number(checked.settings.body_tracking_percent || 0)))}%`).join(" / ")}. 마지막 절의 긴 문장은 강제 개행 없이 자동 줄바꿈됩니다.</p>}{filteredFields.filter(field => field.group === group).sort((a, b) => Number(b.key.endsWith("_marker")) - Number(a.key.endsWith("_marker"))).map(field => settingRow(field))}</>}</div>}
+          {(searching || openGroups.includes(group)) && <div className="standard-setting-fields">{unavailable(group) ? <p className="standard-category-help">{unavailable(group)} 기존 설정값은 보존합니다.</p> : <>{roleForGroup(group) && <p className="standard-category-help">{settingImpact(fields.find(field => field.group === group && !field.key.endsWith("_marker"))?.key || "", values.preset_id || "").description}</p>}{group === "줄바꿈·줄 채움" && <p className="standard-category-help">예시 마지막 절의 긴 문장으로 줄바꿈과 자간 변화를 확인하세요.</p>}{filteredFields.filter(field => field.group === group).sort((a, b) => Number(b.key.endsWith("_marker")) - Number(a.key.endsWith("_marker"))).map(field => settingRow(field))}</>}</div>}
         </section>)}</details>)}
         {catalog && !filteredFields.length && <p className="standard-settings-no-results" role="status">일치하는 설정이 없습니다.</p>}
         {catalog && <div className="standard-settings-footer"><button disabled={locked} onClick={() => requestChange({ type: "source", id: "" })}>새 표준 기본값 복원</button><p>별첨 1과 새 보고서 기본 설정으로 돌아갑니다. 현재 조절한 값은 초기화하고, 저장한 표준은 유지합니다.</p></div>}
@@ -884,9 +981,9 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
       </aside>
       <section className="standard-preview" aria-label={view === "reference" ? "기준서 전체 실제 보기" : "문서 표준 실제 미리보기"}>
         <div className="standard-preview-controls">
-          {view === "settings" && <button aria-pressed={compare} disabled={!comparison} onClick={() => { setCompare(x => !x); setZoom("page"); }}>변경 전·후 비교</button>}
+          {view === "settings" && <button className="standard-preview-compare" aria-pressed={compare} disabled={!comparison} onClick={() => { setCompare(true); setZoom("page"); }}>변경 전·후 비교</button>}
           {!settingsOpen && <button className="standard-open-settings" onClick={() => setSettingsOpen(true)} aria-controls="standard-settings-panel" aria-expanded={false}><WorkspaceIcon name="settings" size={16} />설정 열기</button>}
-          <div className="standard-preview-zoom" role="group" aria-label="미리보기 확대"><button aria-pressed={zoom === "page"} onClick={() => setZoom("page")}>한 쪽 보기</button><button aria-pressed={zoom === "fit"} onClick={() => setZoom("fit")}>폭 맞춤</button><button aria-pressed={zoom === "actual"} onClick={() => setZoom("actual")}>100%</button></div>
+          <div className="standard-preview-zoom" role="group" aria-label="미리보기 확대"><button aria-pressed={zoom === "page" && (view === "reference" || !compare)} onClick={() => { if (view === "settings") setCompare(false); setZoom("page"); }}>한 쪽 보기</button><button aria-pressed={zoom === "fit"} onClick={() => setZoom("fit")}>폭 맞춤</button><button aria-pressed={zoom === "actual"} onClick={() => setZoom("actual")}>100%</button></div>
           {compare && <small className="standard-compare-note">변경한 글자·줄에 밑줄 · 왼쪽 설정과 같은 색 · {changedKeys.length}개 설정 변경</small>}<nav className="standard-page-nav" aria-label="미리보기 쪽 이동"><button aria-label="이전 쪽" disabled={!totalPages || shownPage === 0} onClick={() => setPageIndex(shownPage - 1)}>‹</button><select aria-label="미리보기 쪽" disabled={!totalPages} value={totalPages ? shownPage + 1 : ""} onChange={event => setPageIndex(Number(event.target.value) - 1)}>{totalPages ? Array.from({ length: totalPages }, (_, index) => <option key={index} value={index + 1}>{pageLabel(index)}</option>) : <option value="">준비 중</option>}</select><button aria-label="다음 쪽" disabled={!totalPages || shownPage + 1 >= totalPages} onClick={() => setPageIndex(shownPage + 1)}>›</button></nav>
         </div>
         <div ref={pagePane} className={`standard-preview-pages${compare && comparison && view === "settings" ? " is-comparing" : ""}`} aria-busy={phase !== "ready" || view === "settings" && !current}
@@ -904,7 +1001,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
         </div>
       </section>
     </div>
-    {view === "settings" && impact && helpPosition && <aside id="standard-setting-tooltip" role="tooltip" className="standard-setting-tooltip" style={helpPosition} data-setting-key={activeField}><strong>{impact.title}</strong><p>{fields.find(field => field.key === activeField)?.help || impact.description}</p><small>{current && impactPages.length ? `예시 ${impactPages.join(", ")}쪽에 적용됩니다.` : "현재 예시에 없거나 아직 반영 중인 항목입니다."}</small></aside>}
+    {view === "settings" && impact && helpPosition && <aside id="standard-setting-tooltip" role="tooltip" className="standard-setting-tooltip" style={helpPosition} data-setting-key={activeField}><strong>{impact.title}</strong><p>{fieldHelp(fields.find(field => field.key === activeField)) || impact.description}</p><small>{current && impactPages.length ? `예시 ${impactPages.join(", ")}쪽에 적용됩니다.` : "현재 예시에 없거나 아직 반영 중인 항목입니다."}</small></aside>}
     <div className="standard-renderer" ref={host} aria-hidden="true" inert />
     <dialog className="standard-register-dialog" ref={dialog} onCancel={event => { if (locked) event.preventDefault(); else setDialogOpen(false); }} aria-labelledby="standard-register-title">
       <h2 id="standard-register-title">표준 저장</h2><p>기본 별첨은 고정되어 있습니다. 사용자 표준을 덮어써도 이전 버전과 기존 문서는 보존합니다.</p>{sourceSelection && <fieldset disabled={locked}><legend>저장 방법</legend><label><input type="radio" name="standard-save-mode" checked={saveMode === "replace"} onChange={() => { setSaveMode("replace"); setName(sourceSelection.name); }} />현재 표준 덮어쓰기</label><label><input type="radio" name="standard-save-mode" checked={saveMode === "new"} onChange={() => { setSaveMode("new"); setName(sourceSelection.name + " 사본"); }} />새 표준으로 추가</label></fieldset>}

@@ -30,8 +30,10 @@ import { TocPanel, type TocCapture, type PreparedToc } from "./toc";
 import "./editor-workspace.css";
 import { WorkspaceNav, WorkspaceIcon, type WorkspaceSection } from "./workspace-nav";
 import "./workspace-shell.css";
-import { assistantDocumentContext } from "./document-assistant-context";
+import { assistantDocumentContext, assistantDesignContext, type AssistantDesignTarget } from "./document-assistant-context";
 import type { AssistantTurn } from "./document-assistant";
+import { EditorDesignPanel, type DesignCapture, type PreparedDesign, type DesignIntent, type DesignChoice } from "./editor-designs";
+import { blockHash } from "./block-insert";
 import { SavedDownload } from "./saved-download";
 import { useComparisonDialog } from "./version-comparison";
 import { CapabilitiesProvider, CapabilityNotice, useFeature } from "./capabilities";
@@ -74,6 +76,7 @@ function App({
     [reportStandard, setReportStandard] = useState<VisualSelection | undefined>(),
     [registerTemplate, setRegisterTemplate] = useState<Document | undefined>(),
     [reports, setReports] = useState(false);
+  const [editorDesign, setEditorDesign] = useState<DesignChoice | null>(null);
   const listGeneration = useRef(0), listController = useRef<AbortController | null>(null);
   const [searchQuery, flushSearch] = useDebouncedValue(query);
   const uploadBusy = useRef(false), dragDepth = useRef(0);
@@ -117,6 +120,7 @@ function App({
   };
   useEffect(() => { refresh(); return () => { listController.current?.abort(); listGeneration.current++; }; }, [searchQuery]);
   function navigate(section: WorkspaceSection) {
+    setEditorDesign(null);
     setDragOver(false); dragDepth.current = 0;
     setActive(null); setCreating(false); setHistory(null); setSharing(null);
     setRegisterTemplate(undefined); setReportStandard(undefined);
@@ -174,6 +178,7 @@ function App({
   if (templates) return workspace(<TemplateMarket onNavigate={navigate} registerDocument={registerTemplate}
     onClose={() => { setTemplates(false); setRegisterTemplate(undefined); refresh(); }}
     onApply={doc => { setTemplates(false); setRegisterTemplate(undefined); setActive(doc); }}
+    onApplyDesign={(doc, choice) => { setEditorDesign(choice); setTemplates(false); setRegisterTemplate(undefined); setActive(doc); }}
     onDesignStandard={() => { setTemplates(false); setRegisterTemplate(undefined); setStandardDesigner(true); }}
     onReport={() => { setTemplates(false); setRegisterTemplate(undefined); setReports(true); }} />, "templates");
   if (active?.role === "reader")
@@ -190,7 +195,9 @@ function App({
     return (
       <Editor
         initial={active}
+        initialDesign={editorDesign}
         onClose={() => {
+          setEditorDesign(null);
           setActive(null);
           setCreating(false);
           refresh();
@@ -441,12 +448,14 @@ function EditorDiscardDialog({ target, onCancel, onDiscard }: {
 
 function Editor({
   initial,
+  initialDesign,
   onClose,
   onHistory,
   history,
   closeHistory,
 }: {
   initial: Document | null;
+  initialDesign?: DesignChoice | null;
   onClose: () => void;
   onHistory: (d: Document) => void;
   history: Document | null;
@@ -516,6 +525,8 @@ function Editor({
   const [blockPanel, setBlockPanel] = useState(false), [blockHolding, setBlockHolding] = useState(false),
     [blockUndoAvailable, setBlockUndoAvailable] = useState(false), [activeBlockHost, setActiveBlockHost] = useState(0);
   const [tocPanel, setTocPanel] = useState(false), [tocStatus, setTocStatus] = useState<"unknown" | "none" | "recorded" | "current" | "stale" | "damaged">("unknown");
+  const [designPanel, setDesignPanel] = useState(!!initialDesign), [designIntent, setDesignIntent] = useState<DesignIntent | null>(initialDesign ? { choice: initialDesign, nonce: crypto.randomUUID() } : null);
+  const [undoLabel, setUndoLabel] = useState("방금 삽입 취소");
   const tocKnown = useRef(false);
   const fileMenu = useRef<HTMLDetailsElement>(null), helpMenu = useRef<HTMLDetailsElement>(null), documentMenu = useRef<HTMLDetailsElement>(null), toolsMenu = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
@@ -560,10 +571,10 @@ function Editor({
     catch { if (reviewConnectionProvider.current === provider) setAiError("별도 AI에 연결할 수 없습니다. 연결 설정을 확인하거나 문서 AI 대화를 이용하세요."); }
     finally { setAiConnectionChecking(false); }
   }
-  function showPanel(next: "block" | "toc" | "review" | "conversation" | null) {
+  function showPanel(next: "block" | "toc" | "design" | "review" | "conversation" | null) {
     // A prepared preview belongs to its panel until it is explicitly applied or cancelled.
-    if (blockHold.current && next !== null && ((blockPanel && next !== "block") || (tocPanel && next !== "toc"))) {
-      setError("준비한 블록·목차를 반영하거나 해당 패널에서 취소한 뒤 다른 도구를 여세요.");
+    if (blockHold.current && next !== null && ((blockPanel && next !== "block") || (tocPanel && next !== "toc") || (designPanel && next !== "design"))) {
+      setError("준비한 서식·블록·목차를 적용하거나 해당 패널에서 취소한 뒤 다른 도구를 여세요.");
       return;
     }
     if (conversationPanel && next === null && assistantHold.current) { setError("AI 응답을 확인하거나 수신을 중단한 뒤 대화를 닫으세요."); return; }
@@ -572,7 +583,7 @@ function Editor({
     // Its explicit close action retains the existing discard/reopen behavior.
     if (next === "conversation") setConversationMounted(true);
     else if (next === null && conversationPanel) setConversationMounted(false);
-    setBlockPanel(next === "block"); setTocPanel(next === "toc");
+    setBlockPanel(next === "block"); setTocPanel(next === "toc"); setDesignPanel(next === "design");
     setPanel(next === "review"); setConversationPanel(next === "conversation");
   }
   const tocLabel = {
@@ -632,9 +643,9 @@ function Editor({
     blockHold.current = captured; setBlockHolding(true);
     return captured;
   }
-  function captureToc(): TocCapture {
+  function captureToc(purpose = "목차", preserveUndo = false): TocCapture {
     const instance = adapter.current, document = doc.current;
-    if (!ready || !instance || !document) throw new BlockFenceError("먼저 문서를 서버에 저장한 뒤 목차를 확인하세요.");
+    if (!ready || !instance || !document) throw new BlockFenceError(`먼저 문서를 서버에 저장한 뒤 ${purpose}를 확인하세요.`);
     if (document.role === "reader" || !token.current) throw new BlockFenceError("현재 문서의 편집 세션이 없습니다.");
     if (busy.current || pending.current || applied.current || rewriteRequest.current || reviewHold.current || blockHold.current || aiBusy)
       throw new BlockFenceError("진행 중인 저장·승인·후보 비교를 먼저 마무리하세요.");
@@ -647,10 +658,27 @@ function Editor({
     if (source.epoch !== epoch.current || state.documentEpoch !== source.epoch || blockJson(state) !== blockJson(instance.bridge.documentState()) || (selection && (selection.state.documentEpoch !== source.epoch || selection.revision !== source.revision)))
       throw new BlockFenceError("문서 식별 또는 편집 리비전이 바뀌었습니다. 다시 확인하세요.");
     if (source.contentLoss.count || source.bytes.length > 10 * 1024 * 1024)
-      throw new BlockFenceError("내용 손실 경고가 없고 10MB 이하인 문서에서 목차를 확인할 수 있습니다.");
-    dropBlockUndo();
+      throw new BlockFenceError(`내용 손실 경고가 없고 10MB 이하인 문서에서 ${purpose}를 확인할 수 있습니다.`);
+    if (!preserveUndo) dropBlockUndo();
     const captured = { adapter: instance, document: { ...document }, token: token.current, selection, state, source };
     blockHold.current = captured; setBlockHolding(true); return captured;
+  }
+  function currentStyleTarget(instance: EditorAdapter): AssistantDesignTarget | null {
+    try {
+      const target = instance.styleTarget();
+      return target.section === 0 ? { ...target, section: 0 } : null;
+    } catch { return null; }
+  }
+  function captureDesign(): DesignCapture {
+    if (assistantHold.current) throw new BlockFenceError("AI 응답을 확인한 뒤 서식을 적용하세요.");
+    const captured = captureToc("서식", true);
+    // Designs address a whole paragraph/table; movement within that target is
+    // allowed. Their target is rechecked immediately before the engine swap.
+    return Object.assign(captured, { selection: null, styleTarget: currentStyleTarget(captured.adapter) });
+  }
+  function ownsDesign(captured: DesignCapture) {
+    return ownsBlock(captured) && captured.adapter.bridge.revision() === captured.source.revision &&
+      blockJson(captured.adapter.bridge.documentState()) === blockJson(captured.state);
   }
   function ownsBlock(captured: BlockCapture | TocCapture) {
     return editorAlive.current && blockHold.current === captured && adapter.current === captured.adapter &&
@@ -663,7 +691,7 @@ function Editor({
     if (editorAlive.current) setBlockHolding(false);
   }
   const equalBytes = (left: Uint8Array, right: Uint8Array) => left.length === right.length && left.every((value, index) => value === right[index]);
-  async function adoptBlock(prepared: PreparedBlock | PreparedToc, check = "block-check") {
+  async function adoptBlock(prepared: PreparedBlock | PreparedToc | PreparedDesign, check = "block-check") {
     const captured = prepared.capture;
     if (!ownsBlock(captured) || busy.current || pending.current || applied.current || reviewHold.current || rewriteRequest.current)
       throw new BlockFenceError("문서 상태나 진행 중인 작업이 바뀌었습니다. 다시 준비하세요.");
@@ -678,6 +706,9 @@ function Editor({
       if (!ownsBlock(captured) || pending.current || applied.current || reviewHold.current || rewriteRequest.current)
         throw new BlockFenceError("문서 세션이나 기준 버전이 바뀌었습니다. 다시 준비하세요.");
       const current = captured.selection ? captured.adapter.selection() : null, output = captured.adapter.exportHwpx();
+      if (check === "design-check" && (!("target" in prepared) ||
+          (prepared.target.kind !== "document" && blockJson(currentStyleTarget(captured.adapter)) !== blockJson(prepared.target))))
+        throw new BlockFenceError("서식을 적용할 문단이나 표가 바뀌었습니다. 현재 위치에서 다시 선택하세요.");
       if (("state" in captured && blockJson(captured.adapter.bridge.documentState()) !== blockJson(captured.state)) || (captured.selection && blockJson(current) !== blockJson(captured.selection)) || output.epoch !== captured.source.epoch ||
           output.revision !== captured.source.revision || output.contentLoss.count || !equalBytes(output.bytes, captured.source.bytes))
         throw new BlockFenceError("미리보기 준비 후 문서나 커서가 바뀌었습니다. 현재 문단에서 다시 준비하세요.");
@@ -704,6 +735,7 @@ function Editor({
       activateBlockHost(nextHost);
       watchAdapter(prepared.adapter);
       blockUndo.current = { previous: captured.adapter, current: prepared.adapter, snapshot: staged };
+      setUndoLabel(check === "design-check" ? "방금 적용 취소" : "방금 삽입 취소");
       setBlockUndoAvailable(true); dirtyRef.current = true; setDirty(true); setStatus("저장되지 않은 변경 있음");
       if (check === "toc-check") { tocKnown.current = true; setTocStatus("current"); }
       else if (tocKnown.current) setTocStatus("stale");
@@ -716,7 +748,7 @@ function Editor({
     try {
       const current = undo.current.exportHwpx();
       if (current.epoch !== undo.snapshot.epoch || current.revision !== undo.snapshot.revision || current.contentLoss.count || !equalBytes(current.bytes, undo.snapshot.bytes))
-        throw new BlockFenceError("삽입 뒤 다른 편집이 있어 취소할 수 없습니다. 편집기의 실행 취소를 사용하세요.");
+        throw new BlockFenceError("적용 뒤 다른 편집이 있어 취소할 수 없습니다. 편집기의 실행 취소를 사용하세요.");
       const previousHost = blockHosts.current.findIndex(host => host === undo.previous.sdk.element.parentElement);
       if (!mount.current || previousHost < 0) throw new BlockFenceError("편집기 컨테이너를 확인할 수 없습니다.");
       adapterOff.current(); activateBlockHost(previousHost);
@@ -1064,6 +1096,8 @@ function Editor({
           </div>
         </details>
         <div className="editor-rail-group" role="group" aria-label="문서 구성">
+          <button className="editor-rail-action" disabled={!ready} title="현재 문서에 표준·디자인 적용" aria-label={`서식·디자인 ${designPanel ? "닫기" : "열기"}`} aria-pressed={designPanel}
+            onClick={() => { setDesignIntent(null); showPanel(designPanel ? null : "design"); }}><WorkspaceIcon name="templates" /><span>서식·디자인</span></button>
           <button className="editor-rail-action" disabled={!ready} title="블록 삽입" aria-label={`블록 삽입 ${blockPanel ? "닫기" : "열기"}`} aria-pressed={blockPanel}
             onClick={() => showPanel(blockPanel ? null : "block")}><WorkspaceIcon name="block" /><span>표·블록 삽입</span></button>
           {doc.current?.role !== "reader" && <button className="editor-rail-action editor-toc-state" disabled={!ready} data-state={tocStatus} title={`목차 관리 · ${tocLabel} · ${tocDescription}`} aria-label={`목차 ${tocPanel ? "닫기" : "관리"}`} aria-pressed={tocPanel}
@@ -1080,13 +1114,13 @@ function Editor({
             </div>
           </details>
         </div>
-        {blockUndoAvailable && <button className="editor-rail-action editor-undo" title="방금 삽입 취소" aria-label="방금 삽입 취소" disabled={blockHolding || status === "저장 중"} onClick={undoBlock}><WorkspaceIcon name="undo" /><span>취소</span></button>}
+        {blockUndoAvailable && <button className="editor-rail-action editor-undo" title={undoLabel} aria-label={undoLabel} disabled={blockHolding || status === "저장 중"} onClick={undoBlock}><WorkspaceIcon name="undo" /><span>취소</span></button>}
           <details className="editor-menu editor-help" name="editor-overflow" ref={helpMenu}>
             <summary className="editor-rail-action" aria-label="편집 안내 및 진단" title={`편집 안내${warnings ? " · 엔진 진단 있음" : ""}`}><WorkspaceIcon name="help" /><span>안내</span></summary>
             <div className="editor-menu-content editor-help-content">
               <strong>편집 및 저장 안내</strong>
               <p>왼쪽 저장 버튼과 20초 간격 자동 저장이 서버에 새 버전을 만듭니다.</p>
-              <p>AI 적용은 단일 서식의 본문 문단 전체만 지원합니다.</p>
+              <p>AI 문구 수정은 단일 서식의 본문 문단 전체를 대상으로 합니다. 표·제목 모양은 ‘서식·디자인’에서 선택한 부분에 적용합니다.</p>
               {doc.current && <p>{tocLabel} · {tocDescription}</p>}
               {warnings && <details className="editor-diagnostics"><summary>엔진 열기 진단 / 호환성 안내</summary><pre>{warnings}</pre></details>}
             </div>
@@ -1104,7 +1138,7 @@ function Editor({
       {holdingReview && <div className="notice">후보 비교를 위해 자동 저장을 보류 중입니다. 수동 저장하면 기존 후보의 기준 버전이 오래될 수 있습니다.
         <button onClick={() => { reviewHold.current = false; setHoldingReview(false); }}>비교 종료 · 자동 저장 재개</button>
       </div>}
-      {blockHolding && <div className="notice">블록·목차를 준비하는 동안 자동 저장을 보류합니다. 기존 문서에서 계속 편집할 수 있으며, 변경 후에는 다시 준비해야 합니다.</div>}
+      {blockHolding && <div className="notice">서식·블록·목차를 준비하는 동안 자동 저장을 보류합니다. 기존 문서에서 계속 편집할 수 있으며, 변경 후에는 다시 준비해야 합니다.</div>}
       </div>
       <div className="editor-row">
         <div className="editor block-editor-wrapper" ref={mount}>
@@ -1130,6 +1164,13 @@ function Editor({
             const current = captured.adapter.exportHwpx();
             setTocStatus(value === "current" ? ((current.epoch !== captured.source.epoch || current.revision !== captured.source.revision || !equalBytes(current.bytes, captured.source.bytes)) ? "stale" : "recorded") : value);
           }} onClose={() => setTocPanel(false)} />}
+        {designPanel && <EditorDesignPanel capture={captureDesign} isOwner={ownsDesign} release={releaseBlock}
+          adopt={prepared => adoptBlock(prepared, "design-check")} intent={designIntent}
+          getStagingHost={() => {
+            const host = blockHosts.current.find(node => node && !node.querySelector("iframe"));
+            if (!host) throw new BlockFenceError("비어 있는 미리보기 공간이 없습니다. 준비를 취소하고 다시 선택하세요.");
+            return host;
+          }} onClose={() => { setDesignPanel(false); setDesignIntent(null); }} onAskAi={() => showPanel("conversation")} />}
         {conversationMounted && doc.current && (
           <aside className="conversation-panel" aria-label="대화 및 AI 패널" hidden={!conversationPanel}>
             <button className="panel-close" aria-label="대화 패널 닫기" onClick={() => showPanel(null)}>닫기</button>
@@ -1148,10 +1189,29 @@ function Editor({
                   const candidate = instance.selection();
                   if (candidate.evidence.text && Array.from(candidate.evidence.text).length <= 4000 && candidate.selection.target?.kind === "body_paragraph") selection = candidate;
                 } catch { /* Document questions also work in unsupported edit selections. */ }
+                const target = currentStyleTarget(instance);
                 const document_context = await assistantDocumentContext(source);
+                const design_context = await assistantDesignContext(source, target);
                 if (adapter.current !== instance || doc.current?.current_version !== document.current_version || instance.bridge.revision() !== source.revision || epoch.current !== source.epoch)
                   throw new Error("읽는 동안 문서가 바뀌었습니다. 현재 내용으로 다시 요청하세요.");
-                return { base_version: document.current_version, document_context, selection };
+                if (blockJson(currentStyleTarget(instance)) !== blockJson(target)) throw new Error("읽는 동안 문단이나 표 선택이 바뀌었습니다. 현재 위치에서 다시 요청하세요.");
+                return { base_version: document.current_version, document_context, selection, design_context };
+              }}
+              onDesignProposal={async (proposal, turn) => {
+                const instance = adapter.current, document = doc.current;
+                if (!ready || !instance || !document || document.role === "reader" || blockHold.current || busy.current || pending.current || applied.current || rewriteRequest.current || assistantHold.current)
+                  throw new Error("진행 중인 작업을 마무리한 뒤 디자인을 확인하세요.");
+                const source = instance.exportHwpx(), context = turn.design_context;
+                const currentTarget = proposal.target.kind === "document" ? { kind: "document", section: 0 } : currentStyleTarget(instance);
+                const sourceSha = await blockHash(source.bytes);
+                if (!context || turn.document_id !== document.id || turn.base_version !== document.current_version || turn.stale || turn.status !== "ready" ||
+                    source.contentLoss.count || sourceSha !== context.source_sha256 || source.revision !== turn.document_context.revision || source.epoch !== turn.document_context.epoch ||
+                    blockJson(currentTarget) !== blockJson(proposal.target) || adapter.current !== instance || doc.current?.current_version !== document.current_version ||
+                    instance.bridge.revision() !== source.revision || epoch.current !== source.epoch || (proposal.target.kind !== "document" && blockJson(currentStyleTarget(instance)) !== blockJson(proposal.target)))
+                  throw new Error("AI가 확인한 문서나 선택 위치가 바뀌었습니다. 현재 문서로 다시 제안을 요청하세요.");
+                setDesignIntent({ choice: { kind: proposal.kind, id: proposal.id, sha256: proposal.sha256 }, nonce: crypto.randomUUID(),
+                  expected: { source_sha256: sourceSha, revision: source.revision, epoch: source.epoch, base_version: document.current_version, target: proposal.target } });
+                showPanel("design");
               }}
               sendAssistant={async (thread, request) => {
                 if (!ready || !adapter.current || !doc.current || busy.current || pending.current || applied.current || blockHold.current || rewriteRequest.current)

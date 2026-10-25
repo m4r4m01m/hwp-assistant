@@ -1,0 +1,73 @@
+{
+  "date": "2026-10-25",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "base_head": "a013b8633e2d488d0c1a4799f9698ec310bcb92d",
+  "uncommitted": true,
+  "runtime": {
+    "web": "http://127.0.0.1:15330/",
+    "api_port": 18330,
+    "data": ".cache/editor-design-20261025/qa",
+    "engine": "existing diagnostic rhwp build; not rebuilt for this fix",
+    "served_fix_and_help_verified": true,
+    "user_browser_reloaded": false
+  },
+  "reproduced_cause": {
+    "method": "Delay completion of a real EditorAdapter.load and type -20 with real keyboard input during that interval.",
+    "before": "Focus moved into the hidden iframe textarea, document dirty=true, next preview waited on an invisible unsaved-changes dialog.",
+    "after": "Focus stayed on the tracking input, preview document dirty=false, latest setting completed with 3 pages and no dialog."
+  },
+  "changes": [
+    "frontend/src/standard-designer.tsx: prevent hidden iframe input; cancel obsolete render jobs and recreate their adapter; selected-value help; comparison selection",
+    "frontend/src/standard-preview-task.ts: abortable wait and bounded image decoding",
+    "frontend/src/editor.ts: explicit load options used only by disposable standard previews; ordinary defaults unchanged",
+    "frontend/src/standard-designer.css: visible selected comparison button",
+    "backend/app/standard_policy.py: value-specific line break and space compression explanations",
+    "frontend/playwright.ui.config.ts: include comparison/cancellation regression tests"
+  ],
+  "verification": {
+    "backend_policy": { "passed": 22, "file": "backend/tests/test_standard_policy.py" },
+    "mock_ui": {
+      "unique_passed": 5,
+      "new_regression_passed": 3,
+      "new_file": "frontend/tests/standard-designer-compare-regression.spec.ts",
+      "coverage": [
+        "Save then edit keeps the saved comparison baseline and correct selected mode",
+        "Unresolved image decoding does not block later settings or publish stale results",
+        "Unresolved native load is abandoned; old valid image stays until the new result is verified",
+        "Existing catalog navigation and legacy baseline deletion cases"
+      ]
+    },
+    "real_rhwp": {
+      "unique_passed": 3,
+      "new_file": "frontend/tests/standard-layout-controls.spec.ts",
+      "existing_case": "standard-designer.spec.ts: shared sample keeps facts across three compositions and saved settings",
+      "coverage": [
+        "WORD wrapping, 20% space compression, tracking -20/+20, incomplete minus input, selected help",
+        "Keyboard input overlapping a superseded real preview load",
+        "Appendix 1/2/3, verified TOC pages, standard registration/reload, reference view round trip and preserved original hashes"
+      ],
+      "evidence_directories": [
+        ".cache/editor-design-20261025/qa/standard-layout-final-r5/standard-layout-controls-R-cfd87-eview-through-numeric-edits",
+        ".cache/editor-design-20261025/qa/standard-layout-overlap-final-r5",
+        ".cache/editor-design-20261025/qa/standard-shared-regression-r5"
+      ],
+      "note": "The first overlap run after the fix used a separate Vite HMR module instance for instrumentation; the corrected exact-module test passed in standard-layout-overlap-final-r5."
+    },
+    "typescript": "passed",
+    "frontend_build": {
+      "result": "passed",
+      "vite": "7.3.7",
+      "output": ".cache/standard-editor-fix-20261025/build",
+      "diagnostic_engine": true
+    },
+    "diff_check": "passed",
+    "actual_model_calls": 0
+  },
+  "preserved": [
+    "Standard values, frozen settings/hash contracts, source reference and historical documents",
+    "Synthetic sample text and validated rendered page checks",
+    "Ordinary document editor unsaved-change guard",
+    "Existing feature WIP, CLI snapshot branch, main and 15201 runtime"
+  ],
+  "limits": ["No new Hancom inspection", "No production deployment", "No full regression suite", "No commit or push in this fix turn"]
+}

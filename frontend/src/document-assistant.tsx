@@ -1,16 +1,21 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api, ApiError, errorMessage, isAbortError, type Document } from "./api";
 import type { Snapshot } from "./editor";
-import type { AssistantCapture } from "./document-assistant-context";
+import type { AssistantCapture, AssistantDesignContext, AssistantDesignTarget } from "./document-assistant-context";
 import { usePageVisible } from "./ui-state";
 import { CapabilityNotice, useFeature } from "./capabilities";
 import "./document-assistant.css";
 
 export type AssistantRequest = AssistantCapture & { id: string; message: string };
+export type AssistantDesignProposal = {
+  kind: "design" | "standard"; id: string; sha256: string; name: string; design_kind: "table" | "title" | null;
+  reason: string; target: AssistantDesignTarget | { kind: "document"; section: 0 };
+};
 export type AssistantTurn = {
   id: string; conversation_id: string; document_id: string; base_version: string; message: string;
   status: string; answer: string | null; rewrite_instruction: string | null; selection: Snapshot | null;
   document_context: { sha256: string; truncated: boolean; revision: number; epoch: number; characters: number };
+  design_context?: AssistantDesignContext | null; design_proposals?: AssistantDesignProposal[];
   error: string; execution: { provider?: string; model?: string; completed?: boolean }; created_at: number; stale: boolean; can_cancel: boolean;
 };
 type Provider = { provider: string; model: string | null; configured: boolean; allowed: boolean; reason: string };
@@ -27,9 +32,10 @@ export type AssistantActions = {
   captureDocument?: () => Promise<AssistantCapture>;
   sendAssistant?: (thread: string, request: AssistantRequest) => Promise<AssistantTurn>;
   onAssistantActive?: (active: boolean) => void;
+  onDesignProposal?: (proposal: AssistantDesignProposal, turn: AssistantTurn) => Promise<void> | void;
 };
 
-export function DocumentAssistantPanel({ thread, document: doc, captureDocument, sendAssistant, onDirty, onActive, requestRewrite, onShowRewrite, active: panelActive = true }: AssistantActions & {
+export function DocumentAssistantPanel({ thread, document: doc, captureDocument, sendAssistant, onDirty, onActive, requestRewrite, onShowRewrite, onDesignProposal, active: panelActive = true }: AssistantActions & {
   thread: string; document: Document; onDirty: (dirty: boolean) => void; onActive: (active: boolean) => void;
   requestRewrite?: (thread: string, instruction: string, contextRevision?: number, expectedSelection?: Snapshot) => Promise<void>;
   onShowRewrite: () => void; active?: boolean;
@@ -186,22 +192,39 @@ export function DocumentAssistantPanel({ thread, document: doc, captureDocument,
       <strong title={doc.name}>{doc.name}</strong>
       <span>요청할 때마다 현재 본문과 표의 텍스트를 읽습니다. 미저장 내용도 포함됩니다.</span>
       <button disabled={!captureDocument || busy || !!pending || permissionLost} onClick={() => void inspect()}>AI가 읽을 내용 확인</button>
-      <small>그림·화면 배치는 읽지 않습니다. 수정은 본문 문단에 커서를 놓고 요청하세요.</small>
+      <small>그림·화면 배치를 계속 보고 있지는 않습니다. 문단이나 표를 선택하면 그 위치에 맞는 디자인도 제안받을 수 있습니다.</small>
       {preview && <details open={previewOpen} onToggle={event => setPreviewOpen(event.currentTarget.open)}><summary>최근 확인한 내용 · {preview.document_context.text.length.toLocaleString()}자{preview.document_context.truncated ? " · 일부 발췌" : ""}</summary>
         <p className="hint">{pending ? "재확인은 보관한 질문과 이 문서 내용을 사용합니다." : "새 질문을 보낼 때 문서를 다시 읽습니다. 이전 응답은 요청 당시 내용을 기준으로 합니다."}</p>
         {preview.document_context.truncated && <p className="notice">문서가 길어 앞부분만 포함됩니다. 포함되지 않은 부분은 AI가 확인할 수 없습니다.</p>}
         <pre className="assistant-context-text" data-testid="assistant-context-preview">{preview.document_context.text}</pre>
         <p className="hint">{preview.selection ? `수정 대상 문단: ${preview.selection.evidence.text}` : "수정 가능한 본문 문단이 선택되지 않았습니다. 문서 질문은 할 수 있습니다."}</p>
+        {preview.design_context && <p className="hint">디자인 대상: {preview.design_context.target?.kind === "table" ? "현재 표" : preview.design_context.target?.kind === "paragraph" ? "현재 문단" : "문서 전체 표준"}. 제안은 미리보기를 확인한 뒤 적용합니다.</p>}
+        {preview.design_context?.target_text && <details><summary>선택한 부분의 내용{preview.design_context.target_text_truncated ? " · 일부 발췌" : ""}</summary><pre className="assistant-context-text">{preview.design_context.target_text}</pre></details>}
       </details>}
     </div>
     <div className="assistant-turns" aria-label="AI 대화 기록">
-      {!turns.length && <div className="assistant-welcome"><strong>이 문서에 대해 이야기해 보세요.</strong><p>“핵심을 요약해줘”, “현재 문단을 보고서 문체로 바꿔줘”처럼 요청하고, 답변에 이어서 의견을 보탤 수 있습니다.</p></div>}
+      {!turns.length && <div className="assistant-welcome"><strong>이 문서에 대해 이야기해 보세요.</strong><p>“핵심을 요약해줘”, “현재 문단을 보고서 문체로 바꿔줘”, “이 표에 어울리는 디자인을 추천해줘”처럼 요청하세요.</p></div>}
       {turns.map(turn => <article key={turn.id} data-assistant-turn-id={turn.id}>
         <div className="assistant-user-message"><small>질문</small><p className="text">{turn.message}</p></div>
         <div className="assistant-answer"><small>{turn.execution.provider === "llm" ? "연결한 AI" : "Codex"}</small>
           {turn.status === "running" ? <p role="status">문서 내용을 바탕으로 답변 작성 중…</p> : turn.answer ? <p className="text">{turn.answer}</p> : <p role="alert">{turn.error || (turn.status === "cancelled" ? "응답 수신을 중단했습니다." : "답변을 완료하지 못했습니다. 다시 요청해 주세요.")}</p>}
           {turn.stale && <p className="hint">이 답변 이후 문서 저장본이 바뀌었습니다. 새 요청은 현재 문서를 다시 읽습니다.</p>}
           {turn.document_context.truncated && <p className="hint">긴 문서의 앞부분을 읽고 작성한 답변입니다.</p>}
+          {!!turn.design_proposals?.length && <div className="assistant-design-proposals" aria-label="디자인 제안">
+            {turn.design_proposals.map(proposal => <section className="assistant-rewrite-action" key={`${proposal.kind}:${proposal.id}`}>
+              <strong>{proposal.name}</strong>
+              <small>{proposal.kind === "standard" ? "문서 전체 표준" : proposal.target.kind === "table" ? "선택한 표" : "선택한 문단"}</small>
+              <p className="text">{proposal.reason}</p>
+              <button disabled={doc.role === "reader" || !onDesignProposal || !turn.design_context || permissionLost || active || turn.status !== "ready" || turn.stale || turn.base_version !== doc.current_version} onClick={async () => {
+                if (!onDesignProposal || doc.role === "reader") return;
+                setBusy(true); setError("");
+                try { await onDesignProposal(proposal, turn); }
+                catch (cause) { setError(errorMessage(cause)); }
+                finally { if (alive.current) setBusy(false); }
+              }}>디자인 제안 보기</button>
+              <small>{doc.role === "reader" ? "읽기 권한으로는 디자인을 적용할 수 없습니다." : "미리보기를 확인한 뒤 적용할 수 있습니다. 제안만으로 문서가 바뀌지는 않습니다."}</small>
+            </section>)}
+          </div>}
           {turn.rewrite_instruction && turn.selection && requestRewrite && <div className="assistant-rewrite-action">
             <CapabilityNotice feature="rewrite" label="문단 수정 후보" />
             <details><summary>제안한 수정 방향</summary><p className="text">{turn.rewrite_instruction}</p></details>

@@ -1,10 +1,11 @@
 {
   "repository": "m4r4m01m/hwp-assistant",
-  "tag": "developer-engine-2026-10-18",
-  "asset": "hwp-assistant-developer-engine-0.8.6-20261018.zip",
-  "sha256": "bcfd8793bbc5fe3b3c766784348de4e07ccb794719479cffca476fe4715d36fa",
+  "tag": "developer-engine-2026-10-25-editor-designs",
+  "asset": "hwp-assistant-developer-engine-0.8.6-20261025-editor-designs.zip",
+  "sha256": "e8ffc5598a913c4e6b72b94641b2f3ffa345f0dee4fe9728e8d8a71a3c779e74",
   "diagnostic": true,
   "engine_commit": "e8800c8def63449808a4092798442652ed460552",
   "wasm_sha256": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0",
-  "bridge_sha256": "1c72afaab4cdeb936db935e87470bf0335b5c09f535b2f85db9c3d7579f9ce3b"
+  "bridge_sha256": "5654a7170e7c061193a2419b1b123f4bb2cdc166ab358e8c82c01e0060b81c29",
+  "asset_id": 675162306
 }

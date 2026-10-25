@@ -1,6 +1,7 @@
 """Synthetic subprocess responses, real quota transactions; never an inference call."""
 from dataclasses import replace
 import subprocess
+import tomllib
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -54,7 +55,10 @@ def test_container_task_mcp_resolves_actual_backend_and_sanitized_environment(mo
     assert "DATABASE_URL" not in dict(settings.environment)
     assert settings.model == "configured-model"
     args = command("codex", "/tmp/synthetic", settings)
-    assert f'mcp_servers.hwp_document.env.PYTHONPATH="{BACKEND}"' in args
+    overrides = tomllib.loads("\n".join(args[index + 1] for index, arg in enumerate(args) if arg == "-c"))
+    mcp = overrides["mcp_servers"]["hwp_document"]
+    assert mcp["env"]["PYTHONPATH"] == str(BACKEND)
+    assert mcp["cwd"] == str(BACKEND)
     assert (BACKEND / "app/rewrite_mcp.py").is_file()
     assert '--ignore-user-config' in args and '--ephemeral' in args
 
