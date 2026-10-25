@@ -59,15 +59,24 @@ def test_reference_numbering_note_ranges_and_facts_are_frozen_before_layout():
     assert draft == DRAFT
     assert not any(p["text"] == "핵심 요약" for p in plan)
     first = next(p for p in plan if "12건을 확인" in p["text"])
-    assert first["text"] == "가. 2026년 10월 자료 12건을 확인함. *"
+    assert first["text"] == "가. 2026년 10월 자료 12건을 확인함. 주1)"
     assert first["style_kind"] == "subheading"
-    assert [first["text"][a:b] for a, b in first["citation_ranges"]] == ["*"]
-    assert any(p["text"] == "(1) 보완 조건(승인 후)을 유지함. *" for p in plan)
+    assert [first["text"][a:b] for a, b in first["citation_ranges"]] == ["주1)"]
+    subordinate = next(p for p in plan if "보완 조건(승인 후)" in p["text"])
+    assert subordinate["text"] == "(1) 보완 조건(승인 후)을 유지함. 주2)"
+    assert [subordinate["text"][a:b] for a, b in subordinate["citation_ranges"]] == ["주2)"]
+    assert plan[0]["note_grouping"] == "reference-note-section-groups-v2"
+    assert first["note_scope"] == subordinate["note_scope"]
+    assert first["citation_source_ids"] == subordinate["citation_source_ids"] == ["S1", "S2"]
+    notes = [p for p in plan if p.get("note_source_id") and p["note_scope"] == first["note_scope"]]
+    assert [p["note_source_id"] for p in notes] == ["S1", "S2"]
+    assert [p["text"] for p in notes] == ["주1) 합성 자료 1", "주2) 합성 자료 2"]
     raw, _ = generated(settings)
     h, s = parts(raw)
     chars = {n.get("id"): n for n in h.iter(f"{{{HH}}}charPr")}
-    marked = [r for r in s.iter(f"{{{HP}}}run") if r.find(f"{{{HP}}}t") is not None and r.find(f"{{{HP}}}t").text in ("*", "**")]
-    assert marked and all(chars[r.get("charPrIDRef")].find(f"{{{HH}}}supscript") is not None for r in marked)
+    marked = [r for r in s.iter(f"{{{HP}}}run") if r.find(f"{{{HP}}}t") is not None and r.find(f"{{{HP}}}t").text in ("주1)", "주2)")]
+    assert len(marked) == 2 and {r.find(f"{{{HP}}}t").text for r in marked} == {"주1)", "주2)"}
+    assert all(chars[r.get("charPrIDRef")].find(f"{{{HH}}}supscript") is not None for r in marked)
     assert [n.get("numType") for n in s.iter(f"{{{HP}}}autoNum")] == ["PAGE", "TOTAL_PAGE"]
 
 
@@ -143,9 +152,15 @@ def test_original_preset_body_prose_keeps_bullets_and_body_font(preset_id):
     raw, plan = generated(settings)
     assert DRAFT == before
     first = next(p for p in plan if "12건을 확인" in p["text"])
-    assert first["text"] == "□ 2026년 10월 자료 12건을 확인함. *"
+    assert first["text"] == "□ 2026년 10월 자료 12건을 확인함. 주1)"
     assert first["style_kind"] == "square"
-    assert any(p["text"] == "ㅇ 보완 조건(승인 후)을 유지함. *" for p in plan)
+    assert [first["text"][a:b] for a, b in first["citation_ranges"]] == ["주1)"]
+    subordinate = next(p for p in plan if "보완 조건(승인 후)" in p["text"])
+    assert subordinate["text"] == "ㅇ 보완 조건(승인 후)을 유지함. 주2)"
+    assert subordinate["style_kind"] == "circle"
+    assert [subordinate["text"][a:b] for a, b in subordinate["citation_ranges"]] == ["주2)"]
+    assert first["note_scope"] == subordinate["note_scope"]
+    assert first["citation_source_ids"] == subordinate["citation_source_ids"] == ["S1", "S2"]
     header, section = parts(raw)
     chars = {node.get("id"): node for node in header.iter(f"{{{HH}}}charPr")}
     hangul = next(node for node in header.iter(f"{{{HH}}}fontface") if node.get("lang") == "HANGUL")
