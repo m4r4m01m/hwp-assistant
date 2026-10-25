@@ -64,6 +64,33 @@ def synthetic_settings():
 reports.capture_settings = synthetic_settings
 codex_runner.capture_settings = synthetic_settings
 reports.generate_report = generate
+
+# Explicit real-engine E2E fixture only: keep the real assistant API, owner
+# catalog, lease/base checks and finish_turn validation. Replace just inference;
+# no Codex login, remote HTTP model, production configuration or AI ACL changes.
+if os.getenv("HWP_E2E_ASSISTANT_DESIGNS") == "1":
+    from app import assistant_runner
+    from app.document_assistant import AssistantResponse
+    os.environ["HWP_DOCUMENT_ASSISTANT_PROVIDER"] = "llm"
+    os.environ["LLM_PROVIDER"] = "openai-compatible"
+    os.environ["LLM_BASE_URL"] = "http://127.0.0.1:9/v1"
+    os.environ["LLM_MODEL"] = "synthetic-design-fixture"
+
+    def synthetic_design_answer(value, provider, settings, active=lambda: True):
+        if not active():
+            raise RuntimeError("Synthetic assistant request is no longer current")
+        item = next((choice for choice in value.get("design_catalog", [])
+            if choice["kind"] == "design" and choice["id"] == "reference-table"), None)
+        if item is None:
+            raise RuntimeError("Synthetic design fixture requires a supported table target")
+        choice = {key: item[key] for key in ("kind", "id", "sha256")}
+        response = AssistantResponse(answer="현재 표의 머리글을 구분하는 합성 디자인 제안입니다.",
+            rewrite_instruction=None, design_suggestions=[{**choice, "reason": "표 내용은 유지하고 머리글만 구분합니다."}])
+        return response, {"executor": "synthetic-design-fixture", "completed": True,
+            "actual_model_calls": 0, "frozen_catalog_choice": choice}
+
+    assistant_runner.generate_answer = synthetic_design_answer
+
 app = create_app()
 
 

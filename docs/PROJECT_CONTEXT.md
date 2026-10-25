@@ -1,6 +1,6 @@
 # HWP Assistant 프로젝트 컨텍스트
 
-갱신일: **2026-10-25 (한국 시간)**. 이번 검색 집계 후속 작업의 기준은 [main `4e364c1a4e74eed5a6ad86a9694adb1189a54bee`](https://github.com/m4r4m01m/hwp-assistant/commit/4e364c1a4e74eed5a6ad86a9694adb1189a54bee), [PR #37](https://github.com/m4r4m01m/hwp-assistant/pull/37)의 merge commit이다. 같은 source의 승인된 [수동 run `40198244783`](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40198244783) 배포와 원 대화의 실제 검증은 [13절](#13-2026-10-25-pr-37-배포와-원-대화-검증-요약)에 요약한다. 현재 후속 제품 코드는 **`081adee4ee7f14d712283dc80243a41390f1af81`**이며 `codex/search-completion-diagnostics-2026-10-25`에서 [Draft PR #38](https://github.com/m4r4m01m/hwp-assistant/pull/38)을 준비했다. 사용자는 검색 완료를 확인하지 못하는 이유와 개선 방법을 물었고, 원 대화 root가 그 개선 요청 범위에서 조사·명령 보완·회귀·push·Draft PR 준비를 인계했다. 사용자가 특정 flag를 직접 지정·명시 승인한 것은 아니다. 원 대화의 격리 A/B와 exact 제품 파일을 사용한 candidate 검증에서는 web 직접 노출 시 검색 완료 2회가 각각 관측됐다. 새 코드의 병합·운영 배포는 별도 미승인·미실행이다. 최신 집계 계약·진단·실모델 검증의 한계는 [14절](#14-2026-10-25-검색-완료-집계와-실행-진단-후속)을 따른다. 아래 0a92807·49dda2c 기준과 미병합 표현은 당시 기록으로 보존하며 현재 상태로 확대하지 않는다. 이 파일은 ChatGPT Work와 Codex의 공통 인수인계이며 이후 작업에서는 실제 최신 main·CI·운영 상태를 다시 확인한다.
+갱신일: **2026-10-26 (한국 시간)**. 이번 통합 기준과 마지막 확인된 운영 source는 [main `635293ede2e80f7080486c0ec44f5334e07ea801`](https://github.com/m4r4m01m/hwp-assistant/commit/635293ede2e80f7080486c0ec44f5334e07ea801), [PR #38](https://github.com/m4r4m01m/hwp-assistant/pull/38)의 merge commit이다. 같은 source의 [단일 배포 run `40202934497`](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40202934497)은 5개 job 모두 성공했고, 원 대화 root가 공개 합성 sqlite3 보고서 1건의 검색 2/2/0·유효 draft·내용 검토와 24개 check 성공을 인계했다. 개별 출처 미검증 경고는 유지하며 서식·확정·저장은 호출하지 않았다. 현재는 `codex/integrate-local-cli-2026-10-26`에서 동료 head `8e4b3104fb1d09873d4ba0c6cccfd27fa1c26a98`을 통합·검증 중이며 main 추가 병합·운영 배포·실모델 호출은 하지 않았다. 최신 통합 상태는 [15절](#15-2026-10-26-동료-cli편집-ui-통합)을 따른다. 14절 이전의 미승인·미배포·검색 미확인 표기는 당시 기록이며 위 PR #38의 이후 승인·배포·단일 실검증으로 갱신됐다. 구체적인 검색 flag는 사용자의 개선 요청 범위에서 원 대화 root가 선택한 구현이고, 사용자가 전문 설정을 직접 선택했다고 기록하지 않는다. 별도 문서 commit `532d1ddf3cf5c8ae0ef7697114a9ee6afbe7cc45`와 원래 작업 트리·미커밋 초안은 보존하며 이번 통합에 일괄 복사하지 않는다.
 
 ## 1. 읽는 순서와 증거 기준
 
@@ -412,3 +412,42 @@ Codex 선택 시 기존 서버 ChatGPT 인증·앱 ID Codex ACL·공통 용량·
 원 대화 root는 이 근거를 바탕으로 사용자 개선 요청 범위에서 **연구 ON 보고서 명령의 web 직접 노출·회귀·commit/push·Draft PR 준비**를 구현 인계했다. 연구 OFF의 `web_search=disabled`, 같은 모델·CLI·provider·도구 범위, 추가 turn/유료 fallback 금지는 유지한다. 제품 commit [`081adee4ee7f14d712283dc80243a41390f1af81`](https://github.com/m4r4m01m/hwp-assistant/commit/081adee4ee7f14d712283dc80243a41390f1af81)(parent exact `4e364c1a`)를 push하고 [Draft PR #38](https://github.com/m4r4m01m/hwp-assistant/pull/38)을 만들었다. 새 코드의 main 병합·운영 배포는 별도 미승인이다. 새 회귀 **102 passed·기존 warning 2개·2.81초**, Python 배포 계약 75개, 별도 flag 독립 집중 검토 **8 passed/69 deselected·기존 warning 2개**를 확인했다. 고정 CLI의 빈 임시 CODEX_HOME에서도 추론 없이 OFF disabled/direct null, ON live/direct `["web"]`의 유효 설정과 프로세스 정리를 확인했다. flag 포함 최종 backend 전체도 **단일 실행 exit 0·JUnit 1,268 case·failure/error/skip 0·256.117초**로 확인했다. 제품 파일 2개는 실행 전후 `081adee4`와 동일했다. stdout은 85%에서 끝나 최종 요약이 없으므로 전체 warning 수는 확정하지 않으며 집중 회귀의 2개를 복제하지 않는다. 이후 문서 head의 exact CI는 별도로 재확인해야 한다. frontend·실제 rhwp E2E는 이번 후속에서 재실행하지 않았고 FE/engine/DB/배포 config도 변경하지 않았다. 구체적인 pinned 근거·재현 전후·검증·한계는 [검색 집계·진단 문서](search-completion-diagnostics-2026-10-25.md)와 [검증 영수증](evidence/search-completion-diagnostics-2026-10-25.json)을 따른다.
 
 이후 원 대화 root는 제품 `081adee4`의 정확한 두 Python 파일 blob을 별도 프로세스 메모리에 불러와 **candidate 전체 generate_stream 경로**를 실제 모델로 검증했다. wrapper가 flag를 추가하지 않고 제품 코드의 설정을 그대로 사용했으며 같은 `gpt-6-astra`·ReportDraft schema·공개 합성 Python 공식 문서 요청을 app idle 확인 후 단일 turn/150초 상한으로 실행했다. **32.111초**, 검색 이벤트 started/completed **2/2**·incomplete **0**, 정상 완료·유효 draft·notice `completed`·upstream 오류 없음·terminal 검색 0건을 확인했다. 운영 파일·env·app DB의 문서/작업은 불변이었다. 이는 원 대화 root의 별도 프로세스 직접 검증으로 앱 endpoint나 배포된 새 코드의 시험이 아니다. 이 검색 조사에서 operator 실모델 호출은 **A/B 2회 + candidate 1회 = 3회**이며 클라우드 호출·운영 credential 수집은 0회다. 검색 도구 완료는 개별 사실 검증을 보증하지 않고 새 코드의 운영 배포 성공으로 확대하지 않는다.
+
+## 15. 2026-10-26 동료 CLI·편집 UI 통합
+
+사용자가 동료 `codex/local-cli-ready-2026-10-25`의 최신본을 main과 함께 검증·수정·병합하도록 요청했다. 클라우드는 [main `635293ed`](https://github.com/m4r4m01m/hwp-assistant/commit/635293ede2e80f7080486c0ec44f5334e07ea801)에서 별도 작업 트리를 만들고 동료 exact head **`8e4b3104fb1d09873d4ba0c6cccfd27fa1c26a98`**를 merge commit **`b5463aaed2db4660845b44828b59bb0a340a0341`**으로 통합했다. 후속 제품·회귀 commit **[`ac4c6b3796ef3e752f50dd51b6b5e40bac02659f`](https://github.com/m4r4m01m/hwp-assistant/commit/ac4c6b3796ef3e752f50dd51b6b5e40bac02659f)**를 `codex/integrate-local-cli-2026-10-26`에 push해 독립 검토에 공유했다. 공통 기준은 `49dda2c8de06288111216a61ba720dc148834257`이며 동료 이력 6개와 양쪽 source branch를 보존한다. rebase/squash/delete나 기존 checkout·실행 서비스·문서/볼륨 변경은 하지 않는다. 통합 branch의 Draft PR·최종 문서를 포함한 정확한 head CI까지 클라우드가 준비하며 main의 최종 merge commit은 원 대화 root가 독립 검토 후 수행한다. 이번 클라우드 통합 작업은 운영 배포·실모델·private env 변경을 포함하지 않는다.
+
+### 15.1 동료 기능과 보존할 main 계약
+
+동료 변경은 편집 디자인·소유자 catalog ID/hash 기반 AI 제안·문서 표준 비교/취소/기준값 표시·Windows CLI 로그인 탐색·새 읽기 전용 선택 위치 bridge다. 상세한 2026-10-25 로컬 검증은 [편집 디자인](editor-designs-2026-10-25.md), [CLI 실행](local-cli-ready-2026-10-25.md), 해당 evidence와 [동료 context 원본](https://github.com/m4r4m01m/hwp-assistant/blob/8e4b3104fb1d09873d4ba0c6cccfd27fa1c26a98/docs/PROJECT_CONTEXT.md)을 따른다. 로컬 포트·진단 엔진·실모델 관측은 그 출처의 당시 결과이며 이번 클라우드나 운영 재검증으로 확대하지 않는다.
+
+PR #37의 chat/review selector·Codex ACL/quota/admission·210초 모델 deadline·capability UI와 경고 초안·내용 검토/수동 저장 경계를 유지한다. PR #38의 연구 ON web 직접 노출·검색 ID/완료 집계·안전한 upstream 진단도 유지한다. 동료 branch의 옛 보고서 UI는 구 main 상태이므로 최신 main 동작으로 보존한다. mock UI testMatch는 main의 codex-chat-review/report-research와 동료 assistant-design-proposals/standard-designer-compare를 합친다. 실제 엔진용 editor-designs/standard-layout-controls는 mock 목록으로 옮기지 않는다.
+
+### 15.2 개발자 kit·실제 엔진의 구분
+
+동료 개발 lock은 prerelease `developer-engine-2026-10-25-editor-designs`, release `423431541`, asset `675162306`의 **37,245,795 bytes / SHA-256 `e8ffc5598a913c4e6b72b94641b2f3ffa345f0dee4fe9728e8d8a71a3c779e74`**를 지정한다. 원 대화 root가 실제 ZIP의 경로 안전성·82개 rhwp 파일 SHA·추가 파일 없음·receipt/bridge 일치를 확인했다고 인계했다. 이는 **diagnostic=true Windows developer kit의 무결성 근거**이며 운영 최적화 코어·Windows 실기기 재시험을 뜻하지 않는다. 클라우드는 같은 ZIP을 다시 받지 않았다.
+
+production core lock/patch는 변경하지 않았다. 별도 vendor에서 고정 upstream `e8800c8def63449808a4092798442652ed460552`와 verified optimized core **`3eb52da9c5602c8036fd70ce0f5f759588224be0069eafb04aed39845310667b`**를 재사용하고 새 bridge **`5654a7170e7c061193a2419b1b123f4bb2cdc166ab358e8c82c01e0060b81c29`**로 Studio를 빌드했다. diagnostic=false 및 고정 manifest 7개 자산을 검사했다. Rust/Docker 코어 재컴파일을 수행한 것은 아니다. 기존 vendor/산출물은 덮어쓰지 않았다. README·quickstart의 기본 clone은 main으로 맞추고, 디자인 기능 포함 및 수동 설치 archive명·전체 SHA를 현재 lock과 일치시켰다. 날짜별 원본 문서·evidence·lock은 다시 쓰지 않았다.
+
+### 15.3 통합 검증 상태
+
+제품 tree `7f038eb44149eaa8354c326542a1672cbcfa5b6a`의 로컬 결과다. Python **3.14.0**, backend/MCP locks, Node **24.15.0**, Chromium 141 headless-shell build 1194와 합성 자료를 사용했다. 최종 문서 head의 CI 수치는 PR 설명에서 확인하며 기준 main의 기존 CI로 대체하지 않는다. [통합 검증 영수증](evidence/local-cli-integration-2026-10-26.json)에 범위와 근거를 보존한다.
+
+| 검사 | 확인된 결과와 범위 |
+|---|---|
+| backend 전체 | 단일 실행 **1,366 passed**, JUnit failure/error/skip 0·**282.828초**·exit 0. 대상 Python 150개 파일 실행 전후 SHA 동일. stdout 최종 요약이 없어 전체 warning 수는 미확정 |
+| 집중 회귀 | **157 passed/기존 warning 2개**. 새 실제 stdio 합성 완료 계약 43개·strict section 3개 포함. 전체 1,366개와 중복이므로 합산하지 않음 |
+| 배포·도구 | Python 배포 계약 **75 passed**, 별도 CLI 로그인 검사 **6 passed/1 skipped**. skip은 Linux에서 Windows 실제 resolver를 실행하지 못한 1건이며 해당 검사 명령을 Python CI에도 추가. Node 계약 **82 passed** |
+| frontend | 최종 동기 abort 보완 후 tsc 통과·unit **35 passed**·mock UI **73 passed/59.990초**, failure/error/skip 0. main의 Codex 8개·연구 경고 9개를 포함한 13개 suite |
+| 실제 rhwp | 여러 JUnit 실행의 고유 노드 **39 passed/1 skipped**, 단일 전체 실행 결과가 아님. skip은 실제 모델 기록물 부재. 직전 parent catalog 수정본의 실제 엔진 8개 통과 후, 마지막 동기 abort 소스에서 영향받은 관리 CRUD 1개를 **73.557초**에 재통과·134개 소스 SHA 불변 |
+| build path | 최종 앱 `/hwp-assistant/` build 및 loopback HTTP 제공 파일 **24개 SHA** 일치. 새 Studio·검증한 optimized 코어 사용이며 nginx/HTTPS·운영 배포 검증은 아님 |
+
+새 AI 디자인 제안의 실제 main 편집기·backend catalog/lease·rhwp preview/apply/undo 3개는 **모델만 합성 fixture**다. 호스트 20초 자동저장 타이머를 멈춰 buffer 적용/되돌리기를 검사했으므로 기본 자동저장 전체 경로 검증으로 확대하지 않는다. 기존 보고서 경고·6×400자 확인 사항·수동 편집·유실 응답의 frozen save retry·재열기, revision-3 표준·표/제목 디자인·비교/보완/서식 회귀도 포함한다. 초기 실패는 삭제하지 않았다. 옛 fixture의 의미상 동등값/원래 optional key 보존/새 도움말 기대를 정정했으며 timeout만 늘리거나 frozen/hash 동작을 되돌리지 않았다.
+
+### 15.4 발견한 결함·보완·남은 한계
+
+기존 main에도 있던 문서 대화 runner의 완료 판정을 보완했다. 정확한 thread/turn·유효 item ID/type·완료 payload/phase/delivery 중복 계약을 검사하고 commentary/async/delta를 최종 답으로 승격하지 않는다. 나중의 동기 non-JSON final을 과거 summary가 되살리지 못하며 반환 직전 취소 상태를 다시 확인한다. schema 오류는 모델 원문 없이 일반 안내로 반환한다. provider·명령·timeout·capacity는 바꾸지 않았다. 디자인 section은 정확한 정수 0만 허용한다.
+
+실제 엔진 회귀에서 확인한 갤러리 결함은 삭제 API가 성공해도 별도 목록이 남는 것이었다. 부모의 catalog 조회를 문서 선택 창이 열린 동안에도 유지하고, 성공한 저장/삭제 뒤 재조회한 **id+sha**로 선택을 보존/해제한다. 실패·취소는 기존 선택을 유지하고, 재조회 실패를 성공한 mutation의 실패로 표시하지 않는다. 이전 GET는 callback에서 즉시 abort하며 늦은 성공/오류가 목록·error·loading을 덮지 못한다. 마지막 동기 abort는 코드 검토 보강이며 React scheduler 경합을 실환경에서 재현했다고 주장하지 않는다.
+
+이번 통합의 실제 모델 호출·운영 배포·env/ACL/계정·운영 문서 변경은 **0회**다. Windows 실기·한컴·폐쇄망·운영 PostgreSQL/HTTPS 재검증은 미실행이다. cloud에는 운영 credential이 없다. 기존 `532d1dd` 문서와 미커밋 인수인계 2개는 원래 위치에 보존했다. DB migration이나 보고서 frozen schema 변경은 없으며 문제 발생 시 원 source branch와 통합 전 main을 보존한 채 수정/검토한다. 운영 반영·롤백은 별도 배포 절차와 DB/문서 보존 계약을 따르고 볼륨 초기화로 해결하지 않는다.

@@ -1,0 +1,213 @@
+.editor-design-panel {
+  flex: 0 0 420px;
+  width: 420px;
+  min-width: 0;
+  overflow: auto;
+  padding: 20px;
+  background: #f6f8fb;
+  border-left: 1px solid #dbe3ed;
+  box-sizing: border-box;
+  color: #25384b;
+  font-size: 13px;
+}
+.editor-design-panel > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.editor-design-panel h2 {
+  margin: 3px 0 12px;
+  font-size: 20px;
+}
+.editor-design-panel p {
+  line-height: 1.65;
+}
+.editor-design-panel small {
+  color: #61758b;
+}
+.editor-design-tabs,
+.editor-design-filters {
+  display: flex;
+  gap: 6px;
+  margin: 14px 0;
+}
+.editor-design-tabs button {
+  flex: 1;
+}
+.editor-design-tabs button[aria-pressed="true"],
+.editor-design-filters button[aria-pressed="true"] {
+  background: #e4eefb;
+  color: #174c8a;
+  border-color: #90b3df;
+}
+.editor-design-ask {
+  width: 100%;
+  text-align: left;
+  margin-bottom: 8px;
+  background: white;
+}
+.editor-design-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.editor-design-panel .editor-design-grid {
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.editor-design-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+  width: 100%;
+  padding: 0 0 12px;
+  overflow: hidden;
+  background: white;
+  border: 1px solid #d8e2ec;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.editor-design-card svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #fff;
+}
+.editor-design-card strong,
+.editor-design-card small {
+  padding: 0 12px;
+}
+.editor-design-card strong {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+.editor-design-card:hover,
+.editor-design-card:focus-visible {
+  border-color: #568dd4;
+  box-shadow: 0 3px 12px #17497916;
+}
+.editor-design-option.selected .editor-design-card {
+  border-color: #3e7bc7;
+}
+.editor-design-preview {
+  display: block;
+  margin: 5px auto 0;
+  font-size: 12px;
+  padding: 4px 8px;
+  background: transparent;
+  border: 0;
+  color: #3d6595;
+}
+.editor-design-help {
+  font-size: 12px;
+  color: #667c91;
+}
+.editor-design-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.editor-design-pair figure {
+  margin: 0;
+  min-width: 0;
+}
+.editor-design-pair figcaption {
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.editor-design-pair img {
+  width: 100%;
+  height: auto;
+  background: white;
+  border: 1px solid #dbe3ed;
+}
+.editor-design-actions,
+.editor-design-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+}
+.editor-design-prepared li {
+  margin: 8px 0;
+  line-height: 1.6;
+}
+.editor-design-shelf {
+  max-width: 1100px;
+}
+.editor-design-shelf .editor-design-grid {
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+}
+@media (max-width: 900px) {
+  .editor-design-panel {
+    flex-basis: 340px;
+    width: 340px;
+    padding: 12px;
+  }
+  .editor-design-panel .editor-design-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.design-library-management {
+  margin-top: 24px;
+  padding: 16px 0;
+  border-top: 1px solid #dbe3ed;
+}
+.design-library-management > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #465f78;
+}
+.design-document-picker {
+  max-width: 800px;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid #dbe3ed;
+  border-radius: 12px;
+}
+.design-document-picker ul {
+  list-style: none;
+  padding: 0;
+}
+.design-document-picker li + li {
+  margin-top: 8px;
+}
+.design-document-picker li button {
+  width: 100%;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.editor-design-large {
+  width: min(1180px, 94vw);
+  max-height: 94dvh;
+  padding: 20px;
+  border: 1px solid #c6d4e3;
+  border-radius: 12px;
+  background: #edf2f7;
+  box-sizing: border-box;
+}
+.editor-design-large::backdrop {
+  background: #172d4266;
+}
+.editor-design-large > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 14px;
+}
+.editor-design-large h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.editor-design-large .editor-design-pair {
+  gap: 20px;
+}
+.editor-design-large .editor-design-pair img {
+  max-height: calc(94dvh - 115px);
+  object-fit: contain;
+  background: white;
+}

@@ -1,0 +1,58 @@
+{
+  "date_kst": "2026-10-25",
+  "result": "passed",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "previous_head": "e0e49f7e3cce6ba215f2eb3723b8ced01c757af1",
+  "integrated_main": "49dda2c8de06288111216a61ba720dc148834257",
+  "integration": "fast-forward; existing QA history was already included in main",
+  "local_fix": "Parse Codex MCP -c overrides as TOML in test_codex_runtime, verifying cwd and PYTHONPATH on Windows and POSIX instead of comparing unescaped path text.",
+  "checks": {
+    "backend_unique_passed": 125,
+    "backend_posix_only_skipped": 3,
+    "backend_final_fix_rerun_passed": 5,
+    "typescript": "passed",
+    "frontend_unit_passed": 12,
+    "mock_ui_passed": 19,
+    "real_rhwp_scenarios_passed": 3,
+    "real_rhwp_scope": [
+      "comparison page alignment and anchored note labels",
+      "standard management, custom composition, registration and designs",
+      "synthetic appendix 1 report, content review, formatted preview, save and reopen"
+    ],
+    "served_build_bytes": "verified by desktop launcher",
+    "actual_model_calls": 0,
+    "live_codex_login": "chatgpt",
+    "live_codex_features": "reports, rewrite and document_assistant configured and allowed",
+    "native_password_accounts_enabled": false
+  },
+  "storage": {
+    "backup_before_switch": true,
+    "documents": 10,
+    "versions": 13,
+    "visual_standards": 4,
+    "files": 17,
+    "changed_or_missing_existing_rows": 0,
+    "changed_or_missing_existing_blobs": 0,
+    "added_documents_versions_standards_files": 0,
+    "added_tables": 2,
+    "active_leases_or_jobs_before_switch": 0,
+    "reference_sha256": "6c68b50656867f1fc724c50549e60e1109e2f7a00219f2928ef58de0a45711f1"
+  },
+  "runtime": {
+    "web_url": "http://127.0.0.1:15201/",
+    "source": ".cache/main-sync-20261025/source",
+    "data": ".cache/local-ui-qa-2026-10-22/data",
+    "desktop_shortcut_target_updated": true,
+    "engine_reused": true,
+    "engine_diagnostic": true,
+    "engine_wasm_sha256": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0"
+  },
+  "limitations": [
+    "Initial sandbox pytest temporary-directory creation failed; host rerun used a new isolated cache directory.",
+    "One Linux-specific path assertion failed on Windows; corrected TOML assertions passed on rerun.",
+    "Sandbox mock UI startup stalled and was interrupted; host rerun passed all 19 scenarios.",
+    "Backend count is the unique union of focused runs, not a single full-suite pass.",
+    "Real rhwp tests used synthetic AI; no actual model generation, web research, Hancom, Docker deployment or production server changes.",
+    "Existing browser tabs were not refreshed; unsaved browser buffers are outside server backup."
+  ]
+}

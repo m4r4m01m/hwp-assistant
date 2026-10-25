@@ -1,0 +1,68 @@
+{
+  "date": "2026-10-25",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "source_base": "a013b8633e2d488d0c1a4799f9698ec310bcb92d",
+  "source_state": "uncommitted editor design feature on source_base",
+  "environment": {
+    "os": "Windows",
+    "app_url": "http://127.0.0.1:15330/",
+    "api_port": 18330,
+    "data": ".cache/editor-design-20261025/qa",
+    "data_kind": "synthetic only",
+    "vite": "7.3.7, installed from current package-lock",
+    "engine_kind": "diagnostic, not optimized release",
+    "bridge_sha256": "5654a7170e7c061193a2419b1b123f4bb2cdc166ab358e8c82c01e0060b81c29",
+    "wasm_sha256": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0"
+  },
+  "checks": {
+    "editor_design_backend_unique_passed": 21,
+    "editor_design_final_spacing_recheck_passed_subset": 3,
+    "assistant_backend_unique_passed": 58,
+    "assistant_mock_ui_unique_passed": 14,
+    "bridge_unit_passed": 5,
+    "real_rhwp_design_scenarios_passed": 4,
+    "real_rhwp_existing_block_regression_passed": 1,
+    "typescript": "passed",
+    "frontend_build": "passed with matching diagnostic engine; separate build-final directory",
+    "full_regression": "not run"
+  },
+  "real_model": {
+    "calls": 1,
+    "provider": "codex",
+    "executor": "codex-app-server",
+    "model": "gpt-6.1-sol",
+    "answer_seconds": 10,
+    "total_seconds": 15,
+    "result": "Read exact unsaved synthetic table text, returned one catalog design, explicit proposal click opened actual preview",
+    "explicit_apply_clicked": false,
+    "live_buffer_server_versions_original_blob_unchanged": true,
+    "local_evidence": ".cache/assistant-design-tests/actual-codex/proof.json"
+  },
+  "preservation": {
+    "original_and_historical_user_blobs": "not used or modified",
+    "actual_engine_checks": [
+      "Untargeted text and styles preserved",
+      "Cancel after second preview preserves previous application undo",
+      "Late cancelled SVG cannot populate the next preview",
+      "Changed selection or live content blocks old application",
+      "Lost verification response reuses frozen request",
+      "Explicit save and web reopen preserve the original version"
+    ],
+    "existing_user_app": "15201 HTTP 200; original three PIDs and UTC start times unchanged",
+    "desktop_launcher": "unchanged",
+    "stable_cli_branch": "codex/local-cli-ready-2026-10-25 at d8b93346a1b5caec1db670c1d656d8c94245321a unchanged"
+  },
+  "visual_review": {
+    "title_table_overlap": "Fixed; final screenshot shows white gap between lower blue title rule and following table",
+    "large_comparison": "Actual before/after pages visible together",
+    "local_screenshots": ".cache/editor-design-20261025/qa/e2e-designs-final-r4",
+    "human_review": "pending user"
+  },
+  "limits": [
+    "Style-only application does not rewrite text or reconstruct cover/TOC composition",
+    "Merged/nested/object-containing tables are refused or preserved with a warning",
+    "Single section/column and 10 MB source limit from existing transform contract",
+    "Hancom 2018, isolated-network and optimized release validation not performed",
+    "No main merge or production deployment in this resumed task"
+  ]
+}

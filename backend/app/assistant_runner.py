@@ -3,6 +3,7 @@ import asyncio
 import json
 import re
 import tempfile
+from hashlib import sha256
 from pathlib import Path
 from .document_assistant import AssistantResponse, CONTRACT, canonical, parse_response
 from .report_rpc import ReportRpc
@@ -17,14 +18,27 @@ It is NOT a screenshot. Do not claim to see actual page geometry, colors, exact 
 When document_context.truncated is true, explicitly limit conclusions to the provided portion when relevant.
 Answer questions, explain issues and discuss improvements naturally. Preserve facts, names, dates, numbers, qualifiers and citations.
 If facts conflict or cannot be checked from the input, say so. Do not invent missing text or claim independent verification.
-Never say the document was changed or saved. Only the user can approve a separate exact paragraph-edit workflow.
-Return only JSON with exactly two keys: answer (nonempty text, at most 12000 characters),
-rewrite_instruction (null or nonempty text, at most 2000 characters).
+Never say the document was changed or saved. Only the user can approve a separate edit or design-preview workflow.
+Return only JSON with answer (nonempty text, at most 12000 characters),
+rewrite_instruction (null or nonempty text, at most 2000 characters), and optionally design_suggestions (an array).
 Only when the user explicitly asks to change the supplied selected paragraph and selection is non-null, provide a self-contained
 rewrite_instruction describing the requested change. It must include necessary instructions from the conversation without
 turning old AI suggestions into facts. It is guidance for generating two edit candidates, not approval or replacement text.
 For document questions, discussion, or selection=null, rewrite_instruction must be null. Unsupported whole-document, table,
-formatting or multiple-paragraph edits should be discussed as advice; do not pretend the paragraph-edit path can perform them.
+formatting or multiple-paragraph edits must never use rewrite_instruction; do not pretend the paragraph-edit path can perform them.
+When design_context and design_catalog are supplied, you may suggest up to three catalog choices relevant to the user's request.
+Each design_suggestion has exactly kind ('design' or 'standard'), id, sha256 copied verbatim from one available catalog entry,
+and reason (nonempty Korean text, at most 600 characters). Never invent choices, settings, targets, XML or approval.
+A design applies only to the frozen target: table designs to that table, title designs to that paragraph or a recognized
+single-cell title frame (design_context.target_is_title_frame=true). Use design_context.target_text for the exact selected
+part, not another similar paragraph/table in the full extract. When target_text_truncated is true it is only an excerpt.
+Title-frame tables use title designs; they must not receive ordinary data-table designs.
+An empty target_text is not evidence that the selected part is empty or that you have seen its visual appearance. A standard affects
+the whole document's supported styles. It preserves content and does not regenerate cover/TOC or restructure the document.
+Do not recommend a whole-document standard when the user only wants one selected part changed, unless they ask to compare it.
+Explain the choice using the supplied text, target and catalog settings. These are snapshots, not continuous screen observation.
+Use an empty list when no available choice fits, the request is text-only, or no design_context/design_catalog exists.
+The user must open the suggestion, inspect the design preview and explicitly apply it; suggesting never changes the document.
 Use no shell, files, MCP, web, external services or other tools. Do not claim a modification, save or external verification.
 """
 
@@ -103,30 +117,81 @@ def codex_answer(value, settings, active):
             # Structured outputs require every property even when its value is null.
             schema["required"] = ["answer", "rewrite_instruction"]
             schema["properties"]["rewrite_instruction"].pop("default", None)
+            if value.get("design_context"):
+                schema["required"].append("design_suggestions")
+                schema["properties"]["design_suggestions"].pop("default", None)
+            else:
+                schema["properties"].pop("design_suggestions")
+                schema.pop("$defs", None)
             turn = call("turn/start", {"threadId": thread_id,
                 "input": [{"type": "text", "text": "Document conversation request (data):\n" + canonical(value), "text_elements": []}],
                 "outputSchema": schema})
             turn_id, final, size = turn["turn"]["id"], None, 0
+            seen, item_types, completed_size, completed_count = {}, {}, 0, 0
+
+            def identify(item_id, kind):
+                if not isinstance(item_id, str) or not item_id.strip():
+                    raise RuntimeError("문서 대화 항목 ID가 올바르지 않습니다.")
+                if item_id in item_types and item_types[item_id] != kind:
+                    raise RuntimeError("문서 대화 항목 종류가 일치하지 않습니다.")
+                item_types[item_id] = kind
+
+            def completed(item):
+                nonlocal final, completed_size, completed_count
+                text = item.get("text", "")
+                if not isinstance(text, str) or len(text) > 100000:
+                    raise RuntimeError("문서 대화 응답 한도 초과")
+                item_id = item.get("id")
+                fingerprint = sha256(canonical([text, item.get("phase"), item.get("delivery")]).encode("utf-8")).hexdigest()
+                if item_id in seen:
+                    if seen[item_id] != fingerprint:
+                        raise RuntimeError("문서 대화 완료 항목이 일치하지 않습니다.")
+                    return  # A summary replay cannot revive a superseded final.
+                seen[item_id] = fingerprint
+                completed_size += len(text)
+                completed_count += 1
+                if completed_size > 131072 or completed_count > 32:
+                    raise RuntimeError("문서 대화 응답 한도 초과")
+                if item.get("phase") not in (None, "final_answer") or item.get("delivery") is not None:
+                    return
+                final = text if text.lstrip().startswith("{") else None
+
+            def observe(item, *, is_completed):
+                if not isinstance(item, dict):
+                    raise RuntimeError("문서 대화 항목 형식이 올바르지 않습니다.")
+                kind = item.get("type")
+                if kind not in ("userMessage", "agentMessage", "reasoning", "plan", "contextCompaction"):
+                    raise RuntimeError("문서 대화 범위 밖의 도구 실행이 감지되었습니다.")
+                identify(item.get("id"), kind)
+                if is_completed and kind == "agentMessage":
+                    completed(item)
+
             evidence = {"executor": "codex-app-server", "model": thread["model"], "contract": CONTRACT,
                 "codex_thread_id": thread_id, "shell_tool": False, "web_search_calls": 0, "streamed": False}
             while True:
                 event = pending.pop(0) if pending else rpc.receive()
                 check(event)
                 method, params = event.get("method"), event.get("params", {})
-                if params.get("threadId", thread_id) != thread_id or params.get("turnId", turn_id) != turn_id:
+                if not isinstance(params, dict):
+                    raise RuntimeError("문서 대화 이벤트 형식이 올바르지 않습니다.")
+                if params.get("threadId") != thread_id:
+                    continue
+                if method == "turn/completed":
+                    terminal = params.get("turn")
+                    if not isinstance(terminal, dict):
+                        raise RuntimeError("문서 대화 완료 형식이 올바르지 않습니다.")
+                    if terminal.get("id") != turn_id or params.get("turnId", turn_id) != turn_id:
+                        continue
+                elif params.get("turnId") != turn_id:
                     continue
                 if method in ("item/started", "item/completed"):
-                    item = params.get("item", {})
-                    if item.get("type") not in ("userMessage", "agentMessage", "reasoning", "plan", "contextCompaction"):
-                        raise RuntimeError("문서 대화 범위 밖의 도구 실행이 감지되었습니다.")
-                    if method == "item/completed" and item.get("type") == "agentMessage":
-                        text = item.get("text", "")
-                        if not isinstance(text, str) or len(text) > 100000:
-                            raise RuntimeError("문서 대화 응답 한도 초과")
-                        if text.lstrip().startswith("{"):
-                            final = text
+                    observe(params.get("item"), is_completed=method == "item/completed")
                 if method == "item/agentMessage/delta":
-                    size += len(params.get("delta", ""))
+                    identify(params.get("itemId"), "agentMessage")
+                    delta = params.get("delta")
+                    if not isinstance(delta, str):
+                        raise RuntimeError("문서 대화 부분 응답 형식이 올바르지 않습니다.")
+                    size += len(delta)
                     if size > 131072:
                         raise RuntimeError("문서 대화 응답 한도 초과")
                 if method == "thread/tokenUsage/updated":
@@ -134,6 +199,15 @@ def codex_answer(value, settings, active):
                 if method == "turn/completed":
                     if params["turn"]["id"] != turn_id:
                         continue
-                    if params["turn"]["status"] != "completed" or final is None:
+                    if params["turn"]["status"] != "completed":
                         raise RuntimeError("Codex 답변 완료를 확인하지 못했습니다.")
-                    return parse_response(final), evidence
+                    for item in params["turn"].get("items", []):
+                        observe(item, is_completed=True)
+                    if final is None:
+                        raise RuntimeError("Codex 답변 완료를 확인하지 못했습니다.")
+                    if not active():
+                        raise RuntimeError("답변 수신이 중단됐습니다.")
+                    try:
+                        return parse_response(final), evidence
+                    except ValueError:
+                        raise RuntimeError("AI 답변 형식이 올바르지 않아 완료하지 않았습니다.") from None

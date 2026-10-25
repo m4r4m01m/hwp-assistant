@@ -1,0 +1,196 @@
+{
+  "date_kst": "2026-10-26",
+  "repository": "m4r4m01m/hwp-assistant",
+  "branch": "codex/integrate-local-cli-2026-10-26",
+  "base_main": "635293ede2e80f7080486c0ec44f5334e07ea801",
+  "colleague_head": "8e4b3104fb1d09873d4ba0c6cccfd27fa1c26a98",
+  "integration_merge": "b5463aaed2db4660845b44828b59bb0a340a0341",
+  "integration_merge_parents": [
+    "635293ede2e80f7080486c0ec44f5334e07ea801",
+    "8e4b3104fb1d09873d4ba0c6cccfd27fa1c26a98"
+  ],
+  "review_product_commit": "ac4c6b3796ef3e752f50dd51b6b5e40bac02659f",
+  "review_product_tree": "7f038eb44149eaa8354c326542a1672cbcfa5b6a",
+  "final_ci": "Pending on final documentation-inclusive head; results belong in PR body. No claim based on base-main CI.",
+  "environment": {
+    "python": "3.14.0",
+    "node": "24.15.0",
+    "browser": "Chromium headless shell 141/build1194",
+    "dependencies": "backend + MCP and frontend lock files",
+    "data": "synthetic only"
+  },
+  "backend_full": {
+    "tests": 1366,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "seconds": 282.828,
+    "exit_code": 0,
+    "warnings": null,
+    "warning_note": "Final stdout summary absent; do not copy warning counts from focused tests.",
+    "source_files_hashed": 150,
+    "source_unchanged": true
+  },
+  "focused_backend": {
+    "passed": 157,
+    "warnings": 2,
+    "seconds": 20.383,
+    "new_stdio_contract_cases": 43,
+    "new_strict_section_cases": 3,
+    "scope": "Synthetic stdio subprocess and API tests; subset of full backend, not additive."
+  },
+  "deployment_python_contracts": {
+    "passed": 75,
+    "groups": [
+      13,
+      4,
+      16,
+      12,
+      6,
+      24
+    ],
+    "ci_contracts_rerun_after_workflow_line": 16
+  },
+  "cli_login_resolver": {
+    "passed": 6,
+    "skipped": 1,
+    "skip_reason": "Real Windows resolver cannot run on Linux.",
+    "command": "python scripts/check-codex-login.test.py",
+    "added_to_hosted_ci": true
+  },
+  "frontend": {
+    "tsc_exit_code": 0,
+    "unit_passed": 35,
+    "mock_ui_passed": 73,
+    "mock_ui_seconds": 59.989659,
+    "mock_ui_failures": 0,
+    "mock_ui_errors": 0,
+    "mock_ui_skipped": 0,
+    "mock_suite_count": 13,
+    "source_sha256": {
+      "frontend/src/design-library.tsx": "2b72cc88816f1445ef11ae24be87b674b24baf1981815bfb40b348ff40d23413",
+      "frontend/src/editor-designs.tsx": "482709e95f5745fcd87209ae866ffd540a96d54b21a4051a25109ca872331d23",
+      "frontend/src/template-market.tsx": "4c289d7946d960f0f6c2493b386de9eebb7ac7ee26499a4e4d07c19f5130a3b8",
+      "frontend/src/main.tsx": "fce165adbd8504b92032584a70ad8dbcf1bc9a9bb4c5e28d6df220370755040c",
+      "frontend/src/collaboration.tsx": "340f40e7b6829b5f4c9737057e2a66478b23f7e8b5031cc09b60eb88efc9c0b6",
+      "frontend/src/reports.tsx": "1cbcf77f308f189671f8dba75dd3da5975c8978faf6b3e8f6d249099e87b0f98",
+      "frontend/playwright.ui.config.ts": "91dfbfbbcd1173fabbb99ac1f13457ccd97116882865b3375b92b96389b8a7fd",
+      "frontend/tests/catalog-lifecycle.spec.ts": "168cd658946227edc2a2ae06750b87568e3670be753a58c023306f492c1d2219",
+      "frontend/tests/fixtures/catalog-lifecycle.tsx": "b872591943cd2c775614261f527cf57a14699051b932e8e700d25c6b94bdb55a",
+      "frontend/tests/design-library-mutations.spec.ts": "610c3c301bd843740b3883860be8d9dc8b59b9ce57170c1fb191b9c6e04bbb87",
+      "frontend/tests/fixtures/design-library-mutations.tsx": "5784929b219d76989171c60cf6afcf9d54e88d811e13171c03154d0cd2d11ffd",
+      "frontend/tests/responsiveness.spec.ts": "2a22488b15404bae111f6099db3e1ad3c2b7b59625950f4ff4fd52e374fd378c"
+    },
+    "late_get_tests": "Abort-ignoring old success/failure cannot revive stale entries or replace error/loading; source also synchronously aborts before effect cleanup.",
+    "scheduler_race_reproduced": false
+  },
+  "node_contracts": {
+    "passed": 82,
+    "engine_kit_subset_included": 17
+  },
+  "engine": {
+    "upstream_commit": "e8800c8def63449808a4092798442652ed460552",
+    "optimized_core_sha256": "3eb52da9c5602c8036fd70ce0f5f759588224be0069eafb04aed39845310667b",
+    "core_reused": true,
+    "rust_docker_core_rebuilt": false,
+    "bridge_sha256": "5654a7170e7c061193a2419b1b123f4bb2cdc166ab358e8c82c01e0060b81c29",
+    "fresh_studio_build": true,
+    "diagnostic": false,
+    "manifest_asset_count": 7,
+    "public_base": "/hwp-assistant/",
+    "app_build_exit_code": 0,
+    "loopback_served_files_sha_checked": 24,
+    "not_production_smoke": true
+  },
+  "actual_engine_e2e": {
+    "counts": {
+      "unique": 40,
+      "passed": 39,
+      "skipped": 1,
+      "failed": 0
+    },
+    "single_full_run": false,
+    "latest_management_case": {
+      "passed": 1,
+      "seconds": 73.557294,
+      "exit_code": 0,
+      "source_files_hashed": 134,
+      "source_unchanged": true
+    },
+    "prior_parent_catalog_run": {
+      "passed": 8,
+      "seconds": 114.614267,
+      "source_files_hashed": 136,
+      "source_unchanged": true
+    },
+    "scope": "Real rhwp + native isolated SQLite/Vite/backend, synthetic model only. Latest management case replaces same unique node.",
+    "limitations": [
+      "The broad standard-designer run changed only the management test selectors/API evidence assertions while executing; its automated source_unchanged flag remains false. The 22 selected unaffected cases passed; final management is selected from the later focused run.",
+      "Earlier failed attempts and intermediate key-epoch patch runs are preserved and not counted as successes here.",
+      "Actual rhwp/bridge/backend, synthetic inference only; native SQLite + Vite, not production/nginx/PostgreSQL.",
+      "The assistant adoption cases pause the host 20-second autosave only; buffer preview/apply/undo scope, not default autosave validation."
+    ],
+    "recorded_model_skip": 1,
+    "assistant_main_adoption": {
+      "passed": 3,
+      "real_main_backend_engine": true,
+      "model": "synthetic fixture",
+      "host_20_second_autosave_paused": true,
+      "scope": "Buffer preview/apply/undo and target/live-byte fences; not default autosave validation."
+    }
+  },
+  "developer_kit": {
+    "source": "Original-dialogue root actual archive verification; cloud independently checked release metadata, did not redownload archive.",
+    "release_id": 423431541,
+    "asset_id": 675162306,
+    "asset": "hwp-assistant-developer-engine-0.8.6-20261025-editor-designs.zip",
+    "bytes": 37245795,
+    "sha256": "e8ffc5598a913c4e6b72b94641b2f3ffa345f0dee4fe9728e8d8a71a3c779e74",
+    "diagnostic": true,
+    "rhwp_file_count": 82,
+    "archive_paths_and_file_hashes_verified_by_root": true,
+    "not_optimized_core_or_windows_runtime_validation": true
+  },
+  "protected_main_files_byte_unchanged": [
+    "backend/app/report_stream.py",
+    "backend/app/report_errors.py",
+    "backend/app/report_research.py",
+    "backend/app/report_contract.py",
+    "backend/app/reports.py",
+    "backend/app/codex_chat_review.py"
+  ],
+  "locks_unchanged_from_colleague": [
+    "scripts/engine-lock.json",
+    "scripts/developer-engine.lock.json"
+  ],
+  "preservation": {
+    "source_branch_retained": true,
+    "existing_checkouts_unchanged": true,
+    "local_docs_532d1dd_preserved": true,
+    "old_uncommitted_handoff_documents_preserved": true,
+    "dated_docs_evidence_not_rewritten": true
+  },
+  "scope_limits": {
+    "actual_model_calls": 0,
+    "production_changes": 0,
+    "deployment_dispatches": 0,
+    "env_acl_account_changes": 0,
+    "windows_physical_runtime": false,
+    "hancom_manual": false,
+    "isolated_network": false,
+    "production_postgresql_https": false,
+    "cloud_production_credentials": false
+  },
+  "previous_live_baseline": {
+    "source": "635293ede2e80f7080486c0ec44f5334e07ea801",
+    "pr": "https://github.com/m4r4m01m/hwp-assistant/pull/38",
+    "deployment_run": "https://github.com/m4r4m01m/hwp-assistant/actions/runs/40202934497",
+    "direct_executor": "Original-dialogue root, not this cloud integration task",
+    "search_completed": 2,
+    "search_incomplete": 0,
+    "valid_draft": true,
+    "checks_passed": 24,
+    "individual_sources_unverified": true,
+    "format_approve_save_calls": 0
+  }
+}

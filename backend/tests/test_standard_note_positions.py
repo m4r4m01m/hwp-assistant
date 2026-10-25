@@ -42,7 +42,8 @@ def test_word_anchor_sample_retains_facts_and_original_values_are_visible():
     assert SAMPLE['sources'] == SAMPLE_V5['sources']
     fields = {f['key']:f for f in field_catalog()}
     assert '0%' in fields['line_space_policy']['options'][0]['label']
-    assert '본문 글자·표 어절' in fields['line_break_unit']['options'][0]['label']
+    assert fields['line_break_unit']['options'][0] == {'value': 'ORIGINAL', 'label': '기준서 값 · 역할별 줄바꿈'}
+    assert fields['line_break_unit']['option_aliases'] == {}  # Mixed source roles cannot become one global wrap mode.
 
 
 def test_repeated_note_explanations_have_stable_individual_preview_anchors():
