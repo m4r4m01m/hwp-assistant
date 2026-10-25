@@ -86,3 +86,24 @@ def upstream_details(error):
                     result["http_status"] = status
                 return result
     return {}
+
+
+def retain_upstream_details(previous, error):
+    """Retain the last documented diagnostic, never upstream prose or payloads.
+
+    Retry notices can precede a successful turn. An unknown later notice must
+    not erase an earlier useful diagnostic, nor attach an old HTTP status to a
+    different error kind. This bounded record belongs to execution metadata,
+    not to a frozen report draft or its hash.
+    """
+    current = upstream_details(error)
+    if current:
+        return current
+    if not isinstance(previous, dict):
+        return {}
+    kind = previous.get("protocol_error")
+    if not isinstance(kind, str) or kind not in UPSTREAM_VARIANTS:
+        return {}
+    # Refilter the retained value as well; callers cannot smuggle extra fields
+    # through this helper by supplying a previously assembled dictionary.
+    return upstream_details({"codexErrorInfo": {kind: {"httpStatusCode": previous.get("http_status")}}})
