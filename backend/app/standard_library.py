@@ -5,12 +5,13 @@ import uuid
 from typing import Literal
 from fastapi import HTTPException, Request
 from pydantic import Field, field_validator
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 from .db import VisualStandard, VisualStandardState, DesignFragment, transaction
 from .block_contract import BlockInput
 from .reference_standard import VisualSettingsV3
 from .report_contract import canonical, paragraph
+from .hwpx import digest
 
 
 def active_standard(db, identifier, user):
@@ -66,6 +67,11 @@ def install_standard_library(app):
     def save(value: SaveFragment, request: Request):
         settings = canonical(fragment_settings(value.settings.model_dump(mode="json"), value.kind))
         with transaction(engine) as db:
+            if engine.dialect.name == "postgresql":
+                # The UUID is also the retry key. Lock absent rows as well as
+                # existing ones so concurrent submissions share one receipt.
+                db.execute(text("SELECT pg_advisory_xact_lock(:key)"),
+                           {"key": int(digest(("design-fragment:" + str(value.id)).encode())[:15], 16)})
             row = db.get(DesignFragment, str(value.id))
             if row:
                 if row.owner_id != request.state.user:

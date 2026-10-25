@@ -42,6 +42,26 @@ def test_reduced_heading_structure_integrates_context_without_repeated_headings(
     assert "Integrate their distinctions" in prompt
 
 
+@pytest.mark.parametrize('text', ['(금) 오후 점검 예정', '금. 오후 점검 예정', '(각) 담당자 확인', '각. 담당자 확인'])
+def test_reduced_heading_structure_preserves_nonordinal_korean_text(text):
+    from app.standard_policy import organize_paragraphs
+    settings = {**defaults(), 'heading_structure_policy': 'CONTENT_V1', 'enabled_heading_roles': 'heading'}
+    assert organize_paragraphs([text], settings) == [text]
+    draft = copy.deepcopy(SAMPLE)
+    draft['sections'][0]['paragraphs'] = [text]
+    plan = report_blocks(draft, rich=True, visual_settings=settings)
+    assert any(item['text'] == text for item in plan)
+    assert draft['sections'][0]['paragraphs'] == [text]
+
+
+@pytest.mark.parametrize('marker', ['가.', '하.', '(가)', '(하)'])
+def test_disabled_korean_ordinal_headings_still_join_their_content(marker):
+    from app.standard_policy import organize_paragraphs
+    settings = {'heading_structure_policy': 'CONTENT_V1', 'enabled_heading_roles': 'heading'}
+    assert organize_paragraphs([marker + ' 확인 기준', '□ 금요일에 점검함.'], settings) == [
+        '□ 확인 기준: 금요일에 점검함.']
+
+
 @pytest.mark.parametrize("key,value", [("enabled_body_roles", ""), ("enabled_body_roles", "circle,square"),
     ("enabled_body_roles", "square,square"), ("enabled_heading_roles", "body"),
     ("line_break_unit", "anything"), ("line_space_policy", "SHRINK_CHARACTERS"), ("body_tracking_percent", -21)])

@@ -36,8 +36,11 @@ def organize_paragraphs(paragraphs, settings):
     if settings.get("heading_structure_policy") != "CONTENT_V1":
         return list(paragraphs)
     import re
-    patterns = ((r"^[가-하]\.\s+", "subheading"), (r"^(?:\(\d+\)|\d+\))\s+", "minor_heading"),
-                (r"^(?:\([가-하]\)|[가-하]\))\s+", "numbered_4"), (r"^[①-⑳]\s+", "numbered_5"),
+    # A Unicode syllable range also matches weekdays such as '(금)'. Only the
+    # fourteen Korean ordinal glyphs are structural labels safe to remove.
+    ordinals = "가나다라마바사아자차카타파하"
+    patterns = ((rf"^[{ordinals}]\.\s+", "subheading"), (r"^(?:\(\d+\)|\d+\))\s+", "minor_heading"),
+                (rf"^(?:\([{ordinals}]\)|[{ordinals}]\))\s+", "numbered_4"), (r"^[①-⑳]\s+", "numbered_5"),
                 (r"^[㉮-㉻]\s+", "numbered_6"))
     enabled = settings.get("enabled_heading_roles", ",".join(HEADING_ROLES)).split(",")
     result, context = [], []

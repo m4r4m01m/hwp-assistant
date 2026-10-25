@@ -1,4 +1,5 @@
 """One frozen selection -> configured generator -> candidates -> approval -> version."""
+from .codex_runtime import allowed as codex_allowed, require_ready as require_codex_ready, reserve_usage as reserve_codex_usage
 import io
 import json
 import os
@@ -18,7 +19,7 @@ from .collaboration import NewContext
 from .db import Access, Application, Conversation, RewriteCandidate, RewriteTask, Version, transaction
 from .hwpx import digest
 from .llm import OpenAICompatible
-from .capabilities import require_llm_access, llm_allowed, codex_executable_available
+from .capabilities import require_llm_access, llm_allowed
 from .rewrite_contract import CandidateInput, CandidatePair, PROMPT_CONTRACT
 from .rewrite_capacity import ExecutionSlot, configured_capacity
 from .rewrite_context import freeze_context, frozen_context, context_stale, generation_input, input_hash, CONTEXT_PROMPT_CONTRACT
@@ -161,11 +162,12 @@ def install_rewrite(app, check_lease):
     def rewrite_provider(request: Request):
         try:
             provider, client = configured_generator()
-            allowed = llm_allowed(request.state.user) if provider == "llm" else request.state.user == os.getenv("HWP_CODEX_USER", "local")
-            configured = provider != "codex" or codex_executable_available(client.executable)
+            allowed = llm_allowed(request.state.user) if provider == "llm" else codex_allowed(request.state.user)
+            from .capabilities import codex_feature
+            state = codex_feature(request.state.user) if provider == "codex" else None
             return {"provider": provider, "model": client.model if client else None,
-                    "configured": configured, "allowed": allowed and configured, "context_used": False, "supports_writing_context": True,
-                    "reason": "설치된 Codex CLI가 필요합니다." if not configured else "" if allowed else "이 서버의 본인 Codex 계정에 연결된 사용자만 실행할 수 있습니다."}
+                    "configured": state["configured"] if state else True, "allowed": allowed, "context_used": False, "supports_writing_context": True,
+                    "reason": (state["message"] if not state["configured"] or not allowed else "") if state else "" if allowed else "AI 실행 권한이 없습니다."}
         except HTTPException as exc:
             return {"provider": os.getenv("HWP_REWRITE_PROVIDER", "codex"), "model": None,
                     "configured": False, "allowed": False, "context_used": False, "reason": str(exc.detail)}
@@ -182,7 +184,7 @@ def install_rewrite(app, check_lease):
                 doc = require_access(db, thread.document_id, request.state.user, "editor", lock=True)
                 existing = db.get(RewriteTask, str(value.id))
                 requested_provider = public_execution(existing)["provider"] if existing else os.getenv("HWP_REWRITE_PROVIDER", "codex")
-                if requested_provider == "codex" and request.state.user != os.getenv("HWP_CODEX_USER", "local"):
+                if requested_provider == "codex" and not codex_allowed(request.state.user):
                     raise HTTPException(403, "이 서버의 본인 Codex 계정에 연결된 사용자만 실행할 수 있습니다.")
                 require_lease_owner(db, doc, request.state.user)
                 check_lease(doc, x_edit_session)
@@ -203,8 +205,10 @@ def install_rewrite(app, check_lease):
                 provider, client = configured_generator()
                 if provider == "llm":
                     require_llm_access(request.state.user)
-                if provider == "codex" and request.state.user != os.getenv("HWP_CODEX_USER", "local"):
+                if provider == "codex" and not codex_allowed(request.state.user):
                     raise HTTPException(403, "이 서버의 본인 Codex 계정에 연결된 사용자만 실행할 수 있습니다.")
+                if provider == "codex":
+                    require_codex_ready(client)
                 token = "hwp-run-" + secrets.token_urlsafe(32) if provider == "codex" else ""
                 if context is not None and provider == "codex":
                     from dataclasses import replace
@@ -229,6 +233,8 @@ def install_rewrite(app, check_lease):
                                   token_hash=digest(token.encode()) if token else "",
                                   execution=json.dumps(execution, ensure_ascii=False), created_at=time.time())
                 slot.reserve()
+                if provider == "codex":
+                    reserve_codex_usage(db, "rewrite:" + str(value.id), request.state.user)
                 db.add(row)
                 result = {"id": row.id, "status": row.status}
             # Dispatch once, only after the task commit. Never run a second provider on failure.

@@ -90,7 +90,7 @@ const wasmAssets = readdirSync(resolve(dist, "assets")).filter(name => /^rhwp_bg
 if (wasmAssets.length !== 1 || hashFile(resolve(dist, "assets", wasmAssets[0])) !== coreBuild.wasm_sha256)
   throw Error("Studio did not bundle the verified core; refusing to publish.");
 const bundleFiles = ["index.html", "rhwp.js", `assets/${wasmAssets[0]}`,
-  ...readdirSync(resolve(dist, "assets")).filter(name => name.endsWith(".js")).map(name => `assets/${name}`)];
+  ...readdirSync(resolve(dist, "assets")).filter(name => /\.(js|css)$/.test(name)).map(name => `assets/${name}`)];
 const bundle = Object.fromEntries(bundleFiles.map(name => [name, hashFile(resolve(dist, name))]));
 mkdirSync(out, { recursive: true });
 cpSync(dist, out, { recursive: true });

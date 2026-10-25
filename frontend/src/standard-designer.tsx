@@ -509,12 +509,11 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
     setError("");
     setRegistrationError("");
   }
-  function selectSource(id: string) {
-    if (!catalog || locked) return;
-    const selected = catalog.items.find(item => item.id === id);
+  function loadSource(id: string, nextCatalog: Catalog) {
+    const selected = nextCatalog.items.find(item => item.id === id);
     if (id && !selected) return;
-    const revision = selected?.revision || (catalog.presets?.length ? 3 : 2);
-    const sourceDefinition = revision < 3 && catalog.presets?.length ? catalog.legacy?.[String(revision)] : catalog;
+    const revision = selected?.revision || (nextCatalog.presets?.length ? 3 : 2);
+    const sourceDefinition = revision < 3 && nextCatalog.presets?.length ? nextCatalog.legacy?.[String(revision)] : nextCatalog;
     if (!sourceDefinition) { setError("이전 표준의 설정 계약을 불러오지 못했습니다. 목록을 다시 확인하세요."); return; }
     generation.current++;
     setView("settings");
@@ -522,6 +521,8 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
     comparisonRef.current = null; setComparison(null);
     setSource(id);
     setSourceCandidate(id);
+    setPageIndex(0);
+    setInputNotice("");
     setHoveredField("");
     setFocusedField("");
     setCustomFonts(new Set());
@@ -536,6 +537,28 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
     setPhase("waiting");
     setError("");
     setRegistrationError("");
+  }
+  function selectSource(id: string) {
+    if (!catalog || locked) return;
+    loadSource(id, catalog);
+  }
+  async function deleteSource() {
+    if (locked || !sourceSelection) return;
+    setDeleting(true);
+    try {
+      await api(`/visual-standards/${sourceSelection.id}`, { method: "DELETE" });
+      const next = await api<Catalog>("/visual-standards");
+      if (!mounted.current) return;
+      setCatalog(next);
+      setDeleteOpen(false);
+      // Deleting a V1/V2 source returns to the current default contract, just
+      // like choosing a new standard. Old preview/comparison state is not a base.
+      loadSource("", next);
+    } catch (cause) {
+      if (mounted.current) setError(String(cause));
+    } finally {
+      if (mounted.current) setDeleting(false);
+    }
   }
   async function register() {
     if (registering || (!registration && (!current || !preview || !name.trim()))) return;
@@ -637,7 +660,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
     if (appendix1 && group.startsWith("표지")) return "현재 구성에 표지가 없습니다. 문서 구성 → 표지에서 추가할 수 있습니다.";
     if (!appendix1 && ["문서 제목", "제목 상자"].includes(group)) return "표지가 있는 구성에서는 문서 제목을 본문 첫머리에 반복하지 않습니다. 표지 설정을 사용하세요.";
     const optional: Record<string, [string, string]> = {
-
+      "참고·출처": ["source", "별도 참고자료 목록은 없습니다. 문서 구성 → 참고·출처 목록에서 전체 목록을 추가할 수 있습니다."],
       "붙임·별첨 제목": ["attachment", "현재 예시에는 별도 붙임 문서가 없습니다."],
       "표·그림 단위": ["unit", "현재 예시의 표에는 금액·수량 등의 단위 표시가 없습니다."],
     };
@@ -827,7 +850,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
         {settingsRevision >= 3 && !!catalog?.presets?.length && <div className="standard-setting-fields standard-source standard-preset"><label className="standard-field"><span>기본 양식 · 별첨 구성</span><select aria-label="기본 양식" value={values.preset_id || ""} disabled={locked} onChange={event => change("preset_id", event.target.value)}>{catalog.presets.map(preset => <option key={preset.id} value={String(preset.settings.preset_id)}>{preset.name}</option>)}</select></label><p className="standard-preset-description">{selectedPreset?.description}</p><p className="standard-preset-description">별첨 1·2·3은 고정된 시작 양식입니다. 조절한 결과는 사용자 표준으로 저장합니다. 표지·목차 등은 아래 문서 구성에서 변경하세요.</p></div>}
         {!!catalog?.items.length && <details className="standard-saved-sources" open><summary>사용자 표준 관리</summary><div className="standard-setting-fields standard-source"><p className="standard-preset-description">표준을 선택해 수정합니다. 저장할 때 덮어쓰기 또는 새 표준 추가를 선택할 수 있습니다. *는 저장하지 않은 변경입니다.</p><label className="standard-field"><span>저장한 표준</span><select aria-label="저장한 표준" value={sourceCandidate} disabled={locked} onChange={event => setSourceCandidate(event.target.value)}><option value="">불러올 표준 선택</option>{catalog.items.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><button disabled={locked || !sourceCandidate} onClick={() => requestChange({ type: "source", id: sourceCandidate })}>선택한 표준 편집</button>{sourceSelection && <button disabled={locked} onClick={() => setDeleteOpen(true)}>현재 표준 삭제</button>}</div></details>}
         {sourceSelection && <p className="standard-source-note" role="note">‘{sourceSelection.name}’에서 시작{changedSettings ? " · 설정 수정 중" : " · 저장된 설정"}</p>}
-        {olderSource && <p className="standard-source-note" role="note">이전 등록 표준의 설정을 그대로 불러왔습니다. 기존 설정과 파일은 보존하고, 수정하면 같은 형식의 새 표준으로 등록합니다.</p>}
+        {olderSource && <p className="standard-source-note" role="note">이전 등록 표준의 설정을 그대로 불러왔습니다. 설정 형식과 기존 파일은 보존하며, 저장할 때 목록의 표준을 덮어쓰거나 새 표준으로 추가할 수 있습니다.</p>}
         {settingsRevision >= 3 && values.numbering_style === "NUMBERED" && <p className="standard-source-note">이 표준은 이전의 본문 번호 방식을 사용합니다. <button disabled={locked} onClick={() => change("numbering_style", "BULLETS")}>본문 기호로 전환</button></p>}
         {inputNotice && <p className="standard-source-note" role="status">{inputNotice}</p>}
         {settingsRevision >= 3 && <details className="standard-saved-sources"><summary>디자인 보관함 · 표와 제목</summary><DesignLibrary settings={valid ? checked.settings : undefined} disabled={locked || !current} onApply={patch => { generation.current++; setValues(old => ({ ...old, ...inputValues(patch) })); setInputRevision(x => x + 1); setSaved(null); setPhase("waiting"); }} /></details>}
@@ -890,7 +913,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
       {registrationError && <p role="alert">{registrationError}</p>}
       <div className="standard-register-dialog-actions"><button disabled={locked} onClick={() => setDialogOpen(false)}>취소</button><button className="primary" disabled={registering || (!registration && (!current || !name.trim()))} onClick={() => void register()}>{registering ? "등록 확인 중…" : registration ? "같은 등록 결과 재확인" : expired ? "예시 다시 확인" : saveMode === "replace" && sourceSelection ? "현재 표준 덮어쓰기" : "새 표준 등록"}</button></div>
     </dialog>
-    {deleteOpen && sourceSelection && <div className="standard-delete-backdrop"><section className="standard-delete-dialog" role="alertdialog" aria-label="사용자 표준 삭제"><h2>‘{sourceSelection.name}’ 삭제</h2><p>목록에서 제거합니다. 이 표준으로 만든 기존 문서와 이전 버전은 보존합니다.{changedSettings ? " 저장하지 않은 변경사항은 사라집니다." : ""}</p><button disabled={deleting} onClick={() => setDeleteOpen(false)}>취소</button><button disabled={deleting} onClick={async () => { setDeleting(true); try { await api(`/visual-standards/${sourceSelection.id}`, { method: "DELETE" }); const next = await api<Catalog>("/visual-standards"); setCatalog(next); setDeleteOpen(false); setSource(""); setSourceCandidate(""); setValues(inputValues(next.defaults)); setSaved(null); setInputRevision(x => x + 1); generation.current++; setPhase("waiting"); } catch (cause) { setError(String(cause)); } finally { setDeleting(false); } }}>삭제 확인</button></section></div>}
+    {deleteOpen && sourceSelection && <div className="standard-delete-backdrop"><section className="standard-delete-dialog" role="alertdialog" aria-label="사용자 표준 삭제"><h2>‘{sourceSelection.name}’ 삭제</h2><p>목록에서 제거합니다. 이 표준으로 만든 기존 문서와 이전 버전은 보존합니다.{changedSettings ? " 저장하지 않은 변경사항은 사라집니다." : ""}</p><button disabled={deleting} onClick={() => setDeleteOpen(false)}>취소</button><button disabled={deleting} onClick={() => void deleteSource()}>삭제 확인</button></section></div>}
     <dialog className="standard-register-dialog" ref={changeDialog} role="alertdialog" aria-labelledby="standard-change-title" aria-describedby="standard-change-description" onCancel={() => setPendingChange(null)}>
       <h2 id="standard-change-title">{pendingChange?.type === "leave" ? "서식 설정을 닫을까요?" : "서식 설정 바꾸기"}</h2><p id="standard-change-description">현재 조절한 설정을 아직 등록하지 않았습니다. {pendingChange?.type === "leave" ? "화면을 나가면 이 설정은 사라집니다." : "계속하면 불러올 설정으로 바뀝니다."} 저장된 표준은 유지됩니다.</p>
       <div className="standard-register-dialog-actions"><button autoFocus onClick={() => setPendingChange(null)}>계속 편집</button><button disabled={locked} onClick={() => pendingChange && applyChange(pendingChange)}>{pendingChange?.type === "leave" ? "등록하지 않고 나가기" : "설정 바꾸기"}</button></div>

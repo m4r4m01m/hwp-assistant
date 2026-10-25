@@ -23,6 +23,7 @@ DRAFT = {"title": "금융 보안 보고서", "summary": "합성 시험입니다.
 
 @pytest.fixture
 def report_env(secured, monkeypatch):
+    monkeypatch.setenv("HWP_CODEX_EXECUTABLE", "synthetic-codex-not-executed")
     monkeypatch.setenv("HWP_CODEX_USER", "alice")
     calls = []
     def generate(value, settings, *args):

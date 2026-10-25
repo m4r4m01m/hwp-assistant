@@ -32,6 +32,7 @@ jobs:
       - run: python scripts/deploy/test_deployment.py
       - run: python -I -S -B scripts/deploy/test_host_preflight.py
       - run: python scripts/deploy/test_ci_contracts.py
+      - run: python scripts/deploy/test_smoke.py
       - run: python scripts/developer-download.test.py
       - run: python -m pytest -q
 
@@ -155,8 +156,8 @@ jobs:
         run: |
           python3 scripts/deploy/smoke.py --url https://localhost:24443/hwp-assistant/ \
             --insecure-localhost --env-file "$HWP_ENV_FILE" --upload-sample
-          docker compose --env-file "$HWP_ENV_FILE" -f compose.deploy.yaml restart api web
-          docker compose --env-file "$HWP_ENV_FILE" -f compose.deploy.yaml up -d --no-build --wait --wait-timeout 180
+          docker compose --env-file "$HWP_ENV_FILE" -f compose.deploy.yaml -f compose.ci-gateway.yaml restart api web
+          docker compose --env-file "$HWP_ENV_FILE" -f compose.deploy.yaml -f compose.ci-gateway.yaml up -d --no-build --wait --wait-timeout 180
           python3 scripts/deploy/smoke.py --url https://localhost:24443/hwp-assistant/ \
             --insecure-localhost --env-file "$HWP_ENV_FILE" --verify-receipt
       - uses: actions/setup-node@v4
@@ -185,6 +186,13 @@ jobs:
           docker push "ghcr.io/m4r4m01m/hwp-assistant-web:$HWP_IMAGE_TAG"
           printf 'Verified source commit: `%s`\n' "$HWP_IMAGE_TAG" >> "$GITHUB_STEP_SUMMARY"
           printf 'Image publication is not a successful home-server deployment.\n' >> "$GITHUB_STEP_SUMMARY"
+      - name: Diagnose CI upstream failures before cleanup
+        if: failure()
+        run: |
+          if test -f "$HWP_ENV_FILE"; then
+            docker compose --env-file "$HWP_ENV_FILE" -f compose.deploy.yaml -f compose.ci-gateway.yaml ps
+            docker compose --env-file "$HWP_ENV_FILE" -f compose.deploy.yaml -f compose.ci-gateway.yaml logs --no-color --tail 100 gateway web
+          fi
       - name: Stop isolated CI services (never delete production volumes)
         if: always()
         run: |

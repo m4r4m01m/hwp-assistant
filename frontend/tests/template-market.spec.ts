@@ -256,8 +256,12 @@ test("template market: paging and current source permissions reject stale apply 
     templateIds.push((await response.json()).id);
   }
   await page.getByRole("button", { name: "양식 보관함", exact: true }).click();
+  await page.getByRole("button", { name: "기존 문서 양식", exact: true }).click();
   await page.getByLabel("양식 검색").fill(prefix);
   await page.getByLabel("양식 정렬").selectOption("name");
+  // Wait for this debounced search to replace the previous catalog before
+  // paging; a prior page can also contain 24 cards while the filter is loading.
+  await expect(page.locator(".market-count")).toHaveText("양식 25개");
   await expect(page.locator(".market-card")).toHaveCount(24);
   await page.getByRole("button", { name: "다음", exact: true }).click();
   await expect(page.locator(".market-card")).toHaveCount(1);
@@ -322,10 +326,12 @@ test("REAL engine template market: standard editor and report entry create no do
       posts.push(request.url());
   });
   await page.getByRole("button", { name: "양식 보관함", exact: true }).click();
+  await page.getByRole("button", { name: "기존 문서 양식", exact: true }).click();
   await page.getByText("AI 보고서의 양식을 바꾸려면", { exact: true }).click();
   await page.getByRole("button", { name: "표준 설정 편집", exact: true }).click();
   await expect(page.getByRole("img", { name: "문서 표준 예시 1쪽" })).toBeVisible({ timeout: 90000 });
   await page.getByRole("button", { name: "양식 보관함", exact: true }).click();
+  await page.getByRole("button", { name: "기존 문서 양식", exact: true }).click();
   await page.getByText("AI 보고서의 양식을 바꾸려면", { exact: true }).click();
   await page.getByRole("button", { name: "보고서 작성으로", exact: true }).click();
   await expect(

@@ -1,3 +1,4 @@
+import { AccountGate, clearAccountWorkspaceState } from "./account-gate";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { History } from "./version-history";
@@ -201,7 +202,7 @@ function App({
     );
   return (
     <div className="workspace-shell library-shell">
-      <WorkspaceNav active="documents" onNavigate={navigate} disabled={copying || uploading} footer={<><strong>{account.authentication_required ? account.user_id : "개인 작업 공간"}</strong><details className="library-account-note"><summary>이용 안내</summary><p>{account.authentication_required ? "문서별 열람·편집·소유자 권한과 대화 공개 범위가 적용됩니다." : "현재 이 컴퓨터의 개인 문서함입니다. 사용자 간 공유는 서버 인증 설정 후 사용할 수 있습니다."}</p><p>저장본은 이전 버전을 보존합니다. 한컴 호환성은 실제 파일로 확인하세요.</p></details>{account.authentication_required && <button onClick={async () => { await api("/auth/logout", { method: "POST" }); location.reload(); }}>로그아웃</button>}</>}>
+      <WorkspaceNav active="documents" onNavigate={navigate} disabled={copying || uploading} footer={<><strong>{account.authentication_required ? account.user_id : "개인 작업 공간"}</strong><details className="library-account-note"><summary>이용 안내</summary><p>{account.authentication_required ? "문서별 열람·편집·소유자 권한과 대화 공개 범위가 적용됩니다." : "현재 이 컴퓨터의 개인 문서함입니다. 사용자 간 공유는 서버 인증 설정 후 사용할 수 있습니다."}</p><p>저장본은 이전 버전을 보존합니다. 한컴 호환성은 실제 파일로 확인하세요.</p></details>{account.authentication_required && <button onClick={async () => { await api("/auth/logout", { method: "POST" }); clearAccountWorkspaceState(); location.reload(); }}>로그아웃</button>}</>}>
         <button className="primary workspace-nav-action" aria-label="빈 문서 만들기" disabled={uploading} onClick={() => setCreating(true)}><WorkspaceIcon name="plus"/><span>빈 문서 만들기</span></button>
         <label className="button workspace-nav-action" title="HWPX 업로드"><WorkspaceIcon name="upload"/><span>HWPX 업로드</span><input aria-label="HWPX 업로드" type="file" accept=".hwpx" disabled={uploading || !!uploadPending} onChange={event => { if (event.target.files?.[0]) void incoming(event.target.files[0]); event.target.value = ""; }} /></label>
         <p className="workspace-nav-note">문서를 만들거나 기존 HWPX를 가져와 작업하세요.</p>
@@ -1358,41 +1359,6 @@ function Editor({
     </div>
   );
 }
-function AuthGate() {
-  const [account, setAccount] = useState<{ user_id: string; authentication_required: boolean } | null>(null),
-    [loading, setLoading] = useState(true), [error, setError] = useState(""),
-    [token, setToken] = useState(""), [loggingIn, setLoggingIn] = useState(false), [attempt, setAttempt] = useState(0);
-  const loginLock = useRef(false);
-  useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true); setError("");
-    api<NonNullable<typeof account>>("/auth/me", { signal: controller.signal, timeoutMs: 12000 })
-      .then(value => { if (!controller.signal.aborted) setAccount(value); })
-      .catch(cause => {
-        if (!controller.signal.aborted && !(cause instanceof ApiError && cause.status === 401)) setError(errorMessage(cause));
-      }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
-  }, [attempt]);
-  if (loading) return <main className="drive"><p role="status">문서함 연결 중…</p></main>;
-  if (account) return <CapabilitiesProvider><AiConnectionProvider><App account={account} /></AiConnectionProvider></CapabilitiesProvider>;
-  return <main className="drive auth-screen">
-    <h1>HWPX 문서함 로그인</h1><p>관리자가 발급한 사용자별 토큰을 입력하세요.</p>
-    <form onSubmit={async event => {
-      event.preventDefault();
-      if (loginLock.current || !token.trim()) return;
-      loginLock.current = true; setLoggingIn(true); setError("");
-      try {
-        await api("/auth/login", { ...jsonRequest("POST", { token }), timeoutMs: 20000 });
-        setToken("");
-        setAccount(await api("/auth/me", { timeoutMs: 12000 }));
-      } catch (cause) { setError(errorMessage(cause)); }
-      finally { loginLock.current = false; setLoggingIn(false); }
-    }}>
-      <input aria-label="인증 토큰" type="password" autoComplete="off" value={token} disabled={loggingIn} onChange={event => setToken(event.target.value)} />
-      <button type="submit" disabled={loggingIn || !token.trim()}>{loggingIn ? "로그인 확인 중…" : "로그인"}</button>
-    </form>
-    {error && <div className="error" role="alert"><p>{error}</p><button disabled={loggingIn} onClick={() => setAttempt(value => value + 1)}>연결 다시 확인</button></div>}
-  </main>;
-}
-
-createRoot(document.getElementById("root")!).render(<AuthGate />);
+createRoot(document.getElementById("root")!).render(
+  <AccountGate>{account => <CapabilitiesProvider><AiConnectionProvider><App account={account} /></AiConnectionProvider></CapabilitiesProvider>}</AccountGate>,
+);

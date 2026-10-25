@@ -258,7 +258,6 @@ export function CollaborationPanel({
           </div>
           {writable && (
             <>
-              <CapabilityNotice feature="chat" label="대화 AI 답변" />
               <textarea
                 aria-label="대화 메시지"
                 placeholder="문서에 대한 의견이나 검토 내용을 남기세요."
@@ -287,6 +286,7 @@ export function CollaborationPanel({
               </button>
               <details>
                 <summary>별도 AI 연결</summary>
+                <CapabilityNotice feature="chat" label="별도 모델 AI 답변" />
                 <p className="hint">관리자가 연결한 로컬·사내 모델에 질문하는 기능입니다. Codex 연결만으로는 사용할 수 없습니다. 질문할 때 저장된 작성 정보와 최근 대화가 전달됩니다.</p>
                 <button disabled={busy || checkingConnection} onClick={() => void checkSeparateAi()}>{checkingConnection ? "연결 확인 중…" : "별도 AI 연결 확인"}</button>
                 {separateAi && <p role={separateAi.ready ? "status" : "alert"}>{separateAi.ready ? `연결됨 · ${separateAi.model}` : separateAi.error}</p>}

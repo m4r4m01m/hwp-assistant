@@ -46,6 +46,7 @@ class SetupInput(CheckInput):
 def local_setup(app, user):
     # A localhost URL is not proof of a native launcher: Docker also uses localhost.
     return (os.getenv("HWP_LOCAL_AI_SETUP") == "1" and not app.state.users
+            and not app.state.account_policy.enabled
             and user == os.getenv("HWP_CODEX_USER", "local"))
 
 

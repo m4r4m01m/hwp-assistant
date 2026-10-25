@@ -1,11 +1,15 @@
 import base64
+import json
 import uuid
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 import pytest
+from app.db import DesignFragment, transaction
 from app.reference_standard import defaults
 from app.standard_policy import cover_enabled, toc_mode, table_geometry
 from app.standard_samples import SAMPLE, SAMPLE_V4
 from app.report_contract import report_blocks
-from test_collaboration import secured, as_user
+from test_collaboration import secured, as_user, TOKENS
 from test_standard_samples import prepare, finish, registration
 
 
@@ -45,10 +49,88 @@ def test_fragments_are_owned_and_keep_only_design_fields(secured):
     assert c.post('/api/design-fragments', json={**body, 'name': '다른 이름'}).status_code == 409
     as_user(c, 'bob')
     assert c.get('/api/design-fragments').json()['items'] == []
+    assert c.post('/api/design-fragments', json=body).status_code == 404
     assert c.delete('/api/design-fragments/' + body['id']).status_code == 404
     as_user(c, 'alice')
     assert c.delete('/api/design-fragments/' + body['id']).status_code == 200
     assert c.get('/api/design-fragments').json()['items'] == []
+
+
+@pytest.mark.parametrize('second_user', ['alice', 'bob'])
+def test_concurrent_fragment_registration_has_one_owner_and_stable_receipt(secured, second_user):
+    c, _, _, _ = secured
+    body = dict(id=str(uuid.uuid4()), name='동시 저장 표', kind='table', settings=defaults())
+    users = ['alice', second_user]
+    barrier = Barrier(2)
+
+    def submit(user):
+        barrier.wait(timeout=10)
+        return c.post('/api/design-fragments', json=body, headers={'Authorization': 'Bearer ' + TOKENS[user]})
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(pool.map(submit, users))
+    if second_user == 'alice':
+        assert [r.status_code for r in responses] == [200, 200], [r.text for r in responses]
+        assert responses[0].json() == responses[1].json()
+    else:
+        assert sorted(r.status_code for r in responses) == [200, 404], [r.text for r in responses]
+    winner = next(i for i, r in enumerate(responses) if r.status_code == 200)
+    saved = responses[winner].json()
+    for user in ('alice', 'bob'):
+        headers = {'Authorization': 'Bearer ' + TOKENS[user]}
+        expected = [saved] if user == users[winner] else []
+        assert c.get('/api/design-fragments', headers=headers).json()['items'] == expected
+    assert c.post('/api/design-fragments', json={**body, 'name': '다른 이름'},
+                  headers={'Authorization': 'Bearer ' + TOKENS[users[winner]]}).status_code == 409
+
+
+@pytest.mark.parametrize('hidden', [False, True])
+def test_local_fragment_migration_requires_owner_and_preserves_design(secured, monkeypatch, hidden):
+    from app.schema import migrate
+    c, app, _, _ = secured
+    body = dict(id=str(uuid.uuid4()), name='이전 작업 디자인', kind='title', settings=defaults())
+    response = c.post('/api/design-fragments', json=body)
+    assert response.status_code == 200, response.text
+    saved = response.json()
+    as_user(c, 'bob')
+    other = c.post('/api/design-fragments', json={**body, 'id': str(uuid.uuid4())}).json()
+    as_user(c, 'alice')
+    with transaction(app.state.engine) as db:
+        row = db.get(DesignFragment, body['id'])
+        row.owner_id = 'local'
+        row.hidden = hidden
+        original = (row.name, row.kind, row.settings, row.created_at, row.hidden)
+    monkeypatch.delenv('HWP_LEGACY_OWNER', raising=False)
+    with pytest.raises(ValueError, match='HWP_LEGACY_OWNER.*design fragments'):
+        migrate(app.state.engine, {'alice': 'configured', 'bob': 'configured'})
+    with transaction(app.state.engine) as db:
+        assert db.get(DesignFragment, body['id']).owner_id == 'local'
+    monkeypatch.setenv('HWP_LEGACY_OWNER', 'alice')
+    migrate(app.state.engine, {'alice': 'configured', 'bob': 'configured'})
+    with transaction(app.state.engine) as db:
+        row = db.get(DesignFragment, body['id'])
+        assert row.owner_id == 'alice'
+        assert (row.name, row.kind, row.settings, row.created_at, row.hidden) == original
+        assert json.loads(row.settings) == saved['settings']
+        assert db.get(DesignFragment, other['id']).owner_id == 'bob'
+    assert c.get('/api/design-fragments').json()['items'] == ([] if hidden else [saved])
+
+
+@pytest.mark.parametrize('legacy_owner', [None, 'alice'])
+def test_configured_local_identity_keeps_its_design_fragments(secured, monkeypatch, legacy_owner):
+    from app.schema import migrate
+    c, app, _, _ = secured
+    body = dict(id=str(uuid.uuid4()), name='로컬 디자인', kind='table', settings=defaults())
+    assert c.post('/api/design-fragments', json=body).status_code == 200
+    with transaction(app.state.engine) as db:
+        db.get(DesignFragment, body['id']).owner_id = 'local'
+    if legacy_owner:
+        monkeypatch.setenv('HWP_LEGACY_OWNER', legacy_owner)
+    else:
+        monkeypatch.delenv('HWP_LEGACY_OWNER', raising=False)
+    migrate(app.state.engine, {'alice': 'configured', 'local': 'configured'})
+    with transaction(app.state.engine) as db:
+        assert db.get(DesignFragment, body['id']).owner_id == 'local'
 
 
 @pytest.mark.parametrize('preset,cover,toc', [('appendix-1',False,'NONE'),('appendix-2',True,'SEPARATE'),('appendix-3',True,'COVER')])

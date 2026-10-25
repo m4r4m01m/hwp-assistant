@@ -164,7 +164,9 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
 
     @app.put("/api/documents/{doc_id}/access")
     def grant(doc_id: str, value: Grant, request: Request):
-        if value.user_id not in app.state.users:
+        from .accounts import account_exists
+        if value.user_id not in app.state.users and not (
+                app.state.account_policy.enabled and account_exists(engine, value.user_id)):
             raise HTTPException(422, "서버에 등록된 사용자에게만 권한을 부여할 수 있습니다.")
         with transaction(engine) as db:
             doc = locked(db, doc_id, request.state.user, "owner")

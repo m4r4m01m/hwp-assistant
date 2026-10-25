@@ -86,7 +86,7 @@ test("SIDEBAR display mode: persisted choice owns every screen width and can alw
   await page.goto("/");
   const nav = page.locator(".workspace-nav");
   const width = async (expected: number) => {
-    await expect.poll(async () => (await nav.boundingBox())?.width).toBe(expected);
+    await expect.poll(() => nav.evaluate(element => element.getBoundingClientRect().width)).toBe(expected);
     expect(await page.evaluate(() => ({ width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight })))
       .toEqual({ width: 1366, height: 900 });
   };
@@ -114,7 +114,10 @@ test("SIDEBAR display mode: persisted choice owns every screen width and can alw
   await page.reload();
   await expect(nav).toHaveAttribute("data-mode", "hidden");
   await width(0);
-  await page.getByRole("button", { name: "사이드바 열기", exact: true }).click();
+  await page.mouse.move(2, 350);
+  const opener = page.getByRole("button", { name: "사이드바 열기", exact: true });
+  await expect(opener).toHaveCSS("opacity", "1");
+  await opener.click();
   await width(220);
   await nav.getByRole("button", { name: "양식 보관함", exact: true }).click();
   await width(220);

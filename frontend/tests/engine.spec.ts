@@ -198,6 +198,15 @@ test("REAL engine: character/paragraph formatting and table cells survive reload
 test("REAL engine + MOCK AI transport: approval, stale proposal and undo", async ({
   page,
 }) => {
+  // The synthetic AI transport must also advertise its feature capability.
+  // The isolated backend intentionally leaves real HTTP model access disabled.
+  await page.route("**/api/capabilities", async route => {
+    const response = await route.fetch();
+    const value = await response.json();
+    value.features.review = { ...value.features.review, configured: true, allowed: true,
+      reachable: null, reason_code: null, message: "합성 문단 검토 준비됨" };
+    await route.fulfill({ response, json: value });
+  });
   await page.goto("/");
   await page.getByRole("button", { name: "빈 문서 만들기" }).click();
   await expect(page.getByRole("status")).toHaveText("저장되지 않은 변경 있음", {

@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import event, select
 from sqlalchemy.orm import Session
 
-from app import ai_connection, codex_runner
+from app import ai_connection, codex_runner, codex_runtime
 from app.db import AIConnectionSetup, Document, ReportTask, Version, transaction
 from app.main import create_app
 from test_collaboration import TOKENS
@@ -19,7 +19,8 @@ from test_storage import create, save
 @pytest.fixture
 def local(tmp_path, monkeypatch):
     for name in ("HWP_AUTH_TOKENS", "HWP_LLM_ALLOWED_USERS", "LLM_PROVIDER", "LLM_API_KEY",
-                 "HWP_DOCUMENT_ASSISTANT_PROVIDER", "HWP_LEGACY_OWNER"):
+                 "HWP_DOCUMENT_ASSISTANT_PROVIDER", "HWP_LEGACY_OWNER", "HWP_ACCOUNTS_ENABLED",
+                 "HWP_REGISTRATION_ENABLED", "HWP_CODEX_ALLOWED_USERS", "HWP_CODEX_CHECK_AUTH"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("HWP_LOCAL_AI_SETUP", "1")
     monkeypatch.setenv("HWP_CODEX_USER", "local")
@@ -308,3 +309,87 @@ def test_setup_preserves_documents_history_blobs_and_pending_report(local, monke
         assert (report.status, report.input, report.draft, report.execution) == ("draft", "frozen-input", "frozen-draft", "{}")
         assert len(list(db.scalars(select(Document)))) == 1
         assert len(list(db.scalars(select(Version)))) == 2
+
+
+@pytest.mark.parametrize("allowlist,configured,allowed", [
+    ("owner,local", True, True),
+    ("owner", True, False),
+    ("owner,", False, False),
+])
+def test_all_connection_screens_preserve_server_codex_allowlist(local, monkeypatch, allowlist, configured, allowed):
+    client = local[0]
+    # The authenticated local identity differs from the legacy single-owner name.
+    monkeypatch.setenv("HWP_CODEX_USER", "owner")
+    monkeypatch.setenv("HWP_CODEX_ALLOWED_USERS", allowlist)
+    capabilities = client.get("/api/capabilities").json()["features"]
+    connection = client.get("/api/ai-connection").json()
+    features = {item["id"]: item for item in connection["features"]}
+    assert not connection["can_configure"]
+    for name in ("reports", "rewrite", "document_assistant"):
+        assert capabilities[name]["configured"] is configured
+        assert capabilities[name]["allowed"] is allowed
+        assert features[name]["configured"] is configured
+        assert features[name]["allowed"] is allowed
+    for path in ("/api/rewrite-provider", "/api/document-assistant-provider"):
+        status = client.get(path).json()
+        assert status["configured"] is configured
+        assert status["allowed"] is allowed
+
+
+def test_all_connection_screens_preserve_server_login_readiness(local, monkeypatch):
+    client = local[0]
+    message = "synthetic server ChatGPT login required"
+    monkeypatch.setattr(codex_runtime, "readiness", lambda _: {
+        "configured": False, "reason_code": "codex_login_required", "message": message})
+    capabilities = client.get("/api/capabilities").json()["features"]
+    connection = client.get("/api/ai-connection").json()
+    features = {item["id"]: item for item in connection["features"]}
+    for name in ("reports", "rewrite", "document_assistant"):
+        assert not capabilities[name]["configured"]
+        assert capabilities[name]["reason_code"] == "codex_login_required"
+        assert not features[name]["configured"] and features[name]["message"] == message
+    for path in ("/api/rewrite-provider", "/api/document-assistant-provider"):
+        status = client.get(path).json()
+        assert not status["configured"] and status["reason"] == message
+
+
+def test_password_only_server_never_probes_host_even_for_codex_owner(local, monkeypatch, tmp_path):
+    from app.account_admin import maintain
+
+    monkeypatch.setenv("HWP_ACCOUNTS_ENABLED", "1")
+    monkeypatch.setenv("HWP_CODEX_USER", "owner")
+    monkeypatch.setattr(ai_connection, "probe_account", lambda _: pytest.fail("Server must not probe local onboarding"))
+    app = create_app(f"sqlite:///{tmp_path}/password-server.db", tmp_path / "password-server-files")
+    with TestClient(app, base_url="https://testserver") as client:
+        assert not app.state.users and app.state.account_policy.enabled
+        assert client.get("/api/ai-connection").status_code == 401
+        assert client.post("/api/ai-connection/check", json={}).status_code == 401
+        assert client.post("/api/ai-connection/setup", json={"choice": "later"}).status_code == 401
+        password = "synthetic-owner-password-1!"
+        maintain(app.state.engine, "create", "owner", password=password,
+                 name="합성 관리자", employee="TEST-AI-OWNER")
+        assert client.post("/api/auth/password-login", json={"username": "owner", "password": password}).status_code == 200
+        body = client.get("/api/ai-connection").json()
+        assert body["deployment_mode"] == "server" and not body["can_configure"] and not body["needs_setup"]
+        assert body["choice"] is None and body["codex"]["auth_state"] == "unchecked"
+        assert client.post("/api/ai-connection/check", json={}).status_code == 403
+        for choice in ("codex", "later"):
+            assert client.post("/api/ai-connection/setup", json={"choice": choice}).status_code == 403
+        with Session(app.state.engine) as db:
+            assert list(db.scalars(select(AIConnectionSetup))) == []
+            assert list(db.scalars(select(codex_runtime.CodexUsage))) == []
+
+
+def test_local_onboarding_never_consumes_or_resets_codex_daily_usage(local, monkeypatch):
+    client, app, _, _ = local
+    monkeypatch.setenv("HWP_CODEX_DAILY_REQUEST_LIMIT", "1")
+    with transaction(app.state.engine) as db:
+        codex_runtime.reserve_usage(db, "already-accepted", "local")
+    fake_rpc(monkeypatch, account={"type": "chatgpt"})
+    assert client.post("/api/ai-connection/check", json={}).status_code == 200
+    for choice in ("codex", "later"):
+        assert client.post("/api/ai-connection/setup", json={"choice": choice}).status_code == 200
+    with Session(app.state.engine) as db:
+        rows = list(db.scalars(select(codex_runtime.CodexUsage)))
+        assert [(row.request_key, row.user_id) for row in rows] == [("already-accepted", "local")]
+    assert not app.state.ai_budget.active

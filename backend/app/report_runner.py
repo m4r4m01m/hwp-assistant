@@ -1,5 +1,5 @@
-from .standard_policy import cover_enabled, toc_mode
 """Report-only Codex execution; no shell, file editing, MCP, approval or paid fallback."""
+from .standard_policy import toc_mode
 import os
 import subprocess
 import tempfile
@@ -153,7 +153,7 @@ def writing_prompt(value):
                    "the structure that fits those limits while preserving important facts, conditions and "
                    "citations; do not omit meaning to make room for labels. Spacing and indentation are "
                    "applied by the renderer: do not add blank entries, tabs or leading spaces.\n")
-    if cover_enabled(settings):
+    if toc_mode(settings) != "NONE":
         prompt += ("\nThis report uses the existing automatic TOC limit of 30 headings in total. Count all "
                    "section headings, explicit 가./나. subheadings, the optional displayed core-summary "
                    "heading and the source/limitations heading. Plan useful groups within that limit; "

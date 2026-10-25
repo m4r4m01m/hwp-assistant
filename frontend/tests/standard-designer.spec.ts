@@ -284,7 +284,7 @@ async function legacyDesigner(page: Page, request: APIRequestContext, revision: 
 }
 async function openGroup(page: Page, group: string) {
   await showSettings(page);
-  const section = page.locator(".standard-setting-section").filter({ has: page.locator(".standard-group-toggle", { hasText: group }) });
+  const section = page.locator(`.standard-setting-section[data-setting-group=${JSON.stringify(group)}]`);
   const category = page.locator(".standard-setting-category").filter({ has: section });
   if (await category.count() && await category.getAttribute("open") === null) await category.locator(":scope > summary").click();
   const toggle = section.locator(".standard-group-toggle");
@@ -381,7 +381,9 @@ test("REAL rhwp standard designer: role usage and line filling persist without l
   expectSharedSampleFacts(changed);
   expect(changed.receipt.sample_sha256).toBe(original.receipt.sample_sha256);
   expect(changed.receipt.preview_sha256).not.toBe(original.receipt.preview_sha256);
-  expect(changed.content.rendered.join("")).toContain("□(조치)작성담당자");
+  // Disabling the second heading level also merges its deeper headings into
+  // the preserved body content, including this paragraph's source context.
+  expect(changed.content.rendered.join("")).toContain("□(조치)세부기준:작성담당자");
   const archive = unzipSync(changed.bytes);
   const styles = await page.evaluate(({ header, section }) => {
     const parser = new DOMParser(), h = parser.parseFromString(header, "application/xml"), s = parser.parseFromString(section, "application/xml");
@@ -433,6 +435,17 @@ test("REAL rhwp standard designer: grouped composition merges disabled deep head
   await expect(page.getByLabel(fieldLabel(catalog, "toc_title_font"), { exact: true })).toHaveCount(0);
   await openGroup(page, "참고·출처");
   await expect(page.locator('[data-setting-group="참고·출처"]')).toContainText("별도 참고자료 목록은 없습니다");
+  await expect(page.locator('[data-setting-group="참고·출처"] .standard-absence')).toHaveText("없음");
+  await changeSharedSample(page, () => setCatalogField(page, catalog, "reference_list", "ALL"),
+    settings => settings.reference_list === "ALL");
+  await openGroup(page, "참고·출처");
+  await expect(page.getByLabel(fieldLabel(catalog, "source_font"), { exact: true })).toBeEnabled();
+  await expect(page.locator('[data-setting-group="참고·출처"] .standard-absence')).toHaveCount(0);
+  const references = await sharedSampleSnapshot(page, observed);
+  expect(references.receipt.sample_regions.some((region: any) => region.role === "source")).toBe(true);
+  expectSharedSampleFacts(references);
+  await changeSharedSample(page, () => setCatalogField(page, catalog, "reference_list", "LOCAL"),
+    settings => settings.reference_list === "LOCAL");
   await expect(page.locator('[data-setting-group="참고·출처"] .standard-absence')).toHaveText("없음");
   await openGroup(page, "문단 구분 · 5단계");
   await expect(page.locator('[data-setting-group="문단 구분 · 5단계"] .standard-category-help')).toContainText("각각 설명할 내용이 충분할 때");
@@ -505,9 +518,7 @@ test("REAL rhwp standard designer: saved settings load only after explicit confi
   await setCatalogField(page, catalog, "square_size_pt", modifiedSize);
   await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
   const before = posted.at(-1).settings;
-  const summary = page.getByText("사용자 표준 관리", { exact: true });
-  await expect(page.getByLabel("저장한 표준", { exact: true })).toBeHidden();
-  await summary.click();
+  await expect(page.getByLabel("저장한 표준", { exact: true })).toBeVisible();
   await page.getByLabel("저장한 표준", { exact: true }).selectOption(saved.id);
   await expect(page.getByLabel(fieldLabel(catalog, "square_size_pt"), { exact: true })).toHaveValue(String(modifiedSize));
   await page.getByRole("button", { name: "선택한 표준 편집", exact: true }).click();
@@ -813,8 +824,9 @@ test("REAL rhwp standard designer: shared sample composition controls change act
   const numbered = await sharedSampleSnapshot(page, observed);
   expectSharedSampleFacts(numbered);
   for (const text of ["[1] 정비 필요성", "{가} 적용 범위", "1) 검토 대상", "가) 자료 분류", "(①) 확인 순서", "(㉮) 세부 기준",
-    "□ (현황) 합성 점검 대상 20건", "ㅇ (조치) 작성 담당자"])
+    "□ (현황) 합성 점검 대상 20건", "ㅇ 작성 담당자"])
     expect(numbered.content.rendered.join("")).toContain(text.replace(/\s/g, ""));
+  expect(numbered.content.rendered.join("")).not.toContain("ㅇ(조치)작성담당자");
   await changeSharedSample(page, async () => {
     await setCatalogField(page, catalog, "show_core_summary", false);
     await setCatalogField(page, catalog, "body_parenthetical_labels", false);
@@ -1516,6 +1528,7 @@ test("REAL rhwp standard designer: settings change the sample and immutable regi
   await expectDesignerScrollContained(page);
   await page.screenshot({ path: info.outputPath("standard-designer-custom.png"), fullPage: true });
   await registerButton(page).click();
+  await page.getByRole("radio", { name: "새 표준으로 추가", exact: true }).check();
   const name = `문서 표준 검증 ${Date.now()}`;
   await page.getByLabel("표준 이름", { exact: true }).fill(name);
   const registered = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname === "/api/visual-standards/sample-register");
@@ -1566,8 +1579,8 @@ test("REAL rhwp standard designer: settings change the sample and immutable regi
   expect(savedText).not.toContain("문서수집과검토절차를정비하여자료의누락을줄이고담당자의확인기준을통일함.");
   expect(savedSample.tables).toEqual([{ rows: 3, columns: 3, cells: [
     ["정비 항목", "담당", "완료 기준"],
-    ["필수 항목 확인", "작성 담당", "문서명·부서 확인 주1)"],
-    ["검토 결과 기록", "검토 담당", "확인 결과 기록 주2)"],
+    ["필수 항목 확인", "작성 담당", "문서명·부서주1) 확인"],
+    ["검토 결과 기록", "검토 담당", "확인 결과주2) 기록"],
   ] }]);
   expect(savedSample.bodySize).toBe(1600);
   expect(savedSample.bodyLineSpacing.length).toBeGreaterThan(0);
@@ -1586,12 +1599,14 @@ test("REAL rhwp standard designer: settings change the sample and immutable regi
   await documentListButton(page).click();
   await page.getByRole("button", { name: "문서 표준 편집", exact: true }).click();
   await loadSavedStandard(page, saved.id);
+  await openGroup(page, "본문");
   await expect(page.getByLabel("본문 글자 크기", { exact: true })).toHaveValue("16");
   const labelField = catalog.fields.find((field: any) => field.key === "body_parenthetical_labels");
   await openGroup(page, labelField.group);
   await expect(page.getByLabel(`${labelField.group} ${labelField.label}`, { exact: true })).not.toBeChecked();
   await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
   await restoreDefaults(page);
+  await openGroup(page, fullCatalog.fields.find((field: any) => field.key === "square_size_pt").group);
   await expect(page.getByLabel(fieldLabel(fullCatalog, "square_size_pt"), { exact: true })).toHaveValue(String(fullCatalog.defaults.square_size_pt));
   await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
   await page.getByLabel("설정 찾기", { exact: true }).fill(fullCatalog.fields.find((field: any) => field.key === "page_number_style").group);
@@ -1644,6 +1659,7 @@ test("REAL rhwp standard designer: stale preview cannot register and invalid val
   await page.getByLabel("본문 글자 크기", { exact: true }).fill("18");
   await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
   await registerButton(page).click();
+  await page.getByRole("radio", { name: "새 표준으로 추가", exact: true }).check();
   await page.getByLabel("표준 이름", { exact: true }).fill(`최신 예시 검증 ${Date.now()}`);
   const registered = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname === "/api/visual-standards/sample-register");
   await submitRegistration(page).click();
@@ -1699,8 +1715,18 @@ test("REAL rhwp standard designer: original rules, three presets, full reference
   expect(catalog.presets).toHaveLength(3);
   expect(catalog.presets.every((preset: any) => preset.revision === 3 && preset.base_standard.reference_sha256 === hash(originalFile))).toBe(true);
   expect(catalog.rules.length).toBeGreaterThan(0);
-  for (const field of catalog.fields.filter((field: any) => field.key !== "preset_id"))
-    await expect(page.getByLabel(`${field.group} ${field.label}`, { exact: true })).toHaveCount(1);
+  const visibleFields = catalog.fields.filter((field: any) =>
+    !["preset_id", "numbering_style"].includes(field.key) && field.group !== "일반 본문");
+  for (const group of new Set<string>(visibleFields.map((field: any) => field.group))) {
+    await openGroup(page, group);
+    const section = page.locator(".standard-setting-section").filter({
+      has: page.getByRole("button", { name: group, exact: true }),
+    });
+    const unavailable = await section.evaluate(element => element.classList.contains("is-unavailable"));
+    if (unavailable) await expect(section.locator(".standard-category-help")).toContainText("기존 설정값은 보존합니다");
+    for (const field of visibleFields.filter((item: any) => item.group === group))
+      await expect(page.getByLabel(`${field.group} ${field.label}`, { exact: true })).toHaveCount(unavailable ? 0 : 1);
+  }
   const ruleFields = catalog.fields.filter((field: any) => field.type === "textarea");
   expect(ruleFields.length).toBeGreaterThan(0);
   for (const field of ruleFields)
@@ -1776,6 +1802,7 @@ test("REAL rhwp standard designer: original rules, three presets, full reference
   await loadSavedStandard(page, saved.id);
   await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
   await expect(page.getByLabel("기본 양식", { exact: true })).toHaveValue(String(selected.preset_id));
+  await openGroup(page, catalog.fields.find((field: any) => field.key === "table_header_fill").group);
   await expect(page.getByLabel(fieldLabel(catalog, "table_header_fill"), { exact: true })).toHaveValue("#DDEFE5");
   expect(hash(await (await request.get(original.reference_url)).body())).toBe(hash(originalFile));
   await writeFile(info.outputPath("reference-standard-v3-proof.json"), JSON.stringify({ real_engine: true,
@@ -1980,6 +2007,7 @@ test("REAL rhwp standard designer: a legacy registration keeps its own fields an
     await expect(page.getByLabel(`${field.group} ${field.label}`, { exact: true })).toHaveCount(0);
   const copyResponse = page.waitForResponse(value => value.request().method() === "POST" && new URL(value.url()).pathname === "/api/visual-standards/sample-register");
   await registerButton(page).click();
+  await page.getByRole("radio", { name: "새 표준으로 추가", exact: true }).check();
   await submitRegistration(page).click();
   const copy = await (await copyResponse).json();
   expect(copy.id).not.toBe(legacy.id);
@@ -2013,6 +2041,7 @@ test("REAL rhwp + MOCK standard designer: registered settings survive report TOC
   await setCatalogField(page, catalog, "page_number_position", "BOTTOM_RIGHT");
   await expect(registerButton(page)).toBeEnabled({ timeout: 90000 });
   await registerButton(page).click();
+  await page.getByRole("radio", { name: "새 표준으로 추가", exact: true }).check();
   const name = `보고서 적용 표준 ${Date.now()}`;
   await page.getByLabel("표준 이름", { exact: true }).fill(name);
   const registered = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname === "/api/visual-standards/sample-register");

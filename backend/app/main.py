@@ -25,6 +25,7 @@ from .auth import (
     revoke_session,
 )
 from .schema import migrate
+from .accounts import AccountPolicy, UserAccount, initialize_accounts, install_accounts, require_active_if_registered
 from .changes import apply_delta, describe_changes
 from .rewrite_jobs import invalidate_running
 
@@ -43,6 +44,8 @@ class Review(BaseModel):
 
 def create_app(database_url=None, storage_dir=None):
     users = credentials()
+    account_policy = AccountPolicy.from_env()
+    authentication_required = bool(users) or account_policy.enabled
     session_policy = SessionPolicy.from_env()
     hosts = allowed_hosts()
     folder = Path(storage_dir or os.getenv("STORAGE_DIR", "./data/files")).resolve()
@@ -55,6 +58,7 @@ def create_app(database_url=None, storage_dir=None):
     @asynccontextmanager
     async def lifespan(app):
         migrate(engine, users)
+        initialize_accounts(engine, account_policy, users)
         try:
             async with pooled_client() as client:
                 app.state.llm_client = client
@@ -66,6 +70,7 @@ def create_app(database_url=None, storage_dir=None):
     app.state.engine = engine
     app.state.folder = folder
     app.state.users = users
+    app.state.account_policy = account_policy
     app.state.login_limiter = LoginRateLimiter()
     app.state.ai_budget = UserAIBudget()
     lease_seconds = int(os.getenv("SESSION_TTL_SECONDS", "120"))
@@ -85,6 +90,7 @@ def create_app(database_url=None, storage_dir=None):
             public = (request.method, path) in {
                 ("GET", "/api/health"), ("GET", "/api/auth/status"),
                 ("POST", "/api/auth/login"), ("POST", "/api/auth/logout"),
+                ("POST", "/api/auth/password-login"), ("POST", "/api/auth/register"),
             }
             if api_path and not public:
                 authorization = request.headers.get("authorization", "")
@@ -97,7 +103,7 @@ def create_app(database_url=None, storage_dir=None):
                     request.state.user, request.state.run_task = await run_in_threadpool(
                         run_identity, engine, token, path, request.method
                     )
-                elif not users:
+                elif not authentication_required:
                     request.state.user = "local"
                 elif authorization:
                     # Static credentials remain supported only for explicit automation Bearer auth.
@@ -105,10 +111,12 @@ def create_app(database_url=None, storage_dir=None):
                 else:
                     cookie_auth = True
                     request.state.user = await run_in_threadpool(
-                        authenticate_session, engine, request.cookies.get(COOKIE, ""), users, session_policy
+                        authenticate_session, engine, request.cookies.get(COOKIE, ""), users, session_policy, account_policy.enabled
                     )
+                if account_policy.enabled:
+                    await run_in_threadpool(require_active_if_registered, engine, request.state.user)
         except HTTPException as exc:
-            response = JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+            response = JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers)
             if api_path:
                 response.headers["Cache-Control"] = "no-store"
             if cookie_auth and request.cookies.get(COOKIE):
@@ -238,7 +246,7 @@ def create_app(database_url=None, storage_dir=None):
         db.add(v)
         db.flush()
         db.add(VersionAuthor(version_id=v.id, user_id=author_id,
-                             identity_kind="authenticated" if users else "local"))
+                             identity_kind="authenticated" if authentication_required else "local"))
         db.flush()
         if base:
             old = db.get(Version, base)
@@ -250,7 +258,13 @@ def create_app(database_url=None, storage_dir=None):
 
     @app.get("/api/auth/status")
     def auth_status():
-        return {"authentication_required": bool(users)}
+        with Session(engine) as db:
+            guest = db.get(UserAccount, "guest") if account_policy.enabled else None
+            guest_enabled = bool(guest and guest.is_active)
+        return {"authentication_required": authentication_required,
+                "accounts_enabled": account_policy.enabled,
+                "registration_enabled": account_policy.enabled and account_policy.registration,
+                "guest_enabled": guest_enabled}
 
     class Login(BaseModel):
         token: str = Field(min_length=24, max_length=500)
@@ -278,6 +292,8 @@ def create_app(database_url=None, storage_dir=None):
         user = app.state.login_limiter.authenticate(
             request.client.host if request.client else "unknown", value.token, users
         )
+        if account_policy.enabled:
+            require_active_if_registered(engine, user)
         session = issue_session(engine, user, users, session_policy, request.cookies.get(COOKIE, ""))
         response = JSONResponse({"user_id": user})
         response.set_cookie(COOKIE, session, httponly=True, samesite="strict",
@@ -296,7 +312,11 @@ def create_app(database_url=None, storage_dir=None):
 
     @app.get("/api/auth/me")
     def me(request: Request):
-        return {"user_id": request.state.user, "authentication_required": bool(users)}
+        with Session(engine) as db:
+            row = db.get(UserAccount, request.state.user) if account_policy.enabled else None
+            return {"user_id": request.state.user, "authentication_required": authentication_required,
+                    "name": row.name if row else request.state.user,
+                    "kind": row.kind if row else "legacy"}
 
     @app.get("/api/health")
     def health():
@@ -568,6 +588,7 @@ def create_app(database_url=None, storage_dir=None):
     from .reports import install_reports
     install_reports(app, publish, check_lease, doc_dict)
     install_capabilities(app)
+    install_accounts(app, account_policy, session_policy)
     from .ai_connection import install_ai_connection
     install_ai_connection(app)
     app.add_middleware(RequestTelemetry, runtime=app)

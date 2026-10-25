@@ -21,6 +21,11 @@ git -C "$ROOT" diff --quiet && git -C "$ROOT" diff --cached --quiet || {
 for volume in hwp-assistant-prod-metadata hwp-assistant-prod-documents; do
   docker volume inspect "$volume" >/dev/null || { echo 'Run scripts/deploy/init.py first.' >&2; exit 1; }
 done
+# Add only the new credential volume on upgrade. Never replace credentials or
+# touch existing DB/files; Docker seeds its private ownership from the API image.
+if ! docker volume inspect hwp-assistant-prod-codex-state >/dev/null 2>&1; then
+  docker volume create --label app=hwp-assistant-prod hwp-assistant-prod-codex-state >/dev/null
+fi
 if [[ "$mode" == build ]]; then
   dc build api web
 else
@@ -65,4 +70,4 @@ temporary.write_text(json.dumps({'source_commit': sha, 'api_image_id': api, 'web
 os.replace(temporary, target)
 PY
 printf '\nLocal deployment checks passed: %s\n' "$HWP_IMAGE_TAG"
-printf 'Next: verify login/editor/save over the real Funnel HTTPS URL. LLM reports are not enabled by this pipeline.\n'
+printf 'Next: verify login/editor/save over the real Funnel HTTPS URL. Codex device login and the configured owner must be verified separately.\n'
