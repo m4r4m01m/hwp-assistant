@@ -212,6 +212,16 @@ class Register(PasswordLogin):
     name: str = Field(min_length=1, max_length=80)
     employee_number: str = Field(min_length=1, max_length=32)
 
+    @field_validator("username")
+    @classmethod
+    def registration_username_length(cls, value):
+        # Field length constraints run before the inherited strip/lower
+        # validator. Check the canonical ID too, without rejecting short
+        # legacy IDs on the separate password-login path.
+        if not 3 <= len(value) <= 40:
+            raise ValueError("invalid registration username length")
+        return value
+
     @field_validator("name")
     @classmethod
     def name_valid(cls, value):

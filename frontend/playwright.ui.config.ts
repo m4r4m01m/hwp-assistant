@@ -3,7 +3,7 @@ import base from "./playwright.config";
 
 export default defineConfig({
   ...base,
-  testMatch: ["account-entry.spec.ts", "responsiveness.spec.ts", "document-assistant-lifecycle.spec.ts", "rewrite-lifecycle.spec.ts"],
+  testMatch: ["account-entry.spec.ts", "account-entry-regression.spec.ts", "responsiveness.spec.ts", "document-assistant-lifecycle.spec.ts", "rewrite-lifecycle.spec.ts"],
   use: {
     ...base.use,
     baseURL: "http://127.0.0.1:5184",

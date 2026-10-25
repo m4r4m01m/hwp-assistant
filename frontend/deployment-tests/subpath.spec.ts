@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { openTokenLogin } from "../test-support/auth";
 
 test("HTTPS subpath login, real Studio and immutable comparison renderer", async ({ page, context }) => {
   const base = process.env.HWP_DEPLOY_TEST_URL || "https://localhost:24443/hwp-assistant/";
@@ -18,11 +19,7 @@ test("HTTPS subpath login, real Studio and immutable comparison renderer", async
   });
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(base);
-  if (await page.getByRole("button", { name: /guest로 체험/ }).isVisible()) {
-    await page.getByText("기존 인증 토큰으로 로그인", { exact: true }).click();
-    await page.getByRole("button", { name: "토큰 입력 화면", exact: true }).click();
-  }
-  await page.getByLabel("인증 토큰").fill(token);
+  await (await openTokenLogin(page)).fill(token);
   await page.getByRole("button", { name: "로그인", exact: true }).click();
   await expect(page.getByRole("heading", { name: "HWPX 문서함", exact: true })).toBeVisible();
   const cookie = (await context.cookies()).find(value => value.name === "hwp_session");
