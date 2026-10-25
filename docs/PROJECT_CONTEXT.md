@@ -1,5 +1,11 @@
 # HWP Assistant 프로젝트 컨텍스트
 
+## 로컬 QA 동기화 — 2026-10-25 추가 관측
+
+Windows QA 브랜치 `codex/local-ui-qa-2026-10-22`를 `e0e49f7`에서 main `49dda2c8de06288111216a61ba720dc148834257`까지 fast-forward했다. QA 작업은 이미 main에 포함되어 있었으며 이력을 재작성하지 않았다. 아래의 클라우드 기록과 별개로, 로컬 집중 백엔드 고유 125개 통과·POSIX 전용 3개 제외, TypeScript, 프런트 단위 12개, 모의 UI 19개, 실제 rhwp 3개 시나리오를 확인했다. 새 Codex MCP 테스트의 Linux 경로 문자열 가정을 TOML 해석으로 수정하고 관련 5개를 재검증했다. 전체 회귀나 실제 모델 호출을 새로 수행한 것은 아니다.
+
+검증한 별도 실행 환경 `.cache/main-sync-20261025/source`로 `http://127.0.0.1:15201/`과 기존 바탕화면 실행기를 전환했다. 기존 저장소의 문서 10개·버전 13개·표준 4개·파일 17개를 백업하고 기존 행/파일의 변경·누락 0건을 확인했다. 계정/사용량 테이블 2개만 추가됐으며 로컬 비밀번호 계정은 꺼진 상태다. Codex ChatGPT 로그인과 보고서·문단 수정·문서 대화의 configured/allowed를 확인했고 모델은 호출하지 않았다. 기존 사용자 탭은 새로고침하지 않았다. 현재 엔진은 검증된 이전 **진단 빌드** 재사용이며 클라우드의 최적화 빌드와 구분한다. [검증 근거](evidence/local-main-sync-2026-10-25.json). 이 로컬 경로·포트는 다른 PC나 운영 서버에 그대로 적용하지 않는다.
+
 갱신일: **2026-10-25 (한국 시간)**. 통합 기준: [main `295b6e19a81738cb0156889020f21d691df5db27`](https://github.com/m4r4m01m/hwp-assistant/commit/295b6e19a81738cb0156889020f21d691df5db27), [문서 PR #34](https://github.com/m4r4m01m/hwp-assistant/pull/34). 제품 코드는 #33 기준이다. 후속 클라우드 점검 코드 [8a8c9afae4bd809362b8f2eb87507a10e44e1ad3](https://github.com/m4r4m01m/hwp-assistant/commit/8a8c9afae4bd809362b8f2eb87507a10e44e1ad3)는 별도 `codex/cloud-reliability-2026-10-25` 브랜치에 있으며 **main 병합·운영 배포 전**이다. 후속 결과와 한계는 [10절](#10-2026-10-25-클라우드-신뢰성-점검)을 우선한다. 이 파일은 ChatGPT Work와 Codex가 함께 읽는 인수인계 기준이다. 이후 작업에서는 실제 최신 main·CI·운영 상태를 다시 확인한다.
 
 ## 1. 읽는 순서와 증거 기준
