@@ -1,12 +1,12 @@
 # Windows 개발자 빠른 시작
 
-`codex/local-cli-ready-2026-10-25` 브랜치를 clone한 다음 루트의 **`Start HWP Assistant.cmd`를 더블클릭**한다. 처음에는 잠금 파일에 맞는 Python/MCP·npm 의존성과 검증된 개발용 rhwp 엔진을 준비하고 API·웹을 실행한다. 다음 실행은 같은 개발자 문서함을 다시 연다. 모델은 시작할 때 호출하지 않는다.
+`main`을 clone한 다음 루트의 **`Start HWP Assistant.cmd`를 더블클릭**한다. 처음에는 잠금 파일에 맞는 Python/MCP·npm 의존성과 검증된 개발용 rhwp 엔진을 준비하고 API·웹을 실행한다. 다음 실행은 같은 개발자 문서함을 다시 연다. 모델은 시작할 때 호출하지 않는다. 원 `codex/local-cli-ready-2026-10-25` 브랜치는 당시 검증 이력을 보존하는 기록이며 새 clone의 기본 경로가 아니다.
 
-## 이 브랜치의 준비 상태 (2026-10-25)
+## 현재 안내와 개발 엔진 (2026-10-26)
 
-실행 기준은 로컬 QA에서 검증한 `a013b8633e2d488d0c1a4799f9698ec310bcb92d`다. 현재 bridge와 일치하는 [개발용 엔진 kit](https://github.com/m4r4m01m/hwp-assistant/releases/tag/developer-engine-2026-10-25-editor-designs)를 게시하고 lock의 자산 ID·SHA-256을 갱신했다. 기존 2026-10-18 kit의 bridge 불일치 때문에 최초 설치가 중단되던 문제를 해결하는 분기다. 2026-10-22 당시 미게시 상태는 과거 기록이다.
+현재 안내는 편집 디자인·표준 UI·로컬 CLI 변경을 함께 통합하는 main 소스를 기준으로 한다. 현재 bridge와 일치하는 [개발용 엔진 kit](https://github.com/m4r4m01m/hwp-assistant/releases/tag/developer-engine-2026-10-25-editor-designs)의 자산 ID·SHA-256을 lock에 고정한다. `a013b8633e2d488d0c1a4799f9698ec310bcb92d`와 CLI 원 branch의 설치·검증은 당시 기록이다. 기존 2026-10-18 kit를 새 bridge에 재사용하지 않는다.
 
-kit는 **Windows native diagnostic 빌드**이며 최적화 운영 엔진을 대체하지 않는다. Git·Node·Python과 저장소 접근 권한이 있으면 기본 경로에서 Rust·Docker 소스 빌드를 요구하지 않는다. 작성 중이던 선택 영역 디자인 적용 기능은 이 브랜치에 섞지 않았다. [CLI 인수인계와 검증 범위](local-cli-ready-2026-10-25.md)를 함께 읽는다.
+kit는 **Windows native diagnostic 빌드**이며 최적화 운영 엔진을 대체하지 않는다. Git·Node·Python과 저장소 접근 권한이 있으면 기본 경로에서 Rust·Docker 소스 빌드를 요구하지 않는다. 통합 소스에는 선택 영역의 편집 디자인·AI 제안과 표준 편집 후속 수정도 포함된다. [편집 디자인 범위](editor-designs-2026-10-25.md), [당시 CLI 인수인계](local-cli-ready-2026-10-25.md)와 [최신 프로젝트 컨텍스트](PROJECT_CONTEXT.md)를 구분해 읽는다.
 
 ## 처음 한 번 필요한 것
 
@@ -17,7 +17,7 @@ kit는 **Windows native diagnostic 빌드**이며 최적화 운영 엔진을 대
 AI 설정 전에도 파일 열기·수동 편집·서버 저장을 사용할 수 있다. 최초 설치에는 PyPI/npm/GitHub 연결이 필요하다. 폐쇄망 신규 설치에는 별도 의존성 반입이 필요하며 원클릭 오프라인 설치가 검증된 것은 아니다.
 
 ```powershell
-git clone --branch codex/local-cli-ready-2026-10-25 https://github.com/m4r4m01m/hwp-assistant.git
+git clone --branch main https://github.com/m4r4m01m/hwp-assistant.git
 cd hwp-assistant
 # 또는 탐색기에서 Start HWP Assistant.cmd 더블클릭
 & ".\Start HWP Assistant.cmd"
@@ -62,9 +62,9 @@ GitHub release 다운로드가 불가능하면 개발 담당자에게 **현재 b
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1 `
-  -EnginePublic .cache/developer/engine-20261025/public `
-  -EngineArchive C:\Downloads\hwp-assistant-developer-engine-0.8.6-20261025-local-cli.zip `
-  -EngineArchiveSha256 0fd6a562eb0387c68d7b00eb2d94d410233bc6f8340b59463904a5a3f4302168
+  -EnginePublic .cache/developer/engine-20261025-editor-designs/public `
+  -EngineArchive C:\Downloads\hwp-assistant-developer-engine-0.8.6-20261025-editor-designs.zip `
+  -EngineArchiveSha256 e8ffc5598a913c4e6b72b94641b2f3ffa345f0dee4fe9728e8d8a71a3c779e74
 ```
 
 기존 검증 엔진을 직접 쓰는 경로도 있다. 엔진을 복사한 실행 폴더를 만들고, 실제 제공 바이트를 다시 확인한다.
@@ -88,4 +88,4 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1 -EngineP
 node scripts/developer-engine-kit.mjs pack --public .cache/my-verified-engine/public --out .cache/my-release/developer-engine.zip
 ```
 
-기존 [수동 설치 안내](../README.md#windows에서-api웹-개발-실행), [엔진 빌드 상세](engine-empty-fill-fix.md), [Codex 연결 계약](collaboration-and-mcp.md)도 유지한다. 실제 설치·기동·회귀 시험과 미실행 범위는 [현재 CLI 인수인계](local-cli-ready-2026-10-25.md)와 [과거 설치 검증](developer-setup-verification-2026-10-18.md)에 구분한다.
+기존 [수동 설치 안내](../README.md#windows에서-api웹-개발-실행), [엔진 빌드 상세](engine-empty-fill-fix.md), [Codex 연결 계약](collaboration-and-mcp.md)도 유지한다. 최신 통합 상태는 [프로젝트 컨텍스트](PROJECT_CONTEXT.md), 당시 설치·기동·회귀 시험과 미실행 범위는 [2026-10-25 CLI 인수인계](local-cli-ready-2026-10-25.md)와 [과거 설치 검증](developer-setup-verification-2026-10-18.md)에 구분한다.

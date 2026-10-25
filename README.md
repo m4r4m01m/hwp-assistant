@@ -18,9 +18,9 @@ HWPX 문서함 · 문서 권한 기반 대화 · 승인 기반 AI 수정 · 버�
 
 HWP Assistant는 HWPX 파일을 열고, 편집하고, AI 수정안을 비교해 새 버전으로 저장하는 웹 애플리케이션입니다. 문서 원본은 **HWPX**로 유지하고, 최초 업로드와 이전 확정 버전은 보존합니다. 문서의 대화·작성 기준·수정 후보도 함께 관리합니다.
 
-**로컬 CLI 실행 브랜치:** `codex/local-cli-ready-2026-10-25`는 검증된 로컬 앱과 호환 엔진 kit를 함께 고정한 분기입니다. [새 PC 실행·Codex CLI 작업 인수인계](docs/local-cli-ready-2026-10-25.md)를 먼저 보세요.
+**Windows 개발 실행:** 새 clone은 `main`을 사용합니다. [현재 빠른 시작](docs/developer-quickstart.md)을 먼저 보세요. `codex/local-cli-ready-2026-10-25`와 [당시 CLI 인수인계](docs/local-cli-ready-2026-10-25.md)는 2026-10-25의 원본 실행·검증 기록으로 보존합니다.
 
-**현재 인수인계 기준 · 2026-10-25:** [PROJECT_CONTEXT](docs/PROJECT_CONTEXT.md)에 날짜별 main 통합·검증·운영 배포 기록, 계정/Codex 복구와 미확인 항목을 모았습니다. 아래 날짜별 안내는 당시 범위입니다. ChatGPT Work에서는 이 파일과 [AGENTS.md](AGENTS.md)를 참조하고, Codex에서는 저장소의 AGENTS.md를 시작 지침으로 사용합니다.
+**현재 인수인계 기준 · 2026-10-26:** [PROJECT_CONTEXT](docs/PROJECT_CONTEXT.md)에 날짜별 main 통합·검증·운영 배포 기록, 계정/Codex 복구와 미확인 항목을 모았습니다. 아래 날짜별 안내는 당시 범위입니다. ChatGPT Work에서는 이 파일과 [AGENTS.md](AGENTS.md)를 참조하고, Codex에서는 저장소의 AGENTS.md를 시작 지침으로 사용합니다.
 
 > [!NOTE]
 > **개발·검증 단계입니다.** 실제 Codex 승인·저장 흐름과 일부 한컴 2018 왕복을 확인했습니다. 전체 문서 호환성이나 운영 배포 완료를 뜻하지 않습니다. Docker·PostgreSQL·HTTPS 검증과 홈서버 배포 워크플로는 준비돼 있으며 실제 첫 실행과 서버 연결을 확인해야 합니다.
@@ -93,7 +93,7 @@ flowchart LR
 
 ## Windows에서 API·웹 개발 실행
 
-`codex/local-cli-ready-2026-10-25` 브랜치를 clone하고 루트의 **`Start HWP Assistant.cmd`를 더블클릭**합니다. 현재 bridge와 일치하는 개발 엔진 kit를 release에서 받아 해시를 검사하고, 잠금 의존성 설치 → 별도 로컬 문서함/API/웹 실행을 진행합니다. Git·Node·Python과 비공개 저장소 접근 권한이 필요하며, AI에는 본인의 Codex CLI와 ChatGPT 로그인을 사용합니다. Codex 데스크톱 UI는 필요하지 않습니다. [첫 실행·도구 검사·엔진 kit·소스 빌드 안내](docs/developer-quickstart.md)
+`main`을 clone하고 루트의 **`Start HWP Assistant.cmd`를 더블클릭**합니다. 현재 bridge와 일치하는 개발 엔진 kit를 release에서 받아 해시를 검사하고, 잠금 의존성 설치 → 별도 로컬 문서함/API/웹 실행을 진행합니다. Git·Node·Python과 비공개 저장소 접근 권한이 필요하며, AI에는 본인의 Codex CLI와 ChatGPT 로그인을 사용합니다. Codex 데스크톱 UI는 필요하지 않습니다. [첫 실행·도구 검사·엔진 kit·소스 빌드 안내](docs/developer-quickstart.md)
 
 이전 Windows 검증 환경은 Node **24.15.0**, Python **3.14.4**, Chrome입니다. 현재 의존성은 React **19.2.0**, TypeScript **5.9.3**, FastAPI **0.136.3**, Starlette **1.3.1**, SQLAlchemy **2.0.44**입니다. 2026-10-22의 Linux native 진단 엔진·Chromium 회귀와 남은 Windows·Docker·PostgreSQL 검증 범위는 [개선 기록](docs/responsiveness-security-2026-10-22.md)에 구분했습니다. 로컬 DB는 SQLite입니다.
 
