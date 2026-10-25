@@ -1,6 +1,6 @@
 # HWP Assistant 프로젝트 컨텍스트
 
-갱신일: **2026-10-25 (한국 시간)**. 통합 기준: [main `295b6e19a81738cb0156889020f21d691df5db27`](https://github.com/m4r4m01m/hwp-assistant/commit/295b6e19a81738cb0156889020f21d691df5db27), [문서 PR #34](https://github.com/m4r4m01m/hwp-assistant/pull/34). 제품 코드는 #33 기준이다. 후속 클라우드 점검 코드 [8a8c9afae4bd809362b8f2eb87507a10e44e1ad3](https://github.com/m4r4m01m/hwp-assistant/commit/8a8c9afae4bd809362b8f2eb87507a10e44e1ad3)는 별도 `codex/cloud-reliability-2026-10-25` 브랜치에 있으며 **main 병합·운영 배포 전**이다. 후속 결과와 한계는 [10절](#10-2026-10-25-클라우드-신뢰성-점검)을 우선한다. 이 파일은 ChatGPT Work와 Codex가 함께 읽는 인수인계 기준이다. 이후 작업에서는 실제 최신 main·CI·운영 상태를 다시 확인한다.
+갱신일: **2026-10-25 (한국 시간)**. 통합·운영 이미지 기준: [main `49dda2c8de06288111216a61ba720dc148834257`](https://github.com/m4r4m01m/hwp-assistant/commit/49dda2c8de06288111216a61ba720dc148834257), [PR #35](https://github.com/m4r4m01m/hwp-assistant/pull/35)의 **merge commit**이다. 검토한 정확한 head는 `f7a1da1bfa2f32a9034282fdb81a59c791bc0298`이며 제품 변경은 [8a8c9afae4bd809362b8f2eb87507a10e44e1ad3](https://github.com/m4r4m01m/hwp-assistant/commit/8a8c9afae4bd809362b8f2eb87507a10e44e1ad3)에 있다. main 검사 3개와 승인된 단일 수동 run의 이미지 게시·홈서버 배포가 성공했고 **2026-10-25 19:45:45 KST 배포 종료**를 확인했다. 실제 `research=true` 웹 검색 복구는 별도 시험 결과를 기다린다. 후속 문서 전용 변경은 이 운영 이미지 SHA를 바꾸지 않는다. 최신 승인·병합·배포 관측과 남은 판단은 [11절](#11-2026-10-25-승인-후-병합과-배포-검증)을, 구현·클라우드 시험 기록은 [10절](#10-2026-10-25-클라우드-신뢰성-점검)을 따른다. 이 파일은 ChatGPT Work와 Codex가 함께 읽는 인수인계 기준이다. 이후 작업에서는 실제 최신 main·CI·운영 상태를 다시 확인한다.
 
 ## 1. 읽는 순서와 증거 기준
 
@@ -26,11 +26,11 @@
 | 저장·권한 | FastAPI + SQLAlchemy + 파일 저장소. 문서 행 잠금, ACL, 편집 임대·기준 버전, 멱등 키를 검사하고 파일 영속화와 DB 확정 후 저장 완료를 알린다. 다운로드는 서버 저장과 다르다. |
 | 버전 비교 | 실제 페이지와 문단·서식·표 변경, 수정 계정·중간 저장 이력 비교. 두 버전을 순서대로 선택한다. 비교가 자동 병합을 제공하지는 않는다. |
 | AI 문단 수정 | 미저장 원문을 포함한 고정 스냅샷 → 두 후보 → 비교/승인 → 문서·선택·원문 fence 재검사 → rhwp 명령 적용 → 새 버전 저장. 안전 적용 가능 범위 밖은 거부한다. |
-| 보고서 | 실제 Codex app-server delta, 초안 내용 검토·별도 보완 작업, 문서 표준/별첨 1~3/실제 렌더링 쪽수 목차, 표·편집 가능한 흐름도. 완료·검증된 draft만 임시 미리보기에 적용하고 사용자가 확정·서버 저장한다. |
+| 보고서 | 실제 Codex app-server delta, 초안 내용 검토·별도 보완 작업, 문서 표준/별첨 1~3/실제 렌더링 쪽수 목차, 표·편집 가능한 흐름도. final/legacy 완료 메시지와 turn 완료 summary를 검증하며 async/commentary·부분 delta는 표시 전용이다. 실패 종류·단계·완료 검색 수를 구분한다. 완료·검증된 draft만 임시 미리보기에 적용하고 사용자가 확정·서버 저장한다. 실제 운영 웹 검색 복구는 미확인이다. |
 | 문서 대화·컨텍스트 | 권한 있는 문서의 사실·작성 기준·선택 원문과 대화/후보/적용 이력. 문서 독자도 모든 작성자의 대화를 읽을 수 있으나 승인·편집·저장은 불가하다. 작성자 전용 비공개 대화로 오해하지 않는다. |
 | 양식·문서 표준 | HWPX 양식 등록·검색·새 문서 생성, 제한된 제목/요약/담당·기한 블록, 표준 편집·검증된 예시·등록. 고정 기준서와 과거 표준/초안은 덮어쓰지 않는다. |
-| 계정 | 선택적으로 비밀번호 로그인/가입/guest, 기존 토큰·만료/폐기 가능한 세션과 공존. AI는 별도 ACL이다. guest는 하나의 공용 문서 주체다. |
-| 반응성 | 정적 압축/해시 캐시·검색·모바일 패널, 로그인 화면의 낮은 우선순위 SRI 자원 다운로드. 다운로드 완료가 WASM 컴파일/문서 배치 완료는 아니다. |
+| 계정 | 선택적으로 비밀번호 로그인/가입/guest, 기존 토큰·만료/폐기 가능한 세션과 공존. 운영자가 지정한 샘플 계정 선택은 기억한 ID와 별개이며 기본 목록은 비어 있다. 선택 후 해당 계정 비밀번호가 필요하다. AI는 별도 ACL이고 같은 guest/샘플 ID 이용자는 문서 주체를 공유한다. 운영 계정 설정은 이번에 변경하지 않았다. |
+| 반응성 | 정적 압축/해시 캐시·검색·모바일 패널, 로그인 화면의 낮은 우선순위 SRI 자원 다운로드와 제한된 WASM 사전 컴파일. 로그인은 준비를 기다리지 않는다. 다운로드·컴파일·실제 엔진 초기화/문서 배치를 구분하며 브라우저 코드 캐시 재사용이나 최초 문서 지연 개선을 보장하지 않는다. |
 
 `backend/app`가 인증·저장·AI 작업을, `frontend/src`의 React/TypeScript와 `EditorAdapter`가 UI·편집기를 담당한다. rhwp 0.8.6은 [engine lock](../scripts/engine-lock.json), 소스 패치와 [bridge](../scripts/assistant-bridge.ts.txt)로 고정한다. npm 원본 WASM이나 출처 없는 빌드로 바꾸지 않는다. 기본 release 빌드는 패치·해시·실제 엔진 검사·고지·출처를 확인하며 진단 코어를 거부한다.
 
@@ -56,12 +56,17 @@
 | 2026-10-25 | [#32](https://github.com/m4r4m01m/hwp-assistant/pull/32), `cbeb74f`: #31과 **파일/tree 동일**, 기존 구현 브랜치의 이력 연결. 새 제품 변경으로 중복 계산하지 않는다. |
 | 2026-10-25 | [#33](https://github.com/m4r4m01m/hwp-assistant/pull/33), `95eb0da`: QA와 최신 계정/권한/한도 통합, AI 연결 안내·디자인 조각 소유권/동시 저장·요일 보존·등록 재시도·표지/목차/표준 설정 보강. 백엔드 **1,021개**로 증가. |
 | 2026-10-25 17:42 | [수동 배포 run 40177050099](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40177050099)에서 #33 SHA의 검증·이미지 게시·홈서버 배포·공개 경로 검사 성공. 서버 device login/실제 모델 응답 완료를 뜻하지 않는다. |
+| 2026-10-25 | [#34](https://github.com/m4r4m01m/hwp-assistant/pull/34), `295b6e1`: Work/Codex 공통 인수인계 문서만 통합. 당시 제품 코드는 #33과 동일했다. [수동 run 40180482900](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40180482900)은 18:33:29 KST에 배포 job 성공으로 종료했다. |
+| 2026-10-25 19:34 | [#35](https://github.com/m4r4m01m/hwp-assistant/pull/35)의 검토 head `f7a1da1`을 사용자 승인 후 merge commit `49dda2c`으로 통합했다. 보고서 완료/실패 진단·프로세스 정리·WASM 준비·선택적 샘플 계정 변경이다. source 브랜치를 유지한다. |
+| 2026-10-25 후속 | 정확한 main `49dda2c`의 push 검사 3개 성공. 별도 승인된 [수동 run 40185409373](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185409373)을 19:35:34 KST에 한 번 dispatch했다. 이 단계에서 이미지 게시·운영 배포 완료는 미확정이며 [11절](#11-2026-10-25-승인-후-병합과-배포-검증)로 이어진다. |
 
 ## 5. 검증된 상태와 아직 확인할 것
 
-**최신 확인 증거:** #33 병합 후 [HWP deployment 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40174658302), [frontend build path](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40174657544), [deployment-only 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40174657560)는 성공했다. 일반 push에서는 게시/운영 배포 job이 건너뛰어지는 것이 정상이다.
+**현재 main 검증:** #35 merge commit `49dda2c8de06288111216a61ba720dc148834257`의 [HWP deployment 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185311735), [frontend build path](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185311749), [deployment-only 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185311706)가 성공했다. [Python job](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185311735/job/121144749249)은 **1,071 passed, 2 warnings, 316.99초**다. 일반 push에서 이미지 게시·운영 배포 job 2개는 정상 skip됐다. 정확한 PR head의 별도 컨테이너 통합 성공과 승인된 수동 배포 run 상태는 [11절](#11-2026-10-25-승인-후-병합과-배포-검증)을 따른다.
 
-**후속 확인:** #34의 정확한 `295b6e1`에서 [수동 run 40180482900](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40180482900)의 검사·게시·홈서버 배포 5개 job이 성공했고, 배포 job 종료는 **2026-10-25 18:33:29 KST**였다. Python 1,021개, frontend unit 26개, mocked UI 35개, TLS 1개, 배포 브라우저 2 passed/1 skipped가 로그에 기록됐다. 같은 SHA의 push 검사도 성공했으며 게시·배포 2개 skip은 정상이다. 아래 #33 기록을 대체하는 후속 운영 증거이며 실제 Codex 모델 성공을 증명하지 않는다.
+**과거 #33 검증:** [HWP deployment 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40174658302), [frontend build path](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40174657544), [deployment-only 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40174657560)는 당시 성공했다. 아래 #33/#34 수치·운영 기록을 현재 main의 시험 수나 새 배포 완료로 대체해 읽지 않는다.
+
+**과거 #34 배포 확인:** 정확한 `295b6e1`에서 [수동 run 40180482900](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40180482900)의 검사·게시·홈서버 배포 5개 job이 성공했고, 배포 job 종료는 **2026-10-25 18:33:29 KST**였다. Python 1,021개, frontend unit 26개, mocked UI 35개, TLS 1개, 배포 브라우저 2 passed/1 skipped가 로그에 기록됐다. 같은 SHA의 push 검사도 성공했으며 게시·배포 2개 skip은 정상이다. 아래 #33 기록 이후의 운영 증거이며 실제 Codex 모델 성공을 증명하지 않는다.
 
 후속 [수동 run](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40177050099)의 [Python job](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40177050099/job/121119882634)에서 **1,021 passed, 2 warnings**를 확인했다. 경고는 의존성의 httpx/TestClient·anyio portal 폐기 예정 API다. [게시 job](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40177050099/job/121120768129)과 [홈서버 배포 job](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40177050099/job/121121722084)도 성공했다. 이는 해당 시점/SHA의 기록이며 이후 서버 설정까지 보장하지 않는다.
 
@@ -224,6 +229,8 @@ AI 출력 계약/원문 검사는 사실성·회사 규정 적합성의 자동 �
 
 ## 10. 2026-10-25 클라우드 신뢰성 점검
 
+이 절은 **PR #35를 준비하고 검토하던 시점**의 구현·검증·운영 판단 기록을 보존한다. 이후 승인된 병합과 배포 진행은 [11절](#11-2026-10-25-승인-후-병합과-배포-검증)을 우선한다. [클라우드 검증 영수증](evidence/cloud-reliability-2026-10-25.json)의 미병합/미배포 경계와 PostgreSQL/HTTPS/restart 미검증 항목도 당시 기록이며, 후속 정확한 head의 PR CI 성공은 11절에서 별도로 확인한다.
+
 ### 10.1 범위와 증거 구분
 
 사용자는 맥북을 계속 켜둘 수 없어 클라우드에서 점검·수정·검증·PR 준비까지 수행하도록 요청했다. 최신 main `295b6e19a81738cb0156889020f21d691df5db27`과 AGENTS/이 문서 전체를 확인한 뒤 독립 브랜치를 만들었다. 로컬 원 대화의 체크아웃·미저장 작업·과거 HWPX·운영 볼륨·계정·인증파일은 수정하지 않았다. GitHub 연결로 source를 확보했고, 큰 과거 로드맵 PNG는 다운로드 도구 제한으로 로컬에 가져오지 않았지만 **원격 기준 tree를 보존하여 변경 대상에서 제외**했다.
@@ -256,7 +263,7 @@ AI 출력 계약/원문 검사는 사실성·회사 규정 적합성의 자동 �
 
 SRI 다운로드 후 실제 `WebAssembly.compile`을 수행하고 다운로드·컴파일·후속 엔진 초기화/문서 배치를 구분한다. WASM 인스턴스나 숨은 편집기를 만들지 않으며 로그인은 기다리지 않는다. 대기 45초 뒤 늦은 native 결과를 무시한다. iframe에서 브라우저 코드 캐시 재사용 및 실제 최초 문서 지연 개선은 보장하지 않는다.
 
-기존 기억한 ID 최대 5개는 사전 구성된 샘플 계정 선택과 별개였다. 새 `HWP_SAMPLE_ACCOUNTS=[]`는 기본 비공개/비활성이며 운영자가 공개 합성 ID·라벨을 최대 8개 지정해야 한다. 기존 활성 member 비밀번호 계정만 카드에 표시하고 미생성 ID의 공개 가입 선점을 막는다. 비밀번호·계정 자동 생성/초기화·AI ACL 확대는 하지 않는다. 서로 다른 ID의 문서는 기존 ACL로 격리되고 같은 샘플 ID 이용자들은 문서함을 공유한다. [설정·보존 절차](poc-codex-accounts-prewarm-2026-10-25.md)를 따른다. **현재 운영은 계정 기능이 꺼져 있어 새 이미지·설정 적용 전에는 토큰 화면이 정상**이다.
+기존 기억한 ID 최대 5개는 사전 구성된 샘플 계정 선택과 별개였다. 새 `HWP_SAMPLE_ACCOUNTS=[]`는 기본 비공개/비활성이며 운영자가 공개 합성 ID·라벨을 최대 8개 지정해야 한다. 기존 활성 member 비밀번호 계정만 카드에 표시하고 미생성 ID의 공개 가입 선점을 막는다. 비밀번호·계정 자동 생성/초기화·AI ACL 확대는 하지 않는다. 서로 다른 ID의 문서는 기존 ACL로 격리되고 같은 샘플 ID 이용자들은 문서함을 공유한다. [설정·보존 절차](poc-codex-accounts-prewarm-2026-10-25.md)를 따른다. **10.1의 공개 점검 시점에는 운영 계정 기능이 꺼져 있어 토큰 화면이 정상**이었다. 새 코드 배포와 운영 계정 설정 활성화는 별개다.
 
 사용자가 확정한 실제 구성은 **체험 계정 2~3개 선택 → 각 계정 비밀번호 로그인**이다. 최대 8개는 코드의 안전 상한이며 실제로 8개를 만들거나 공개하도록 정한 것이 아니다. 운영 문서에 2개(선택적 세 번째)의 공개 설정, 기존 ID·토큰·과거 소유권·가상 사번 충돌 사전 확인, 대화형 계정별 암호 생성과 격리 확인 절차를 준비했다. 실제 비밀번호·ACL·private env 적용은 미실행이며 운영자 판단 대상이다.
 
@@ -281,6 +288,46 @@ SRI 다운로드 후 실제 `WebAssembly.compile`을 수행하고 다운로드·
 
 초기 단일 backend 실행은 exit 0이지만 약 60% 뒤 최종 요약이 없어 통과 증거로 계산하지 않았다. 원인은 재현되지 않아 단정하지 않는다. 이후 **분할 두 실행 및 최종 단일 전체 실행 각각의 JUnit·정상 종료·요약과 수집 목록**을 확인했다. 최종 단일 실행이 앞선 불완전 출력을 대체한다. PR CI는 그 정확한 head의 Actions를 함께 확인한다. 비밀정보 없는 수치·환경·한계는 [검증 영수증](evidence/cloud-reliability-2026-10-25.json)에 기록했다.
 
-main 병합·이미지 게시·운영 배포는 별도 사용자 결정이 필요하며 이번 작업에서 수행하지 않는다. 계정 설정을 적용하려면 공개할 합성 ID·비밀번호 계정·별도 AI ACL을 운영자가 선택한다. 보고서 연구 기능은 새 이미지에서 합성 주제로 실제 검색 완료와 최종 draft → 내용 검토 → 서식 → 확정 저장·재열기를 추가 확인해야 한다. 공개 검색 불가가 계속되면 새 진단 종류로 운영 upstream을 점검하고, 연구 옵션 해제는 사용자가 직접 제공 자료 기반 요청을 선택할 때만 사용한다.
+PR 준비 당시 main 병합·이미지 게시·운영 배포는 별도 사용자 결정을 기다렸으며 실행하지 않았다. **이후 승인과 merge commit 통합·수동 배포 요청은 11절에 기록한다.** 계정 설정을 적용하려면 공개할 합성 ID·비밀번호 계정·별도 AI ACL을 운영자가 선택한다. 보고서 연구 기능은 새 이미지에서 합성 주제로 실제 검색 완료와 최종 draft → 내용 검토 → 서식 → 확정 저장·재열기를 추가 확인해야 한다. 공개 검색 불가가 계속되면 새 진단 종류로 운영 upstream을 점검하고, 연구 옵션 해제는 사용자가 직접 제공 자료 기반 요청을 선택할 때만 사용한다.
 
 DB schema migration은 추가하지 않았다. 적용 전 기존 일관 백업과 실제 게시 SHA 확인을 유지한다. 롤백은 새 이미지/환경을 덮어 추정하지 말고 마지막 성공 배포 영수증의 기존 이미지로 되돌리며 `HWP_SAMPLE_ACCOUNTS=[]`를 사용한다. 기존 계정·문서·버전·세션/사용량 테이블과 세 운영 볼륨은 삭제·초기화하지 않는다.
+
+## 11. 2026-10-25 승인 후 병합과 배포 검증
+
+### 11.1 승인과 정확한 병합 대상
+
+사용자는 검토 가능한 코드·검증·한계가 준비된 뒤 **PR #35의 main 병합과 새 운영 배포를 승인**했다. 승인 전 기록인 10절의 미실행 표현은 그 시점의 경계다. [PR #35](https://github.com/m4r4m01m/hwp-assistant/pull/35)의 정확한 head `f7a1da1bfa2f32a9034282fdb81a59c791bc0298`을 **2026-10-25 19:34:06 KST**에 [merge commit `49dda2c8de06288111216a61ba720dc148834257`](https://github.com/m4r4m01m/hwp-assistant/commit/49dda2c8de06288111216a61ba720dc148834257)으로 통합했다. 부모는 기존 main `295b6e19a81738cb0156889020f21d691df5db27`과 검토한 PR head다. squash/rebase·source 브랜치 삭제·기존 데이터 초기화는 하지 않았다.
+
+제품 코드는 `8a8c9afae4bd809362b8f2eb87507a10e44e1ad3`이며 PR의 후속 두 커밋은 문서만 변경했다. 이 절의 인수인계 갱신도 제품 코드·DB schema·운영 설정을 변경하지 않는다.
+
+### 11.2 PR head와 병합 후 main의 검사
+
+| 대상 | 정확한 SHA의 검증 근거 |
+|---|---|
+| PR #35 최종 head `f7a1da1` | [HWP deployment 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40182984927), [build path](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40182984900), [deployment-only 계약](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40182984998), [PoC 계정·Codex 컨테이너 통합](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40182984978) **4개 workflow 성공**. 이미지 게시·운영 배포 job은 PR 조건에 따라 정상 skip됐다. |
+| PR 컨테이너 통합 범위 | 일회용 PostgreSQL/API/web·HTTPS, 고정 CLI 오프라인 smoke, 실제 browser 3개, 재시작 후 비밀번호 로그인·세션·HWPX 해시·계정 간 양방향 격리·로그아웃을 검증했다. 10절의 로컬 SQLite 시험과 별도이며 실제 모델 호출은 0회다. |
+| 병합 후 main `49dda2c` | [HWP deployment 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185311735), [build path](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185311749), [deployment-only 계약](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185311706) **3개 workflow 성공**. HWP deployment의 검사 job 3개 성공, 게시·배포 job 2개 정상 skip. |
+| main Python 전체 | [job 121144749249](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185311735/job/121144749249): **1,071 passed, 2 warnings, 316.99초**. 기존 의존성 warning이며 cloud 단일 실행 244.27초와 다른 환경의 실행이다. |
+
+### 11.3 승인된 단일 수동 실행과 실제 운영 배포
+
+원 대화의 실행 주체가 main **`49dda2c8de06288111216a61ba720dc148834257`**의 `hwp-deploy.yml`을 `deploy=true`로 **한 번만 dispatch**했다. [수동 run 40185409373](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185409373)은 **2026-10-25 19:35:34 KST**에 생성됐고 클라우드는 같은 run을 감시한다. 원 대화와 클라우드가 중복 dispatch하거나 서로의 브랜치를 동시에 수정하지 않는다.
+
+이 run은 **전체 성공**했으며 [build-verify-publish job 121146097092](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185409373/job/121146097092)에서 격리 PostgreSQL/API/web·HTTPS 업로드/영속 바이트·재시작·실제 브라우저 검증 후 이미지 게시를 완료했다. [deploy-home job 121146882648](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185409373/job/121146882648)도 **2026-10-25 19:45:45 KST 성공 종료**했다. 원 대화의 로컬 Mac이 아니라 GitHub-hosted 빌드와 홈서버 runner에서 진행됐다. 클라우드의 중복 dispatch·재실행은 0회다.
+
+| 단계 | 직접 확인한 근거 |
+|---|---|
+| 수동 run 검사 | Python **1,071 passed, 2 warnings, 288.04초**. frontend tsc·unit 30/30·Node 계약 46/46·mock UI 40/40·TLS/Service Worker 1/1 성공 |
+| 게시 이미지 | API와 web 모두 태그 `49dda2c8de06288111216a61ba720dc148834257`. 게시 digest는 아래 검증 영수증에 기록 |
+| 운영 보존·백업 | 실제 job 로그의 환경 검증·`Backup complete`와 성공 종료를 확인. writer 중지 후 custom DB dump·읽기 전용 문서 archive·목록/해시 검증, 기존 볼륨 유지 계약과 대조 |
+| 운영 교체 | DB/API/web Healthy, 정확한 SHA의 `Local deployment checks passed`, 로컬 경로·보호 API·편집/비교 자원·WASM 무결성 PASS 확인. image revision fence와 last-success 영수증 생성은 해당 배포 스크립트 성공 경로로 확인했으며 private 파일 원문은 수집하지 않음 |
+| 공개 Funnel | workflow의 credential 없는 공개 HTTPS smoke step 성공. 로컬과 공개 smoke의 PASS 로그를 각각 확인 |
+| 클라우드 독립 확인 | 배포 종료 후 저장소 공개 smoke도 별도로 통과. `/api/health` ok=true, 인증 필요=true, accounts/registration/guest=false, 새 sample_accounts 필드 존재·0개 확인. 로그인·쿠키·문서 쓰기 검사는 실행하지 않음 |
+
+API 게시 digest: `sha256:4098a871f464d8581241643ee75dc998c1f527e565f6989944c8983307ae2a0a`. web 게시 digest: `sha256:93747143ebb68bce29a7c7ad853890bc0c73218a8bdde44af6c7c2cfd6304bf8`. 이는 registry 게시 증거다. 기존 배포는 SHA 태그·revision label을 검증하며 digest 고정 배포로 바꾼 것은 아니다. 비밀정보 없는 [배포 검증 영수증](evidence/deployment-pr35-2026-10-25.json)을 함께 확인한다.
+
+운영 private env·비밀번호 계정·`HWP_SAMPLE_ACCOUNTS`·Codex AI ACL은 변경하지 않았다. 새 코드 배포만으로 계정 기능이나 샘플 카드·AI 사용 허용이 자동 활성화되지 않는다. 계정별 암호 생성·공개할 체험 ID 선택·충돌 확인과 명시적 AI ACL은 기존 운영 절차와 사용자 판단을 유지한다. 원본·과거 HWPX·문서/계정 소유권·기존 토큰·세 운영 볼륨·다른 서비스는 보존한다.
+
+후속 기록 변경은 문서 전용이다. 샘플 계정 JSON 예시는 배포 환경 파서가 내부 큰따옴표를 보존하도록 전체 값을 작은따옴표로 감싸고 합성 env 파일로 확인했다. 실제 private env·계정·허용목록에 적용하지 않았다. 문서가 후속 main에 반영돼도 이번 운영 이미지 태그는 위 `49dda2c8de06288111216a61ba720dc148834257`이며 문서만을 이유로 이미지 재게시/재배포하지 않는다.
+
+이번 다음 목표인 **research=true 실제 검색·완료된 ReportDraft/SHA 검증·내용 검토 정지**는 원 대화의 인증된 운영 세션에서 시험한다. 서식 미리보기는 별도 사용자 선택, 서버 저장은 표시된 내용을 검토한 사용자의 명시적 확정이 필요하며 배포 승인만으로 실행하지 않는다. 기존 research=false 1건의 사용자 성공 기록이나 CI의 합성 AI가 실제 검색 시험을 대신하지 않는다. 클라우드는 인증정보를 복제·추정하지 않으며, 실제 연구 복구가 확인되기 전에는 검색 장애가 해결됐다고 표현하지 않는다. **배포 완료와 실제 웹 검색 복구는 별개이며, 현재 검색 결과는 후속 인계 대기다.**
