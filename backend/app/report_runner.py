@@ -6,6 +6,7 @@ import tempfile
 import time
 from .cli_process import run_process
 from .report_errors import ReportGenerationError
+from .report_research import policy_prompt
 
 CONTRACT = "korean-report-v4-visual-emphasis"
 PROMPT = """You write a Korean business report, not software. Return only the report JSON matching the schema.
@@ -199,4 +200,4 @@ def generate_report(value, settings, progress=lambda value: None, active=lambda:
         raise ReportGenerationError("login_required")
     with tempfile.TemporaryDirectory(prefix="hwp-report-") as directory:
         from .report_stream import generate_stream
-        return generate_stream(value, settings, directory, writing_prompt(value), CONTRACT, progress, active, started=started)
+        return generate_stream(value, settings, directory, policy_prompt(value, writing_prompt(value)), CONTRACT, progress, active, started=started)

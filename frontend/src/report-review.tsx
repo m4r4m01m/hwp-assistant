@@ -1,5 +1,6 @@
 import { ReportContent, ReportText, type Emphasis } from "./report-content";
 import { ReportProgress } from "./report-progress";
+import { ReportResearchNotice, ReportSources, type ResearchNoticeData } from "./report-research";
 import "./report-review.css";
 
 export type ReportDraft = {
@@ -8,12 +9,13 @@ export type ReportDraft = {
     tables?: { caption: string; columns: string[]; rows: string[][] }[];
     diagrams?: { caption: string; steps: string[] }[] }[];
   sources: { id: string; title: string; url: string; published: string }[]; limitations: string[];
+  research_notice?: ResearchNoticeData;
 };
 
-export function ReportReview({ draft, formatName, includesSummary = true, feedback, onFeedback, onRevise, onFormat, busy, retry, revisionAvailable = true }: {
+export function ReportReview({ draft, formatName, includesSummary = true, feedback, onFeedback, onRevise, onFormat, busy, retry, revisionAvailable = true, sourcesUnverified = false }: {
   draft: ReportDraft; formatName: string; includesSummary?: boolean; feedback: string;
   onFeedback: (value: string) => void; onRevise: () => void; onFormat: () => void;
-  busy: boolean; retry: boolean; revisionAvailable?: boolean;
+  busy: boolean; retry: boolean; revisionAvailable?: boolean; sourcesUnverified?: boolean;
 }) {
   return <div className="report-review" aria-label="초안 내용 검토">
     <header className="report-review-heading">
@@ -21,6 +23,7 @@ export function ReportReview({ draft, formatName, includesSummary = true, feedba
       <div><h1>{draft.title}</h1>
         <p>내용을 확인하고 필요한 부분을 보완하세요. 문서 양식은 다음 단계에서 적용합니다.</p></div>
       <span className="report-format-chip">{formatName}</span>
+      <ReportResearchNotice notice={draft.research_notice} />
     </header>
     <div className="report-review-body">
       <article className="report-review-content">
@@ -38,8 +41,8 @@ export function ReportReview({ draft, formatName, includesSummary = true, feedba
           {draft.limitations.map((text, index) => <p key={index}>{text}</p>)}
         </section>}
         {draft.sources.length > 0 && <details className="report-review-sources">
-          <summary>출처 {draft.sources.length}개 확인</summary>
-          <ol>{draft.sources.map(source => <li key={source.id}>[{source.id}] <a href={source.url} target="_blank" rel="noreferrer">{source.title}</a>{source.published && ` · ${source.published}`}</li>)}</ol>
+          <summary>{draft.research_notice || sourcesUnverified ? "미검증 참고 출처" : "AI가 제시한 출처"} {draft.sources.length}개</summary>
+          <ReportSources sources={draft.sources} unverified={!!draft.research_notice || sourcesUnverified} />
         </details>}
       </article>
       <aside className="report-feedback" aria-label="초안 보완 의견">

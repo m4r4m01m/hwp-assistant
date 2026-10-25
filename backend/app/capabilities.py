@@ -36,7 +36,7 @@ def http_feature(user):
         OpenAICompatible()  # Validates local config only; never calls /models.
     except HTTPException:
         return feature(False, allowed, "llm_not_configured",
-                       "서버의 AI 연결이 아직 준비되지 않았습니다. 문서 편집과 저장은 사용할 수 있습니다.")
+                       "서버 관리자가 HTTP AI 연결(LLM_PROVIDER, LLM_BASE_URL, LLM_MODEL)을 설정해야 합니다. Codex 사용은 기능별 서버 설정에서 선택합니다. 문서 편집과 저장은 사용할 수 있습니다.")
     if not allowed:
         return feature(True, False, "user_not_allowed", "이 사용자는 AI 실행 권한이 없습니다.")
     return feature(True, True, message="AI 연결이 설정되어 있습니다. 실제 연결 상태는 실행 시 확인합니다.")
@@ -76,12 +76,20 @@ def provider_feature(user, provider):
 
 def feature_statuses(user):
     """Same cheap configuration facts for the capability and connection screens."""
-    http = http_feature(user)
+    from .codex_chat_review import provider_name
+
+    def selected(kind):
+        try:
+            provider = provider_name(kind)
+        except HTTPException:
+            return {**feature(False, False, "invalid_configuration", "AI 실행기 설정을 확인하세요."), "provider": "unknown"}
+        return {**provider_feature(user, provider), "provider": provider}
+
     return {
         "rewrite": provider_feature(user, os.getenv("HWP_REWRITE_PROVIDER", "codex")),
         "document_assistant": provider_feature(user, os.getenv("HWP_DOCUMENT_ASSISTANT_PROVIDER",
                                                                os.getenv("HWP_REWRITE_PROVIDER", "codex"))),
-        "chat": http, "review": http, "reports": codex_feature(user, stream=True),
+        "chat": selected("chat"), "review": selected("review"), "reports": codex_feature(user, stream=True),
     }
 
 

@@ -5,6 +5,7 @@ import { ReportPreview, type ReportRecovery } from "./report-preview";
 import { ReportWriting, ReportTiming, ReportFailureNotice, type LiveReport, type ReportFailure } from "./report-progress";
 import { ReportContent, ReportText } from "./report-content";
 import { ReportReview, type ReportDraft as Draft } from "./report-review";
+import { ReportResearchNotice, ReportSources, type ResearchPolicy } from "./report-research";
 import type { VisualSelection } from "./standard-designer";
 import { WorkspaceNav, WorkspaceIcon, type WorkspaceSection } from "./workspace-nav";
 import "./report-editor-workspace.css";
@@ -16,10 +17,10 @@ type Template = { id: string; revision: number; standard_id: string; reference_s
   standard_profile_sha256: string; profile_sha256: string;
   values: { name: string; description: string; writing_criteria: string[] } };
 type Cover = { date: string; department: string };
-type ReportInput = { id: string; prompt: string; research: boolean; template?: Template; visual_standard?: VisualSelection; cover?: Cover };
+type ReportInput = { id: string; prompt: string; research: boolean; research_policy?: ResearchPolicy; template?: Template; visual_standard?: VisualSelection; cover?: Cover };
 type RevisionRequest = { sourceId: string; body: { id: string; draft_sha256: string; feedback: string } };
-type Job = { id: string; input: { prompt: string; research: boolean; template?: Template; visual_standard?: VisualSelection; cover?: Cover }; status: string; preview_id?: string | null; draft: Draft | null;
-  draft_sha256: string | null; error: string; created_at?: number; execution?: { progress?: LiveReport; timings?: Record<string, number | null>; revision_of?: string; failure?: ReportFailure };
+type Job = { id: string; input: Omit<ReportInput, "id">; status: string; preview_id?: string | null; draft: Draft | null;
+  draft_sha256: string | null; error: string; created_at?: number; execution?: { progress?: LiveReport; timings?: Record<string, number | null>; revision_of?: string; failure?: ReportFailure; web_search_calls?: number };
   approval: { id: string; document_id: string; saved_version?: string } | null };
 type Approved = { id: string; document_id: string; base_version: string; saved_version?: string; document: Document;
   scaffold_base64: string; plan: { paragraph: number; before: string; text: string; command_id: string }[] };
@@ -189,7 +190,7 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
     if (!pending && !template) { setError("내용 구성을 선택한 뒤 요청하세요."); return; }
     if (!pending && !visualCatalogReady) { setError("문서 표준을 확인한 뒤 요청하세요."); return; }
     if (!pending && visualId && !visual) { setError("선택한 문서 표준을 다시 확인하세요."); return; }
-    const frozen = pending || { id: crypto.randomUUID(), prompt, research, template, ...(visual ? { visual_standard: selectionSnapshot(visual) } : {}),
+    const frozen = pending || { id: crypto.randomUUID(), prompt, research, research_policy: "allow_unverified" as const, template, ...(visual ? { visual_standard: selectionSnapshot(visual) } : {}),
       ...(visual?.revision === 3 && (visual.settings.cover_mode === "ON" || (visual.settings.cover_mode !== "OFF" && ["appendix-2", "appendix-3"].includes(String(visual.settings.preset_id)))) ? { cover: { date: coverDate.trim(), department: coverDepartment.trim() } } : {}) };
     setPending(frozen); active.current = frozen.id; setRestoreTaskId(null); setBusy(true); setError("");
     sessionStorage.setItem("hwp-report-task", frozen.id);
@@ -224,7 +225,7 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
     } finally { setBusy(false); }
   }
   function beginFormatting() {
-    if (!job?.draft || pendingRevision || busy || feedback.trim()) return;
+    if (job?.status !== "ready" || !job.draft || !job.draft_sha256 || pendingRevision || busy || feedback.trim()) return;
     sessionStorage.setItem("hwp-report-format-task", job.id);
     setFormattingTaskId(job.id); setWorkspacePanel(null);
   }
@@ -290,9 +291,11 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
     finally { setSaving(false); }
   }
   const locked = busy || saving || !!lease.current || !!pending || !!pendingRevision || previewLocked;
-  const hasPreview = !!job?.draft && !job.approval && formattingTaskId === job.id;
+  const completedDraft = job?.status === "ready" && !!job.draft && !!job.draft_sha256;
+  const sourcesUnverified = !!job?.draft?.research_notice;
+  const hasPreview = completedDraft && !job?.approval && formattingTaskId === job?.id;
   useEffect(() => {
-    if (job?.draft) setWorkspacePanel(null);
+    if (completedDraft) setWorkspacePanel(null);
   }, [job?.id, job?.draft_sha256, hasPreview]);
   useEffect(() => {
     if (saved) setWorkspacePanel("content");
@@ -350,7 +353,7 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
       <div className="report-drawer-heading"><div><small>보고서 작성</small><h1>{job ? "새 보고서 요청" : "무엇을 정리할까요?"}</h1></div><button aria-label="작성 요청 도구 닫기" onClick={() => setWorkspacePanel(null)}><WorkspaceIcon name="close" size={18} /></button></div>
       <CapabilityNotice feature="reports" label="보고서 AI 생성" />
       <section className="report-input">
-        {job && <p className="report-current-format" aria-label="현재 보고서 고정 서식"><strong>현재 초안: {formatName(frozenVisual)}</strong><br />{formatDescription(frozenVisual)}<br />아래 설정은 다음 보고서에 적용됩니다.</p>}
+        {job && <p className="report-current-format" aria-label="현재 보고서 고정 서식"><strong>현재 초안: {formatName(frozenVisual)}</strong><br />{formatDescription(frozenVisual)}<br />자료 조회 미완료 시: {job.input.research_policy === "allow_unverified" ? "경고와 함께 초안 검토" : "초안 생성 중단 (기존 요청 정책)"}<br />아래 설정은 다음 보고서에 적용됩니다.</p>}
         <label htmlFor="report-prompt">보고서 작성 요청</label>
         <textarea id="report-prompt" rows={5} maxLength={6000} value={prompt} disabled={locked || job?.status === "running"} onChange={e => setPrompt(e.target.value)} placeholder="보고할 주제, 대상 독자, 반드시 포함할 사실과 요청 사항을 적어 주세요." />
         <div className="report-form-options">
@@ -369,6 +372,7 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
             <label htmlFor="report-cover-department">표지 작성 부서</label><input id="report-cover-department" value={coverDepartment} maxLength={100} disabled={locked || job?.status === "running"} placeholder="예: 운영지원부 문서관리팀" onChange={e => setCoverDepartment(e.target.value)} />
           </div>}
           <label className="check-label"><input type="checkbox" checked={research} disabled={locked || job?.status === "running"} onChange={e => setResearch(e.target.checked)} />공개 웹 자료를 검색하고 출처 포함</label>
+          <p className="hint" aria-label="새 요청의 자료 조회 정책">{research ? "공개자료 조회를 시도합니다. 조회가 완료되지 않아도 최종 초안이 유효하면 미검증 경고와 함께 내용을 검토할 수 있습니다." : "공개자료를 조회하지 않고 제공한 자료와 일반 분석으로 작성합니다."}</p>
         </div>
         <details><summary>요청 예시</summary>
           <div className="report-examples">{["금융권 해킹 대응", "외부 업체·클라우드 보안", "고객정보 유출 대응"].map((name, i) => <button key={name} disabled={locked || job?.status === "running"} onClick={() => setPrompt(examples[i])}>{name}</button>)}</div>
@@ -402,10 +406,11 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
       {pollError && <p className="report-workspace-error error" role="alert">{pollError}</p>}
       {error && <p className="report-workspace-error error" role="alert">{error}{restoreTaskId && <button onClick={() => { setError(""); setRestoreAttempt(value => value + 1); }}>이전 요청 다시 열기</button>}</p>}
       {!error && job?.status === "failed" && <ReportFailureNotice message={job.error} failure={job.execution?.failure} onRequest={() => setWorkspacePanel("request")} />}
-      {job?.status === "running" || (job?.status === "failed" && !job.draft) || (!job?.draft && !!job?.execution?.progress?.blocks.length) ? <ReportWriting key={job.id} startedAt={job.created_at} progress={job.execution?.progress} stopped={job.status !== "running"} controlsHost={writingTools} /> : job?.draft ? <>
-        {!job.approval && !hasPreview && <ReportReview draft={job.draft} formatName={formatName(frozenVisual)} includesSummary={frozenVisual?.settings.show_core_summary !== false} feedback={feedback} onFeedback={changeFeedback} onRevise={() => void reviseDraft()} onFormat={beginFormatting} busy={busy} retry={!!pendingRevision} revisionAvailable={feature.available} />}
+      {job?.status === "running" || job?.status === "failed" || (!completedDraft && !!job?.execution?.progress?.blocks.length) ? <ReportWriting key={job.id} startedAt={job.created_at} progress={job.execution?.progress} stopped={job.status !== "running"} controlsHost={writingTools} /> : completedDraft && job?.draft ? <>
+        {!job.approval && !hasPreview && <ReportReview draft={job.draft} sourcesUnverified={sourcesUnverified} formatName={formatName(frozenVisual)} includesSummary={frozenVisual?.settings.show_core_summary !== false} feedback={feedback} onFeedback={changeFeedback} onRevise={() => void reviseDraft()} onFormat={beginFormatting} busy={busy} retry={!!pendingRevision} revisionAvailable={feature.available} />}
         {hasPreview && <ReportPreview key={job.id} taskId={job.id} draftHash={job.draft_sha256!} onLock={setPreviewLocked} toolbarHost={previewTools} detailsHost={previewDetails}
           workspacePanelOpen={workspacePanel !== null} onShowDetails={() => setWorkspacePanel(null)}
+          researchNotice={job.draft.research_notice}
           onSaved={(doc, options) => { setSaved(doc); setSavedWithUnsaved(!!options?.unsavedChanges); recovery.current = options?.recovery || null; setRecoverySnapshot(null); setRecoveryError(""); }}
           onRecoverySnapshot={snapshot => { setRecoverySnapshot(snapshot); setRecoveryError(""); }} sourceBlocks={job.execution?.progress?.blocks}
           onExit={() => { setPreviewLocked(false); setJob(null); setSaved(null); setSavedWithUnsaved(false); active.current = null; sessionStorage.removeItem("hwp-report-task"); sessionStorage.removeItem("hwp-report-format-task"); setFormattingTaskId(null); setFeedback(""); setWorkspacePanel("request"); }} />}
@@ -420,7 +425,8 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
         catch (cause) { setError(String(cause)); } finally { setBusy(false); }
       }}>결과 수신 중단</button>}
       {job?.status === "cancelled" && <p>작성을 중단했습니다. 새 요청으로 다시 시작할 수 있습니다.</p>}
-      {job?.draft ? <><h1>{job.draft.title}</h1>
+      {completedDraft && job?.draft ? <><h1>{job.draft.title}</h1>
+        <ReportResearchNotice notice={job.draft.research_notice} />
         {job.input.template && <p className="hint">내용 구성: {job.input.template.values.name}</p>}
         {job.input.visual_standard && <p className="hint">문서 양식: {job.input.visual_standard.name}</p>}
         <ReportTiming timings={job.execution?.timings} />
@@ -433,7 +439,7 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
           ...(section.tables || []).map(t => ({ text: t.caption, kind: "table", ...t, emphasis: job.draft!.emphasis })),
           ...(section.diagrams || []).map(d => ({ text: d.caption, kind: "diagram", ...d, emphasis: job.draft!.emphasis })),
         ]} /></section>)}
-        <h2>출처 및 확인 사항</h2><ol>{job.draft.sources.map(s => <li key={s.id}>[{s.id}] <a href={s.url} target="_blank" rel="noreferrer">{s.title}</a> · {s.published || "발행일 미확인"}</li>)}</ol>
+        <h2>출처 및 확인 사항</h2><ReportSources sources={job.draft.sources} unverified={sourcesUnverified} />
         {job.draft.limitations.map((p, i) => <p key={i} className="hint">{p}</p>)}
         </details>
         {job.approval && !job.approval.saved_version && !saved && <button className="primary" disabled={busy || saving} onClick={() => void makeDocument()}>{saving ? "HWPX 만드는 중…" : output.current ? "같은 보고서 저장 재확인" : "기존 승인 저장 계속하기"}</button>}

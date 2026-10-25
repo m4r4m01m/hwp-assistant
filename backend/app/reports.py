@@ -5,6 +5,7 @@ import json
 import os
 import time
 import uuid
+from typing import Literal
 from threading import Thread
 from fastapi import HTTPException, Request, Response
 from pydantic import Field, field_validator
@@ -17,6 +18,7 @@ from .report_contract import ReportValue, ReportDraft, canonical, report_hash, r
 from .report_hwpx import scaffold, paragraphs
 from .report_runner import generate_report, CONTRACT
 from .report_errors import MESSAGES, ReportGenerationError, failure_details
+from .report_research import apply_research_policy
 from .rewrite_capacity import ExecutionSlot
 from .document_standard import load_standard, metadata as standard_metadata, format_signature, reference_view
 from .report_templates import ReportTemplate, catalog as template_catalog, validate_selection
@@ -37,6 +39,7 @@ class CreateReport(ReportValue):
     id: uuid.UUID
     prompt: str = Field(min_length=5, max_length=6000)
     research: bool = True
+    research_policy: Literal["require_completed", "allow_unverified"] | None = None
     template: ReportTemplate | None = None
     visual_standard: VisualSelection | None = None
     cover: ReportCover | None = None
@@ -128,6 +131,7 @@ def run_report(engine, task_id, user, value, settings):
     try:
         draft, evidence = generate_report(value, settings, progress, active)
         draft = ReportDraft.model_validate(draft).model_dump()
+        draft, evidence = apply_research_policy(value, draft, evidence)
         if revision := value.get("revision"):
             # A review can add research, but it must not silently rebind existing
             # citation IDs or discard their evidence. Prose still needs review.

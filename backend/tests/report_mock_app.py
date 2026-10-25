@@ -26,6 +26,14 @@ def generate(value, settings, progress=lambda value: None, active=lambda: True):
     draft = LONG_TOC_DRAFT if '[LONG-TOC]' in value['prompt'] else RICH_DRAFT if '[RICH]' in value['prompt'] else DRAFT
     if '[AUTO-NOTES]' in value['prompt']:
         draft = AUTO_NOTES_DRAFT
+    if '[UNVERIFIED]' in value['prompt']:
+        draft = json.loads(json.dumps(DRAFT))
+        draft['title'] = '자료 확인 미완료 합성 보고서'
+        draft['summary'] += ' [S1]'
+        draft['sources'] = [{'id': 'S1', 'title': '합성 참고 자료',
+            'url': 'https://example.invalid/synthetic-reference', 'published': '2026-01-01'}]
+        draft['limitations'] = [(f'기존 확인 사항 {index + 1}: ' + '합성 검수 항목의 사실과 조건을 보존하고 확인이 필요함. ' * 20)[:400]
+            for index in range(6)]
     if value['prompt'].startswith('[STREAM]'):
         from app import report_stream
         from unittest.mock import patch

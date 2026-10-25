@@ -143,7 +143,7 @@ export function AiConnectionProvider({ children }: { children: ReactNode }) {
               {(status.codex.auth_state === "not_installed" || !status.codex.installed) && <p className="ai-connection-help">Codex CLI를 설치한 뒤 이 앱을 다시 실행하세요. <a href="https://developers.openai.com/codex/cli/" target="_blank" rel="noreferrer">설치 안내</a></p>}
               {status.codex.installed && status.codex.auth_state !== "chatgpt" && <p className="ai-connection-help">로그인이 필요하면 터미널에서 <code>codex login</code>을 실행해 ChatGPT 계정으로 로그인한 뒤 다시 확인하세요. <a href="https://developers.openai.com/codex/auth/" target="_blank" rel="noreferrer">로그인 안내</a></p>}
             </> : <>
-              <p>연결 변경은 서버 관리자에게 요청하세요. 이 화면에서 내 PC의 Codex를 서버에 연결할 수는 없습니다.</p>
+              <p>연결 변경은 서버 관리자에게 요청하세요. 대화 답변·문서 검토는 서버에서 Codex 또는 HTTP AI를 선택하며, Codex는 서버의 ChatGPT 로그인과 별도 사용 권한이 필요합니다.</p>
               <button type="button" disabled={!!busy} onClick={() => void load()}>{busy === "loading" ? "상태 확인 중…" : "상태 새로고침"}</button>
             </>}
           </section>

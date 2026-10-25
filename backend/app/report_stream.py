@@ -6,6 +6,7 @@ from .report_contract import ReportDraft, canonical
 from .report_partial import preview_blocks
 from .report_rpc import ReportRpc
 from .report_errors import ReportGenerationError, upstream_details
+from .report_research import apply_research_policy, research_policy
 
 DISABLED = ('shell_tool', 'unified_exec', 'apps', 'plugins', 'browser_use', 'computer_use',
             'image_generation', 'multi_agent', 'skill_search', 'hooks', 'memories',
@@ -35,6 +36,7 @@ def generate_stream(value, settings, directory, prompt, contract, progress, acti
     evidence = {'executor': 'codex-app-server', 'model': settings.model, 'contract': contract,
                 'completed': False, 'web_search_calls': 0, 'shell_tool': False, 'streamed': True}
     pending, buffers, searches = [], {}, {}
+    started_searches = set()
     first_text = None
     last_emit = 0
     pending_emit = False
@@ -130,7 +132,9 @@ def generate_stream(value, settings, directory, prompt, contract, progress, acti
                     action = item.get('action') or {}
                     label = action.get('query') or item.get('query') or action.get('url') or '공개자료 확인'
                     state.update(stage='researching', activity=str(label)[:240])
-                    if method == 'item/started': searches[item_id] = [time.monotonic(), None]
+                    if method == 'item/started':
+                        started_searches.add(item_id)
+                        searches.setdefault(item_id, [time.monotonic(), None])
                     else:
                         if item_id not in searches: searches[item_id] = [time.monotonic(), None]
                         if searches[item_id][1] is None:
@@ -166,7 +170,8 @@ def generate_stream(value, settings, directory, prompt, contract, progress, acti
                     elif completed.get('type') not in ('userMessage', 'reasoning', 'webSearch', 'plan', 'contextCompaction'):
                         raise ReportGenerationError('scope_violation')
                 if final is None: raise ReportGenerationError('incomplete_output')
-                if value['research'] and not evidence['web_search_calls']: raise ReportGenerationError('research_unavailable')
+                if value['research'] and not evidence['web_search_calls'] and research_policy(value) == 'require_completed':
+                    raise ReportGenerationError('research_unavailable')
                 ended = time.monotonic()
                 state['timings'].update(generation_ms=round((ended-started)*1000),
                     text_ms=round((ended-first_text)*1000) if first_text else None)
@@ -177,5 +182,9 @@ def generate_stream(value, settings, directory, prompt, contract, progress, acti
                 state['timings']['research_ms'] = round(duration * 1000)
                 state['stage'] = 'validating'; emit(True)
                 draft = ReportDraft.model_validate_json(final).model_dump()
-                evidence.update(completed=True, timings=dict(state['timings']))
-                return draft, evidence
+                if 'research_notice' in json.loads(final):
+                    raise ReportGenerationError('invalid_report')  # Server-owned, never model assertions.
+                evidence.update(completed=True, timings=dict(state['timings']),
+                    web_search_started=len(started_searches),
+                    web_search_incomplete=sum(searches[item_id][1] is None for item_id in started_searches))
+                return apply_research_policy(value, draft, evidence)

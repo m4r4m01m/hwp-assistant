@@ -5,14 +5,17 @@ import uuid
 from typing import Literal
 from fastapi import HTTPException, Request, Header, Query
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from sqlalchemy import select, text
+from sqlalchemy import and_, or_, select, text
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 from .auth import require_access, require_lease_owner
 from .db import Access, ChangeSet, Context, Conversation, Document, LeaseOwner, Message, Proposal, Template, TemplateCatalog, Version, transaction
 from .hwpx import digest
 from .llm import OpenAICompatible
 from .ai_requests import AIRequest, reserve_chat, finish_chat
 from .capabilities import require_llm_access
+from .codex_chat_review import capture_provider, provider_name, request_active, require_provider_access
+from .codex_runtime import reserve_usage as reserve_codex_usage
 from .rewrite_capacity import ExecutionSlot
 from .rewrite_context import ConfirmedFactInput, confirmed_content
 from .template_market import Category, install_template_market, registration_hash, source_version, verified_bytes
@@ -312,7 +315,8 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
 
     @app.post("/api/threads/{thread_id}/chat")
     async def chat(thread_id: str, value: Chat, request: Request):
-        require_llm_access(request.state.user)
+        name = provider_name("chat")
+        require_provider_access(name, request.state.user)
         # Reading a completed response consumes no model capacity or execution quota.
         # Repeat every access/author check, including when a previous caller had access.
         with Session(engine) as db:
@@ -321,6 +325,9 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
                 return fields(existing, "id", "content", "source")
         with app.state.ai_budget.reserve(request.state.user), ExecutionSlot(app.state.rewrite_capacity) as slot:
             slot.reserve()
+            # Readiness can start a bounded local status process; keep it off
+            # the event loop and never consume a model slot for cached replies.
+            provider = await run_in_threadpool(capture_provider, name, OpenAICompatible)
             with transaction(engine) as db:
                 thread, doc, message, existing = chat_question(db, thread_id, value.message_id, request.state.user, lock=True)
                 if existing:
@@ -328,21 +335,45 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
                 ctx = context_value(db, thread, doc)
                 if ctx["stale"]:
                     raise HTTPException(409, "컨텍스트가 오래되었습니다. 최신 기준으로 저장하세요.")
-                history = messages_value(db, thread_id, 20)
+                # Freeze history through this exact question, even when another
+                # author posts while it waits for admission. Never answer a later
+                # writer's question in place of the requested one.
+                history_rows = list(db.scalars(select(Message).where(Message.conversation_id == thread_id,
+                    or_(Message.created_at < message.created_at,
+                        and_(Message.created_at == message.created_at, Message.id <= message.id)))
+                    .order_by(Message.created_at.desc(), Message.id.desc()).limit(20)))
+                history = [fields(m, "id", "author_id", "role", "content", "source", "created_at") for m in reversed(history_rows)]
                 base = doc.current_version
-                provider = OpenAICompatible()
                 key = digest((thread_id + ":" + message.id).encode())
                 reserve_chat(db, key, request.state.user)
+                if name == "codex":
+                    reserve_codex_usage(db, "chat:" + key, request.state.user)
             try:
-                answer = await provider.chat(ctx, history)
+                def current():
+                    with Session(engine) as db:
+                        require_provider_access(name, request.state.user)
+                        thread, doc, _, _ = chat_question(db, thread_id, value.message_id, request.state.user)
+                        current_context = context_value(db, thread, doc)
+                        claim = db.get(AIRequest, key)
+                        return bool(claim and claim.status == "running" and claim.user_id == request.state.user
+                            and doc.current_version == base and current_context["revision"] == ctx["revision"]
+                            and not current_context["stale"])
+
+                async with request_active(request, current) as active:
+                    answer = await provider.chat(ctx, history, active=active) if name == "codex" else await provider.chat(ctx, history)
+                    if name == "codex" and not active():
+                        raise HTTPException(409, "요청 연결 또는 문서 상태가 바뀌어 답변을 게시하지 않았습니다.")
                 with transaction(engine) as db:
+                    require_provider_access(name, request.state.user)
                     thread, doc = thread_access(db, thread_id, request.state.user, "editor", lock=True)
                     current = context_value(db, thread, doc)
                     if doc.current_version != base or current["revision"] != ctx["revision"]:
                         raise HTTPException(409, "응답 중 문서/컨텍스트가 바뀌었습니다. 다시 질문하세요.")
-                    row = append_message(db, thread_id, request.state.user,
-                          NewMessage(request_id="ai:" + value.message_id, content=answer), "model", "assistant")
                     claim = db.get(AIRequest, key)
+                    if not claim or claim.status != "running" or claim.user_id != request.state.user:
+                        raise HTTPException(409, "이 질문의 접수 상태가 변경되어 답변을 게시하지 않았습니다.")
+                    row = append_message(db, thread_id, request.state.user,
+                          NewMessage(request_id="ai:" + value.message_id, content=answer), "codex" if name == "codex" else "model", "assistant")
                     claim.status, claim.finished_at = "completed", time.time()
                     result = fields(row, "id", "content", "source")
                 return result

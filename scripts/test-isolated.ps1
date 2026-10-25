@@ -30,7 +30,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Engine verification failed; no services were s
 $children = [Collections.Generic.List[object]]::new()
 $ports = [Collections.Generic.HashSet[int]]::new()
 $environmentNames = @('DATABASE_URL','STORAGE_DIR','HWP_AUTH_TOKENS','HWP_LEGACY_OWNER','HWP_CODEX_USER','HWP_LOCAL_AI_SETUP',
-  'HWP_REWRITE_PROVIDER','HWP_REWRITE_MAX_ACTIVE','LLM_PROVIDER','LLM_BASE_URL','LLM_MODEL','LLM_API_KEY','LLM_TIMEOUT_SECONDS',
+  'HWP_REWRITE_PROVIDER','HWP_CHAT_PROVIDER','HWP_REVIEW_PROVIDER','HWP_REWRITE_MAX_ACTIVE','LLM_PROVIDER','LLM_BASE_URL','LLM_MODEL','LLM_API_KEY','LLM_TIMEOUT_SECONDS',
   'HWP_E2E_URL','HWP_E2E_AUTH_URL','HWP_E2E_LOCAL_URL','HWP_E2E_MOCK_URL','HWP_E2E_SOAK_SECONDS','HWP_E2E_CONTEXT_SOAK','HWP_E2E_REPORT_MOCK','HWP_REPORT_FIXTURES','PYTHONPATH','NO_COLOR','FORCE_COLOR')
 $savedEnvironment = @{}
 foreach ($name in $environmentNames) { $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
