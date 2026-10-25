@@ -8,6 +8,6 @@
 .report-source-badge { display: inline-block; margin-left: 7px; padding: 1px 6px; border: 1px solid #dac18b; border-radius: 4px; color: #70551e; background: #fff6e3; font-size: 11px; }
 .report-source-url { display: block; color: #52667b; font-size: 12px; }
 .report-editor-workspace .formatted-report[data-research-notice="true"] { display: flex; flex-direction: column; }
-.report-editor-workspace .formatted-report[data-research-notice="true"] > .report-research-notice { margin: 0; border-radius: 0; border-width: 0 0 1px; padding: 8px 18px; max-height: min(230px, 30dvh); overflow: auto; }
+.report-editor-workspace .formatted-report[data-research-notice="true"] > .report-research-notice { width: 100%; min-width: 0; margin: 0; border-radius: 0; border-width: 0 0 1px; padding: 8px 18px; max-height: min(230px, 30dvh); overflow: auto; }
 .report-editor-workspace .formatted-report[data-research-notice="true"] > .formatted-report-surface { flex: 1 1 auto; height: auto; min-height: 0; }
 @media (max-width: 600px) { .report-research-notice { padding: 10px 12px; } }

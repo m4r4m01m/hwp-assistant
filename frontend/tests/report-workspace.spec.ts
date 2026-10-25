@@ -48,7 +48,22 @@ async function expectViewport(page: Page, withEditor: boolean, panelName?: strin
   expect(canvas.y).toBe(0);
   expect(canvas.width).toBeCloseTo(viewport.width - left, 1);
   expect(canvas.height).toBe(viewport.height);
-  if (withEditor) expect(await page.locator(".report-editor-slot.active iframe").boundingBox()).toEqual(canvas);
+  if (withEditor) {
+    expect(await page.locator(".formatted-report").boundingBox()).toEqual(canvas);
+    const surface = (await page.locator(".formatted-report-surface").boundingBox())!;
+    const notice = page.locator(".formatted-report > .report-research-notice");
+    if (await notice.count()) {
+      await expect(notice).toBeVisible();
+      const bounds = (await notice.boundingBox())!;
+      expect(bounds.x).toBeCloseTo(canvas.x, 1); expect(bounds.y).toBeCloseTo(canvas.y, 1);
+      expect(bounds.width).toBeGreaterThan(0);
+      expect(bounds.height).toBeGreaterThan(0); expect(bounds.height).toBeLessThanOrEqual(Math.min(230, viewport.height * .3));
+      expect(surface.y).toBeCloseTo(bounds.y + bounds.height, 1);
+    } else expect(surface.y).toBeCloseTo(canvas.y, 1);
+    expect(surface.x).toBeCloseTo(canvas.x, 1); expect(surface.width).toBeCloseTo(canvas.width, 1);
+    expect(surface.y + surface.height).toBeCloseTo(canvas.y + canvas.height, 1);
+    expect(await page.locator(".report-editor-slot.active iframe").boundingBox()).toEqual(surface);
+  }
   return { viewport, navigation, panel: panelName || null, panel_bounds: panelBounds, canvas };
 }
 
@@ -147,6 +162,21 @@ test("REAL rhwp + MOCK report workspace: full height editor, local drawers and p
   await page.setViewportSize({ width: 400, height: 760 });
   layoutEvidence.push(await expectViewport(page, true));
   await expectPreserved();
+  await page.setViewportSize({ width: 360, height: 760 });
+  layoutEvidence.push(await expectViewport(page, true));
+  await expectPreserved();
+  const mobileNotice = await page.evaluate(() => {
+    const notice = document.querySelector<HTMLElement>(".formatted-report > .report-research-notice")!,
+      canvas = document.querySelector<HTMLElement>(".report-workspace-canvas")!, paragraph = notice.querySelector("p")!;
+    const bounds = (element: Element) => { const { x, y, width, height, right, bottom } = element.getBoundingClientRect(); return { x, y, width, height, right, bottom }; };
+    return { canvas: bounds(canvas), notice: bounds(notice), paragraph: bounds(paragraph),
+      computed_notice_width: getComputedStyle(notice).width, horizontal_clip: paragraph.getBoundingClientRect().right > canvas.getBoundingClientRect().right + 1 };
+  });
+  await writeFile(info.outputPath("mobile-notice-360-proof.json"), JSON.stringify(mobileNotice, null, 2));
+  await expect(page.locator(".formatted-report > .report-research-notice")).toBeVisible();
+  expect(mobileNotice.notice.right).toBeLessThanOrEqual(mobileNotice.canvas.right + 1);
+  expect(mobileNotice.horizontal_clip).toBe(false);
+  await expect(page.locator(".formatted-report > .report-research-notice > p")).toBeInViewport({ ratio: 1 });
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.getByRole("button", { name: "목차 쪽수 갱신", exact: true }).click();
   await expect(page.getByRole("button", { name: "초안 확정·서버 저장", exact: true })).toBeEnabled({ timeout: 90000 });
@@ -155,16 +185,16 @@ test("REAL rhwp + MOCK report workspace: full height editor, local drawers and p
   const current = await engine(page);
   const bytes = Uint8Array.from(await current.frame.evaluate(() => Array.from((window as any).hwpAssistantBridge.exportSnapshot().bytes) as number[]));
   await page.getByRole("button", { name: "초안 확정·서버 저장", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("HWPX 서버 저장 완료");
-  const href = (await page.getByRole("link", { name: "완성 보고서 다운로드", exact: true }).getAttribute("href"))!;
+  await expect(page.getByRole("status")).toHaveText("저장 완료");
+  const href = (await page.getByRole("link", { name: "저장본 다운로드", exact: true }).getAttribute("href"))!;
   expect(sha(await (await request.get(href)).body())).toBe(sha(bytes));
-  await page.getByRole("button", { name: "보고서 편집하기", exact: true }).click();
+  // A clean save opens the regular editor automatically.
   await expect(page.getByRole("status")).toHaveText("저장 완료");
   const reopened = page.frames().find(candidate => candidate.url().includes("/rhwp/"))!;
   expect(sha(Uint8Array.from(await reopened.evaluate(() => Array.from((window as any).hwpAssistantBridge.exportSnapshot().bytes) as number[])))).toBe(sha(bytes));
   await writeFile(info.outputPath("report-workspace-proof.json"), JSON.stringify({
     real_engine: true, actual_model_calls: 0, synthetic_generation: true, human_review: false,
-    full_height_viewports: ["1366x900", "800x760", "400x760"], outer_scroll: 0,
+    full_height_viewports: ["1366x900", "800x760", "400x760", "360x760"], outer_scroll: 0,
     sidebar_reflow_viewports: ["1366x900", "800x760"], panels: panels.map(panel => panel.name), layout_evidence: layoutEvidence,
     iframe_preserved_across_tools: true, prompt_preserved: true,
     explicit_sidebar_width_preserved_after_layout: requestedNavWidth,

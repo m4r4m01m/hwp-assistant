@@ -1,6 +1,6 @@
 # HWP Assistant 프로젝트 컨텍스트
 
-갱신일: **2026-10-26 (한국 시간)**. 이번 통합 기준과 마지막 확인된 운영 source는 [main `635293ede2e80f7080486c0ec44f5334e07ea801`](https://github.com/m4r4m01m/hwp-assistant/commit/635293ede2e80f7080486c0ec44f5334e07ea801), [PR #38](https://github.com/m4r4m01m/hwp-assistant/pull/38)의 merge commit이다. 같은 source의 [단일 배포 run `40202934497`](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40202934497)은 5개 job 모두 성공했고, 원 대화 root가 공개 합성 sqlite3 보고서 1건의 검색 2/2/0·유효 draft·내용 검토와 24개 check 성공을 인계했다. 개별 출처 미검증 경고는 유지하며 서식·확정·저장은 호출하지 않았다. 현재는 `codex/integrate-local-cli-2026-10-26`에서 동료 head `8e4b3104fb1d09873d4ba0c6cccfd27fa1c26a98`을 통합·검증 중이며 main 추가 병합·운영 배포·실모델 호출은 하지 않았다. 최신 통합 상태는 [15절](#15-2026-10-26-동료-cli편집-ui-통합)을 따른다. 14절 이전의 미승인·미배포·검색 미확인 표기는 당시 기록이며 위 PR #38의 이후 승인·배포·단일 실검증으로 갱신됐다. 구체적인 검색 flag는 사용자의 개선 요청 범위에서 원 대화 root가 선택한 구현이고, 사용자가 전문 설정을 직접 선택했다고 기록하지 않는다. 별도 문서 commit `532d1ddf3cf5c8ae0ef7697114a9ee6afbe7cc45`와 원래 작업 트리·미커밋 초안은 보존하며 이번 통합에 일괄 복사하지 않는다.
+갱신일: **2026-10-26 (한국 시간)**. 이번 통합 기준은 [main `e263091ae28ef73a3e1a087137cc70ddadc277b0`](https://github.com/m4r4m01m/hwp-assistant/commit/e263091ae28ef73a3e1a087137cc70ddadc277b0), [PR #39](https://github.com/m4r4m01m/hwp-assistant/pull/39)의 merge commit이다. 검토 head `ae7d1da77664019b6ab23fcf4b750f336bcc80eb`의 CI 4개와 같은 tree인 main push CI 3개가 성공했다. 이후 기존 [수동 배포 run `40212063392`](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40212063392)의 5개 job 성공을 확인했고, 원 대화 root가 SSH read-only로 last-success·API/web image source `e263091`과 DB/API/web healthy를 확인했다고 인계했다. 이는 아래 새 QA 통합의 배포가 아니다. 현재 `codex/integrate-local-ui-2026-10-26`의 별도 작업 트리에서 동료 `1f10a09dda03d48ee6a734e3f009efb3f2dfe894`를 통합·검증한다. 최신 범위·완료/미완료·롤백 한계는 [16절](#16-2026-10-26-보고서-작성outline저장-전환-통합)을 따른다. 3~15절의 과거 미승인·미병합·운영 상태는 각 작업 당시 기록이며 현재 코드·exact CI·위 배포 근거를 우선한다. `532d1dd` 문서와 기존 작업 트리·미커밋 handoff는 보존한다. 클라우드는 이번 작업의 main 병합·배포 dispatch·실모델·env/ACL/계정·운영 문서 변경을 수행하지 않는다.
 
 ## 1. 읽는 순서와 증거 기준
 
@@ -451,3 +451,40 @@ production core lock/patch는 변경하지 않았다. 별도 vendor에서 고정
 실제 엔진 회귀에서 확인한 갤러리 결함은 삭제 API가 성공해도 별도 목록이 남는 것이었다. 부모의 catalog 조회를 문서 선택 창이 열린 동안에도 유지하고, 성공한 저장/삭제 뒤 재조회한 **id+sha**로 선택을 보존/해제한다. 실패·취소는 기존 선택을 유지하고, 재조회 실패를 성공한 mutation의 실패로 표시하지 않는다. 이전 GET는 callback에서 즉시 abort하며 늦은 성공/오류가 목록·error·loading을 덮지 못한다. 마지막 동기 abort는 코드 검토 보강이며 React scheduler 경합을 실환경에서 재현했다고 주장하지 않는다.
 
 이번 통합의 실제 모델 호출·운영 배포·env/ACL/계정·운영 문서 변경은 **0회**다. Windows 실기·한컴·폐쇄망·운영 PostgreSQL/HTTPS 재검증은 미실행이다. cloud에는 운영 credential이 없다. 기존 `532d1dd` 문서와 미커밋 인수인계 2개는 원래 위치에 보존했다. DB migration이나 보고서 frozen schema 변경은 없으며 문제 발생 시 원 source branch와 통합 전 main을 보존한 채 수정/검토한다. 운영 반영·롤백은 별도 배포 절차와 DB/문서 보존 계약을 따르고 볼륨 초기화로 해결하지 않는다.
+
+
+## 16. 2026-10-26 보고서 작성·outline·저장 전환 통합
+
+사용자는 동료 `codex/local-ui-qa-2026-10-22`의 최신본을 검증·수정·병합하고 운영 배포까지 마치도록 요청했으며, 원 대화 root가 최종 main merge·단일 수동 배포와 직접 운영 확인을 담당한다. 클라우드는 exact main **`e263091ae28ef73a3e1a087137cc70ddadc277b0`**에서 독립 `codex/integrate-local-ui-2026-10-26`을 만들고 동료 **`1f10a09dda03d48ee6a734e3f009efb3f2dfe894`**를 merge commit으로 통합한다. 공통 기준은 `14e52b23fdf41ddf8effcd0a92f219e5d667469f`, 동료 unique commit은 1개·37파일이다. 양쪽 원 branch·기존 checkout·미커밋 문서·과거 HWPX·운영 볼륨과 서비스를 보존하고 rebase/squash/delete하지 않는다.
+
+### 16.1 새 동작과 보호할 계약
+
+새 보고서의 경영진 판단 우선 작성 지시, 선택 `section_outline`, 인쇄용 출처 제목·절 안의 주석 묶음·내용 기준 표 열 너비, 정상 저장 후 일반 편집기 전환을 통합한다. [새 문서 작성 기준](document-writing-standard.md)과 [동료 context 원본](https://github.com/m4r4m01m/hwp-assistant/blob/1f10a09dda03d48ee6a734e3f009efb3f2dfe894/docs/PROJECT_CONTEXT.md), 날짜별 source evidence를 함께 읽는다. 동료의 Windows/진단 엔진·실모델·로컬 시험은 그 주체의 당시 결과이며 이번 클라우드나 운영 검증으로 계산하지 않는다.
+
+PR #37의 별도 server-owned research_notice·유효 final draft만 내용 검토/서식으로 진행·chat/review provider/ACL/quota/210초·frozen hash/수동 HWPX 저장, PR #38의 연구 ON web 직접 노출·검색 ID/완료 집계·안전한 진단, PR #39의 편집 디자인·authoritative 완료 판정·부모 catalog/id+sha/즉시 abort를 유지한다. 새 outline가 없는 과거 입력은 키를 추가하지 않아 기존 입력 해시를 유지하고, 선택한 구성은 새 입력에 고정하여 보완본에도 상속한다. 완료 draft의 제목·순서·개수가 다르면 서식 준비 전에 거부한다. 새 인쇄 정책은 canonical 출처 URL·날짜를 보존하고 HWPX에는 제목을 표시한다. 미검증 경고·research provenance와 manual save 바이트를 바꾸지 않는다.
+
+### 16.2 검토 제품과 실제 검증
+
+검토용 merge commit **[`be59042d52efab14ee7cb026489d4df1f2217cc6`](https://github.com/m4r4m01m/hwp-assistant/commit/be59042d52efab14ee7cb026489d4df1f2217cc6)**의 부모는 exact main `e263091`과 동료 `1f10a09`다. 보고서 backend 5개·frontend 2개·context 1개의 충돌을 양쪽 계약을 결합해 해결했다. 원 대화의 backend/frontend·one-sided blob 독립 검토에서 차단 사유가 없다는 인계를 받았다. 후속 **`11209bb6979988913e34133b43296d6871807f59`**는 시험 한 파일의 +22/-7이며 제품 코드는 같았다. 새 policy의 동일 절 S1/S2에 맞춰 `주1)/주2)`·scope·citation_ranges·위첨자를 정확히 검사했고 과거 gate 없는 별표 재현은 유지했다.
+
+실제 360px viewport에서는 기존 전역 `aside` 340px 폭이 140px canvas의 경고에 상속돼 오른쪽 200px가 잘리는 결함을 재현했다. 제품 보완은 기존 preview 직계 경고 selector에 **`width: 100%; min-width: 0` 두 속성만 추가**한다. 전역 aside·문구·높이 상한·스크롤·문서/AI 계약은 유지한다. 같은 화면의 최종 실측은 notice 폭 140px/right 360, 본문 right 342로 수평 잘림이 없었다. wrapper=canvas·경고 상단·나머지 surface/iframe·작은 화면/도구 패널·동일 iframe·미저장/저장 바이트 검사를 유지했다.
+
+[통합 검증 영수증](evidence/local-ui-integration-2026-10-26.json)의 실제 결과다. Python 3.14.0·backend/MCP locks, Node 24.15.0, Chromium141/headless-shell1194, 합성 자료만 사용했다. 최종 문서/시험/CSS head의 CI는 아직 확인 전이며 그 수치와 링크는 PR 설명에 기록한다.
+
+| 검사 | 확인된 결과와 한계 |
+|---|---|
+| backend 전체 | 최종 단일 실행 **1,429 passed**, JUnit failure/error/skip0·283.450초·exit0·수집 node ID 일치·Py/locks158파일 SHA 불변. stdout 최종 요약 부재로 전체 warning 수 미확정 |
+| 초기 실패·집중 | 첫 전체 1,425 passed/4 failed/기존 warning2·305.58초는 보존. 새 절별 주석과 옛 별표 기대 4개를 시험에서 정정. 집중99/보호218/후속38 각각 통과(각 기존 warning2)이며 전체에 합산하지 않음 |
+| frontend | tsc·unit35 통과. 마지막 CSS 보완 후 mock UI **78 passed/62.792초**, 15suite·fail/error/skip0·65파일 SHA 불변. CSS만 바뀌어 tsc/unit은 앞선 동일 TS 소스 결과 유지 |
+| 배포·Node 계약 | Python 배포75·Node82 통과, 별도 CLI로그인6 passed/Windows실제resolver Linux skip1, public-path 감사·배포셸4개 문법 통과 |
+| 실제 optimized rhwp | 여러 JUnit/소스 snapshot의 고유 **33 passed/7 skipped/미해결 실패0**. skip7은 실제 모델 기록물 부재. 새 outline·주석·경고 저장3개, 등록 표준/저장 전환·TOC·rich/stream/recovery·PR39 디자인/AI 등을 포함. 마지막 CSS 뒤 모든 노드를 반복한 단일 전체가 아님 |
+| 최종 실제 viewport | 수정 후 360px 포함 workspace1개 **29.643초 pass**, 136파일 SHA 불변. 경고 문구·수평 containment·남은 높이·iframe 동일성·수동 bytes/저장·재열기 유지 |
+| 엔진·build path | 검증한 optimized core `3eb52da9…10667b`와 현재 bridge `5654a717…0b81c29`·고정 upstream을 별도 vendor에서 재사용해 fresh Studio 빌드(diagnostic=false). 최종 앱 `/hwp-assistant/` build·HTTP **27파일 SHA** 일치, engine manifest10/helper11. 마지막 CSS 뒤 앱만 재빌드했고 Rust/Docker core 재컴파일은 아님 |
+
+main-only 연구 경고 저장 시험은 새 title-only 인쇄에서 URL을 없앤 것으로 오해하지 않도록 canonical draft의 URL·날짜·SHA를 확인하고 경고·6×400자 한계·수동 편집·유실 응답의 frozen same-bytes retry·한 버전·일반 편집기 재열기/쪽수를 유지했다. 등록 서식은 새 요청 선택의 변경/복원을 draft 생성 전에, 생성 후 selector 잠금·현재 frozen 서식/bytes를 저장 전에, clean 저장 뒤 일반 편집기의 bytes/쪽수를 검사한다. 새 실제 outline 시험은 요청 제목을 복사해 보정하지 않는 고정 합성 출력이며 실제 모델은 호출하지 않았다. 초기 selector/옛 완료 패널/주석·viewport 기대 실패 영수증도 삭제하지 않았다. Windows diagnostic developer kit·실제 optimized 코어·mock UI/AI·실모델·한컴/폐쇄망을 구분한다.
+
+### 16.3 호환성과 운영 경계
+
+DB migration이 없다는 사실이 구버전 코드로 모든 새 작업을 이어갈 수 있다는 뜻은 아니다. `section_outline`가 고정된 새 입력을 구버전의 extra=forbid 모델로 재접수/보완하면 거부될 수 있고, 구버전은 outline 제목·순서 검증과 새 note/table layout marker 의미를 알지 못한다. 새 작업/동결 계획이 생성된 뒤 되돌릴 경우 신규 접수를 멈추고 원 입력·draft·SHA·preview·수동 HWPX를 보존한 상태에서 호환 코드로 이어갈 경로를 검토한다. 키·해시 재작성·marker 삭제·자동 schema downgrade·볼륨/인증 초기화로 우회하지 않는다. 과거 marker 없는 계획은 기존 재현 경로를 유지한다.
+
+이번 새 통합의 클라우드 실제 모델 호출·운영 배포·env/ACL/계정·운영 문서 변경은 0회다. 사용자 전체 승인에 따른 최종 병합·배포 진행은 원 대화의 exact SHA/run·직접 검증 인계 후 별도 증거로 추가한다. 기존 e263091 배포 run과 새 통합 배포를 혼동하지 않는다. 클라우드에 운영 credential이 없으며 이를 복제하거나 추정하지 않는다.

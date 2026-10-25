@@ -130,7 +130,7 @@ for (const composition of compositions) {
     }
     await page.getByLabel("보고서 작성 요청", { exact: true }).fill(record.input.prompt);
     await page.getByLabel("공개 웹 자료를 검색하고 출처 포함").uncheck();
-    const template = page.getByLabel("내용 구성", { exact: true });
+    const template = page.getByLabel("작성 목적", { exact: true });
     if (await template.count()) await template.selectOption(record.input.template.id);
     const posted = page.waitForResponse(value => value.request().method() === "POST" && new URL(value.url()).pathname === "/api/report-tasks");
     await page.getByRole("button", { name: "초안 작성하기", exact: true }).click();
@@ -225,12 +225,12 @@ for (const composition of compositions) {
     expect(await engine.evaluate(i => (window as any).hwpAssistantBridge.paragraphPage(0, i), structure.title)).toBe(1);
     await page.screenshot({ path: info.outputPath("formatted-report.png"), fullPage: true });
     await save.click();
-    await expect(page.getByRole("status")).toHaveText("HWPX 서버 저장 완료");
-    const href = (await page.getByRole("link", { name: "완성 보고서 다운로드", exact: true }).getAttribute("href"))!;
+    await expect(page.getByRole("status")).toHaveText("저장 완료");
+    const href = (await page.getByRole("link", { name: "저장본 다운로드", exact: true }).getAttribute("href"))!;
     const saved = await (await request.get(href)).body();
     expect(hash(saved)).toBe(hash(bytes));
     await writeFile(info.outputPath(`${composition.preset}.hwpx`), saved);
-    await page.getByRole("button", { name: "보고서 편집하기", exact: true }).click();
+    // A clean save opens the regular editor automatically.
     await expect(page.getByRole("status")).toHaveText("저장 완료");
     const reopened = await (await page.locator(".block-editor-slot.active iframe").elementHandle())!.contentFrame();
     if (!reopened) throw new Error("No reopened ordinary editor");

@@ -8,6 +8,7 @@ from .report_partial import preview_blocks
 from .report_rpc import ReportRpc
 from .report_errors import ReportGenerationError, upstream_details, retain_upstream_details
 from .report_research import apply_research_policy, research_policy
+from .report_structure import generation_schema, check_outline
 
 DISABLED = ('shell_tool', 'unified_exec', 'apps', 'plugins', 'browser_use', 'computer_use',
             'image_generation', 'multi_agent', 'skill_search', 'hooks', 'memories',
@@ -179,7 +180,7 @@ def generate_stream(value, settings, directory, prompt, contract, progress, acti
         state['stage'] = 'waiting'; emit(True)
         result = call('turn/start', {'threadId': thread_id,
             'input': [{'type': 'text', 'text': 'Report request (data):\n' + canonical(value), 'text_elements': []}],
-            'outputSchema': ReportDraft.generation_schema()})
+            'outputSchema': generation_schema(value)})
         turn_id = result['turn']['id']
         while True:
             event = pending.pop(0) if pending else rpc.receive(on_idle=flush_pending)
@@ -242,6 +243,7 @@ def generate_stream(value, settings, directory, prompt, contract, progress, acti
                 draft = ReportDraft.model_validate_json(final).model_dump()
                 if 'research_notice' in json.loads(final):
                     raise ReportGenerationError('invalid_report')  # Server-owned, never model assertions.
+                check_outline(value, draft)
                 evidence.update(completed=True, timings=dict(state['timings']),
                     web_search_started=len(started_searches),
                     web_search_incomplete=sum(searches[item_id][1] is None for item_id in started_searches))

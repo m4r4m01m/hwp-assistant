@@ -1,0 +1,74 @@
+{
+  "date": "2026-10-26",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "base_head": "14e52b23fdf41ddf8effcd0a92f219e5d667469f",
+  "changes": {
+    "content_outline": "Optional frozen section_outline, 3-6 distinct editable headings; presets independent of visual standard; exact completed heading count/order validation; inherited by review tasks",
+    "notes": "New reference-note-section-groups-v2 shares one source explanation across uninterrupted body under a heading; headings and visuals reset the scope; earlier policies retained",
+    "save_transition": "Clean successful preview save opens regular document editor; late unsaved edits retain the existing recovery flow"
+  },
+  "tests": {
+    "backend_structure_review_reference_prompt": 42,
+    "backend_notes_groups_presentation_local_controls": 47,
+    "mock_ui": 7,
+    "mock_ui_files": ["report-structure.spec.ts", "report-save-transition.spec.ts", "report-failure.spec.ts"],
+    "typescript": "passed",
+    "frontend_build": "passed; separate output, reused pinned diagnostic rhwp, Vite 7.3.7",
+    "outline_ui_visual_check": "1440x1000 desktop and 430x900 with icon sidebar; inline heading numbers and controls fit, no JavaScript errors or API mutations",
+    "release_engine_rebuilt": false,
+    "legacy_e2e_updated_for_auto_open": "Expectations updated; 44 existing tests loaded, not all executed"
+  },
+  "same_draft_note_comparison": {
+    "actual_model_calls": 0,
+    "pages_before": 4,
+    "pages_after": 4,
+    "source_explanations_before": 6,
+    "source_explanations_after": 5,
+    "repeated_source_explanations_before": 3,
+    "repeated_source_explanations_after": 2,
+    "repeat_in_other_section_intentionally_preserved": true,
+    "exact_commands": 41,
+    "body_and_table_text_unchanged": true,
+    "export_reopen_text_equal": true
+  },
+  "actual_model_and_engine": {
+    "actual_model_calls": 1,
+    "model": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "generation_ms": 69800,
+    "web_search_calls": 3,
+    "same_public_request_and_visual_standard_except_new_id_and_outline": true,
+    "headings": ["개요", "현황", "대응", "향후 계획"],
+    "heading_pages": [1, 2, 3, 4],
+    "exact_commands": 49,
+    "format_verification": true,
+    "pages": 5,
+    "reopened_pages": 5,
+    "export_reopen_text_equal": true,
+    "source_explanations": 9,
+    "local_note_scopes": 5,
+    "duplicate_source_explanations_within_scope": 0,
+    "single_source_table_material_line": 1,
+    "visual_review": "Five page images inspected; no clipping/overlap; final page has last planned action and two limitations, with unused space",
+    "content_review": "Opening decision and implications, facts/proposals distinguished, no invented fixed 24/48-hour deadlines",
+    "comparison_limit": "Newly researched content differs from the original; page/note totals are not a same-content reduction experiment"
+  },
+  "real_editor_transition": {
+    "save_and_lease_responses_mocked": true,
+    "server_mutations": 0,
+    "before": {"saved_staging_editor_inert": true, "input_revision_before": 1, "input_revision_after": 1},
+    "after": {"automatic_regular_editor_open": true, "saved_reopened_bytes_equal": true, "input_revision_before": 0, "input_revision_after": 1, "javascript_errors": 0},
+    "original_user_chrome_observed": false,
+    "original_chrome_limit": "Computer Use could not determine the current URL confidently and was stopped; separate isolated Chrome reproduction only"
+  },
+  "preservation": {
+    "original_input_draft_hash_and_approval_unchanged_after_runtime_restart": true,
+    "original_saved_document_unchanged": true,
+    "saved_visual_standard_and_template_unchanged": true,
+    "old_frozen_preview_and_policy_preserved": true,
+    "user_data_saved_by_test_harness": false
+  },
+  "runtime": "15330/18330; idle-task and exact PID/start-time checks, only owned API restarted, UI/API HTTP 200",
+  "artifacts": "Ignored local QA node-report-20261026, node-outline-20261026 and editor-freeze-20261026 folders; no user report files or runtime data committed",
+  "not_performed": ["Full regression suite", "Original Chrome runtime inspection", "Complete independent external-source fact check", "Human acceptance", "Hancom inspection", "Engine rebuild", "Main merge", "Production deployment"]
+}

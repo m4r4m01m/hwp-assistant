@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-25",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "base_head": "14e52b23fdf41ddf8effcd0a92f219e5d667469f",
+  "uncommitted": true,
+  "runtime": "15330/18330 QA API restarted after idle-task and PID/start-time checks; UI/API HTTP 200",
+  "policies": {
+    "notes": "reference-note-titles-v1",
+    "tables": "reference-content-columns-v1",
+    "scope": "New reference preview plans only; stored source records and frozen plans remain unchanged"
+  },
+  "tests": {
+    "generation_and_review": 25,
+    "note_presentation_local_notes_and_controls": 36,
+    "new_table_layout": 12,
+    "existing_table_geometry": 11,
+    "existing_rich_body_spacing_and_local_notes": 44,
+    "counts_overlap": "Local-note tests occur in two groups; do not sum these groups",
+    "environment": "Sandbox temp-directory and mock subprocess failures were isolated; only affected tests reran with workspace-local temp storage on the host",
+    "actual_model_calls": 0,
+    "real_engine": "Existing pinned diagnostic rhwp; no engine changes"
+  },
+  "actual_comparison": {
+    "same_draft_and_standard": true,
+    "exact_commands_verified": 85,
+    "before_pages": 6,
+    "after_pages": 5,
+    "reopened_pages": 5,
+    "before_notes_with_url": 14,
+    "after_notes_with_url": 0,
+    "before_source_text_characters": 2435,
+    "after_source_text_characters": 1214,
+    "before_notes": 14,
+    "after_notes": 17,
+    "note_count_reason": "An explicit source range in limitations now links to three local explanations; no claim of fewer note blocks",
+    "first_table_widths_before": [16063, 16063, 16064],
+    "first_table_widths_after": [8226, 25579, 14385],
+    "identifier_pair_and_marker_same_line": true,
+    "four_limitations_have_bullets_and_indents": true,
+    "roundtrip_text_unchanged": true,
+    "original_input_hashes_preserved": true,
+    "stored_explicit_alignment_preserved": true,
+    "user_document_or_database_written": false,
+    "artifacts": "Private ignored .cache/editor-design-20261025/qa/simple-report-improvement; no document contents committed"
+  },
+  "not_performed": ["Real model generation", "Hancom inspection", "Full regression suite", "Engine rebuild", "Commit/push", "Production deployment"]
+}

@@ -208,9 +208,9 @@ test("REAL rhwp + MOCK report TOC: automatic native pages, rich content, stale r
     await page
       .getByRole("button", { name: "초안 확정·서버 저장", exact: true })
       .click();
-    await expect(page.getByRole("status")).toHaveText("HWPX 서버 저장 완료");
+    await expect(page.getByRole("status")).toHaveText("저장 완료");
     const href = (await page
-      .getByRole("link", { name: "완성 보고서 다운로드", exact: true })
+      .getByRole("link", { name: "저장본 다운로드", exact: true })
       .getAttribute("href"))!;
     const saved = await (await request.get(href)).body();
     expect(sha(saved)).toBe(sha(current.bytes));
@@ -222,9 +222,7 @@ test("REAL rhwp + MOCK report TOC: automatic native pages, rich content, stale r
       ).length,
     ).toBe(1);
     await writeFile(info.outputPath("native-toc-rich-report.hwpx"), saved);
-    await page
-      .getByRole("button", { name: "보고서 편집하기", exact: true })
-      .click();
+    // A clean save opens the regular editor automatically.
     await expect(page.getByRole("status")).toHaveText("저장 완료");
     await proof(info, "native-toc-proof.json", {
       real_engine: true,
@@ -363,13 +361,13 @@ test("REAL rhwp + MOCK report TOC: long Korean titles and ten actual pages survi
     expect(xml(current.bytes)).not.toContain("REPORT_SLOT_");
     expect((await (await request.get("/api/documents")).json()).length).toBe(before);
     await page.getByRole("button", { name: "초안 확정·서버 저장", exact: true }).click();
-    await expect(page.getByRole("status")).toHaveText("HWPX 서버 저장 완료");
-    const href = (await page.getByRole("link", { name: "완성 보고서 다운로드", exact: true }).getAttribute("href"))!;
+    await expect(page.getByRole("status")).toHaveText("저장 완료");
+    const href = (await page.getByRole("link", { name: "저장본 다운로드", exact: true }).getAttribute("href"))!;
     const saved = await (await request.get(href)).body();
     expect(saved).toEqual(current.bytes);
     expect(await (await request.get(href.split("/versions/")[0] + "/versions")).json()).toHaveLength(1);
     await writeFile(info.outputPath("long-toc-ten-pages.hwpx"), saved);
-    await page.getByRole("button", { name: "보고서 편집하기", exact: true }).click();
+    // A clean save opens the regular editor automatically.
     await expect(page.getByRole("status")).toHaveText("저장 완료");
     const reopened = await (await page.locator(".block-editor-slot.active iframe").elementHandle())!.contentFrame();
     expect(reopened).toBeTruthy();
@@ -485,12 +483,12 @@ test("REAL rhwp + MOCK reference TOC: source frame preserves long-title paginati
       await writeFile(info.outputPath(`reference-long-canvas-${index + 1}.png`), Buffer.from(png.split(",")[1], "base64"));
     }
     await page.getByRole("button", { name: "초안 확정·서버 저장", exact: true }).click();
-    await expect(page.getByRole("status")).toHaveText("HWPX 서버 저장 완료");
-    const href = (await page.getByRole("link", { name: "완성 보고서 다운로드", exact: true }).getAttribute("href"))!;
+    await expect(page.getByRole("status")).toHaveText("저장 완료");
+    const href = (await page.getByRole("link", { name: "저장본 다운로드", exact: true }).getAttribute("href"))!;
     const saved = await (await request.get(href)).body();
     expect(saved).toEqual(current.bytes);
     await writeFile(info.outputPath("reference-long-title.hwpx"), saved);
-    await page.getByRole("button", { name: "보고서 편집하기", exact: true }).click();
+    // A clean save opens the regular editor automatically.
     await expect(page.getByRole("status")).toHaveText("저장 완료");
     const reopened = await (await page.locator(".block-editor-slot.active iframe").elementHandle())!.contentFrame();
     expect(await output(reopened!)).toEqual(saved);
@@ -708,7 +706,7 @@ test("REAL rhwp + MOCK report TOC: saved response loss preserves frozen bytes an
     expect(await readFile(recoveryFile)).toEqual(later);
     await expect(openRecovered).toBeEnabled();
     await expect(
-      page.getByLabel("내용 구성", { exact: true }),
+      page.getByLabel("작성 목적", { exact: true }),
     ).toBeDisabled();
     page.once("dialog", (dialog) => dialog.dismiss());
     await openRecovered.click();

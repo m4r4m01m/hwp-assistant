@@ -24,7 +24,11 @@ test("REAL rhwp + MOCK report: automatic notes number multiple sources and reset
   expect(await page.getByRole("alert").allTextContents()).toEqual([]);
   const frozen = await (await request.get(`/api/report-tasks/${job.id}/preview`)).json();
   const completed = await (await request.get(`/api/report-tasks/${job.id}`)).json();
+  expect(frozen.plan[0].note_presentation).toBe("reference-note-titles-v1");
+  expect(frozen.plan[0].note_grouping).toBe("reference-note-section-groups-v2");
   expect(completed.draft.sources.map((source: any) => source.id)).toEqual(["S8", "S4"]);
+  expect(completed.draft.sources.map((source: any) => [source.url, source.published])).toEqual([
+    ["https://example.com/check", "2026. 10. 23."], ["https://example.com/approval", ""]]);
   expect(completed.draft.sections[0].paragraphs[0]).toContain("[S8][S4]");
   const frame = await (await page.locator(".report-editor-slot.active iframe").elementHandle())!.contentFrame();
   if (!frame) throw new Error("실제 보고서 편집기를 찾을 수 없습니다.");
@@ -37,11 +41,16 @@ test("REAL rhwp + MOCK report: automatic notes number multiple sources and reset
   }, strFromU8(unzipSync(bytes)["Contents/section0.xml"]));
   const first = text.findIndex(value => value.startsWith("□ 자료 24건"));
   expect(text[first]).toBe("□ 자료 24건을 확인함. 주1), 주2) 동일 근거를 유지함. 주1)");
-  expect(text[first + 1]).toMatch(/^주1\) 합성 점검 자료/);
-  expect(text[first + 2]).toMatch(/^주2\) 합성 승인 조건/);
+  // One uninterrupted section shares the source numbering and explanations.
   const single = text.findIndex(value => value.startsWith("ㅇ 보완 6건"));
-  expect(text[single]).toBe("ㅇ 보완 6건은 담당 확인 후 게시함. *");
-  expect(text[single + 1]).toMatch(/^\* 합성 승인 조건/);
+  expect(single).toBe(first + 1);
+  expect(text[single]).toBe("ㅇ 보완 6건은 담당 확인 후 게시함. 주2)");
+  expect(text[single + 1]).toBe("주1) 합성 점검 자료");
+  expect(text[single + 2]).toBe("주2) 합성 승인 조건");
+  const scope = frozen.plan.find((item: any) => item.text.startsWith("□ 자료 24건")).note_scope;
+  expect(frozen.plan.find((item: any) => item.text.startsWith("ㅇ 보완 6건")).note_scope).toBe(scope);
+  expect(frozen.plan.filter((item: any) => item.note_scope === scope && item.note_source_id).map((item: any) => item.note_source_id)).toEqual(["S8", "S4"]);
+  // The following table and next section each begin a fresh note scope.
   expect(text).toContain("확인 대상 주1)");
   expect(text).toContain("완료 주2)");
   expect(text.some(value => value.startsWith("주1) 합성 승인 조건"))).toBeTruthy();
@@ -49,14 +58,16 @@ test("REAL rhwp + MOCK report: automatic notes number multiple sources and reset
   const last = text.findIndex(value => value.startsWith("□ 원본과 이전 버전"));
   expect(text[last]).toBe("□ 원본과 이전 버전을 보존함. *");
   expect(text[last + 1]).toMatch(/^\* 합성 점검 자료/);
+  expect(frozen.plan.find((item: any) => item.text.startsWith("□ 원본과 이전 버전")).note_scope).not.toBe(scope);
+  for (const source of completed.draft.sources) expect(text.join("\n")).not.toContain(source.url);
   const pages = await frame.evaluate(() => (window as any).hwpAssistantBridge.documentState().pageCount);
   await page.screenshot({ path: info.outputPath("auto-notes-report.png"), fullPage: true });
   await page.getByRole("button", { name: "초안 확정·서버 저장", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("HWPX 서버 저장 완료");
-  const href = (await page.getByRole("link", { name: "완성 보고서 다운로드", exact: true }).getAttribute("href"))!;
+  await expect(page.getByRole("status")).toHaveText("저장 완료");
+  const href = (await page.getByRole("link", { name: "저장본 다운로드", exact: true }).getAttribute("href"))!;
   const saved = await (await request.get(href)).body();
   expect(hash(saved)).toBe(hash(bytes));
-  await page.getByRole("button", { name: "보고서 편집하기", exact: true }).click();
+  // A clean save opens the regular editor automatically.
   await expect(page.getByRole("status")).toHaveText("저장 완료");
   const reopened = await (await page.locator(".block-editor-slot.active iframe").elementHandle())!.contentFrame();
   if (!reopened) throw new Error("저장 보고서를 다시 열지 못했습니다.");

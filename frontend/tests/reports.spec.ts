@@ -49,9 +49,9 @@ test("REAL rhwp + MOCK report: prompt, approval, exact commands, save retry and 
     await page.getByRole("button", { name: "초안 확정·서버 저장", exact: true }).click();
     await expect(page.getByRole("button", { name: "같은 보고서 저장 재확인", exact: true })).toBeVisible({ timeout: 60000 });
     await page.getByRole("button", { name: "같은 보고서 저장 재확인", exact: true }).click();
-    await expect(page.getByRole("status")).toHaveText("HWPX 서버 저장 완료");
+    await expect(page.getByRole("status")).toHaveText("저장 완료");
     expect(saves).toHaveLength(2); expect(saves[1]).toEqual(saves[0]); // Same frozen edited output and save key.
-    const url = (await page.getByRole("link", { name: "완성 보고서 다운로드" }).getAttribute("href"))!;
+    const url = (await page.getByRole("link", { name: "저장본 다운로드" }).getAttribute("href"))!;
     const data = await (await request.get(url)).body();
     const xml = strFromU8(unzipSync(data)["Contents/section0.xml"]);
     const header = strFromU8(unzipSync(data)["Contents/header.xml"]);
@@ -73,7 +73,7 @@ test("REAL rhwp + MOCK report: prompt, approval, exact commands, save retry and 
     expect(xml).toContain("경영진 결정 사항"); expect(xml).toContain("미리보기 직접편집 확인"); expect(xml).not.toContain("REPORT_SLOT_");
     expect(await (await request.get(url.split("/versions/")[0] + "/versions")).json()).toHaveLength(1);
     await writeFile(info.outputPath("report.hwpx"), data);
-    await page.getByRole("button", { name: "보고서 편집하기", exact: true }).click();
+    // A clean save opens the regular editor automatically.
     await expect(page.getByRole("status")).toHaveText("저장 완료");
     await page.screenshot({ path: info.outputPath("report-reopened.png"), fullPage: true });
     await page.getByRole('button', { name: '← 문서 목록', exact: true }).click();
@@ -123,11 +123,11 @@ test("REAL rhwp + RECORDED report: long-title formatted preview without prematur
   await page.screenshot({ path: info.outputPath('actual-report-formatted-preview.png'), fullPage: true });
   await writeFile(info.outputPath('actual-report-formatted-preview.hwpx'), data);
   await page.getByRole('button', { name: '초안 확정·서버 저장', exact: true }).click();
-  await expect(page.getByRole('status')).toHaveText('HWPX 서버 저장 완료');
-  const href = (await page.getByRole('link', { name: '완성 보고서 다운로드', exact: true }).getAttribute('href'))!;
+  await expect(page.getByRole('status')).toHaveText('저장 완료');
+  const href = (await page.getByRole('link', { name: '저장본 다운로드', exact: true }).getAttribute('href'))!;
   const saved = await (await request.get(href)).body();
   await writeFile(info.outputPath('actual-report-saved.hwpx'), saved);
-  await page.getByRole('button', { name: '보고서 편집하기', exact: true }).click();
+  // A clean save opens the regular editor automatically.
   await expect(page.getByRole('status')).toHaveText('저장 완료');
   await writeFile(info.outputPath('preview-proof.json'), JSON.stringify({ real_engine: true, actual_model_calls: 0,
     source: 'recorded user-generated report', pages: reportPages, render_response_loss_recovered: true, document_created_only_on_save: true, human_approval: false }, null, 2));
@@ -212,8 +212,8 @@ for (const [name, prompt] of [["vendor", "금융회사 외부 업체·클라우�
     await page.screenshot({ path: info.outputPath(`${name}-preview.png`), fullPage: true });
     await expect(page.getByRole("button", { name: "초안 확정·서버 저장", exact: true })).toBeVisible({ timeout: 60000 });
     await page.getByRole("button", { name: "초안 확정·서버 저장", exact: true }).click();
-    await expect(page.getByRole("link", { name: "완성 보고서 다운로드", exact: true })).toBeVisible({ timeout: 60000 });
-    const href = (await page.getByRole("link", { name: "완성 보고서 다운로드", exact: true }).getAttribute("href"))!;
+    await expect(page.getByRole("link", { name: "저장본 다운로드", exact: true })).toBeVisible({ timeout: 60000 });
+    const href = (await page.getByRole("link", { name: "저장본 다운로드", exact: true }).getAttribute("href"))!;
     const bytes = await (await request.get(href)).body();
     const xml = strFromU8(unzipSync(bytes)["Contents/section0.xml"]);
     expect(xml).not.toContain("REPORT_SLOT_"); expect(xml).toContain(task.draft.title);
@@ -222,7 +222,7 @@ for (const [name, prompt] of [["vendor", "금융회사 외부 업체·클라우�
     await writeFile(info.outputPath(`${name}-proof.json`), JSON.stringify({ draft: task.draft, original_execution: task.execution,
       fresh_model_calls: 0, delivery: "recorded-result-replay", engine: "real rhwp", human_approval: false,
       automated_approval: true, exact_commands: (await (await request.get(`/api/report-tasks/${accepted.id}/preview`)).json()).plan.length, output_sha256: approved.output_sha256, saved_version: approved.saved_version }, null, 2));
-    await page.getByRole("button", { name: "보고서 편집하기", exact: true }).click();
+    // A clean save opens the regular editor automatically.
     await expect(page.getByRole("status")).toHaveText("저장 완료");
     await page.screenshot({ path: info.outputPath(`${name}-reopened.png`), fullPage: true });
   });

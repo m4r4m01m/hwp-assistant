@@ -213,6 +213,13 @@ class ReportDraft(ReportValue):
         rows["items"].update(minLength=1, maxLength=52)
         definitions["ReportDiagram"]["properties"]["steps"]["items"].update(minLength=1, maxLength=48)
         definitions["ReportSection"]["properties"]["paragraphs"]["items"].update(minLength=1, maxLength=800)
+        definitions["ReportSource"]["properties"]["title"]["description"] = (
+            "Verified document or page title only; do not append its URL or publication date."
+        )
+        definitions["ReportSource"]["properties"]["published"]["description"] = (
+            "One complete, source-supported publication date only; use an empty string if unknown. "
+            "Do not include update-history prose, an inferred day or a truncated date."
+        )
         schema["properties"]["limitations"]["items"].update(minLength=1, maxLength=400)
         return schema
 
@@ -283,6 +290,23 @@ def citation_style_for_scope(style, source_count):
     return ("STARS" if source_count <= 1 else "NOTE") if style == "AUTO" else style
 
 
+def limitation_source_ranges(value, source_ids):
+    """Resolve an explicit, fully known source range in a new plan only.
+
+    Require a nearby source label: ranges and single bare tokens may also name
+    products. Unknown, descending or incomplete ranges remain original text.
+    """
+    def expand(match):
+        if not re.search(r"(?:^|[^\w])(?:출처|자료|문서|근거)(?:\s*(?:번호|목록))?\s*[:：]?\s*$", value[:match.start()]):
+            return match[0]
+        first, last = int(match[1]), int(match[2])
+        identifiers = [f"S{number}" for number in range(first, last + 1)]
+        if not identifiers or not set(identifiers).issubset(source_ids):
+            return match[0]
+        return "".join(f"[{identifier}]" for identifier in identifiers)
+    return re.sub(r"(?<![A-Za-z0-9_\[/])S([1-9]\d?)\s*[~～–]\s*S([1-9]\d?)(?![A-Za-z0-9_\]/])", expand, value)
+
+
 def presentation_text(value, settings, source_ids, *, body=False, marks=None, marker_numbers=None, scope=None):
     scoped = "body_parenthetical_scope" in settings
     target_role = scope or parenthetical_role(value)
@@ -328,7 +352,7 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
     rendered_marks = {}
     def present(value, *, body=False, scope=None):
         marks = []
-        # New reference notes are numbered per logical paragraph/visual below,
+        # New reference notes are numbered per prose section/visual below,
         # before the plan is frozen or any HWPX command is applied.
         display = {**settings, "citation_style": "BRACKET_S"} if reference else settings
         result = presentation_text(value, display, source_ids, body=body, marks=marks, scope=scope)
@@ -340,10 +364,12 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
     blocks = [(draft.title, "title", False, {})]
     if reference:
         from .reference_report import BODY_SPACING_POLICY, TITLE_OVERFLOW_POLICY
+        from .report_rich import TABLE_LAYOUT_POLICY
         # New plans opt in explicitly; a previously frozen plan/layout is never
         # restyled merely because the application code has been updated.
         blocks[0][3]["body_spacing"] = BODY_SPACING_POLICY
         blocks[0][3]["title_overflow"] = TITLE_OVERFLOW_POLICY
+        blocks[0][3]["table_layout"] = TABLE_LAYOUT_POLICY
         # New plans explicitly own automatic wrapping. Replaying a frozen plan
         # without this marker retains its original manual line partition.
         blocks[0][3]["native_wrap"] = "reference-native-wrap-v1"
@@ -388,6 +414,8 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
                 prose = presentation_text(prose, {**settings, "citation_style": "BRACKET_S"}, source_ids, body=True, scope=label_role)
                 text, reference_role = body_item(prose, settings, counters, apply_numbered_markers=True)
                 item_meta = {"style_kind": reference_role, **({"parenthetical_role": label_role} if label_role else {})}
+                if label_role in ("square", "circle", "dash", "dot"):
+                    item_meta["note_body_role"] = label_role
                 # A numbered display of a square body item is still prose.
                 # Only an explicit subordinate title joins the native TOC.
                 if re.match(r"^[가-하]\.\s", prose):
@@ -417,18 +445,32 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
                     blocks.append((present(cell), "source", False, {**note_visual, **({"visual_id": f"{kind}-{number}", "visual_kind": kind,
                         "visual_row": y, "visual_column": x, "visual_columns": len(row)} if rich else {})}))
     if (draft.sources and not reference) or draft.limitations:
-        blocks.append(("확인 사항" if reference else "출처 및 확인 사항", "heading", True, {}))
+        limitation_heading = {"style_kind": enabled_role("heading", settings)} if reference else {}
+        blocks.append(("확인 사항" if reference else "출처 및 확인 사항", "heading", True, limitation_heading))
         page_chars = 0
         for s in ([] if reference else draft.sources):
             value = f"{citation_marker(s.id, settings.get('citation_style', 'BRACKET_S'))} {s.title} ({s.published or '발행일 미확인'}) · {s.url}"
             new_page = page_chars + len(value) > 1100
             page_chars = len(value) if new_page else page_chars + len(value)
             blocks.append((value, "source", new_page, {}))
+        limitation_counters = [0, 0, 0, 0]
         for p in draft.limitations:
-            value = "확인 사항: " + present(p)
+            metadata = {}
+            if reference:
+                # Limitations are report content too. Resolve the same enabled
+                # bullet roles as the sections rather than bypassing indents.
+                prose = limitation_source_ranges(p, source_ids)
+                if not re.match(r"^[□ㅇ○\-․]\s+", prose):
+                    prose = "□ " + prose
+                label_role = enabled_role(parenthetical_role(prose), settings)
+                prose = present(prose, body=True, scope=label_role)
+                value, limitation_role = body_item(prose, settings, limitation_counters, apply_numbered_markers=True)
+                metadata = {"style_kind": limitation_role, "parenthetical_role": label_role, "note_body_role": label_role}
+            else:
+                value = "확인 사항: " + present(p)
             new_page = page_chars + len(value) > 1100
             page_chars = len(value) if new_page else page_chars + len(value)
-            blocks.append((value, "body", new_page, {}))
+            blocks.append((value, "body", new_page, metadata))
     if draft.research_notice is not None:
         # Explicit frozen messages only: no inference from today's execution or
         # global defaults. Preserve all six original limitations and their text.
@@ -436,8 +478,9 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
         for warning in draft.research_notice.warnings:
             blocks.append(("확인 사항: " + warning.message, "body", False, {}))
     if reference:
-        from .report_notes import localize_notes
-        blocks = localize_notes(blocks, draft.sources, settings)
+        from .report_notes import localize_notes, TITLE_PRESENTATION_POLICY, SECTION_GROUPING_POLICY
+        blocks = localize_notes(blocks, draft.sources, settings, presentation_policy=TITLE_PRESENTATION_POLICY,
+                                grouping_policy=SECTION_GROUPING_POLICY)
     if concise and not reference:
         from .report_outline import split_bullet
         blocks = [(part, kind, forced and i == 0, meta) for text, kind, forced, meta in blocks
@@ -483,9 +526,14 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
                                   if scoped_labels and scope else emphasis)
                 if local_ids:
                     numbers = {identifier: n for n, identifier in enumerate(local_ids, 1)}
-                    local_emphasis = [{**item, "text": presentation_text(item["text"], settings, source_ids, marker_numbers=numbers)}
-                                     for item in local_emphasis if all(ref in numbers for ref in re.findall(r"\[(S\d+)\]", item["text"]))]
-                result[-1]["emphasis"] = [item for item in local_emphasis if item["text"] in chunk]
+                    if meta.get("table_common_source_id"):
+                        from .report_notes import without_source_tokens
+                        local_emphasis = [{**item, "text": without_source_tokens(item["text"], {meta["table_common_source_id"]})}
+                                          for item in local_emphasis if all(ref in numbers for ref in re.findall(r"\[(S\d+)\]", item["text"]))]
+                    else:
+                        local_emphasis = [{**item, "text": presentation_text(item["text"], settings, source_ids, marker_numbers=numbers)}
+                                         for item in local_emphasis if all(ref in numbers for ref in re.findall(r"\[(S\d+)\]", item["text"]))]
+                result[-1]["emphasis"] = [item for item in local_emphasis if item["text"] and item["text"] in chunk]
             if style_kind in ("square", "circle", "dash", "dot"):
                 result[-1]["style_kind"] = style_kind + ("_continuation" if index else "")
     return result

@@ -34,6 +34,21 @@ def generate(value, settings, progress=lambda value: None, active=lambda: True):
             'url': 'https://example.invalid/synthetic-reference', 'published': '2026-01-01'}]
         draft['limitations'] = [(f'기존 확인 사항 {index + 1}: ' + '합성 검수 항목의 사실과 조건을 보존하고 확인이 필요함. ' * 20)[:400]
             for index in range(6)]
+    if '[OUTLINE]' in value['prompt']:
+        # Fixed synthetic model output for the real outline/API/engine path.
+        # Do not derive headings from the request or silently repair a mismatch.
+        draft = {'title': '합성 자료 점검 대응 보고', 'summary': '□ 확인된 점검 현황과 제안한 조치를 구분함.',
+            'sections': [
+                {'heading': '개요', 'paragraphs': ['□ 자료 24건 중 보완 6건의 확인이 필요함. [S1]',
+                    'ㅇ 원본과 기존 승인 문서는 보존함. [S1]']},
+                {'heading': '자료 현황', 'paragraphs': ['□ 완료 18건과 보완 6건의 합계는 24건임. [S1]'],
+                 'tables': [{'caption': '점검 처리 현황 [S1]', 'columns': ['구분', '확인 결과'],
+                    'rows': [['완료 [S1]', '18건 [S1]'], ['보완 [S1]', '6건 [S1]']]}]},
+                {'heading': '대응', 'paragraphs': ['□ 보완 자료를 확인한 뒤 게시할 것을 제안함.']},
+                {'heading': '향후 계획', 'paragraphs': ['□ 다음 점검에서 보완 상태와 게시 조건을 확인할 필요가 있음.']}],
+            'sources': [{'id': 'S1', 'title': '합성 점검 근거', 'url': 'https://example.invalid/outline-evidence',
+                'published': '2026-10-26'}],
+            'limitations': ['실제 업무·모델 조사 결과가 아닌 합성 개요와 저장 경계 검수 자료임.'], 'emphasis': []}
     if value['prompt'].startswith('[STREAM]'):
         from app import report_stream
         from unittest.mock import patch
