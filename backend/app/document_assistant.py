@@ -1,4 +1,5 @@
 """Document conversations with frozen live-editor context and explicit edit proposals."""
+from .codex_runtime import allowed as codex_allowed, require_ready as require_codex_ready, reserve_usage as reserve_codex_usage
 import json
 import os
 import secrets
@@ -206,11 +207,13 @@ def install_document_assistant(app, check_lease):
     def provider_info(request: Request):
         try:
             provider, settings = configured_provider()
-            allowed = llm_allowed(request.state.user) if provider == "llm" else request.state.user == os.getenv("HWP_CODEX_USER", "local")
-            configured = provider != "codex" or bool(settings.executable)
+            allowed = llm_allowed(request.state.user) if provider == "llm" else codex_allowed(request.state.user)
+            from .capabilities import codex_feature
+            state = codex_feature(request.state.user) if provider == "codex" else None
+            configured = state["configured"] if state else True
             reason = "이 사용자는 서버의 AI 연결을 실행할 권한이 없습니다." if provider == "llm" else "이 서버에 연결된 Codex 계정의 사용자만 질문할 수 있습니다."
             return {"provider": provider, "model": settings.model, "configured": configured, "allowed": allowed and configured,
-                "reason": "설치된 Codex CLI가 필요합니다." if not configured else "" if allowed else reason}
+                "reason": state["message"] if state and not configured else "" if allowed else reason}
         except HTTPException as exc:
             return {"provider": os.getenv("HWP_DOCUMENT_ASSISTANT_PROVIDER", os.getenv("HWP_REWRITE_PROVIDER", "codex")),
                 "model": None, "configured": False, "allowed": False, "reason": str(exc.detail)}
@@ -237,10 +240,10 @@ def install_document_assistant(app, check_lease):
                 provider, settings = configured_provider()
                 if provider == "llm":
                     require_llm_access(request.state.user)
-                if provider == "codex" and request.state.user != os.getenv("HWP_CODEX_USER", "local"):
+                if provider == "codex" and not codex_allowed(request.state.user):
                     raise HTTPException(403, "이 서버에 연결된 Codex 계정의 사용자만 질문할 수 있습니다.")
-                if provider == "codex" and not settings.executable:
-                    raise HTTPException(503, "설치된 Codex CLI가 필요합니다.")
+                if provider == "codex":
+                    require_codex_ready(settings)
                 history = list(db.scalars(select(ConversationTurn).where(ConversationTurn.conversation_id == thread_id,
                     ConversationTurn.status == "ready").order_by(ConversationTurn.created_at.desc()).limit(10)))
                 payload = {**value.model_dump(mode="json"), "_assistant_contract": CONTRACT, "document_name": doc.name, "history": [
@@ -254,6 +257,8 @@ def install_document_assistant(app, check_lease):
                         "completed": False, "outcome": "running", "input_sha256": digest(encoded.encode()),
                         "history_turns": len(history), "_lease_sha256": digest(x_edit_session.encode())}), error="", created_at=time.time())
                 slot.reserve()
+                if provider == "codex":
+                    reserve_codex_usage(db, "assistant:" + str(value.id), request.state.user)
                 # Identical retries above only read the accepted request. A
                 # global-capacity rejection must not consume a user's quota.
                 pending_budget.enter_context(app.state.ai_budget.reserve(request.state.user))

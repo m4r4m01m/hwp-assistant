@@ -16,6 +16,7 @@ from .rewrite_contract import PROMPT_CONTRACT
 from .cli_process import run_process
 
 ROOT = Path(__file__).resolve().parents[2]
+BACKEND = Path(__file__).resolve().parents[1]
 
 PROMPT = ("This is a document wording task, not a coding task. Task ID: {task_id}. "
           "Use hwp_document.read_rewrite_task with this ID. Read its frozen generation_input, unsaved selection and instruction. "
@@ -44,7 +45,7 @@ class CodexSettings:
 def capture_settings():
     try:
         config = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "config.toml"
-        model = tomllib.loads(config.read_text(encoding="utf-8")).get("model") if config.exists() else None
+        model = os.getenv("HWP_CODEX_MODEL", "").strip() or (tomllib.loads(config.read_text(encoding="utf-8")).get("model") if config.exists() else None)
         if model is not None and (not isinstance(model, str) or not model.strip()):
             raise ValueError()
         api_url = os.getenv("HWP_CODEX_API_URL", "http://127.0.0.1:8000").rstrip("/")
@@ -76,8 +77,8 @@ def command(executable, workdir, settings=None):
     overrides = {
         "mcp_servers.hwp_document.command": sys.executable,
         "mcp_servers.hwp_document.args": ["-m", "app.rewrite_mcp"],
-        "mcp_servers.hwp_document.cwd": str(ROOT),
-        "mcp_servers.hwp_document.env.PYTHONPATH": str(ROOT / "backend"),
+        "mcp_servers.hwp_document.cwd": str(BACKEND),
+        "mcp_servers.hwp_document.env.PYTHONPATH": str(BACKEND),
         "mcp_servers.hwp_document.env_vars": ["HWP_API_URL", "HWP_API_TOKEN"],
         "mcp_servers.hwp_document.enabled_tools": ["read_rewrite_task", "submit_rewrite_candidates"],
         "mcp_servers.hwp_document.required": True,

@@ -54,19 +54,32 @@ services:
       HWP_AUTH_SESSION_MAX_PER_USER: ${HWP_AUTH_SESSION_MAX_PER_USER:-20}
       HWP_AI_REQUESTS_PER_MINUTE: ${HWP_AI_REQUESTS_PER_MINUTE:-20}
       HWP_LLM_ALLOWED_USERS: ${HWP_LLM_ALLOWED_USERS:-}
-      # No personal Codex credentials/CLI are copied into this deployment.
-      HWP_REWRITE_PROVIDER: llm
+      # Explicit owner mapping; signup never grants the personal Codex account.
+      HWP_REWRITE_PROVIDER: ${HWP_REWRITE_PROVIDER:-codex}
+      HWP_DOCUMENT_ASSISTANT_PROVIDER: ${HWP_DOCUMENT_ASSISTANT_PROVIDER:-codex}
+      HWP_CODEX_USER: ${HWP_CODEX_USER:-local}
+      HWP_CODEX_ALLOWED_USERS: ${HWP_CODEX_ALLOWED_USERS:-}
+      HWP_CODEX_MODEL: ${HWP_CODEX_MODEL:-}
+      HWP_CODEX_API_URL: http://127.0.0.1:8000
+      HWP_CODEX_CHECK_AUTH: "1"
+      HWP_CODEX_DAILY_REQUEST_LIMIT: ${HWP_CODEX_DAILY_REQUEST_LIMIT:-60}
+      CODEX_HOME: /home/app/.codex
+      HWP_ACCOUNTS_ENABLED: ${HWP_ACCOUNTS_ENABLED:-0}
+      HWP_REGISTRATION_ENABLED: ${HWP_REGISTRATION_ENABLED:-0}
+      HWP_REGISTRATION_MAX_USERS: ${HWP_REGISTRATION_MAX_USERS:-100}
+      HWP_GUEST_PASSWORD: ${HWP_GUEST_PASSWORD:-}
       LLM_PROVIDER: ${LLM_PROVIDER:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-}
       LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-60}
-      HWP_REWRITE_MAX_ACTIVE: ${HWP_REWRITE_MAX_ACTIVE:-2}
+      HWP_REWRITE_MAX_ACTIVE: ${HWP_REWRITE_MAX_ACTIVE:-1}
       SESSION_TTL_SECONDS: "120"
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHONUNBUFFERED: "1"
     volumes:
       - documents:/data/files
+      - codex-state:/home/app/.codex
     networks: [app, data]
     depends_on:
       db:
@@ -117,3 +130,7 @@ volumes:
   documents:
     external: true
     name: hwp-assistant-prod-documents
+  # Credentials are private runtime state, never part of the web image/artifacts.
+  codex-state:
+    external: true
+    name: hwp-assistant-prod-codex-state

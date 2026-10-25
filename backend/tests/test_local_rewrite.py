@@ -24,6 +24,7 @@ def completion(value=PAIR, finish="stop"):
 
 @pytest.fixture
 def local_jobs(secured, monkeypatch):
+    monkeypatch.setenv("HWP_CODEX_EXECUTABLE", "synthetic-codex-not-executed")
     c, app, _, _ = secured
     monkeypatch.setenv("HWP_REWRITE_PROVIDER", "llm")
     monkeypatch.setenv("LLM_PROVIDER", "openai-compatible")

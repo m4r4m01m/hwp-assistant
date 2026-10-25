@@ -9,7 +9,7 @@ import secrets
 import subprocess
 from config import DEFAULT_ALLOWED_HOSTS
 
-VOLUMES = ("hwp-assistant-prod-metadata", "hwp-assistant-prod-documents")
+VOLUMES = ("hwp-assistant-prod-metadata", "hwp-assistant-prod-documents", "hwp-assistant-prod-codex-state")
 
 
 def settings(owner):
@@ -29,7 +29,11 @@ def settings(owner):
         "HWP_IMAGE_PREFIX=ghcr.io/m4r4m01m/hwp-assistant",
         "HWP_IMAGE_TAG=",
         "LLM_PROVIDER=", "LLM_BASE_URL=", "LLM_API_KEY=", "LLM_MODEL=",
-        "LLM_TIMEOUT_SECONDS=60", "HWP_REWRITE_MAX_ACTIVE=2", "",
+        "LLM_TIMEOUT_SECONDS=60", "HWP_REWRITE_MAX_ACTIVE=1",
+        "HWP_CODEX_USER=" + owner, "HWP_CODEX_ALLOWED_USERS=", "HWP_CODEX_MODEL=",
+        "HWP_CODEX_DAILY_REQUEST_LIMIT=60", "HWP_REWRITE_PROVIDER=codex",
+        "HWP_DOCUMENT_ASSISTANT_PROVIDER=codex", "HWP_ACCOUNTS_ENABLED=0",
+        "HWP_REGISTRATION_ENABLED=0", "HWP_REGISTRATION_MAX_USERS=100", "HWP_GUEST_PASSWORD=", "",
     ])
 
 
@@ -56,7 +60,7 @@ def main():
     for volume in VOLUMES:
         subprocess.run(["docker", "volume", "create", "--label", "app=hwp-assistant-prod", volume],
                        check=True, stdout=subprocess.DEVNULL)
-    print(f"Created {path} (mode 600) and the two production volumes.")
+    print(f"Created {path} (mode 600) and the three production volumes.")
     print(f"Login user: {args.owner}. Read that user's token locally from the private env file.")
     print("No application or model has been started. Keep a protected copy of the env file.")
 

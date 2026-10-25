@@ -2,6 +2,8 @@
 import os
 from sqlalchemy import select, update
 from .db import Base, Access, Conversation, Document, VisualStandard, transaction
+from .codex_runtime import CodexUsage  # Durable request admission, no prompts.
+from .accounts import UserAccount  # Additive password accounts; no document migration.
 from .ai_requests import AIRequest  # Register additive reservation table before create_all.
 
 

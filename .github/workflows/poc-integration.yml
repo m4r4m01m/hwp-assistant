@@ -1,0 +1,102 @@
+name: PoC accounts and Codex runtime
+on:
+  pull_request:
+    branches: [main]
+    paths: ['backend/**', 'frontend/**', 'scripts/**', 'deploy/**', 'compose*.yaml', '.github/workflows/poc-integration.yml']
+permissions:
+  contents: read
+concurrency:
+  group: poc-integration-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  container-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    env:
+      HWP_IMAGE_TAG: ${{ github.sha }}
+      HWP_ENV_FILE: /tmp/hwp-poc-${{ github.run_id }}/production.env
+      HWP_CI_CERT_DIR: /tmp/hwp-poc-${{ github.run_id }}/certs
+      HWP_ACCOUNT_RECEIPT: /tmp/hwp-poc-${{ github.run_id }}/account-receipt.json
+      PLAYWRIGHT_BROWSERS_PATH: /tmp/hwp-poc-browsers-${{ github.run_id }}
+      HWP_ACCOUNT_DEPLOY_TEST: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - name: Build API including pinned Codex and MCP (never login in CI)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: ghcr.io/m4r4m01m/hwp-assistant-api:${{ github.sha }}
+          build-args: HWP_REVISION=${{ github.sha }}
+          cache-from: type=gha,scope=hwp-api
+      - name: Offline CLI and app-server protocol smoke (no model)
+        run: docker run --rm --network none --read-only --tmpfs /tmp:rw,nosuid,size=128m ghcr.io/m4r4m01m/hwp-assistant-api:${{ github.sha }} python -m app.codex_smoke
+      - name: Build web using the existing native-core cache (no publication)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: frontend/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: ghcr.io/m4r4m01m/hwp-assistant-web:${{ github.sha }}
+          build-args: |
+            HWP_PUBLIC_BASE_PATH=/hwp-assistant/
+            HWP_NGINX_CONF=deploy/nginx.hwp-assistant.conf
+            HWP_REVISION=${{ github.sha }}
+          cache-from: type=gha,scope=hwp-web
+      - name: Disposable PostgreSQL, accounts and trusted HTTPS
+        run: |
+          python3 scripts/deploy/init.py --env-file "$HWP_ENV_FILE" --owner ci
+          python3 - <<'PY'
+          import os,secrets
+          from pathlib import Path
+          p=Path(os.environ['HWP_ENV_FILE'])
+          s=p.read_text().replace('HWP_ACCOUNTS_ENABLED=0','HWP_ACCOUNTS_ENABLED=1').replace('HWP_REGISTRATION_ENABLED=0','HWP_REGISTRATION_ENABLED=1').replace('HWP_GUEST_PASSWORD=\n','HWP_GUEST_PASSWORD='+secrets.token_hex(20)+'\n')
+          p.write_text(s)
+          PY
+          mkdir -p "$HWP_CI_CERT_DIR"
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -keyout "$HWP_CI_CERT_DIR/key.pem" -out "$HWP_CI_CERT_DIR/cert.pem" -subj '/CN=localhost' -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1' 2>/dev/null
+          docker compose --env-file "$HWP_ENV_FILE" -f compose.deploy.yaml -f compose.ci-gateway.yaml config --quiet
+          docker compose --env-file "$HWP_ENV_FILE" -f compose.deploy.yaml -f compose.ci-gateway.yaml up -d --no-build --wait --wait-timeout 180
+          python3 scripts/deploy/smoke.py --url https://localhost:24443/hwp-assistant/ --insecure-localhost --env-file "$HWP_ENV_FILE" --upload-sample
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.15.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Actual browser, immutable HWPX and pre-login cache reuse
+        env:
+          HWP_DEPLOY_ENV_FILE: ${{ env.HWP_ENV_FILE }}
+        run: |
+          cd frontend
+          npm ci --no-audit --fund=false
+          npx playwright install --with-deps --only-shell chromium
+          sudo apt-get install -y --no-install-recommends libnss3-tools
+          bash ../scripts/deploy/run-browser-checks.sh
+      - name: Restart preserves password sessions, isolated documents and stored bytes
+        run: |
+          docker compose --env-file "$HWP_ENV_FILE" -f compose.deploy.yaml -f compose.ci-gateway.yaml restart api
+          docker compose --env-file "$HWP_ENV_FILE" -f compose.deploy.yaml -f compose.ci-gateway.yaml up -d --no-build --wait --wait-timeout 180
+          python3 scripts/deploy/smoke.py --url https://localhost:24443/hwp-assistant/ --insecure-localhost --env-file "$HWP_ENV_FILE" --verify-receipt
+          python3 scripts/deploy/check-account-restart.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: poc-browser-evidence
+          path: |
+            frontend/test-results/**/accounts-proof.json
+            frontend/test-results/**/guest-real-editor.png
+          if-no-files-found: ignore
+          retention-days: 7
+      # Only disposable hosted runner containers. No volume removal or production action.
+      - name: Stop disposable stack
+        if: always()
+        run: |
+          if test -f "$HWP_ENV_FILE"; then
+            docker compose --env-file "$HWP_ENV_FILE" -f compose.deploy.yaml -f compose.ci-gateway.yaml stop || true
+          fi

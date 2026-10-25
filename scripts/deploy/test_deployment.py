@@ -103,11 +103,13 @@ class ProductionSettingsTests(unittest.TestCase):
     def test_compose_boundaries(self):
         text = (ROOT / "compose.deploy.yaml").read_text()
         self.assertIn('"127.0.0.1:23000:80"', text)
-        self.assertEqual(text.count("external: true"), 2)
+        self.assertEqual(text.count("external: true"), 3)
         self.assertNotIn('"5432:5432"', text)
         self.assertNotIn('"8000:8000"', text)
         self.assertIn('command: ["python", "-m", "app.production"]', text)
-        self.assertIn('HWP_REWRITE_PROVIDER: llm', text)
+        self.assertIn('HWP_REWRITE_PROVIDER: ${HWP_REWRITE_PROVIDER:-codex}', text)
+        self.assertIn('codex-state:/home/app/.codex', text)
+        self.assertIn('HWP_CODEX_CHECK_AUTH: "1"', text)
         self.assertIn('${HWP_ALLOWED_HOSTS:-' + DEFAULT_ALLOWED_HOSTS + '}', text)
         for key, default in (("HWP_AUTH_SESSION_TTL_SECONDS", "28800"),
                              ("HWP_AUTH_SESSION_IDLE_SECONDS", "1800"),
