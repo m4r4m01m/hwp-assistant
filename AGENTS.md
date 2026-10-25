@@ -63,7 +63,7 @@ npm run engine
 npm run build
 ```
 
-- Engine build requires the documented Docker/Rust toolchain; `npm ci` alone does not prepare it. Follow [developer setup](docs/developer-quickstart.md) / [engine build](docs/engine-empty-fill-fix.md). A diagnostic build must be labeled as such and must not replace the release core. The older downloadable developer kit may not match the current bridge.
+- Engine build requires the documented Docker/Rust toolchain; `npm ci` alone does not prepare it. Follow [developer setup](docs/developer-quickstart.md) / [engine build](docs/engine-empty-fill-fix.md). A diagnostic build must be labeled as such and must not replace the release core. The local-cli-ready branch pins a matching diagnostic developer kit; preserve its bridge/archive/asset identity checks. Older kits may not match.
 - `npm run test:e2e` (in `frontend/`) needs the real engine, API at `8000` and Vite at `5173` running; mocked `test:ui` starts its own isolated server. Do not confuse these results.
 - Development Compose: `docker compose up --build`, UI `http://127.0.0.1:8080`. It is a separate local deployment, not a production update.
 - For deployment changes run the Python checks named in [.github/workflows/hwp-deploy.yml](.github/workflows/hwp-deploy.yml) and [deployment-only checks](.github/workflows/deploy-only-checks.yml); frontend/build changes also need the Node regressions in those workflows. Real accounts/PostgreSQL/HTTPS/restart/engine checks are in [.github/workflows/poc-integration.yml](.github/workflows/poc-integration.yml).

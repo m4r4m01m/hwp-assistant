@@ -36,15 +36,15 @@ try {
     }
     $node = (Get-Command node).Source
     $python = Join-Path $projectRoot '.venv/Scripts/python.exe'
-    $codexCommand = Get-Command codex -ErrorAction SilentlyContinue
-    $codexExecutable = if ($env:HWP_CODEX_EXECUTABLE) { $env:HWP_CODEX_EXECUTABLE } elseif ($codexCommand) { $codexCommand.Source } else { '' }
-    if ($codexExecutable) {
-        # Login status does not start a model turn. Do not retain stdout/auth data.
-        & (Get-Command python).Source (Join-Path $PSScriptRoot 'check-codex-login.py') $codexExecutable
-        if ($LASTEXITCODE -eq 0) { Write-Host '[HWP] Codex credentials found. Confirm ChatGPT sign-in in AI connection settings. No AI request was made.' }
-        else { Write-Host '[HWP] Codex login is required for AI: run codex login using your own ChatGPT account.' }
-    } else {
+    # Resolve Codex with the same Python PATH rules as the backend, including npm's .cmd shim.
+    # Login status does not start a model turn. Do not retain stdout/auth data.
+    & (Get-Command python).Source (Join-Path $PSScriptRoot 'check-codex-login.py')
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host '[HWP] Codex credentials found. Confirm ChatGPT sign-in in AI connection settings. No AI request was made.'
+    } elseif ($LASTEXITCODE -eq 2) {
         Write-Host '[HWP] Codex CLI not found. Editing works; AI needs Codex CLI + your own ChatGPT login. See docs/developer-quickstart.md.'
+    } else {
+        Write-Host '[HWP] Codex status unavailable. Check the CLI executable and run codex login using your own ChatGPT account.'
     }
     if ($CheckOnly) {
         Write-Host '[HWP] Prerequisite check complete. No installation or server startup.'

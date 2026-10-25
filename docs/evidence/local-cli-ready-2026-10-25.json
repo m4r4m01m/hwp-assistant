@@ -1,0 +1,105 @@
+{
+  "date_kst": "2026-10-25",
+  "result": "passed",
+  "branch": "codex/local-cli-ready-2026-10-25",
+  "application_base_commit": "a013b8633e2d488d0c1a4799f9698ec310bcb92d",
+  "scope": "Reproducible Windows local setup from the verified QA application; unfinished editor-design work is preserved outside this branch.",
+  "environment": {
+    "os": "Windows",
+    "node": "24.15.0",
+    "python": "3.14.4",
+    "codex_cli": "0.163.0-alpha.10.2",
+    "codex_distribution_tested": "desktop-bundled CLI executable, invoked as a process",
+    "browser": "Chrome via Playwright 1.56.1"
+  },
+  "engine": {
+    "repository": "m4r4m01m/hwp-assistant",
+    "tag": "developer-engine-2026-10-25-local-cli",
+    "asset": "hwp-assistant-developer-engine-0.8.6-20261025-local-cli.zip",
+    "sha256": "0fd6a562eb0387c68d7b00eb2d94d410233bc6f8340b59463904a5a3f4302168",
+    "diagnostic": true,
+    "engine_commit": "e8800c8def63449808a4092798442652ed460552",
+    "wasm_sha256": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0",
+    "bridge_sha256": "0ba18d4cf13fdc586b02384f497f87a735debf657709835301dc5a4dba6e096f",
+    "asset_id": 674869198,
+    "release_url": "https://github.com/m4r4m01m/hwp-assistant/releases/tag/developer-engine-2026-10-25-local-cli",
+    "archive_bytes": 37244858,
+    "static_files_verified": 82,
+    "fresh_default_download_verified": true,
+    "pack_unpack_roundtrip_verified": true
+  },
+  "checks": {
+    "fresh_python_venv_locked_install": "passed",
+    "fresh_npm_ci": "passed",
+    "download_security_tests": 6,
+    "kit_archive_guard_tests": 4,
+    "cli_precheck_tests": 7,
+    "desktop_launcher_fixture_checks": 20,
+    "typescript": "passed",
+    "frontend_diagnostic_build": "passed",
+    "default_launcher_fresh_cache": "passed; downloaded the published asset with no EnginePublic or archive override",
+    "served_entry_graph_files_matched": 23,
+    "first_smoke_owned_process_cleanup": "passed; no remaining listeners",
+    "cached_restart": "passed",
+    "real_rhwp_scenarios_passed": 1,
+    "real_rhwp_scenario": "create, Korean edit, save, original upload, edit version, download and reopen; original bytes unchanged",
+    "actual_model_calls": 0,
+    "human_visual_review": false,
+    "live_cli_account_probe": "chatgpt",
+    "live_features": [
+      {
+        "id": "reports",
+        "configured": true,
+        "allowed": true
+      },
+      {
+        "id": "rewrite",
+        "configured": true,
+        "allowed": true
+      },
+      {
+        "id": "document_assistant",
+        "configured": true,
+        "allowed": true
+      },
+      {
+        "id": "chat",
+        "configured": false,
+        "allowed": true
+      },
+      {
+        "id": "review",
+        "configured": false,
+        "allowed": true
+      }
+    ]
+  },
+  "commands": [
+    "python -m venv .venv",
+    ".venv/Scripts/python -m pip install -r backend/requirements-mcp.lock.txt",
+    "npm ci (frontend)",
+    "python scripts/developer-download.test.py",
+    "node --test scripts/developer-engine-kit.test.mjs",
+    "python scripts/check-codex-login.test.py",
+    "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/desktop-launch.test.ps1",
+    "Start HWP Assistant.cmd -NoBrowser -Port 15320 -ApiPort 18320 -SmokeSeconds 5",
+    "Start HWP Assistant.cmd -NoBrowser -Port 15320 -ApiPort 18320 -SmokeSeconds 60",
+    "HWP_E2E_URL=http://127.0.0.1:15320 npx playwright test tests/engine.spec.ts -g \"REAL rhwp: create, Korean edit\" --workers 1 (frontend)"
+  ],
+  "preservation": {
+    "original_checkout_switched_or_reset": false,
+    "unfinished_design_work_included": false,
+    "existing_app_restarted": false,
+    "real_user_data_or_credentials_published": false,
+    "existing_release_replaced": false,
+    "main_or_production_deployed": false
+  },
+  "limits": [
+    "Diagnostic engine, not an optimized production release; no Docker/WSL build or remote deployment was performed.",
+    "Fresh worktree with new dependencies and engine cache was tested on this Windows host; no second physical PC or offline installation.",
+    "Standalone npm CLI model/protocol compatibility was not tested; Windows npm .cmd discovery uses a synthetic fixture.",
+    "CLI account/read confirms ChatGPT authentication, not a successful report generation/model turn.",
+    "No actual model generation or Hancom retest; previous application tests are recorded separately in local-main-sync-2026-10-25.json.",
+    "Fresh clones start with an empty library. Existing user documents, private data and credentials are intentionally not Git artifacts."
+  ]
+}

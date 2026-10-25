@@ -1,5 +1,13 @@
 # HWP Assistant 프로젝트 컨텍스트
 
+## 로컬 CLI 실행 분기 — 2026-10-25
+
+사용자의 요청으로 디자인 적용·AI 디자인 추천 작업을 중단하고, 검증된 앱 `a013b8633e2d488d0c1a4799f9698ec310bcb92d`에서 **`codex/local-cli-ready-2026-10-25`**를 분기했다. 작성 중이던 원래 QA checkout과 사용자 문서함·실행 서비스는 보존했다. 이 분기에는 미완성 디자인 기능이 포함되지 않는다.
+
+현재 bridge와 일치하는 Windows native **diagnostic** 엔진을 별도 prerelease로 게시하고 개발 lock의 자산 ID·해시를 고정했다. 새 worktree의 새 Python/npm 설치, 기본 경로의 release 다운로드·82개 파일 검증·TypeScript/빌드·23개 제공 파일 해시, 캐시 재실행, 실제 rhwp의 생성·한글 편집·저장·원본 재업로드·버전 편집·다운로드·재열기를 확인했다. 설치 관련 시험 6+4+7개와 실행기 식별/보호 20개가 통과했다. npm Windows CLI의 PowerShell shim 때문에 로그인 여부를 잘못 안내할 수 있던 사전 확인도 백엔드와 같은 실행 파일 탐색으로 맞췄다.
+
+CLI `app-server`의 ChatGPT 로그인 및 보고서/문단 수정/문서 대화 configured·allowed를 확인했다. 실제 모델 호출은 0회이며, 이 PC의 데스크톱 배포 CLI `0.163.0-alpha.10.2`를 프로세스로 실행했다. 독립 npm CLI 버전의 모델/프로토콜 호환·다른 물리 PC·폐쇄망·한컴·최적화 Docker 배포를 검증한 것은 아니다. 시작할 때 모델을 호출하지 않으며 데스크톱 UI를 요청 전달 경로로 사용하지 않는다. [실행·CLI 인수인계](local-cli-ready-2026-10-25.md), [검증 근거](evidence/local-cli-ready-2026-10-25.json).
+
 ## 로컬 QA 동기화 — 2026-10-25 추가 관측
 
 Windows QA 브랜치 `codex/local-ui-qa-2026-10-22`를 `e0e49f7`에서 main `49dda2c8de06288111216a61ba720dc148834257`까지 fast-forward했다. QA 작업은 이미 main에 포함되어 있었으며 이력을 재작성하지 않았다. 아래의 클라우드 기록과 별개로, 로컬 집중 백엔드 고유 125개 통과·POSIX 전용 3개 제외, TypeScript, 프런트 단위 12개, 모의 UI 19개, 실제 rhwp 3개 시나리오를 확인했다. 새 Codex MCP 테스트의 Linux 경로 문자열 가정을 TOML 해석으로 수정하고 관련 5개를 재검증했다. 전체 회귀나 실제 모델 호출을 새로 수행한 것은 아니다.
