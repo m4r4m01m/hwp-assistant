@@ -1,0 +1,22 @@
+name: PoC source snapshot (temporary)
+on:
+  push:
+    branches: [feat/codex-accounts-prewarm-2026-10-25]
+    paths: [.github/workflows/poc-source-snapshot.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Archive tracked source only (no credentials or runtime data)
+        run: git archive --format=tar HEAD > "$RUNNER_TEMP/hwp-source.tar"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hwp-source
+          path: ${{ runner.temp }}/hwp-source.tar
+          retention-days: 1
