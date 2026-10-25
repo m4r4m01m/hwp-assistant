@@ -72,7 +72,9 @@ test("REAL rhwp standard layout: word wrapping, space compression and tracking p
     await group(page, field("line_break_unit").group);
     const original = await snapshot(page);
     await changed(page, () => control("line_break_unit").selectOption("WORD"), s => s.line_break_unit === "WORD");
-    await expect(page.locator("#standard-help-line_break_unit")).toContainText("띄어쓰기");
+    await expect(control("line_break_unit")).toHaveValue("WORD");
+    await expect(page.locator("#standard-help-line_break_unit")).toContainText("한글 어절·영문 단어를 가급적 같은 줄");
+    await expect(page.locator("#standard-help-line_break_unit")).toContainText("남은 폭에 들어가지 않으면 다음 줄");
     await expect(page.locator("#standard-help-line_break_unit")).not.toContainText("기준서");
     await changed(page, () => control("line_space_policy").selectOption("TIGHTER"), s => s.line_space_policy === "TIGHTER");
     await expect(control("line_space_policy").locator("option:checked")).toContainText("20%");

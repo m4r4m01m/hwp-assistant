@@ -338,8 +338,8 @@ def test_codex_protocol_disables_tools_and_preserves_json_contract(monkeypatch, 
             if "id" in item: self.events.append({"id": item["id"], "result": results[method]})
             if method == "turn/start":
                 if mode == "tool":
-                    self.events.append({"method": "item/started", "params": {"item": {"type": "commandExecution"}}})
-                self.events.extend([{"method": "item/completed", "params": {"threadId": "thread", "turnId": "turn", "item": {"type": "agentMessage", "text": '{"answer":"합성 답변","rewrite_instruction":null}'}}},
+                    self.events.append({"method": "item/started", "params": {"threadId": "thread", "turnId": "turn", "item": {"id": "tool", "type": "commandExecution"}}})
+                self.events.extend([{"method": "item/completed", "params": {"threadId": "thread", "turnId": "turn", "item": {"id": "answer", "type": "agentMessage", "text": '{"answer":"합성 답변","rewrite_instruction":null}'}}},
                     {"method": "turn/completed", "params": {"threadId": "thread", "turn": {"id": "turn", "status": "completed"}}}])
         def receive(self): return self.events.pop(0)
     monkeypatch.setattr(assistant_runner, "ReportRpc", Rpc)

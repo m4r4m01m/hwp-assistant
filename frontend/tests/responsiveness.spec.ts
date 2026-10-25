@@ -31,6 +31,7 @@ async function mockApi(page: Page, handler?: Handler) {
     if (path === "/report-templates") return json(route, { items: [{ id: "standard-business", revision: 1, values: { name: "기본 보고서", description: "합성 테스트 기준", writing_criteria: [] } }], default_id: "standard-business" });
     if (path === "/document-standard") return json(route, { id: "standard", name: "합성 기준", reference_url: "api/reference", reference_sha256: "a".repeat(64) });
     if (path === "/template-market") return json(route, { items: [], total: 0, categories: [] });
+    if (path === "/editor-designs") return json(route, { designs: [], standards: [] });
     return json(route, { detail: `Unmocked test request: ${path}` }, 404);
   });
 }
@@ -363,6 +364,7 @@ test("MOCK UI: template first page appears early; cache reuse still rechecks fil
   });
   await library(page);
   await page.getByRole("button", { name: "양식 보관함", exact: true }).click();
+  await page.getByText("문서 전체 양식", { exact: true }).click();
   await page.getByRole("button", { name: "기존 문서 양식", exact: true }).click();
   const select = async (name: string) => page.locator(".market-card").filter({ has: page.getByRole("heading", { name, exact: true }) }).getByRole("button", { name: "양식 보기", exact: true }).click();
   await select("양식 A");
@@ -411,6 +413,7 @@ test("MOCK UI: removing the last favorite on a later page returns to the remaini
   });
   await library(page);
   await page.getByRole("button", { name: "양식 보관함", exact: true }).click();
+  await page.getByText("문서 전체 양식", { exact: true }).click();
   await page.getByRole("button", { name: "기존 문서 양식", exact: true }).click();
   await page.getByRole("checkbox", { name: "즐겨찾기만", exact: true }).check();
   await page.getByRole("button", { name: "다음", exact: true }).click();

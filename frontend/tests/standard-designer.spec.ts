@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import { unzipSync, strFromU8 } from "fflate";
 
 const hash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+const sameField = (actual: any, original: any, key: string) =>
+  Object.hasOwn(actual, key) === Object.hasOwn(original, key) && actual[key] === original[key];
 
 test("REAL rhwp comparison: align inserted cover TOC and word anchored note labels", async ({ page, request }, info) => {
   test.setTimeout(240000);
@@ -70,7 +72,9 @@ test("REAL rhwp comparison: default split precise labels and space compression",
   await expect(page.locator('.comparison-highlight rect[data-setting-key="body_parenthetical_labels"]')).toHaveCount(0);
   await page.getByRole('button', { name: '한 쪽 보기', exact: true }).click();
   await changeSharedSample(page, () => setCatalogField(page, catalog, 'line_break_unit', 'WORD'), s => s.line_break_unit === 'WORD');
-  await changeSharedSample(page, () => setCatalogField(page, catalog, 'line_space_policy', 'NONE'), s => s.line_space_policy === 'NONE');
+  // The optional original value is already displayed as NONE. Selecting it
+  // again is deliberately a no-op, covered by the layout baseline test.
+  await expect(page.getByLabel(fieldLabel(catalog, 'line_space_policy'), { exact: true })).toHaveValue('NONE');
   const none = await sharedSampleSnapshot(page, observed);
   await changeSharedSample(page, () => setCatalogField(page, catalog, 'line_space_policy', 'TIGHTER'), s => s.line_space_policy === 'TIGHTER');
   const compressed = await sharedSampleSnapshot(page, observed);
@@ -115,6 +119,7 @@ test("REAL rhwp standard management: compare clamp cascade custom composition an
   const observed = await observeSharedSample(page);
   await openDesigner(page);
   const catalog = await (await request.get('/api/visual-standards')).json();
+  const originalSettings = observed.requests.find(item => item.path.endsWith('/sample-preview'))!.body.settings;
   await changeSharedSample(page, () => setCatalogField(page, catalog, 'line_break_unit', 'CHARACTER'), s => s.line_break_unit === 'CHARACTER');
   const character = await sharedSampleSnapshot(page, observed);
   await changeSharedSample(page, () => setCatalogField(page, catalog, 'line_break_unit', 'WORD'), s => s.line_break_unit === 'WORD');
@@ -136,7 +141,9 @@ test("REAL rhwp standard management: compare clamp cascade custom composition an
   await expect(page.getByLabel(fieldLabel(catalog,'body_tracking_percent'),{exact:true})).toHaveValue('50');
   await changeSharedSample(page, async () => { await setCatalogField(page, catalog, 'body_tracking_percent', -99); await page.getByLabel(fieldLabel(catalog,'body_tracking_percent'),{exact:true}).blur(); }, s => s.body_tracking_percent === -20);
   await expect(page.getByLabel(fieldLabel(catalog,'body_tracking_percent'),{exact:true})).toHaveValue('-20');
-  await changeSharedSample(page, () => setCatalogField(page,catalog,'body_tracking_percent',0), s => s.body_tracking_percent === 0);
+  // Restoring the optional default must restore the baseline's absent key too.
+  await changeSharedSample(page, () => setCatalogField(page,catalog,'body_tracking_percent',0), s => sameField(s, originalSettings, 'body_tracking_percent'));
+  await expect(page.getByLabel(fieldLabel(catalog,'body_tracking_percent'),{exact:true})).toHaveValue('0');
   await openGroup(page, '문단 구분 · 4단계');
   await changeSharedSample(page, () => page.getByLabel('문단 구분 · 4단계 사용',{exact:true}).uncheck(), s => s.enabled_heading_roles === 'heading,subheading,minor_heading');
   for (const n of [4,5,6]) await expect(page.getByLabel(`문단 구분 · ${n}단계 사용`,{exact:true})).not.toBeChecked();
@@ -173,7 +180,8 @@ test("REAL rhwp standard management: compare clamp cascade custom composition an
   await page.getByLabel('디자인 이름',{exact:true}).fill('검수용 ㅇ 들여쓰기 표');
   await page.getByRole('button',{name:'디자인 저장',exact:true}).click();
   await expect(page.getByRole('status').filter({hasText:'디자인을 보관함에 저장했습니다.'})).toBeVisible();
-  await changeSharedSample(page, () => setCatalogField(page,catalog,'table_anchor_role','PAGE'), s => s.table_anchor_role === 'PAGE');
+  await changeSharedSample(page, () => setCatalogField(page,catalog,'table_anchor_role','PAGE'), s => sameField(s, originalSettings, 'table_anchor_role'));
+  await expect(page.getByLabel(fieldLabel(catalog,'table_anchor_role'),{exact:true})).toHaveValue('PAGE');
   await changeSharedSample(page, () => page.getByRole('button',{name:'현재 표준에 적용',exact:true}).click(), s => s.table_anchor_role === 'circle');
   await registerButton(page).click();
   await page.getByLabel('표준 이름',{exact:true}).fill('구성 조절 검수 표준');
@@ -197,9 +205,18 @@ test("REAL rhwp standard management: compare clamp cascade custom composition an
   expect((await (await request.get(`/api/visual-standards/${replacement.id}`)).json()).id).toBe(replacement.id);
   await documentListButton(page).click();
   await page.getByRole('button',{name:'양식 보관함',exact:true}).click();
-  await expect(page.getByText('검수용 ㅇ 들여쓰기 표',{exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'삭제',exact:true}).click();
+  await page.getByText('저장한 디자인 관리',{exact:true}).click();
+  const designLibrary = page.getByRole('region',{name:'디자인 보관함',exact:true});
+  await expect(designLibrary.getByText('검수용 ㅇ 들여쓰기 표',{exact:true})).toBeVisible();
+  await designLibrary.getByRole('button',{name:'삭제',exact:true}).click();
+  const deletion = page.waitForResponse(response => response.request().method() === 'DELETE' &&
+    new URL(response.url()).pathname.startsWith('/api/design-fragments/'));
   await page.getByRole('alertdialog',{name:'디자인 삭제'}).getByRole('button',{name:'삭제 확인',exact:true}).click();
+  expect((await deletion).ok()).toBe(true);
+  const remainingFragments = await (await request.get('/api/design-fragments')).json();
+  const remainingCatalog = await (await request.get('/api/editor-designs')).json();
+  expect(remainingFragments.items.some((item:any) => item.name === '검수용 ㅇ 들여쓰기 표')).toBe(false);
+  expect(remainingCatalog.designs.some((item:any) => item.name === '검수용 ㅇ 들여쓰기 표')).toBe(false);
   await expect(page.getByText('검수용 ㅇ 들여쓰기 표',{exact:true})).toHaveCount(0);
   await writeFile(info.outputPath('management-proof.json'),JSON.stringify({real_engine:true,actual_model_calls:0,character_lines:lines[0],word_lines:lines[1],table_boxes:tableBoxes,custom_receipt:custom.receipt,first_id:first.id,replacement_id:replacement.id},null,2));
 });
@@ -429,6 +446,7 @@ test("REAL rhwp standard designer: grouped composition merges disabled deep head
   await openDesigner(page);
   const catalog = await (await request.get("/api/visual-standards")).json();
   const original = await sharedSampleSnapshot(page, observed);
+  const originalSettings = observed.requests.find(item => item.path.endsWith('/sample-preview'))!.body.settings;
   await expect(page.locator('[data-setting-category="목차"] > summary')).toContainText("없음");
   await openGroup(page, "목차 제목");
   await expect(page.locator('[data-setting-group="목차 제목"]')).toContainText("현재 구성에 목차가 없습니다");
@@ -445,7 +463,8 @@ test("REAL rhwp standard designer: grouped composition merges disabled deep head
   expect(references.receipt.sample_regions.some((region: any) => region.role === "source")).toBe(true);
   expectSharedSampleFacts(references);
   await changeSharedSample(page, () => setCatalogField(page, catalog, "reference_list", "LOCAL"),
-    settings => settings.reference_list === "LOCAL");
+    settings => sameField(settings, originalSettings, "reference_list"));
+  await expect(page.getByLabel(fieldLabel(catalog, "reference_list"), { exact: true })).toHaveValue("LOCAL");
   await expect(page.locator('[data-setting-group="참고·출처"] .standard-absence')).toHaveText("없음");
   await openGroup(page, "문단 구분 · 5단계");
   await expect(page.locator('[data-setting-group="문단 구분 · 5단계"] .standard-category-help')).toContainText("각각 설명할 내용이 충분할 때");
@@ -1750,11 +1769,15 @@ test("REAL rhwp standard designer: original rules, three presets, full reference
     return { ...rendered, preview_sha256: await page.locator(".standard-preview-pages").getAttribute("data-preview-sha256") };
   };
   const customized = { ...catalog.defaults, table_header_fill: "#DDEFE5" };
-  await settle(customized, () => setCatalogField(page, catalog, "table_header_fill", "#DDEFE5"));
+  let rendered = await settle(customized, () => setCatalogField(page, catalog, "table_header_fill", "#DDEFE5"));
   const presetProof: any[] = [];
   for (const preset of catalog.presets) {
-    const rendered = await settle({ ...customized, preset_id: preset.settings.preset_id },
-      async () => { await page.getByLabel("기본 양식", { exact: true }).selectOption(String(preset.settings.preset_id)); });
+    // The first preset can already be selected. Reuse its verified receipt;
+    // equivalent selection must not manufacture a new preview request.
+    if (posted[posted.length - 1].settings.preset_id !== preset.settings.preset_id)
+      rendered = await settle({ ...customized, preset_id: preset.settings.preset_id },
+        async () => { await page.getByLabel("기본 양식", { exact: true }).selectOption(String(preset.settings.preset_id)); });
+    await expect(page.getByLabel("기본 양식", { exact: true })).toHaveValue(String(preset.settings.preset_id));
     const current = posted[posted.length - 1].settings;
     expect(current).toEqual({ ...customized, preset_id: preset.settings.preset_id });
     const svgs = await page.evaluate(values => values.map(svg => ({ svg,

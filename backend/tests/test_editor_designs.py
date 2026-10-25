@@ -52,6 +52,19 @@ def post(client, doc, token, action, body):
     return client.post(f"/api/documents/{doc['id']}/design-{action}", json=body, headers={"X-Edit-Session": token})
 
 
+@pytest.mark.parametrize("section", [False, 0.0, "0"])
+def test_design_target_requires_an_integer_section_before_preview(secured, section):
+    client, app, _, folder = secured
+    doc, token, raw = uploaded(client)
+    body = payload(client, doc, raw)
+    body["target"]["section"] = section
+    original = {path.name: path.read_bytes() for path in folder.iterdir()}
+    assert post(client, doc, token, "preview", body).status_code == 422
+    assert original == {path.name: path.read_bytes() for path in folder.iterdir()}
+    with transaction(app.state.engine) as db:
+        assert db.query(Document).count() == db.query(Version).count() == 1
+
+
 @pytest.mark.parametrize("kind", ["title", "table", "standard"])
 def test_preview_preserves_text_resources_source_and_versions(secured, kind):
     client, app, _, folder = secured

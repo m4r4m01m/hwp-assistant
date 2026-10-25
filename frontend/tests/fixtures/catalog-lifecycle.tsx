@@ -8,4 +8,6 @@ import "../../src/workspace-shell.css";
 const screen = new URLSearchParams(location.search).get("screen");
 createRoot(document.getElementById("root")!).render(screen === "standard"
   ? <StandardDesigner onClose={() => {}} />
-  : <TemplateMarket onClose={() => {}} onApply={() => {}} onReport={() => {}} />);
+  : <TemplateMarket onClose={() => {}} onApply={() => {}} onReport={() => {}} onApplyDesign={(document, choice) => {
+      ((window as any).__designUses ||= []).push({ document: document.id, choice });
+    }} />);

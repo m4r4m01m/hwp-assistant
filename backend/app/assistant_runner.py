@@ -3,6 +3,7 @@ import asyncio
 import json
 import re
 import tempfile
+from hashlib import sha256
 from pathlib import Path
 from .document_assistant import AssistantResponse, CONTRACT, canonical, parse_response
 from .report_rpc import ReportRpc
@@ -118,6 +119,7 @@ def codex_answer(value, settings, active):
             schema["properties"]["rewrite_instruction"].pop("default", None)
             if value.get("design_context"):
                 schema["required"].append("design_suggestions")
+                schema["properties"]["design_suggestions"].pop("default", None)
             else:
                 schema["properties"].pop("design_suggestions")
                 schema.pop("$defs", None)
@@ -125,26 +127,71 @@ def codex_answer(value, settings, active):
                 "input": [{"type": "text", "text": "Document conversation request (data):\n" + canonical(value), "text_elements": []}],
                 "outputSchema": schema})
             turn_id, final, size = turn["turn"]["id"], None, 0
+            seen, item_types, completed_size, completed_count = {}, {}, 0, 0
+
+            def identify(item_id, kind):
+                if not isinstance(item_id, str) or not item_id.strip():
+                    raise RuntimeError("문서 대화 항목 ID가 올바르지 않습니다.")
+                if item_id in item_types and item_types[item_id] != kind:
+                    raise RuntimeError("문서 대화 항목 종류가 일치하지 않습니다.")
+                item_types[item_id] = kind
+
+            def completed(item):
+                nonlocal final, completed_size, completed_count
+                text = item.get("text", "")
+                if not isinstance(text, str) or len(text) > 100000:
+                    raise RuntimeError("문서 대화 응답 한도 초과")
+                item_id = item.get("id")
+                fingerprint = sha256(canonical([text, item.get("phase"), item.get("delivery")]).encode("utf-8")).hexdigest()
+                if item_id in seen:
+                    if seen[item_id] != fingerprint:
+                        raise RuntimeError("문서 대화 완료 항목이 일치하지 않습니다.")
+                    return  # A summary replay cannot revive a superseded final.
+                seen[item_id] = fingerprint
+                completed_size += len(text)
+                completed_count += 1
+                if completed_size > 131072 or completed_count > 32:
+                    raise RuntimeError("문서 대화 응답 한도 초과")
+                if item.get("phase") not in (None, "final_answer") or item.get("delivery") is not None:
+                    return
+                final = text if text.lstrip().startswith("{") else None
+
+            def observe(item, *, is_completed):
+                if not isinstance(item, dict):
+                    raise RuntimeError("문서 대화 항목 형식이 올바르지 않습니다.")
+                kind = item.get("type")
+                if kind not in ("userMessage", "agentMessage", "reasoning", "plan", "contextCompaction"):
+                    raise RuntimeError("문서 대화 범위 밖의 도구 실행이 감지되었습니다.")
+                identify(item.get("id"), kind)
+                if is_completed and kind == "agentMessage":
+                    completed(item)
+
             evidence = {"executor": "codex-app-server", "model": thread["model"], "contract": CONTRACT,
                 "codex_thread_id": thread_id, "shell_tool": False, "web_search_calls": 0, "streamed": False}
             while True:
                 event = pending.pop(0) if pending else rpc.receive()
                 check(event)
                 method, params = event.get("method"), event.get("params", {})
-                if params.get("threadId", thread_id) != thread_id or params.get("turnId", turn_id) != turn_id:
+                if not isinstance(params, dict):
+                    raise RuntimeError("문서 대화 이벤트 형식이 올바르지 않습니다.")
+                if params.get("threadId") != thread_id:
+                    continue
+                if method == "turn/completed":
+                    terminal = params.get("turn")
+                    if not isinstance(terminal, dict):
+                        raise RuntimeError("문서 대화 완료 형식이 올바르지 않습니다.")
+                    if terminal.get("id") != turn_id or params.get("turnId", turn_id) != turn_id:
+                        continue
+                elif params.get("turnId") != turn_id:
                     continue
                 if method in ("item/started", "item/completed"):
-                    item = params.get("item", {})
-                    if item.get("type") not in ("userMessage", "agentMessage", "reasoning", "plan", "contextCompaction"):
-                        raise RuntimeError("문서 대화 범위 밖의 도구 실행이 감지되었습니다.")
-                    if method == "item/completed" and item.get("type") == "agentMessage":
-                        text = item.get("text", "")
-                        if not isinstance(text, str) or len(text) > 100000:
-                            raise RuntimeError("문서 대화 응답 한도 초과")
-                        if text.lstrip().startswith("{"):
-                            final = text
+                    observe(params.get("item"), is_completed=method == "item/completed")
                 if method == "item/agentMessage/delta":
-                    size += len(params.get("delta", ""))
+                    identify(params.get("itemId"), "agentMessage")
+                    delta = params.get("delta")
+                    if not isinstance(delta, str):
+                        raise RuntimeError("문서 대화 부분 응답 형식이 올바르지 않습니다.")
+                    size += len(delta)
                     if size > 131072:
                         raise RuntimeError("문서 대화 응답 한도 초과")
                 if method == "thread/tokenUsage/updated":
@@ -152,6 +199,15 @@ def codex_answer(value, settings, active):
                 if method == "turn/completed":
                     if params["turn"]["id"] != turn_id:
                         continue
-                    if params["turn"]["status"] != "completed" or final is None:
+                    if params["turn"]["status"] != "completed":
                         raise RuntimeError("Codex 답변 완료를 확인하지 못했습니다.")
-                    return parse_response(final), evidence
+                    for item in params["turn"].get("items", []):
+                        observe(item, is_completed=True)
+                    if final is None:
+                        raise RuntimeError("Codex 답변 완료를 확인하지 못했습니다.")
+                    if not active():
+                        raise RuntimeError("답변 수신이 중단됐습니다.")
+                    try:
+                        return parse_response(final), evidence
+                    except ValueError:
+                        raise RuntimeError("AI 답변 형식이 올바르지 않아 완료하지 않았습니다.") from None

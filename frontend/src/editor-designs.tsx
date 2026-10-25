@@ -234,36 +234,28 @@ export function DesignExample({ item }: { item: DesignItem }) {
 }
 
 export function EditorDesignShelf({
+  catalog,
+  loading = false,
   onUse,
 }: {
+  catalog: DesignCatalog | null;
+  loading?: boolean;
   onUse?: (item: DesignItem) => void;
 }) {
-  const [catalog, setCatalog] = useState<DesignCatalog | null>(null),
-    [error, setError] = useState("");
-  useEffect(() => {
-    const controller = new AbortController();
-    void api<DesignCatalog>("/editor-designs", { signal: controller.signal })
-      .then(setCatalog)
-      .catch((e) => {
-        if (!controller.signal.aborted) setError(errorMessage(e));
-      });
-    return () => controller.abort();
-  }, []);
   return (
-    <section className="editor-design-shelf" aria-label="표·제목 예시">
+    <section className="editor-design-shelf" aria-label="표·제목 예시" aria-busy={loading}>
       <p>
         표나 제목의 모양을 고른 뒤 문서 편집에서 적용할 위치를 선택하세요. 본문
         내용은 유지합니다.
       </p>
-      {error && <p role="alert">{error}</p>}
-      {!catalog && !error && <p role="status">디자인 불러오는 중…</p>}
+      {loading && <p role="status">디자인 불러오는 중…</p>}
       <div className="editor-design-grid">
         {catalog?.designs.map((item) => (
           <button
             className="editor-design-card"
             key={item.id}
             onClick={() => onUse?.(item)}
-            disabled={!onUse}
+            disabled={!onUse || loading}
           >
             <DesignExample item={item} />
             <strong>{item.name}</strong>

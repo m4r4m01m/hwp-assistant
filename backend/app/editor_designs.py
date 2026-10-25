@@ -5,7 +5,7 @@ import uuid
 from typing import Literal
 
 from fastapi import Header, HTTPException, Request
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
@@ -28,6 +28,13 @@ class DesignTarget(BlockInput):
     section: Literal[0]
     paragraph: int | None = Field(default=None, strict=True, ge=0, le=100000)
     control: int | None = Field(default=None, strict=True, ge=0, le=100000)
+
+    @field_validator("section", mode="before")
+    @classmethod
+    def section_number(cls, value):
+        if type(value) is not int:
+            raise ValueError("본문 구역 번호가 올바르지 않습니다.")
+        return value
 
     @model_validator(mode="after")
     def coordinates(self):
