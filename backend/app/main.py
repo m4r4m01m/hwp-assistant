@@ -551,7 +551,10 @@ def create_app(database_url=None, storage_dir=None):
 
     @app.post("/api/ai/review")
     async def review(value: Review, request: Request, x_edit_session: str = Header()):
-        require_llm_access(request.state.user)
+        from .codex_chat_review import capture_provider, provider_name, require_provider_access, request_active
+        from .codex_runtime import reserve_usage
+        selected = provider_name("review")
+        require_provider_access(selected, request.state.user)
         with transaction(engine) as db:
             doc = locked(db, value.document_id, request.state.user)
             require_lease_owner(db, doc, request.state.user)
@@ -560,9 +563,35 @@ def create_app(database_url=None, storage_dir=None):
                 raise HTTPException(409, "기준 버전이 변경되었습니다.")
         with app.state.ai_budget.reserve(request.state.user), ExecutionSlot(app.state.rewrite_capacity) as slot:
             slot.reserve()
-            proposal = await OpenAICompatible().review(value.original)
+            provider = await run_in_threadpool(capture_provider, selected, OpenAICompatible)
+            if selected == "codex":
+                # Each accepted review is a new call; this endpoint has no request ID.
+                # Lock/recheck immediately before committing the shared daily quota.
+                with transaction(engine) as db:
+                    doc = locked(db, value.document_id, request.state.user)
+                    require_lease_owner(db, doc, request.state.user)
+                    check_lease(doc, x_edit_session)
+                    if doc.current_version != value.base_version:
+                        raise HTTPException(409, "기준 버전이 변경되었습니다.")
+                    reserve_usage(db, "review:" + str(uuid.uuid4()), request.state.user)
+                def current_review():
+                    from sqlalchemy.orm import Session
+                    with Session(engine) as db:
+                        require_provider_access(selected, request.state.user)
+                        doc = require_access(db, value.document_id, request.state.user, "editor")
+                        require_lease_owner(db, doc, request.state.user)
+                        check_lease(doc, x_edit_session)
+                        return doc.current_version == value.base_version
+
+                async with request_active(request, current_review) as active:
+                    proposal = await provider.review(value.original, active=active)
+                    if not active():
+                        raise HTTPException(409, "요청 연결 또는 문서 상태가 바뀌어 검토 결과를 게시하지 않았습니다.")
+            else:
+                proposal = await provider.review(value.original)
         # Access/base can change while the provider is running.
         with transaction(engine) as db:
+            require_provider_access(selected, request.state.user)
             doc = locked(db, value.document_id, request.state.user)
             require_lease_owner(db, doc, request.state.user)
             check_lease(doc, x_edit_session)

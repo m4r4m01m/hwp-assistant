@@ -1,6 +1,6 @@
 # HWP Assistant 프로젝트 컨텍스트
 
-갱신일: **2026-10-25 (한국 시간)**. 통합·운영 이미지 기준: [main `49dda2c8de06288111216a61ba720dc148834257`](https://github.com/m4r4m01m/hwp-assistant/commit/49dda2c8de06288111216a61ba720dc148834257), [PR #35](https://github.com/m4r4m01m/hwp-assistant/pull/35)의 **merge commit**이다. 검토한 정확한 head는 `f7a1da1bfa2f32a9034282fdb81a59c791bc0298`이며 제품 변경은 [8a8c9afae4bd809362b8f2eb87507a10e44e1ad3](https://github.com/m4r4m01m/hwp-assistant/commit/8a8c9afae4bd809362b8f2eb87507a10e44e1ad3)에 있다. main 검사 3개와 승인된 단일 수동 run의 이미지 게시·홈서버 배포가 성공했고 **2026-10-25 19:45:45 KST 배포 종료**를 확인했다. 실제 `research=true` 웹 검색 복구는 별도 시험 결과를 기다린다. 후속 문서 전용 변경은 이 운영 이미지 SHA를 바꾸지 않는다. 최신 승인·병합·배포 관측과 남은 판단은 [11절](#11-2026-10-25-승인-후-병합과-배포-검증)을, 구현·클라우드 시험 기록은 [10절](#10-2026-10-25-클라우드-신뢰성-점검)을 따른다. 이 파일은 ChatGPT Work와 Codex가 함께 읽는 인수인계 기준이다. 이후 작업에서는 실제 최신 main·CI·운영 상태를 다시 확인한다.
+갱신일: **2026-10-25 (한국 시간)**. 후속 작업의 통합 기준은 [main `0a92807ab810c9f45c83efe752ddb1eae0a2024a`](https://github.com/m4r4m01m/hwp-assistant/commit/0a92807ab810c9f45c83efe752ddb1eae0a2024a), [문서 PR #36](https://github.com/m4r4m01m/hwp-assistant/pull/36)의 merge commit이다. **운영 이미지 기준은 `49dda2c8de06288111216a61ba720dc148834257` 그대로**이며 #35의 제품 변경과 19:45:45 KST 배포 성공은 [11절](#11-2026-10-25-승인-후-병합과-배포-검증)에 보존한다. 이후 사용자 운영 재시험에서도 `research_unavailable`·완료 검색 0건이 관측돼 실제 검색 복구를 주장하지 않는다. 사용자는 새 요청의 경고 초안 정책과 기존 chat/review의 Codex 연결 개발을 명시적으로 요청했다. 이 후속 작업은 `codex/research-warning-drafts-2026-10-25`의 별도 변경이며 새 main 병합·운영 설정 변경·배포는 아직 승인·실행하지 않았다. 최신 정책·인터페이스·검증 한계는 [12절](#12-2026-10-25-공개자료-조회-미완료-초안-정책)을, 앞선 구현·시험은 [10절](#10-2026-10-25-클라우드-신뢰성-점검)을 따른다. 이 파일은 ChatGPT Work와 Codex가 함께 읽는 인수인계 기준이다. 이후 작업에서는 실제 최신 main·CI·운영 상태를 다시 확인한다.
 
 ## 1. 읽는 순서와 증거 기준
 
@@ -26,8 +26,9 @@
 | 저장·권한 | FastAPI + SQLAlchemy + 파일 저장소. 문서 행 잠금, ACL, 편집 임대·기준 버전, 멱등 키를 검사하고 파일 영속화와 DB 확정 후 저장 완료를 알린다. 다운로드는 서버 저장과 다르다. |
 | 버전 비교 | 실제 페이지와 문단·서식·표 변경, 수정 계정·중간 저장 이력 비교. 두 버전을 순서대로 선택한다. 비교가 자동 병합을 제공하지는 않는다. |
 | AI 문단 수정 | 미저장 원문을 포함한 고정 스냅샷 → 두 후보 → 비교/승인 → 문서·선택·원문 fence 재검사 → rhwp 명령 적용 → 새 버전 저장. 안전 적용 가능 범위 밖은 거부한다. |
-| 보고서 | 실제 Codex app-server delta, 초안 내용 검토·별도 보완 작업, 문서 표준/별첨 1~3/실제 렌더링 쪽수 목차, 표·편집 가능한 흐름도. final/legacy 완료 메시지와 turn 완료 summary를 검증하며 async/commentary·부분 delta는 표시 전용이다. 실패 종류·단계·완료 검색 수를 구분한다. 완료·검증된 draft만 임시 미리보기에 적용하고 사용자가 확정·서버 저장한다. 실제 운영 웹 검색 복구는 미확인이다. |
+| 보고서 | 실제 Codex app-server delta, 초안 내용 검토·별도 보완 작업, 문서 표준/별첨 1~3/실제 렌더링 쪽수 목차, 표·편집 가능한 흐름도. final/legacy 완료 메시지와 turn 완료 summary를 검증하며 async/commentary·부분 delta는 표시 전용이다. 실패 종류·단계·완료 검색 수를 구분한다. 현재 main/운영의 research=true·완료 검색 0건은 실패 정책이다. 새 요청의 경고 초안 변경은 미병합 후속 작업인 12절을 따른다. 완료·검증된 draft만 임시 미리보기에 적용하고 사용자가 확정·서버 저장한다. 실제 운영 웹 검색 복구는 미확인이다. |
 | 문서 대화·컨텍스트 | 권한 있는 문서의 사실·작성 기준·선택 원문과 대화/후보/적용 이력. 문서 독자도 모든 작성자의 대화를 읽을 수 있으나 승인·편집·저장은 불가하다. 작성자 전용 비공개 대화로 오해하지 않는다. |
+| 기존 스레드 chat·AI review | 현재 main의 두 경로는 기존 HTTP provider를 사용한다. 후속 작업은 `HWP_CHAT_PROVIDER`/`HWP_REVIEW_PROVIDER`로 Codex를 명시 선택할 수 있도록 개발한다. native·Compose 기본은 `llm`이며 기존 HTTP 선택을 유지한다. 후속 개발을 운영 활성화로 표현하지 않는다. |
 | 양식·문서 표준 | HWPX 양식 등록·검색·새 문서 생성, 제한된 제목/요약/담당·기한 블록, 표준 편집·검증된 예시·등록. 고정 기준서와 과거 표준/초안은 덮어쓰지 않는다. |
 | 계정 | 선택적으로 비밀번호 로그인/가입/guest, 기존 토큰·만료/폐기 가능한 세션과 공존. 운영자가 지정한 샘플 계정 선택은 기억한 ID와 별개이며 기본 목록은 비어 있다. 선택 후 해당 계정 비밀번호가 필요하다. AI는 별도 ACL이고 같은 guest/샘플 ID 이용자는 문서 주체를 공유한다. 운영 계정 설정은 이번에 변경하지 않았다. |
 | 반응성 | 정적 압축/해시 캐시·검색·모바일 패널, 로그인 화면의 낮은 우선순위 SRI 자원 다운로드와 제한된 WASM 사전 컴파일. 로그인은 준비를 기다리지 않는다. 다운로드·컴파일·실제 엔진 초기화/문서 배치를 구분하며 브라우저 코드 캐시 재사용이나 최초 문서 지연 개선을 보장하지 않는다. |
@@ -59,10 +60,15 @@
 | 2026-10-25 | [#34](https://github.com/m4r4m01m/hwp-assistant/pull/34), `295b6e1`: Work/Codex 공통 인수인계 문서만 통합. 당시 제품 코드는 #33과 동일했다. [수동 run 40180482900](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40180482900)은 18:33:29 KST에 배포 job 성공으로 종료했다. |
 | 2026-10-25 19:34 | [#35](https://github.com/m4r4m01m/hwp-assistant/pull/35)의 검토 head `f7a1da1`을 사용자 승인 후 merge commit `49dda2c`으로 통합했다. 보고서 완료/실패 진단·프로세스 정리·WASM 준비·선택적 샘플 계정 변경이다. source 브랜치를 유지한다. |
 | 2026-10-25 후속 | 정확한 main `49dda2c`의 push 검사 3개 성공. 별도 승인된 [수동 run 40185409373](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185409373)을 19:35:34 KST에 한 번 dispatch했다. 이 단계에서 이미지 게시·운영 배포 완료는 미확정이며 [11절](#11-2026-10-25-승인-후-병합과-배포-검증)로 이어진다. |
+| 2026-10-25 19:45 | 같은 수동 run의 이미지 게시·홈서버 배포가 성공했고 deploy-home이 19:45:45 KST에 종료했다. 운영 이미지 source는 `49dda2c`다. 실제 검색 복구와 구분한다. |
+| 2026-10-25 후속 문서 | [#36](https://github.com/m4r4m01m/hwp-assistant/pull/36)의 head `4f5df8d12e1d0a2756289461e105fe75b7c434dc`를 merge commit `0a92807ab810c9f45c83efe752ddb1eae0a2024a`으로 통합했다. context·배포 영수증·샘플 JSON 예시의 문서 3개만 변경했으며 운영 이미지를 재게시·재배포하지 않았다. |
+| 2026-10-25 후속 요청 | 사용자 운영 재시험에서 research=true·완료 검색 0건·`research_unavailable`이 지속됐다. 새 요청의 경고 초안 기본 정책과 기존 chat/review의 홈서버 Codex 연결 개발을 명시적으로 요청해 별도 브랜치에서 진행한다. [12절](#12-2026-10-25-공개자료-조회-미완료-초안-정책)의 새 작업이며 새 배포 승인은 아니다. |
 
 ## 5. 검증된 상태와 아직 확인할 것
 
-**현재 main 검증:** #35 merge commit `49dda2c8de06288111216a61ba720dc148834257`의 [HWP deployment 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185311735), [frontend build path](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185311749), [deployment-only 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185311706)가 성공했다. [Python job](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185311735/job/121144749249)은 **1,071 passed, 2 warnings, 316.99초**다. 일반 push에서 이미지 게시·운영 배포 job 2개는 정상 skip됐다. 정확한 PR head의 별도 컨테이너 통합 성공과 승인된 수동 배포 run 상태는 [11절](#11-2026-10-25-승인-후-병합과-배포-검증)을 따른다.
+**후속 작업의 기준 main 검증:** 문서 PR #36의 merge commit `0a92807ab810c9f45c83efe752ddb1eae0a2024a`에서 [HWP deployment 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40186938780), [frontend build path](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40186938847), [deployment-only 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40186938745) **3개 workflow 성공**을 확인했다. 새 경고 초안/chat·review 변경을 이 기준 SHA의 성공으로 검증했다고 계산하지 않는다. 해당 변경의 정확한 code head·시험·CI는 12절에 별도로 기록한다.
+
+**직전 제품 main 검증:** #35 merge commit `49dda2c8de06288111216a61ba720dc148834257`의 [HWP deployment 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185311735), [frontend build path](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185311749), [deployment-only 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185311706)가 성공했다. [Python job](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185311735/job/121144749249)은 **1,071 passed, 2 warnings, 316.99초**다. 일반 push에서 이미지 게시·운영 배포 job 2개는 정상 skip됐다. 정확한 PR head의 별도 컨테이너 통합 성공과 승인된 수동 배포 run 상태는 [11절](#11-2026-10-25-승인-후-병합과-배포-검증)을 따른다.
 
 **과거 #33 검증:** [HWP deployment 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40174658302), [frontend build path](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40174657544), [deployment-only 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40174657560)는 당시 성공했다. 아래 #33/#34 수치·운영 기록을 현재 main의 시험 수나 새 배포 완료로 대체해 읽지 않는다.
 
@@ -181,7 +187,7 @@ docker exec hwp-assistant-prod-api-1 codex login status
 
 ## 7. 다음 작업과 알려진 한계
 
-1. 후속 사용자 인계에서 서버 Codex 로그인·앱 ID 허용은 확인됐으나 세 실제 AI 경로 완료는 미확인이다. [10절](#10-2026-10-25-클라우드-신뢰성-점검)의 새 진단과 합성 자료로 실제 검색/보고서·대화·문단 수정을 완료까지 검수한다. 인증파일이나 private env를 수집하지 않는다.
+1. 후속 사용자 운영 재시험에서도 research=true 검색 복구는 확인되지 않았다. [12절](#12-2026-10-25-공개자료-조회-미완료-초안-정책)의 새 경고 초안과 chat/review Codex 연결을 검증한 뒤 실제 운영 적용 여부를 별도로 판단한다. 내용 검토·서식·명시적 저장 경계와 기존 보고서·문서 대화·문단 수정의 권한을 유지하며 합성 자료로 검수한다. 인증파일이나 private env를 수집하지 않는다.
 2. 최신 Windows/한컴·Safari/Firefox 실제 장치, 복잡한 문서 왕복과 표 외곽선 시각 차이를 검수한다. 일반 HWPX 왕복 결함이 블록 보호 기능으로 해결됐다고 표현하지 않는다.
 3. 개발자 엔진 kit와 현재 bridge의 불일치를 해소·게시하고 fresh clone 설치를 재검증한다. 기존 kit로 모든 환경에서 원클릭 실행된다고 보장하지 않는다.
 4. 사내 모델의 정확한 계약을 확인하고, 의존성/이미지/폰트 사전 반입 → 외부 통신 차단 → 새 브라우저 → 내부 실모델 → 편집/승인/저장/복원 전체 흐름을 별도로 검증한다.
@@ -196,6 +202,7 @@ AI 출력 계약/원문 검사는 사실성·회사 규정 적합성의 자동 �
 |---|---|
 | 요구사항·전체 상태 | [계획 v0.4](internal-doc-assistant-plan-v0.4.md), [10/18 검수 안내](implementation-status-and-user-review-2026-10-18.md), 이 문서 |
 | 보고서·표준 | [문서작성 표준](document-writing-standard.md), [내용 검토/보완](report-review-workflow-2026-10-20.md), [실제 streaming](report-stream-2026-10-08.md), [표/흐름도](rich-report-2026-10-08.md), [양식/목차](report-template-toc-2026-10-12.md) |
+| 후속 정책·연결 | [공개자료 조회 미완료 경고 초안](report-research-warning-2026-10-25.md), [기존 chat/review의 Codex 선택](codex-chat-review-2026-10-25.md). 기준 main 이후 별도 작업으로, 해당 exact head의 검증·승인·배포 상태를 확인한다. |
 | 권한·AI·저장 | [협업/MCP](collaboration-and-mcp.md), [로컬 모델](local-model-rewrite.md), [원문 경계](rewrite-boundaries-verified-2026-10-06.md), [버전 비교](version-comparison.md), [저장소 점검](storage-audit.md) |
 | 설치·엔진 | [개발자 quickstart](developer-quickstart.md), [엔진 패치 빌드](engine-empty-fill-fix.md), [엔진 통합](engine-integration.md) |
 | 운영 | [runbook](deployment-runbook.md), [첫 연결](deployment-first-activation.md), [게시 이미지 배포](deploy-published-images.md), [Codex/계정/prewarm](poc-codex-accounts-prewarm-2026-10-25.md), [반응성/보안](responsiveness-security-2026-10-22.md) |
@@ -330,4 +337,56 @@ API 게시 digest: `sha256:4098a871f464d8581241643ee75dc998c1f527e565f6989944c89
 
 후속 기록 변경은 문서 전용이다. 샘플 계정 JSON 예시는 배포 환경 파서가 내부 큰따옴표를 보존하도록 전체 값을 작은따옴표로 감싸고 합성 env 파일로 확인했다. 실제 private env·계정·허용목록에 적용하지 않았다. 문서가 후속 main에 반영돼도 이번 운영 이미지 태그는 위 `49dda2c8de06288111216a61ba720dc148834257`이며 문서만을 이유로 이미지 재게시/재배포하지 않는다.
 
-이번 다음 목표인 **research=true 실제 검색·완료된 ReportDraft/SHA 검증·내용 검토 정지**는 원 대화의 인증된 운영 세션에서 시험한다. 서식 미리보기는 별도 사용자 선택, 서버 저장은 표시된 내용을 검토한 사용자의 명시적 확정이 필요하며 배포 승인만으로 실행하지 않는다. 기존 research=false 1건의 사용자 성공 기록이나 CI의 합성 AI가 실제 검색 시험을 대신하지 않는다. 클라우드는 인증정보를 복제·추정하지 않으며, 실제 연구 복구가 확인되기 전에는 검색 장애가 해결됐다고 표현하지 않는다. **배포 완료와 실제 웹 검색 복구는 별개이며, 현재 검색 결과는 후속 인계 대기다.**
+이 배포 직후의 다음 목표인 **research=true 실제 검색·완료된 ReportDraft/SHA 검증·내용 검토 정지**는 원 대화의 인증된 운영 세션에서 시험할 항목으로 인계했다. 서식 미리보기는 별도 사용자 선택, 서버 저장은 표시된 내용을 검토한 사용자의 명시적 확정이 필요하며 배포 승인만으로 실행하지 않는다. 기존 research=false 1건의 사용자 성공 기록이나 CI의 합성 AI가 실제 검색 시험을 대신하지 않는다. 클라우드는 인증정보를 복제·추정하지 않으며, 실제 연구 복구가 확인되기 전에는 검색 장애가 해결됐다고 표현하지 않는다. **배포 완료와 실제 웹 검색 복구는 별개다. 후속 인계에서도 검색 미완료가 지속됐으며 이후 사용자 정책 변경은 12절을 따른다.**
+
+## 12. 2026-10-25 공개자료 조회 미완료 초안 정책
+
+### 12.1 최신 사용자 관측과 승인 범위
+
+기준 main은 문서 PR #36까지 통합된 **`0a92807ab810c9f45c83efe752ddb1eae0a2024a`**이고 제품·운영 이미지는 **`49dda2c8de06288111216a61ba720dc148834257`**다. 새 작업은 `codex/research-warning-drafts-2026-10-25`에서 분리한다. 기존 source 브랜치·사용자 체크아웃·과거 HWPX·계정/토큰 소유권·운영 볼륨과 다른 서비스를 보존한다.
+
+사용자는 운영 49dda2c에서 다시 **`research_unavailable`, 마지막 `writing`, 완료 검색 0건, 약 115초, 연결 준비 1,931ms/첫 글 21,738ms**를 관측했다고 인계했다. protocol 오류 종류와 HTTP 상태는 없었다. 이는 사용자 인증 세션의 결과이며 클라우드 직접 실모델 시험이 아니다. CLI 구성·도구 노출·모델 선택·upstream 실패 가운데 하나를 이 정보만으로 확정하지 않는다. 앞선 배포 성공이 검색 복구를 증명했다는 해석을 하지 않는다.
+
+사용자는 **새 요청부터 자료 조회가 미완료이거나 일부 실패해도 최종 정상 완료·유효 ReportDraft가 있으면 경고를 남겨 내용 검토·서식·편집할 수 있도록 개발**하도록 명시했다. 기존 정책이 실패를 요구했던 기록은 당시 계약으로 보존하며 과거 실패/초안에 소급하지 않는다. 새 UI는 경고 허용 정책을 명시해 고정하고 공개자료 조회는 기본 켬을 유지한다. 추가 허용 gate·숨은 prompt 교체·research 자동 해제·추가 모델 호출·유료 fallback을 도입하지 않는다.
+
+또한 사용자는 **기존 스레드 chat와 AI review 두 기능을 현재 홈서버 Codex로 연결할 수 있도록 개발**하도록 명시했다. 앞선 기록의 “HTTP 미설정은 별도”라는 진단은 과거 실패 구분으로 유지하되, 이번 개발을 HTTP 안내만 하는 범위로 축소하지 않는다. 기존 HTTP 명시 선택과 권한·문서 경계를 보존하는 새 selector를 구현한다. **개발 승인과 새 PR 병합·운영 env 변경·이미지 게시·배포 승인은 별개이며 후자는 아직 실행하지 않았다.**
+
+### 12.2 새 요청의 동결 정책과 경고 초안
+
+입력 `research_policy`는 `require_completed`/`allow_unverified`이며 새 UI는 `allow_unverified`를 명시한다. 필드가 없는 기존 요청은 엄격 정책과 원래 입력 hash를 유지한다. 같은 ID 재조회는 원래 결과이며 정책 변경을 핑계로 새 모델 호출을 하지 않는다. 보완 작업은 고정한 source draft/SHA와 원래 정책·기존 미검증 경고를 상속하고 source·수동 편집 HWPX·과거 preview를 바꾸지 않는다.
+
+최종 정상 종료·완료 메시지·유효 ReportDraft만 경고 초안이 될 수 있다. partial JSON/delta·취소·timeout·모델 실패·invalid 출력은 계속 실패/취소 경계다. 서버가 `research_notice`를 최종 검증/hash 전에 삽입하며 모델 출력 schema에는 노출하지 않는다. 내용 검토·서식 편집·결과/출처와 HWPX 확인 사항에 **자료 조회 미완료·최신 정보 미검증** 경고를 이어 간다. 기존 최대 6개 limitations·인용·사실·출처 후보 URL을 삭제·절단하지 않는다. 모델 기억의 URL을 확인된 출처로 표시하지 않으며 완료 검색 횟수도 개별 출처/사실 검증을 보증하지 않는다.
+
+경고를 포함해 동결한 draft/SHA로 내용 검토 → 사용자 선택의 서식 → 편집 → 명시적 확정 저장을 유지한다. 저장 바이트를 서버가 뒤늦게 경고 삽입 명목으로 변경하거나 자동 저장하지 않는다. 구체적인 notice 필드·상태·경고 code와 레거시 경계는 [정책 문서](report-research-warning-2026-10-25.md)를 따른다.
+
+### 12.3 chat·review의 선택적 Codex 연결
+
+새 selector는 `HWP_CHAT_PROVIDER`/`HWP_REVIEW_PROVIDER`이며 값은 `codex`/`llm`, native·Compose 기본은 **`llm`**이다. 기존 HTTP 환경을 조용히 다른 전송 경로로 바꾸지 않는다. 홈서버에서 두 기능을 Codex로 쓰려면 승인된 새 코드 이미지와 두 값을 `codex`로 선택한 env의 API 재생성이 필요하며 별도 모델 서버는 필요하지 않다. 현재 private env·계정·AI ACL은 변경하지 않았다.
+
+Codex 선택 시 기존 서버 ChatGPT 인증·앱 ID Codex ACL·공통 용량·사용자 AI budget·DB 일일 cap을 재사용한다. HTTP의 LLM ACL과 혼동하지 않는다. chat은 질문 작성자/문서 권한·context revision·문서 버전·durable idempotency를, review는 임대·base version·원문 hash·Suggestion 검증과 제안/승인/저장 경계를 보존한다. 모델 실패 시 HTTP로 자동 전환하지 않는다. chat의 완료 응답 재조회는 추가 모델·일일 사용량을 만들지 않는다. 기존 review API는 별도 재조회 요청 ID가 없어 새 접수는 새 호출로 계산하며 자동 반복하지 않는다. UI의 Codex 두 요청만 250초로 대기하고 HTTP 기본 180초는 유지한다. 새 basic runner는 모델 실행 `min(settings.timeout, 210초)`·인증 준비 최대 5초·제한된 정리를 구분해 기존 proxy 240초보다 여유를 둔다. 보고서·문단 수정 timeout이나 private 호스트 proxy는 변경하지 않는다. 실제 운영 적용과 API 재생성의 선행 조건은 [Codex 연결 문서](codex-chat-review-2026-10-25.md)를 따른다.
+
+### 12.4 검증 기록과 아직 실행하지 않은 일
+
+기준 `0a92807`의 push workflow 3개 성공은 5절의 기존 source 증거다. 최초 검토 제품 코드 [`8ec1b906c4a773686bef935f875be7b0aa9c3281`](https://github.com/m4r4m01m/hwp-assistant/commit/8ec1b906c4a773686bef935f875be7b0aa9c3281), tree `74e832a235f8d7217dadb092da0fad46e85e3d5d`를 별도 브랜치에 push해 원 대화의 read-only 검토에 공유했다. 독립 검토의 P2/basic 완료 계약과 시험 assertion 보완 후 **최종 제품 코드 [`773da9a4c3adde85d9fbb70edff5ad6592a8037b`](https://github.com/m4r4m01m/hwp-assistant/commit/773da9a4c3adde85d9fbb70edff5ad6592a8037b)**, tree `a459e2594327b21528f5756fa7aefebee6301beb`를 push했다. 부모는 `8ec1b906`이며 변경한 4개 파일의 범위는 basic runner·그 회귀/fixture·실제 엔진 시험 assertion이다. 최종 문서/시험 head의 PR CI는 아직 확인 전이다. 실행 환경·backend/frontend/고정 엔진 결과·그 head의 CI는 완료된 결과만 [후속 검증 영수증](evidence/research-warning-drafts-2026-10-25.json)에 기록한다. 구현 중인 결과를 기준 SHA의 기존 통과 수로 대체하거나 예상 시험 수를 완료로 쓰지 않는다.
+
+제품 source 동결 단계의 중간 집중 검증은 보고서 **100 passed/기존 warning 2개/11.92초**, Codex helper·chat·기존 관련 묶음 **71 passed/7.02초**, root review/capability 묶음 **15 passed/기존 warning 2개/2.59초**다. 앞선 59개 관련 실행과 이 묶음들은 일부 겹치므로 합산 고유 시험 수로 표현하지 않는다. 다음 표는 이후 확인된 frontend·엔진의 최종 결과이며 backend 전체와 exact-head CI를 대신하지 않는다.
+
+| 후속 검사 | 확인된 결과와 한계 |
+|---|---|
+| 실행 환경 | Python 3.14.0·backend/MCP locks, Node 24.15.0·package lock, Chromium 141 build 1194 headless-shell. 합성 자료만 사용 |
+| frontend 정적·단위 | tsc 정상 종료, unit **30 passed** |
+| frontend mock UI | 최종 통합 **57 passed/41.7초**. 새 보고서 9개/chat·review 8개 포함. 별도 focused 보고서 **9 passed/5.2초**, chat·review **8 passed/6.2초**는 중복 검증이며 57개에 더하지 않음 |
+| 실제 엔진 build/serve | 현재 앱 `/hwp-assistant/` 빌드 및 영수증 포함 제공 바이트 **8개** 대조 통과. 검증한 최적화 엔진 재사용이며 Rust/Docker 소스 재빌드가 아님 |
+| 기존 실제 엔진 회귀 | **8 passed/1 skipped**. skip은 실제 모델 기록물 부재. 합성 모델/격리 SQLite·임시 서버 시험 |
+| 새 경고 초안 실제 엔진 | 별도 실행 **1 passed/8.9초**, JUnit 1 case·failure/error/skip 0·exit 0 확인. 완료 검색 0건의 유효 draft/SHA → 내용 검토 정지 → 수동 서식 준비 → 경고와 기존 6×400자 확인 사항·출처 URL 보존 → 수동 편집 → 유실 저장 응답의 같은 바이트 재시도 → 한 버전 → 같은 draft SHA → 재열기 출력 보존 확인 |
+| backend 전체·최초 제품 head | `8ec1b906` 기준 **단일 전체 1,159 passed**, JUnit 1,159 case·failure/error/skip 0·수집 목록 일치·exit 0 확인. JUnit 시간 **259.955초**, 프로세스 경과 262.802초. backend 154개 파일·locks/workflow 불변. stdout의 마지막 요약이 없어 전체 warning 수는 미확정이며 집중 회귀의 warning 2개를 복제하지 않음. P2 후속 head의 전체 CI와 구분 |
+| 배포·Node 계약 | Python 배포 계약 **75 passed**. Node 24.15.0 광범위 계약 **82/82**에 build path 6개 포함, JUnit·exit 0 확인. public path 감사·배포 셸 4개 문법 정상. locks 불변 |
+| 최종 head CI | 최종 시험·문서 커밋의 정확한 SHA에서 확인할 후속 항목. 기준 main 또는 최초 code head의 증거로 대체하지 않음 |
+
+실제 엔진 두 실행을 합산하면 고유 결과는 9 passed/1 skipped지만 **단일 전체 실행 결과가 아니다**. 새 시험의 초기 XML split-run 문자열 비교·문단 snapshot assertion 두 문제를 시험 코드에서 수정했으며 해당 시험의 보고서 제품 코드는 최초 검토 SHA와 같다. 아래 basic runner의 P2 후속 변경과 구분한다. 중간 exit 0에 최종 시험 요약이 없던 실행은 성공으로 세지 않고 후속 JUnit·요약·정상 종료가 있는 결과를 사용했다. 폰트는 고정 manifest 밖에서 가져오지 않았고 한컴·Safari/Firefox·실제 운영 모델·검색 복구를 검증한 것으로 일반화하지 않는다.
+
+사용자의 독립 검토에서 basic chat/review의 모델 제한 240초에 인증·정리를 더하면 proxy read timeout 240초를 넘을 수 있는 P2를 확인했다. 후속 제품 보완은 **basic runner만 210초 상한**을 적용하며 더 짧은 제한·기존 HTTP 180초·UI Codex 250초·보고서/문단 수정 제한은 유지한다. 추가 독립 검토에서는 같은 item ID/text의 완료 summary가 phase/delivery를 다르게 주장하면 거부하도록 fingerprint를 보강했다. 이 충돌은 합성 protocol 회귀이며 실제 upstream에서 발생했다는 주장은 아니다. 최종 helper·chat/review API 집중 검사는 **67 passed/5.59초**이며 helper 42개 안에 deadline probe 3개와 phase/delivery 충돌 4개를 포함한다. 앞선 63개 중간 통과와 합산하지 않는다. 실제 210초 추론을 실행한 것은 아니고 적용된 제한값·더 짧은 제한 존중과 기존 stdio timeout/자식 정리/반복 취소·용량 회수 경계를 확인한 합성 시험이다. 이 보완은 제품 SHA `773da9a4`에 포함되며 최종 head의 단일 전체 CI는 별도로 확인한다. 원 검토의 보고서 완료·provenance·legacy·HWPX·보완 보존 경계에서 차단 결함이 없었다는 사용자 검토도 실제 모델 성공과 구분한다.
+
+현재 새 작업의 실제 모델 호출은 **0회**이며 클라우드에 운영 인증정보가 없다. 실제 검색 복구·운영 Codex chat/review 응답·후속 새 배포·private env 반영·계정 활성화는 검증 완료로 주장하지 않는다. 실제 실행 시험에는 합성 자료만 쓰고 자료/원문 오류·토큰·암호·인증파일은 기록하지 않는다. 기존 고정 엔진·문서 표준과 검토/승인/저장 경계를 유지한다. 새 코드 검증이 끝나면 변경·위험·롤백을 구체화해 필요한 최종 승인만 요청한다.
+
+**롤백 한계:** DB migration은 없지만 새 `ReportDraft.research_notice`는 구버전 `49dda2c`의 엄격한 계약에 없는 필드다. 새 경고 초안이 생긴 뒤 구버전으로 되돌리면 그 초안의 보완·서식 준비가 거부될 수 있다. 저장된 HWPX 원본·과거 blob은 불변이다. 롤백은 새 접수를 멈추고 신규 draft/notice/실행 기록을 보존한 뒤 호환 버전과 이어서 작업할 경로를 검토해야 한다. metadata 삭제·hash 재작성·자동 schema downgrade·운영 볼륨 초기화로 해결하지 않는다. [정책 문서의 롤백 절](report-research-warning-2026-10-25.md#6-롤백과-신규-초안-호환성)을 함께 따른다.

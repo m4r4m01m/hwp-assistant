@@ -3,6 +3,7 @@ import { api, errorMessage, isAbortError } from "./api";
 
 export type FeatureName = "rewrite" | "chat" | "review" | "reports";
 export type FeatureCapability = {
+  provider?: string;
   configured: boolean;
   reachable: boolean | null;
   allowed: boolean;

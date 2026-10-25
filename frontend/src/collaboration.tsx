@@ -64,6 +64,13 @@ export function CollaborationPanel({
     [checkingConnection, setCheckingConnection] = useState(false),
     [separateAi, setSeparateAi] = useState<{ ready: boolean; model: string; error: string } | null>(null);
   const generation = useRef(0);
+  const chatProvider = chatFeature.capability?.provider || "llm";
+  const codexChat = chatProvider === "codex";
+  const connectionChecking = chatFeature.loading || !codexChat && checkingConnection;
+  const connectionReady = codexChat ? chatFeature.available && !chatFeature.loading : !!separateAi?.ready;
+  const connectionProvider = useRef(chatProvider);
+  connectionProvider.current = chatProvider;
+  useEffect(() => { setSeparateAi(null); }, [chatProvider]);
   const [assistantDirty, setAssistantDirty] = useState(false), [assistantActive, setAssistantActive] = useState(false), [showRewrite, setShowRewrite] = useState(false);
   const assistantDirtyChanged = useCallback((dirty: boolean) => setAssistantDirty(dirty), []);
   const assistantActiveChanged = useCallback((active: boolean) => { setAssistantActive(active); onAssistantActive?.(active); }, [onAssistantActive]);
@@ -120,14 +127,17 @@ export function CollaborationPanel({
     }
   }
   async function checkSeparateAi() {
+    if (codexChat) { setSeparateAi(null); chatFeature.refresh(); return; }
+    const provider = chatProvider;
     setCheckingConnection(true);
     setSeparateAi(null);
     try {
       const value = await api<{ configured_model: string; model_available: boolean }>("/ai/models");
+      if (connectionProvider.current !== provider) return;
       setSeparateAi({ ready: value.model_available, model: value.configured_model,
         error: value.model_available ? "" : "설정한 모델을 연결된 서버에서 찾지 못했습니다." });
     } catch (cause) {
-      setSeparateAi({ ready: false, model: "", error: String(cause) });
+      if (connectionProvider.current === provider) setSeparateAi({ ready: false, model: "", error: String(cause) });
     } finally { setCheckingConnection(false); }
   }
   function selectThread(id: string) {
@@ -287,11 +297,12 @@ export function CollaborationPanel({
               <details>
                 <summary>별도 AI 연결</summary>
                 <CapabilityNotice feature="chat" label="별도 모델 AI 답변" />
-                <p className="hint">관리자가 연결한 로컬·사내 모델에 질문하는 기능입니다. Codex 연결만으로는 사용할 수 없습니다. 질문할 때 저장된 작성 정보와 최근 대화가 전달됩니다.</p>
-                <button disabled={busy || checkingConnection} onClick={() => void checkSeparateAi()}>{checkingConnection ? "연결 확인 중…" : "별도 AI 연결 확인"}</button>
-                {separateAi && <p role={separateAi.ready ? "status" : "alert"}>{separateAi.ready ? `연결됨 · ${separateAi.model}` : separateAi.error}</p>}
+                <p className="hint">{codexChat ? "서버의 Codex 연결로 질문하는 기능입니다." : "관리자가 연결한 로컬·사내 모델에 질문하는 기능입니다."} 질문할 때 저장된 작성 정보와 최근 대화가 전달됩니다.</p>
+                <button disabled={busy || connectionChecking} onClick={() => void checkSeparateAi()}>{connectionChecking ? "연결 확인 중…" : "별도 AI 연결 확인"}</button>
+                {codexChat && connectionReady && <p role="status">사용 AI: Codex · 연결 준비됨</p>}
+                {!codexChat && separateAi && <p role={separateAi.ready ? "status" : "alert"}>{separateAi.ready ? `연결됨 · ${separateAi.model}` : separateAi.error}</p>}
               <button
-                disabled={busy || checkingConnection || !separateAi?.ready || !message.trim() || !chatFeature.available}
+                disabled={busy || connectionChecking || !connectionReady || !message.trim() || !chatFeature.available}
                 onClick={() =>
                   void run(async () => {
                     const row = await api<{ id: string }>(
@@ -306,7 +317,7 @@ export function CollaborationPanel({
                     try {
                       await api(
                         `/threads/${selected}/chat`,
-                        jsonRequest("POST", { message_id: row.id }),
+                        { ...jsonRequest("POST", { message_id: row.id }), ...(codexChat ? { timeoutMs: 250_000 } : {}) },
                       );
                     } finally {
                       await load();

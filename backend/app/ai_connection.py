@@ -169,8 +169,10 @@ def install_ai_connection(app):
                 choice = receipt.choice if receipt else None
         providers = {"reports": "codex", "rewrite": os.getenv("HWP_REWRITE_PROVIDER", "codex"),
                      "document_assistant": os.getenv("HWP_DOCUMENT_ASSISTANT_PROVIDER", os.getenv("HWP_REWRITE_PROVIDER", "codex")),
-                     "chat": "llm", "review": "llm"}
+                     "chat": "unknown", "review": "unknown"}
         facts = feature_statuses(user)
+        for key in ("chat", "review"):
+            providers[key] = facts[key]["provider"]
         features = [{"id": key, "label": label, "provider": providers[key] if providers[key] in ("codex", "llm") else "unknown",
                      "configured": facts[key]["configured"], "allowed": facts[key]["allowed"],
                      "message": facts[key]["message"]} for key, label in FEATURE_LABELS.items()]

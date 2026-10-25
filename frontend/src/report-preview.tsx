@@ -31,6 +31,7 @@ import {
 } from "./report-progress";
 import { ReportContent, type ReportBlock } from "./report-content";
 import { WorkspaceIcon } from "./workspace-nav";
+import { ReportResearchNotice, type ResearchNoticeData } from "./report-research";
 
 type Preview = {
   id: string;
@@ -94,6 +95,7 @@ export function ReportPreview({
   detailsHost,
   workspacePanelOpen,
   onShowDetails,
+  researchNotice,
 }: {
   taskId: string;
   draftHash: string;
@@ -106,6 +108,7 @@ export function ReportPreview({
   detailsHost: HTMLElement | null;
   workspacePanelOpen?: boolean;
   onShowDetails?: () => void;
+  researchNotice?: ResearchNoticeData;
 }) {
   const hosts = useRef<(HTMLDivElement | null)[]>([null, null]),
     editor = useRef<EditorAdapter | null>(null),
@@ -888,7 +891,8 @@ export function ReportPreview({
       </div>
   );
   return (
-    <div className="formatted-report">
+    <div className="formatted-report" data-research-notice={!!researchNotice}>
+      <ReportResearchNotice notice={researchNotice} compact />
       {toolbarHost ? createPortal(toolbar, toolbarHost) : toolbar}
       <p role="status" className="report-accessible-status">{status}</p>
       {detailsHost && createPortal(<aside id="report-preview-status-panel" className="report-workspace-drawer report-status-drawer" hidden={!detailsOpen} aria-label="초안 상태와 진행 정보">

@@ -57,6 +57,8 @@ services:
       # Explicit owner mapping; signup never grants the personal Codex account.
       HWP_REWRITE_PROVIDER: ${HWP_REWRITE_PROVIDER:-codex}
       HWP_DOCUMENT_ASSISTANT_PROVIDER: ${HWP_DOCUMENT_ASSISTANT_PROVIDER:-codex}
+      HWP_CHAT_PROVIDER: ${HWP_CHAT_PROVIDER:-llm}
+      HWP_REVIEW_PROVIDER: ${HWP_REVIEW_PROVIDER:-llm}
       HWP_CODEX_USER: ${HWP_CODEX_USER:-local}
       HWP_CODEX_ALLOWED_USERS: ${HWP_CODEX_ALLOWED_USERS:-}
       HWP_CODEX_MODEL: ${HWP_CODEX_MODEL:-}

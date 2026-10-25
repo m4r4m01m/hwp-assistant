@@ -34,6 +34,8 @@ for line in sys.stdin:
             event('item/completed', item={'id': 'search', 'type': 'webSearch'})
     if mode == 'foreign_research':
         send({'method': 'item/completed', 'params': {'threadId': 'foreign', 'turnId': 'turn', 'item': {'id': 'search', 'type': 'webSearch'}}})
+    if mode == 'mixed_research':
+        event('item/started', item={'id': 'unfinished-search', 'type': 'webSearch', 'action': {'type': 'search', 'query': '합성 미완료 조회'}})
     if mode == 'tool': event('item/started', item={'id': 'tool', 'type': 'commandExecution'})
     raw = json.dumps(draft, ensure_ascii=False)
     cut = raw.index('summary') - 3 if mode != 'e2e' else raw.index('summary') + len('summary": "') + 24

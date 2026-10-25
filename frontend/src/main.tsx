@@ -503,6 +503,13 @@ function Editor({
     [warnings, setWarnings] = useState("");
   const dirtyRef = useRef(false);
   dirtyRef.current = dirty;
+  const reviewProvider = reviewFeature.capability?.provider || "llm";
+  const codexReview = reviewProvider === "codex";
+  const reviewConnectionChecking = reviewFeature.loading || !codexReview && aiConnectionChecking;
+  const reviewConnectionReady = codexReview ? reviewFeature.available && !reviewFeature.loading : !!aiConnection?.model_available;
+  const reviewConnectionProvider = useRef(reviewProvider);
+  reviewConnectionProvider.current = reviewProvider;
+  useEffect(() => { setAiConnection(null); }, [reviewProvider]);
   const blockHosts = useRef<(HTMLDivElement | null)[]>([null, null, null]), blockHold = useRef<BlockCapture | TocCapture | null>(null),
     adapterOff = useRef<() => void>(() => {}), editorAlive = useRef(true),
     blockUndo = useRef<{ previous: EditorAdapter; current: EditorAdapter; snapshot: ExportSnapshot } | null>(null);
@@ -543,9 +550,14 @@ function Editor({
     };
   }, []);
   async function checkReviewConnection() {
+    if (codexReview) { setAiConnection(null); setAiError(""); reviewFeature.refresh(); return; }
+    const provider = reviewProvider;
     setAiConnectionChecking(true); setAiConnection(null); setAiError("");
-    try { setAiConnection(await api("/ai/models")); }
-    catch { setAiError("별도 AI에 연결할 수 없습니다. 연결 설정을 확인하거나 문서 AI 대화를 이용하세요."); }
+    try {
+      const value = await api<{ configured_model: string; models: string[]; model_available: boolean }>("/ai/models");
+      if (reviewConnectionProvider.current === provider) setAiConnection(value);
+    }
+    catch { if (reviewConnectionProvider.current === provider) setAiError("별도 AI에 연결할 수 없습니다. 연결 설정을 확인하거나 문서 AI 대화를 이용하세요."); }
     finally { setAiConnectionChecking(false); }
   }
   function showPanel(next: "block" | "toc" | "review" | "conversation" | null) {
@@ -931,6 +943,7 @@ function Editor({
         reason: string;
         original_sha256: string;
       }>("/ai/review", {
+        ...(codexReview ? { timeoutMs: 250_000 } : {}),
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1062,7 +1075,7 @@ function Editor({
           <details className="editor-menu" name="editor-overflow" ref={toolsMenu}>
             <summary className="editor-rail-action" aria-label="추가 도구" title="추가 도구"><WorkspaceIcon name="more"/><span>추가 도구</span></summary>
             <div className="editor-menu-content">
-              <strong>별도 AI 연결 기능</strong><p>사내·로컬 모델을 따로 연결한 환경에서 사용합니다.</p>
+              <strong>{codexReview ? "AI 문단 검토" : "별도 AI 연결 기능"}</strong><p>{codexReview ? "현재 설정된 Codex 연결로 문단을 검토합니다." : "사내·로컬 모델을 따로 연결한 환경에서 사용합니다."}</p>
               <button aria-label={`AI 검토 ${panel ? "닫기" : "열기"}`} onClick={() => { showPanel(panel ? null : "review"); if (toolsMenu.current) toolsMenu.current.open = false; }}>별도 AI 문단 검토</button>
             </div>
           </details>
@@ -1255,24 +1268,25 @@ function Editor({
         {panel && (
           <aside className="review-panel" aria-label="문단 AI 검토 패널">
             <button className="panel-close" aria-label="검토 패널 닫기" onClick={() => showPanel(null)}>닫기</button>
-            <h2>별도 AI 문단 검토</h2>
+            <h2>{codexReview ? "Codex 문단 검토" : "별도 AI 문단 검토"}</h2>
             <CapabilityNotice feature="review" label="문단 AI 검토" />
-            <p className="hint">사내·로컬 모델의 연결 상태를 확인한 뒤 사용할 수 있습니다.</p>
+            <p className="hint">{codexReview ? "서버의 Codex 연결과 이용 권한을 확인해 현재 문단을 검토합니다." : "사내·로컬 모델의 연결 상태를 확인한 뒤 사용할 수 있습니다."}</p>
             <button disabled={!doc.current} onClick={() => showPanel("conversation")}>문서 AI 대화로 이동</button>
             <p>
               검토할 본문 문단에 커서를 놓으세요. 승인 전에는 문서를 변경하지
               않습니다.
             </p>
-            <button disabled={!ready || aiBusy || !reviewFeature.available || !aiConnection?.model_available || aiConnectionChecking} onClick={() => void review()}>
+            <button disabled={!ready || aiBusy || !reviewFeature.available || !reviewConnectionReady || reviewConnectionChecking} onClick={() => void review()}>
               {aiBusy ? "검토 중…" : "현재 문단 검토"}
             </button>
             <button
-              disabled={aiConnectionChecking}
+              disabled={reviewConnectionChecking}
               onClick={() => void checkReviewConnection()}
             >
-              {aiConnectionChecking ? "연결 확인 중…" : "AI 연결 확인"}
+              {reviewConnectionChecking ? "연결 확인 중…" : "AI 연결 확인"}
             </button>
-            {aiConnection && <p role="status">{aiConnection.model_available ? `${aiConnection.configured_model} 연결됨` : "설정한 모델을 사용할 수 없습니다. 서버의 모델 설정을 확인하세요."}</p>}
+            {codexReview && reviewConnectionReady && <p role="status">사용 AI: Codex · 연결 준비됨</p>}
+            {!codexReview && aiConnection && <p role="status">{aiConnection.model_available ? `${aiConnection.configured_model} 연결됨` : "설정한 모델을 사용할 수 없습니다. 서버의 모델 설정을 확인하세요."}</p>}
             {aiError && <p role="alert">{aiError}</p>}
             {proposal && (
               <>
