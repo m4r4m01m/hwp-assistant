@@ -11,6 +11,72 @@ from .report_layout import lines, width
 
 BLUE = "#245F9E"
 POLICY = "tables-flow-emphasis-v1"
+TABLE_LAYOUT_POLICY = "reference-content-columns-v1"
+_IDENTIFIER = r"[A-Za-z0-9]+(?:[-./:][A-Za-z0-9]+)+"
+_ANNOTATED_IDENTIFIERS = re.compile(_IDENTIFIER + r"(?:·" + _IDENTIFIER + r")*")
+
+
+def content_column_widths(rows, table_width, *, text_unit, padding):
+    """Allocate bounded cell space from its content, without changing any text."""
+    columns = len(rows[0])
+    texts = [[row[column]["text"] for row in rows] for column in range(columns)]
+    # A short label column should not consume the same space as explanations.
+    # Cap demand so one unusually long cell cannot starve the other columns.
+    demands = [max(4, min(24, max(width(text) for text in column))) for column in texts]
+    floor = max(padding + text_unit, table_width * .12)
+    minimums = [floor] * columns
+    label_minimums = [floor] * columns
+    annotated_minimums = [floor] * columns
+    for column, values in enumerate(texts):
+        longest = max(width(value) for value in values)
+        if longest <= 8:
+            # Brief row labels (e.g. 영향·심각도) should fit as a whole where
+            # possible, rather than forming several tiny lines in a 12% cell.
+            minimums[column] = max(floor, min(table_width * .35, padding + longest * text_unit * 1.08))
+            label_minimums[column] = minimums[column]
+        # Prefer keeping ordinary identifiers/dates whole when the selected
+        # table width can accommodate them. URLs may exceed a complete page;
+        # they must never force overflow or a smaller font.
+        atoms = [match[0] for value in values for match in re.finditer(_IDENTIFIER, value)]
+        if atoms:
+            minimums[column] = max(minimums[column], padding + max(width(atom) for atom in atoms) * text_unit * 1.08)
+        for row in rows:
+            item = row[column]
+            for start, end in item.get("citation_ranges", []):
+                for match in _ANNOTATED_IDENTIFIERS.finditer(item["text"][:start]):
+                    if item["text"][match.end():start].strip():
+                        continue
+                    # Keep an annotated identifier (or middle-dot joined
+                    # identifiers) with its superscript when space permits.
+                    # Width reservation only: no added characters/line breaks.
+                    units = width(item["text"][match.start():start]) + .75 * width(item["text"][start:end])
+                    annotated_minimums[column] = max(annotated_minimums[column], padding + units * text_unit * 1.08)
+    preferred = [max(plain, annotated) for plain, annotated in zip(minimums, annotated_minimums)]
+    if sum(preferred) <= table_width:
+        minimums = preferred
+    if sum(minimums) > table_width:
+        minimums = label_minimums
+    if sum(minimums) > table_width:
+        # Preserve the existing too-small-cell validation at the call site.
+        return [table_width // columns] * (columns - 1) + [table_width - (table_width // columns) * (columns - 1)]
+    allocated = [0.] * columns
+    pending = set(range(columns))
+    remaining = table_width
+    while pending:
+        total_demand = sum(demands[column] for column in pending)
+        constrained = [column for column in pending if remaining * demands[column] / total_demand < minimums[column]]
+        if not constrained:
+            for column in pending:
+                allocated[column] = remaining * demands[column] / total_demand
+            break
+        for column in constrained:
+            allocated[column] = minimums[column]
+            remaining -= allocated[column]
+            pending.remove(column)
+    result = [math.floor(value) for value in allocated]
+    for column in sorted(range(columns), key=lambda index: (-(allocated[index] - result[index]), index))[:table_width - sum(result)]:
+        result[column] += 1
+    return result
 
 
 def emphasis_ranges(text, emphasis=()):
@@ -26,9 +92,12 @@ def emphasis_ranges(text, emphasis=()):
 
 
 class RichLayout:
-    def __init__(self, header, sample, *, visual_settings=None, page_width=481.9, page_budget=625, body_spacing=False, native_wrap=False):
+    def __init__(self, header, sample, *, visual_settings=None, page_width=481.9, page_budget=625, body_spacing=False, native_wrap=False,
+                 content_columns=False, compact_notes=False):
         self.header = header
         self.native_wrap = native_wrap
+        self.content_columns = content_columns
+        self.compact_notes = compact_notes
         self.chars = header.find(f".//{{{HH}}}charProperties")
         self.paras = header.find(f".//{{{HH}}}paraProperties")
         self.borders = header.find(f".//{{{HH}}}borderFills")
@@ -145,8 +214,16 @@ class RichLayout:
             return
         role = item["style_kind"]
         settings = self.visual_settings
+        updates = {}
+        if self.compact_notes and role + "_horizontal_align" not in settings:
+            updates[role + "_horizontal_align"] = "LEFT"
         # Explicit registered note indents own their geometry.
         if any(settings.get(role + suffix) for suffix in ("_left_indent_pt", "_right_indent_pt", "_first_line_indent_pt")):
+            if updates:
+                from .reference_source import apply_paragraph
+                para = copy.deepcopy(self.para_map[p.get("paraPrIDRef")])
+                apply_paragraph(para, role, updates)
+                p.set("paraPrIDRef", self.append(self.paras, para))
             return
         right = 0
         if role == "table_source":
@@ -163,7 +240,7 @@ class RichLayout:
         from .reference_source import apply_paragraph
         para = copy.deepcopy(self.para_map[p.get("paraPrIDRef")])
         hanging = width(item["note_marker"] + " ") * settings[role + "_size_pt"]
-        apply_paragraph(para, role, {role + "_left_indent_pt": left, role + "_right_indent_pt": right,
+        apply_paragraph(para, role, {**updates, role + "_left_indent_pt": left, role + "_right_indent_pt": right,
                                     role + "_first_line_indent_pt": -hanging})
         p.set("paraPrIDRef", self.append(self.paras, para))
 
@@ -277,6 +354,12 @@ class RichLayout:
         if self.reference and not diagram:
             padding = {side: str(round(self.visual_settings[f"table_padding_{side}_mm"] * 7200 / 25.4)) for side in padding}
             tbl.set("repeatHeader", "1" if self.visual_settings["table_repeat_header"] else "0")
+            if self.content_columns:
+                char = self.char_map[self.styles["cell"][0]]
+                ratio = float(char.find(f"{{{HH}}}ratio").get("hangul", "100")) / 100
+                spacing = float(char.find(f"{{{HH}}}spacing").get("hangul", "0")) / 100
+                widths = content_column_widths(rows, table_width, text_unit=self.table_size * max(.1, ratio + spacing),
+                                               padding=int(padding["left"]) + int(padding["right"]))
         E.SubElement(tbl, f"{{{HP}}}inMargin", padding)
         total = 0
         for y, row in enumerate(rows):
@@ -321,7 +404,9 @@ def layout_rich_report(data, plan, *, visual_settings=None):
         header = E.fromstring(source.read("Contents/header.xml"))
         from .reference_report import has_body_spacing
         layout = RichLayout(header, original[3], visual_settings=visual_settings, page_width=page_width, page_budget=page_budget,
-                            body_spacing=has_body_spacing(plan), native_wrap=bool(plan and plan[0].get("native_wrap") == "reference-native-wrap-v1"))
+                            body_spacing=has_body_spacing(plan), native_wrap=bool(plan and plan[0].get("native_wrap") == "reference-native-wrap-v1"),
+                            content_columns=bool(plan and plan[0].get("table_layout") == TABLE_LAYOUT_POLICY),
+                            compact_notes=bool(plan and plan[0].get("note_presentation") == "reference-note-titles-v1"))
         prepared, index = [], 0
         while index < len(plan):
             item = plan[index]

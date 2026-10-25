@@ -16,6 +16,7 @@ from .hwpx import digest, validate
 from .report_contract import ReportValue, ReportDraft, canonical, report_hash, report_blocks, paragraph
 from .report_hwpx import scaffold, paragraphs
 from .report_runner import generate_report, CONTRACT
+from .report_structure import validate_outline, check_outline
 from .report_errors import MESSAGES, ReportGenerationError, failure_details
 from .rewrite_capacity import ExecutionSlot
 from .document_standard import load_standard, metadata as standard_metadata, format_signature, reference_view
@@ -40,6 +41,9 @@ class CreateReport(ReportValue):
     template: ReportTemplate | None = None
     visual_standard: VisualSelection | None = None
     cover: ReportCover | None = None
+    section_outline: list[str] | None = Field(default=None, min_length=3, max_length=6)
+
+    _outline = field_validator("section_outline")(validate_outline)
 
 
 class ApproveReport(ReportValue):
@@ -128,6 +132,7 @@ def run_report(engine, task_id, user, value, settings):
     try:
         draft, evidence = generate_report(value, settings, progress, active)
         draft = ReportDraft.model_validate(draft).model_dump()
+        check_outline(value, draft)
         if revision := value.get("revision"):
             # A review can add research, but it must not silently rebind existing
             # citation IDs or discard their evidence. Prose still needs review.

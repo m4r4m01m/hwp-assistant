@@ -42,6 +42,29 @@ def test_numbered_body_does_not_receive_a_second_conflicting_numbered_hierarchy(
     assert writing_prompt({"visual_standard": {"revision": 2, "settings": {}}}) == PROMPT
 
 
+@pytest.mark.parametrize("show_summary", [False, True])
+@pytest.mark.parametrize("template_id", ["standard-business", "executive-decision", "response-plan"])
+def test_answer_remains_in_visible_body_and_selected_audience_and_profile_are_preserved(show_summary, template_id):
+    template = next(item for item in catalog()["items"] if item["id"] == template_id)
+    value = {
+        "prompt": "합성 점검 자료를 현장 담당자가 이해할 수 있게 정리해 주세요.",
+        "template": template,
+        "visual_standard": {"revision": 3, "settings": {**defaults(), "show_core_summary": show_summary}},
+    }
+    before = copy.deepcopy(value)
+    prompt = " ".join(writing_prompt(value).split())
+    assert "Unless the user specifies another audience" in prompt
+    assert "Lead with the answer or major findings" in prompt
+    assert ("The first body section must therefore contain the essential answer" in prompt) == (not show_summary)
+    assert ("Do not leave essential information only in the hidden summary" in prompt) == (not show_summary)
+    assert "same generation, not an extra report" in prompt
+    assert "Do not cite an external source as evidence for your own verification limits" in prompt
+    assert "otherwise prefer 추진 배경" not in prompt
+    assert "60-85" not in prompt and "Use at least one useful table" not in prompt
+    assert "Use emphasis for 2-8" not in prompt
+    assert value == before and report_hash(value) == report_hash(before)
+
+
 def test_reference_style_and_review_feedback_do_not_mutate_the_frozen_source_draft():
     value = {
         "visual_standard": {"revision": 3, "settings": defaults()},

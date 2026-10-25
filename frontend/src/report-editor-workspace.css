@@ -146,6 +146,18 @@
 .report-editor-workspace .report-workspace-drawer select { max-width: 100%; min-width: 0; }
 .report-editor-workspace .report-input > label:not(.check-label) { display: block; margin-top: 18px; }
 .report-editor-workspace .report-input > select { width: 100%; }
+.report-structure { margin: 14px 0; padding: 10px; border: 1px solid #d6e0ea; border-radius: 8px; min-width: 0; }
+.report-structure legend { padding: 0 5px; font-weight: 600; }
+.report-structure > select { width: 100%; }
+.report-structure-headings { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 8px; }
+.report-structure-headings li { display: flex; align-items: center; gap: 4px; }
+.report-editor-workspace .report-structure-headings label { flex: 1; display: flex; align-items: center; gap: 5px; min-width: 0; margin: 0; }
+.report-structure-headings label > span { flex: 0 0 auto; white-space: nowrap; }
+.report-structure-headings input { width: 100%; min-width: 0; padding: 7px 5px; }
+.report-structure-order { display: flex; gap: 1px; flex: 0 0 auto; }
+.report-structure-order button { min-width: 25px; padding: 5px 4px; line-height: 1.3; }
+.report-structure-add { width: 100%; padding: 6px; }
+.report-structure .hint, .report-structure .error { margin: 7px 0 0; font-size: 11px; line-height: 1.5; }
 .report-editor-workspace .report-input > .primary { width: 100%; }
 .report-editor-workspace .report-frozen-format { background: #f0f6fb; border-color: #d4e2ef; color: #395874; }
 .report-editor-workspace .report-recovery-actions { display: grid; gap: 10px; }

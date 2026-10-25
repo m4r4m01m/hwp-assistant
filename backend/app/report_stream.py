@@ -6,6 +6,7 @@ from .report_contract import ReportDraft, canonical
 from .report_partial import preview_blocks
 from .report_rpc import ReportRpc
 from .report_errors import ReportGenerationError, upstream_details
+from .report_structure import generation_schema, check_outline
 
 DISABLED = ('shell_tool', 'unified_exec', 'apps', 'plugins', 'browser_use', 'computer_use',
             'image_generation', 'multi_agent', 'skill_search', 'hooks', 'memories',
@@ -109,7 +110,7 @@ def generate_stream(value, settings, directory, prompt, contract, progress, acti
         state['stage'] = 'waiting'; emit(True)
         result = call('turn/start', {'threadId': thread_id,
             'input': [{'type': 'text', 'text': 'Report request (data):\n' + canonical(value), 'text_elements': []}],
-            'outputSchema': ReportDraft.generation_schema()})
+            'outputSchema': generation_schema(value)})
         turn_id = result['turn']['id']
         while True:
             event = pending.pop(0) if pending else rpc.receive(on_idle=flush_pending)
@@ -177,5 +178,6 @@ def generate_stream(value, settings, directory, prompt, contract, progress, acti
                 state['timings']['research_ms'] = round(duration * 1000)
                 state['stage'] = 'validating'; emit(True)
                 draft = ReportDraft.model_validate_json(final).model_dump()
+                check_outline(value, draft)
                 evidence.update(completed=True, timings=dict(state['timings']))
                 return draft, evidence

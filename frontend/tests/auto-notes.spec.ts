@@ -52,11 +52,11 @@ test("REAL rhwp + MOCK report: automatic notes number multiple sources and reset
   const pages = await frame.evaluate(() => (window as any).hwpAssistantBridge.documentState().pageCount);
   await page.screenshot({ path: info.outputPath("auto-notes-report.png"), fullPage: true });
   await page.getByRole("button", { name: "초안 확정·서버 저장", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("HWPX 서버 저장 완료");
-  const href = (await page.getByRole("link", { name: "완성 보고서 다운로드", exact: true }).getAttribute("href"))!;
+  await expect(page.getByRole("status")).toHaveText("저장 완료");
+  const href = (await page.getByRole("link", { name: "저장본 다운로드", exact: true }).getAttribute("href"))!;
   const saved = await (await request.get(href)).body();
   expect(hash(saved)).toBe(hash(bytes));
-  await page.getByRole("button", { name: "보고서 편집하기", exact: true }).click();
+  // A clean save opens the regular editor automatically.
   await expect(page.getByRole("status")).toHaveText("저장 완료");
   const reopened = await (await page.locator(".block-editor-slot.active iframe").elementHandle())!.contentFrame();
   if (!reopened) throw new Error("저장 보고서를 다시 열지 못했습니다.");

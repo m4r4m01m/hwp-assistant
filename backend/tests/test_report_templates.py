@@ -91,6 +91,7 @@ def test_legacy_input_hash_and_retry_remain_three_fields(report_env, monkeypatch
 def test_heading_guidance_and_frozen_profile_reach_actual_stdio_payload(report_env, monkeypatch, tmp_path, index):
     from app import report_runner, report_stream
     from app.codex_runner import CodexSettings
+    from app.reference_standard import defaults
     from app.report_rpc import ReportRpc
     from test_reports import DRAFT
     (client, _, _, _), _ = report_env
@@ -101,6 +102,10 @@ def test_heading_guidance_and_frozen_profile_reach_actual_stdio_payload(report_e
         "위 사실·기간·조건을 보존한 보고서를 작성해주세요."
     )
     value["research"] = True
+    value["visual_standard"] = {"revision": 3, "settings": {
+        **defaults(f"appendix-{index + 1}"), "show_core_summary": index == 1,
+    }}
+    frozen = copy.deepcopy(value)
     draft = copy.deepcopy(DRAFT)
     # The guidance is for new writing, not a rewrite/truncation of valid model output.
     draft["sections"][0]["heading"] = "2026년 11월 새봄팀 문서 120건의 정비와 개인정보 포함 자료의 담당자 확인 후 이관 조건"
@@ -133,11 +138,33 @@ def test_heading_guidance_and_frozen_profile_reach_actual_stdio_payload(report_e
         "Aim for a single TOC line at the standard font, size and width; allow two lines for a necessary name",
         "never cut strings, add ellipses, shrink type or omit sections",
         "Use the body heading itself; do not create a separate TOC label",
-        "Choose the section flow for the topic and verified template's purpose; otherwise prefer",
-        "This is a flow, not fixed heading text",
+        "Lead with the answer or major findings, then their evidence and implications",
+        "Unless the user specifies another audience, write for senior leaders",
+        "Unless the user asks for an implementation guide, express technical risks as affected scope, business impact",
+        "Do not enumerate function names, configuration snippets or patch procedures that the reader does not need to decide",
+        "summarize their material applicability conditions accurately",
+        "Explain each detailed fact once",
+        "Consolidate related gaps instead of creating separate items for every unavailable piece of evidence",
+        "verified title of the specific cited advisory/article at the linked anchor, not a generic site/archive heading",
+        "Never invent a title when it cannot be verified",
+        "use the fewest substantive sections that cover the request",
+        "Check the source's covered entities, versions, dates and conditions",
+        "Separate confirmed facts, your analysis and proposed actions",
+        "Use limitations only for material gaps",
+        "Cite the same source once per logical point",
+        "The five-row bound never permits silently omitting a covered entity",
+        "Use empty arrays when visuals do not help",
+        "Before returning JSON, review this same draft",
+        "Use the same bracketed source tokens in limitations",
+        "Printed reference notes show the source title only",
+        "Do not concatenate several dates or cut a date to fit a field",
+        "Preserve all source fields inherited from a revision exactly, even if incomplete",
     ):
         assert required in instructions
-    assert captured["thread"]["baseInstructions"] == captured["instructions"] == report_runner.PROMPT
+    assert captured["thread"]["baseInstructions"] == captured["instructions"] == report_runner.writing_prompt(value)
+    assert ("show_core_summary=false" in instructions) == (index != 1)
+    assert "60-85" not in instructions and "Use at least one useful table" not in instructions
+    assert value == frozen
     request = json.loads((tmp_path / "turn-request.json").read_text(encoding="utf-8"))
     assert json.loads(request["params"]["input"][0]["text"].split("\n", 1)[1]) == value
     assert generated["sections"][0]["heading"] == draft["sections"][0]["heading"]

@@ -1,0 +1,64 @@
+{
+  "date": "2026-10-26",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "base_head": "14e52b23fdf41ddf8effcd0a92f219e5d667469f",
+  "uncommitted": true,
+  "runtime": "15330/18330 QA; owned API restarted after idle-task and exact PID/start-time checks; UI/API HTTP 200",
+  "changes": {
+    "writing": "Answer and decision first; selected-summary-off handled in first body; relevant facts before format quotas; no forced visuals; business impact instead of technical tutorials; preserve material scope/conditions and distinguish facts/proposals/limits",
+    "notes": "reference-note-groups-v1; semantic root and supporting body items share a source explanation; single-source tables print one material-source title while retaining canonical cell anchors",
+    "frozen_boundary": "New drafts and new reference plans only; no profile, schema-bound, source asset, engine, saved standard or old frozen-preview rewrite"
+  },
+  "tests": {
+    "prompt_and_frozen_input_unique": 24,
+    "note_groups_presentation_local_notes_controls_unique": 45,
+    "final_prompt_refinement_actual_mock_stdio_recheck": 3,
+    "recheck_not_additive": true,
+    "actual_model_calls": 2,
+    "model": "gpt-6.1-sol",
+    "reasoning_effort": "medium",
+    "same_original_request_and_visual_standard": true,
+    "new_request_ids_only": true,
+    "real_engine": "Existing pinned diagnostic rhwp; no engine changes"
+  },
+  "actual_model_and_render": {
+    "comparison_scope": "Newly researched drafts with different sources/content, not an identical-content layout experiment",
+    "baseline": {"pages": 6, "sources": 5, "notes": 20, "note_chars": 844, "limitations": 4},
+    "first_attempt": {
+      "web_search_calls": 8, "seconds": 121, "sections": 4, "sources": 7,
+      "pages": 6, "notes": 11, "note_chars": 384, "exact_commands": 63,
+      "single_source_table_cell_markers": 0,
+      "remaining_problem": "Technical detail still excessive; final page contained one 72-character limitation; generic archive title used"
+    },
+    "final_attempt": {
+      "instructions_sha256": "27d24f2fe75b38580b38eddb775e884047e5a84d63fb0e1df34405297fc01735",
+      "web_search_calls": 9, "seconds": 110, "sections": 4, "sources": 7,
+      "pages": 5, "reopened_pages": 5, "notes": 13, "note_chars": 505,
+      "limitations": 2, "exact_commands": 60,
+      "mixed_source_table_cell_markers": 9,
+      "mixed_source_marks_preserved_intentionally": true,
+      "roundtrip_text_equal": true,
+      "first_body_has_principal_finding_and_decision_implication": true,
+      "function_and_configuration_snippets_removed": true,
+      "final_page_has_actions_and_both_limitations": true,
+      "printed_urls": 0,
+      "hwpx_sha256": "9ca51fcd1731ea673d5b130f8d2f9cfdd21f41672dbadd1b5b3fc3f82c1f2b5e"
+    }
+  },
+  "preservation": {
+    "original_document_and_task_cache_hashes": true,
+    "original_server_task_input_draft_sha_and_approval_equal_after_restart": true,
+    "original_saved_standard_equal": true,
+    "frozen_source_records_and_cell_citation_anchors": true,
+    "user_document_or_database_saved_by_harness": false
+  },
+  "content_review_limits": [
+    "Both real model outputs reviewed; final output still includes a limited overseas comparison and is not a guaranteed one-page executive brief",
+    "Institution-specific completion status and differences in source scope/date remain human-review priorities; the new sample is not a revision preserving every fact from the earlier draft",
+    "PHP official advisory, privacy regulator notice, bank reporting and the cited overseas company's notice were inspected; not every source could be independently opened",
+    "KISA and one article URL were unavailable to the independent web reader; no claim of complete independent factual verification",
+    "This is automated technical verification and assistant visual/content review, not final human approval"
+  ],
+  "artifacts": "Ignored local QA executive-report-quality-20261026 and executive-report-quality-20261026-refined folders; user report files/screenshots remain untracked",
+  "not_performed": ["Hancom inspection", "Full regression suite", "Frontend/engine rebuild", "Commit/push", "Production deployment"]
+}
