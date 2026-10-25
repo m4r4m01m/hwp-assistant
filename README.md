@@ -18,6 +18,8 @@ HWPX 문서함 · 문서 권한 기반 대화 · 승인 기반 AI 수정 · 버�
 
 HWP Assistant는 HWPX 파일을 열고, 편집하고, AI 수정안을 비교해 새 버전으로 저장하는 웹 애플리케이션입니다. 문서 원본은 **HWPX**로 유지하고, 최초 업로드와 이전 확정 버전은 보존합니다. 문서의 대화·작성 기준·수정 후보도 함께 관리합니다.
 
+**현재 인수인계 기준 · 2026-10-25:** [PROJECT_CONTEXT](docs/PROJECT_CONTEXT.md)에 최신 main(PR #33), 검증·운영 배포 기록, 계정/Codex 복구와 미확인 항목을 모았습니다. 아래 날짜별 안내는 당시 범위입니다. ChatGPT Work에서는 이 파일과 [AGENTS.md](AGENTS.md)를 참조하고, Codex에서는 저장소의 AGENTS.md를 시작 지침으로 사용합니다.
+
 > [!NOTE]
 > **개발·검증 단계입니다.** 실제 Codex 승인·저장 흐름과 일부 한컴 2018 왕복을 확인했습니다. 전체 문서 호환성이나 운영 배포 완료를 뜻하지 않습니다. Docker·PostgreSQL·HTTPS 검증과 홈서버 배포 워크플로는 준비돼 있으며 실제 첫 실행과 서버 연결을 확인해야 합니다.
 
@@ -29,7 +31,7 @@ HWP Assistant는 HWPX 파일을 열고, 편집하고, AI 수정안을 비교해 
 
 후속으로 [원문 양식과 내용 검토·보완](docs/report-review-workflow-2026-10-20.md), [문서 표준 편집 설정](docs/visual-standard-controls-2026-10-18.md), [전체 높이 편집 화면](docs/editor-viewport-2026-10-18.md), [Windows 원클릭 개발 환경](docs/developer-quickstart.md)을 추가했습니다. 해당 문서에서 새 기능과 검증 범위를 확인할 수 있습니다.
 
-**2026-10-25 검토 브랜치:** [홈서버 Codex·계정·로그인 시 자원 미리 받기](docs/poc-codex-accounts-prewarm-2026-10-25.md). 개인 구독 실행은 명시한 소유자만 기본 허용하며, 운영 device login과 다중 사용자 이용 조건 확인은 별도입니다. 기존 토큰·문서·포트는 보존합니다.
+**2026-10-25 main 반영:** [홈서버 Codex·계정·로그인 시 자원 미리 받기](docs/poc-codex-accounts-prewarm-2026-10-25.md)는 PR #31로 병합됐습니다. 후속 PR #33과 수동 운영 배포 결과는 [현재 상태](docs/PROJECT_CONTEXT.md)를 따릅니다. 개인 구독 실행은 명시한 소유자만 기본 허용하며, 운영 device login과 실제 모델 성공 확인은 별도입니다. 기존 토큰·문서·포트는 보존합니다.
 
 ## 주요 기능
 

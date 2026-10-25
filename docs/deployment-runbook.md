@@ -1,5 +1,7 @@
 # Ubuntu / Tailscale Funnel 실배포 실행 안내
 
+2026-10-25 보충: 현재 main·실제 배포 Actions 결과·계정/Codex 인증 및 환경변수 변경 절차는 [PROJECT_CONTEXT](PROJECT_CONTEXT.md)를 먼저 확인한다. 아래의 초기 범위/미실행 설명은 당시 기록이다.
+
 **기준:** 외부 `/hwp-assistant/` → 호스트 Nginx의 접두 경로 제거 → `127.0.0.1:23000`.
 
 이 변경은 **문서 기능의 컨테이너 배포 기반**이다. 외부 유료 LLM 제공자 구현과 Codex 전용 보고서 생성기의 교체는 포함하지 않는다. 기존 모델 미설정 오류가 표시될 수 있으며, 개인 Codex 로그인 파일을 서버에 복사하지 않는다. 실제 집 서버에서 편집·저장·한컴 호환성을 검수한 결과와 CI 실행 결과는 별도로 기록해야 한다.
@@ -62,8 +64,9 @@ python3 scripts/deploy/init.py --owner yoseob \
 
 - `hwp-assistant-prod-metadata`: PostgreSQL 데이터
 - `hwp-assistant-prod-documents`: HWPX 원본·저장 버전
+- `hwp-assistant-prod-codex-state`: API `/home/app/.codex`의 private Codex 인증·설정. 기존 서버의 업그레이드는 배포 스크립트가 누락된 이 볼륨만 보충한다.
 
-둘은 Compose에 같이 연결되지만 서로 다른 볼륨이다. `external: true`이므로 일반 Compose 종료 명령이 삭제하지 않는다. `docker volume rm`, 전체 볼륨 정리, 디스크 장애는 여전히 데이터를 잃게 할 수 있다. 기존 개발용 SQLite 및 다른 Compose 볼륨을 자동 이전하거나 초기화하지 않는다.
+세 개는 서로 다른 외부 볼륨이다. `external: true`이므로 일반 Compose 종료 명령이 삭제하지 않는다. `docker volume rm`, 전체 볼륨 정리, 디스크 장애는 여전히 데이터를 잃게 할 수 있다. 기존 개발용 SQLite 및 다른 Compose 볼륨을 자동 이전하거나 초기화하지 않는다. Codex 인증은 아래 DB/문서 자동 백업에 포함하지 않으며 소실 시 서버에서 재로그인한다.
 
 ## 4. 호스트 Nginx 확인
 
