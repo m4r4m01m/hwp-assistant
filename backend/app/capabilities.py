@@ -42,19 +42,19 @@ def http_feature(user):
 
 
 def codex_feature(user, *, stream=False):
-    allowed = user == os.getenv("HWP_CODEX_USER", "local")
+    from .codex_runtime import allowed as permitted, readiness
     try:
+        allowed = permitted(user)
         settings = codex_runner.capture_settings()
     except HTTPException:
-        return feature(False, allowed, "invalid_configuration",
+        return feature(False, False, "invalid_configuration",
                        "서버의 Codex 연결 설정을 확인해야 합니다. 관리자에게 문의하세요.", stream=stream)
-    if not settings.executable:
-        return feature(False, allowed, "codex_not_installed",
-                       "서버에 Codex 실행기가 준비되지 않았습니다. 문서 편집과 저장은 사용할 수 있습니다.", stream=stream)
+    state = readiness(settings)
+    if not state["configured"]:
+        return feature(False, allowed, state["reason_code"], state["message"], stream=stream)
     if not allowed:
-        return feature(True, False, "user_not_allowed",
-                       "서버의 Codex 계정에 연결된 사용자만 실행할 수 있습니다.", stream=stream)
-    return feature(True, True, message="Codex 실행기가 설정되어 있습니다. 로그인 상태는 실행 시 확인합니다.", stream=stream)
+        return feature(True, False, "user_not_allowed", "이 사용자는 서버의 Codex 실행 권한이 없습니다.", stream=stream)
+    return feature(True, True, message=state["message"], stream=stream)
 
 
 def install_capabilities(app):

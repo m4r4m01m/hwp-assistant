@@ -14,6 +14,7 @@ async function mockApi(page: Page, handler?: Handler) {
   await page.route("**/api/**", async route => {
     const path = new URL(route.request().url()).pathname.replace(/^.*\/api/, "");
     if (await handler?.(route, path)) return;
+    if (path === "/auth/status") return json(route, { accounts_enabled: false });
     if (path === "/auth/me") return json(route, { user_id: "test-user", authentication_required: true });
     if (path === "/capabilities") return json(route, capabilities);
     if (path === "/documents") return json(route, [documentRow]);

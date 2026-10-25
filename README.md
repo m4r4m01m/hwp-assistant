@@ -29,6 +29,8 @@ HWP Assistant는 HWPX 파일을 열고, 편집하고, AI 수정안을 비교해 
 
 후속으로 [원문 양식과 내용 검토·보완](docs/report-review-workflow-2026-10-20.md), [문서 표준 편집 설정](docs/visual-standard-controls-2026-10-18.md), [전체 높이 편집 화면](docs/editor-viewport-2026-10-18.md), [Windows 원클릭 개발 환경](docs/developer-quickstart.md)을 추가했습니다. 해당 문서에서 새 기능과 검증 범위를 확인할 수 있습니다.
 
+**2026-10-25 검토 브랜치:** [홈서버 Codex·계정·로그인 시 자원 미리 받기](docs/poc-codex-accounts-prewarm-2026-10-25.md). 개인 구독 실행은 명시한 소유자만 기본 허용하며, 운영 device login과 다중 사용자 이용 조건 확인은 별도입니다. 기존 토큰·문서·포트는 보존합니다.
+
 ## 주요 기능
 
 | 기능 | 현재 할 수 있는 일 |

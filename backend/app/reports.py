@@ -1,4 +1,5 @@
 """Owner-scoped report drafts and explicit approval into a new, immutable document."""
+from .codex_runtime import allowed as codex_allowed, require_ready as require_codex_ready, reserve_usage as reserve_codex_usage
 import base64
 import json
 import os
@@ -179,7 +180,7 @@ def install_reports(app, publish, check_lease, doc_dict):
     @app.post("/api/report-tasks")
     def create_report(value: CreateReport, request: Request):
         user, task_id = request.state.user, str(value.id)
-        if user != os.getenv("HWP_CODEX_USER", "local"):
+        if not codex_allowed(user):
             raise HTTPException(403, "이 서버의 Codex 실행 사용자에게 보고서 작성을 요청하세요.")
         # Omit an absent selection so legacy IDs retain their exact input hash.
         body = value.model_dump(mode="json", exclude_none=True)
@@ -193,11 +194,13 @@ def install_reports(app, publish, check_lease, doc_dict):
                         raise HTTPException(409, "같은 요청 ID에 다른 보고서 지시를 사용할 수 없습니다.")
                     return task_dict(row)
                 settings = capture_settings()
+                require_codex_ready(settings)
                 if value.template is not None:
                     validate_selection(value.template)
                 if value.visual_standard is not None:
                     validate_visual_selection(db, user, value.visual_standard, folder=folder)
                 slot.reserve()
+                reserve_codex_usage(db, "report:" + task_id, user)
                 row = ReportTask(id=task_id, owner_id=user, input=canonical(body), input_sha256=report_hash(body),
                     status="running", created_at=time.time(), execution=canonical({"executor": "codex-app-server", "model": settings.model,
                     "contract": CONTRACT, "research": body["research"], "input_sha256": report_hash(body), "context_used": False}))
@@ -208,7 +211,7 @@ def install_reports(app, publish, check_lease, doc_dict):
     @app.post("/api/report-tasks/{source_task_id}/revise")
     def revise_report(source_task_id: str, value: ReviseReport, request: Request):
         user, task_id = request.state.user, str(value.id)
-        if user != os.getenv("HWP_CODEX_USER", "local"):
+        if not codex_allowed(user):
             raise HTTPException(403, "이 서버의 Codex 실행 사용자에게 보고서 작성을 요청하세요.")
         requested = {"source_task_id": source_task_id, "draft_sha256": value.draft_sha256, "feedback": value.feedback}
         with ExecutionSlot(app.state.rewrite_capacity) as slot:
@@ -235,7 +238,9 @@ def install_reports(app, publish, check_lease, doc_dict):
                 body = {key: item for key, item in json.loads(source.input).items() if key not in ("id", "revision")}
                 body.update(id=task_id, revision={**requested, "draft": source_draft})
                 settings = capture_settings()
+                require_codex_ready(settings)
                 slot.reserve()
+                reserve_codex_usage(db, "report:" + task_id, user)
                 row = ReportTask(id=task_id, owner_id=user, input=canonical(body), input_sha256=report_hash(body),
                     status="running", created_at=time.time(), execution=canonical({"executor": "codex-app-server", "model": settings.model,
                     "contract": CONTRACT, "research": body["research"], "input_sha256": report_hash(body), "context_used": False,

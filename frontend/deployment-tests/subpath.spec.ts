@@ -18,6 +18,10 @@ test("HTTPS subpath login, real Studio and immutable comparison renderer", async
   });
   page.on("pageerror", error => errors.push(error.message));
   await page.goto(base);
+  if (await page.getByRole("button", { name: /guest로 체험/ }).isVisible()) {
+    await page.getByText("기존 인증 토큰으로 로그인", { exact: true }).click();
+    await page.getByRole("button", { name: "토큰 입력 화면", exact: true }).click();
+  }
   await page.getByLabel("인증 토큰").fill(token);
   await page.getByRole("button", { name: "로그인", exact: true }).click();
   await expect(page.getByRole("heading", { name: "HWPX 문서함", exact: true })).toBeVisible();

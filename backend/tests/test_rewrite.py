@@ -11,6 +11,7 @@ from test_storage import package, save
 
 @pytest.fixture
 def job(secured, monkeypatch):
+    monkeypatch.setenv("HWP_CODEX_EXECUTABLE", "synthetic-codex-not-executed")
     c, app, _, _ = secured
     monkeypatch.setenv("HWP_CODEX_USER", "alice")
     runs = []

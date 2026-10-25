@@ -116,7 +116,7 @@ def credential_hash(user, token):
     return hashlib.sha256(f"browser-session-v1\0{user}\0{token}".encode()).hexdigest()
 
 
-def issue_session(engine, user, users, policy, previous=""):
+def issue_session(engine, user, users, policy, previous="", *, account_binding=None):
     now = time.time()
     token = SESSION_PREFIX + secrets.token_urlsafe(32)
     with transaction(engine) as db:
@@ -124,6 +124,12 @@ def issue_session(engine, user, users, policy, previous=""):
             # Serialize issuance for this user across processes; SQLite's transaction does this already.
             key = int.from_bytes(hashlib.sha256(f"browser-sessions:{user}".encode()).digest()[:8], "big", signed=True)
             db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": key})
+        if account_binding is not None:
+            from .accounts import UserAccount, session_binding
+            account = db.scalar(select(UserAccount).where(UserAccount.user_id == user).with_for_update())
+            if not account or not account.is_active or not secrets.compare_digest(account_binding, session_binding(account)):
+                raise HTTPException(401, LOGIN_REQUIRED)
+            account.last_login_at = now
         # A revoked hash has no audit payload to retain. Prune it on issuance so
         # repeated valid logins cannot accumulate unbounded rows within the TTL.
         db.execute(delete(AuthSession).where(or_(AuthSession.expires_at <= now,
@@ -136,21 +142,29 @@ def issue_session(engine, user, users, policy, previous=""):
         for old in active[policy.max_per_user - 1:]:
             old.revoked_at = now
         db.add(AuthSession(token_hash=session_hash(token), user_id=user,
-                           credential_hash=credential_hash(user, users[user]), created_at=now,
+                           credential_hash=account_binding if account_binding is not None else credential_hash(user, users[user]), created_at=now,
                            expires_at=now + policy.absolute_seconds, last_seen_at=now, revoked_at=None))
     return token
 
 
-def authenticate_session(engine, token, users, policy):
+def authenticate_session(engine, token, users, policy, accounts_enabled=False):
     if not SESSION_PATTERN.fullmatch(token):
         raise HTTPException(401, LOGIN_REQUIRED)
     token_hash = session_hash(token)
     now = time.time()
     with Session(engine) as db:
         row = db.get(AuthSession, token_hash)
+        valid = bool(row and row.user_id in users and secrets.compare_digest(
+            row.credential_hash, credential_hash(row.user_id, users[row.user_id])))
+        if row and accounts_enabled:
+            from .accounts import UserAccount, session_binding
+            account = db.get(UserAccount, row.user_id)
+            if account and not account.is_active:
+                valid = False
+            elif account and secrets.compare_digest(row.credential_hash, session_binding(account)):
+                valid = True
         if (row is None or row.revoked_at is not None or row.expires_at <= now
-                or row.last_seen_at <= now - policy.idle_seconds or row.user_id not in users
-                or not secrets.compare_digest(row.credential_hash, credential_hash(row.user_id, users[row.user_id]))):
+                or row.last_seen_at <= now - policy.idle_seconds or not valid):
             raise HTTPException(401, LOGIN_REQUIRED)
         user, touched_at = row.user_id, row.last_seen_at
     # Read-only for most requests. Do not hold a read transaction while acquiring a write lock.
