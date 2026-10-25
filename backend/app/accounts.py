@@ -112,6 +112,25 @@ def require_active_if_registered(engine, user):
             raise HTTPException(401, "이 계정은 비활성화되어 있습니다.")
 
 
+def historical_identity_in_use(db, user):
+    """A removed token does not free a principal for public re-registration.
+
+    An operator may deliberately attach a password to an existing identity via
+    account_admin. Public signup must never inherit its documents or audit trail.
+    Match legacy case variants too, since new usernames are normalized lowercase.
+    """
+    from .db import (Access, Application, AuthSession, Conversation, ConversationTurn,
+                     LeaseOwner, Message, Proposal, ReportTask, RewriteTask,
+                     TemplateFavorite, VersionAuthor, VisualStandard)
+    columns = (Access.user_id, Application.approved_by, AuthSession.user_id,
+               Conversation.owner_id, ConversationTurn.requested_by,
+               LeaseOwner.user_id, Message.author_id, Proposal.author_id,
+               ReportTask.owner_id, RewriteTask.requested_by,
+               TemplateFavorite.user_id, VersionAuthor.user_id, VisualStandard.owner_id)
+    return any(db.scalar(select(column).where(func.lower(column) == user).limit(1)) is not None
+               for column in columns)
+
+
 def public_account(row):
     # Employee number is intentionally not sent to the browser after signup.
     return {"user_id": row.user_id, "name": row.name, "kind": row.kind}
@@ -289,6 +308,8 @@ def install_accounts(app, policy, session_policy):
                         db.execute(text("SELECT pg_advisory_xact_lock(706251025)"))
                     if db.scalar(select(func.count()).select_from(UserAccount)) >= policy.maximum:
                         raise HTTPException(403, "체험 계정 수 한도에 도달했습니다. 관리자에게 문의하세요.")
+                    if historical_identity_in_use(db, value.username):
+                        raise HTTPException(409, "이 아이디 또는 사번으로 계정을 만들 수 없습니다.")
                     row = UserAccount(user_id=value.username, password_hash=encoded, name=value.name,
                         employee_number=value.employee_number, kind="member", is_active=True,
                         session_revision=secrets.token_hex(32), created_at=time.time())
