@@ -25,6 +25,21 @@ def test_generation_schema_requires_explicit_rich_arrays_but_old_drafts_still_lo
     assert ReportDraft.model_validate(DRAFT).emphasis == []
 
 
+@pytest.mark.parametrize('damage', ['column', 'cell', 'step', 'paragraph', 'limitation'])
+def test_generation_schema_rejects_validator_only_oversize_rich_values(damage):
+    from jsonschema import Draft202012Validator
+    schema = Draft202012Validator(ReportDraft.generation_schema())
+    value = ReportDraft.model_validate(RICH_DRAFT).model_dump()
+    assert schema.is_valid(value)
+    if damage == 'column': value['sections'][0]['tables'][0]['columns'][0] = '가' * 21
+    if damage == 'cell': value['sections'][0]['tables'][0]['rows'][0][0] = '가' * 53
+    if damage == 'step': value['sections'][1]['diagrams'][0]['steps'][0] = '가' * 49
+    if damage == 'paragraph': value['sections'][2]['paragraphs'][0] = '가' * 801
+    if damage == 'limitation': value['limitations'][0] = '가' * 401
+    assert not schema.is_valid(value)
+    with pytest.raises(ValueError): ReportDraft.model_validate(value)
+
+
 def parsed(data):
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         return E.fromstring(z.read('Contents/header.xml')), E.fromstring(z.read('Contents/section0.xml'))

@@ -4,7 +4,8 @@ import { scheduleEngineWarmup, startEngineWarmup, subscribeWarmup, warmState } f
 import "./account-gate.css";
 
 export type Account = { user_id: string; authentication_required: boolean; name?: string; kind?: string };
-type Policy = { accounts_enabled: boolean; registration_enabled: boolean; guest_enabled: boolean };
+type SampleAccount = { user_id: string; label: string };
+type Policy = { accounts_enabled: boolean; registration_enabled: boolean; guest_enabled: boolean; sample_accounts?: SampleAccount[] };
 const rememberedKey = "hwp-remembered-usernames-v1";
 function remembered(): string[] {
   try {
@@ -23,9 +24,11 @@ export function clearAccountWorkspaceState() {
 }
 function WarmupNotice() {
   const value = useSyncExternalStore(subscribeWarmup, warmState);
-  const text = value.phase === "ready" ? "편집 자원 다운로드 완료 · 문서를 열 때 엔진을 초기화합니다."
-    : value.phase === "loading" ? `로그인하는 동안 한글 편집 자원을 준비합니다${value.total ? ` · ${value.completed}/${value.total}개` : "…"}`
+  const text = value.phase === "ready" ? "편집 자원 다운로드 완료 · WASM 컴파일 완료 · 문서를 열 때 엔진 초기화·문서 배치를 진행합니다."
+    : value.phase === "loading" && value.stage === "compile" ? "편집 자원 다운로드 완료 · WASM을 컴파일합니다. 로그인은 계속할 수 있습니다."
+    : value.phase === "loading" ? `로그인하는 동안 한글 편집 자원을 다운로드합니다${value.total ? ` · ${value.completed}/${value.total}개` : "…"}`
     : value.phase === "deferred" ? "데이터 절약·오프라인·비활성 화면에서는 미리 받기를 보류합니다."
+    : value.phase === "failed" && value.stage === "compile" ? "편집 자원 다운로드는 완료했지만 WASM 사전 컴파일을 완료하지 못했습니다. 문서를 열 때 다시 준비하며 로그인은 계속할 수 있습니다."
     : value.phase === "failed" ? "편집 자원을 미리 받지 못했습니다. 문서를 열 때 다시 준비하며 로그인은 계속할 수 있습니다."
     : "로그인 화면에서 한글 편집 자원을 미리 준비합니다.";
   return <div className="engine-warmup" aria-live="polite"><p>{text}</p>{["failed", "deferred"].includes(value.phase) && <button type="button" onClick={() => void startEngineWarmup(true)}>편집 자원 미리 받기</button>}</div>;
@@ -86,12 +89,22 @@ export function AccountGate({ children }: { children: (account: Account) => Reac
   if (account) return children(account);
   if (loading) return <main className="drive auth-screen"><p role="status">문서함 연결 중…</p><WarmupNotice /></main>;
   const legacy = !policy?.accounts_enabled || mode === "token";
+  const samples = policy?.sample_accounts || [];
+  const personalProfiles = profiles.filter(user => !samples.some(sample => sample.user_id === user));
+  const selectedSample = samples.find(sample => sample.user_id === username);
   return <main className="account-page"><section className="account-panel" aria-label="문서함 로그인">
     <header><span className="account-eyebrow">HWP ASSISTANT · PoC</span><h1>HWPX 문서함 로그인</h1><p>한글 문서 작성부터 AI 검토까지, 사용할 작업 공간을 선택하세요.</p></header>
     {!legacy && mode === "choose" ? <>
+      {!!samples.length && <section aria-label="샘플 계정 선택">
+        <h2>샘플 계정 선택</h2>
+        <div className="account-choices">
+          {samples.map(sample => <button className="account-card" key={sample.user_id} onClick={() => select("login", sample.user_id)}><span aria-hidden="true" className="account-avatar">S</span><strong>{sample.label}</strong><small>{sample.user_id} · 비밀번호 필요</small></button>)}
+        </div>
+        <p className="account-note">각 샘플 계정은 별도 문서함을 사용하며 같은 계정으로 접속한 체험자끼리는 문서를 공유합니다. AI 이용 권한은 관리자 설정에 따릅니다.</p>
+      </section>}
       <div className="account-choices">
         <button className="account-card" disabled={!policy?.guest_enabled} onClick={() => select("guest")}><span aria-hidden="true" className="account-avatar">G</span><strong>guest로 체험</strong><small>{policy?.guest_enabled ? "공용 체험 공간 · 비밀번호 필요" : "관리자의 guest 설정이 필요합니다"}</small></button>
-        {profiles.map(user => <button className="account-card" key={user} onClick={() => select("login", user)}><span aria-hidden="true" className="account-avatar">{user[0].toUpperCase()}</span><strong>{user}</strong><small>기억한 아이디 · 비밀번호 필요</small></button>)}
+        {personalProfiles.map(user => <button className="account-card" key={user} onClick={() => select("login", user)}><span aria-hidden="true" className="account-avatar">{user[0].toUpperCase()}</span><strong>{user}</strong><small>기억한 아이디 · 비밀번호 필요</small></button>)}
         <button className="account-card" onClick={() => select("login")}><span aria-hidden="true" className="account-avatar">ID</span><strong>내 계정으로 로그인</strong><small>개인 문서와 공유받은 문서</small></button>
         <button className="account-card" disabled={!policy?.registration_enabled} onClick={() => select("register")}><span aria-hidden="true" className="account-avatar">+</span><strong>계정 만들기</strong><small>{policy?.registration_enabled ? "아이디 · 비밀번호 · 이름 · 사번" : "현재 계정 생성이 닫혀 있습니다"}</small></button>
       </div>
@@ -100,6 +113,7 @@ export function AccountGate({ children }: { children: (account: Account) => Reac
       <details className="account-legacy"><summary>기존 인증 토큰으로 로그인</summary><button onClick={() => select("token")}>토큰 입력 화면</button></details>
     </> : <>
       {!legacy && <h2>{mode === "guest" ? "guest 공용 체험" : mode === "register" ? "새 계정 만들기" : "내 계정 로그인"}</h2>}
+      {!legacy && mode === "login" && selectedSample && <p className="account-note">선택한 샘플: {selectedSample.label} ({selectedSample.user_id}). 공유받은 비밀번호로 로그인하세요.</p>}
       <form onSubmit={event => void submit(event)} aria-label={mode === "register" ? "회원가입" : "로그인"}>
         {legacy ? <label>인증 토큰<input aria-label="인증 토큰" type="password" autoComplete="off" value={token} disabled={busy} onChange={event => setToken(event.target.value)} required /></label> : <>
           {mode !== "guest" && <label>아이디<input aria-label="아이디" name="username" autoComplete="username" autoCapitalize="none" spellCheck={false} value={username} minLength={mode === "register" ? 3 : 1} maxLength={mode === "register" ? 40 : 80} disabled={busy} onChange={event => setUsername(event.target.value)} required /></label>}

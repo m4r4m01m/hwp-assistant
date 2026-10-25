@@ -1,6 +1,6 @@
 import { publicPath } from "./public-path";
 
-export type WarmState = { phase: "idle" | "loading" | "ready" | "deferred" | "failed"; completed: number; total: number };
+export type WarmState = { phase: "idle" | "loading" | "ready" | "deferred" | "failed"; stage?: "download" | "compile"; completed: number; total: number };
 type Asset = { path: string; integrity: string };
 const maximumBytes = 32 * 1024 * 1024;
 let state: WarmState = { phase: "idle", completed: 0, total: 0 };
@@ -32,27 +32,56 @@ export function deferWarmup(connection?: { saveData?: boolean; effectiveType?: s
   return !online || !visible || !!connection?.saveData || ["slow-2g", "2g"].includes(connection?.effectiveType || "");
 }
 
-async function consume(response: Response, limit: number, signal: AbortSignal) {
+async function consume(response: Response, limit: number, signal: AbortSignal, claim: (bytes: number) => void, retain = false) {
   if (!response.ok || response.redirected || response.headers.get("content-type")?.includes("text/html")) throw new Error("Engine asset unavailable");
   const length = Number(response.headers.get("content-length") || 0);
-  if (!Number.isFinite(length) || length > limit) throw new Error("Engine asset size limit");
+  if (!Number.isFinite(length) || length < 0 || length > limit) throw new Error("Engine asset size limit");
   if (!response.body) throw new Error("No asset body");
   const reader = response.body.getReader();
   let bytes = 0;
+  const chunks: Uint8Array[] = [];
+  const cancel = () => { void reader.cancel().catch(() => {}); };
+  signal.addEventListener("abort", cancel, { once: true });
   try {
     for (;;) {
       if (signal.aborted) throw new DOMException("Aborted", "AbortError");
       const chunk = await reader.read();
-      if (chunk.done) return bytes;
-      bytes += chunk.value.byteLength;
-      if (bytes > limit) throw new Error("Engine asset size limit");
+      if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+      if (chunk.done) break;
+      const nextBytes = bytes + chunk.value.byteLength;
+      if (nextBytes > limit) throw new Error("Engine asset size limit");
+      // Claim each chunk synchronously across both workers. A read-modify-write
+      // around an await would overwrite the other worker's shared byte count.
+      claim(chunk.value.byteLength);
+      bytes = nextBytes;
+      if (retain) chunks.push(chunk.value);
     }
-  } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+    if (!retain) return null;
+    const contents = new Uint8Array(bytes);
+    let offset = 0;
+    for (const chunk of chunks) { contents.set(chunk, offset); offset += chunk.byteLength; }
+    return contents;
+  } finally { signal.removeEventListener("abort", cancel); await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
 
-/** Download only public, pinned engine bytes. Never mount an editor, execute
- * its JavaScript, load a document, or keep an account's data in CacheStorage.
- * HTTP cache is shared with the iframe's exact URLs, unlike a second WASM copy.
+async function compile(bytes: Uint8Array<ArrayBuffer>, signal: AbortSignal) {
+  if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+  let cancel = () => {};
+  const stopped = new Promise<never>((_resolve, reject) => {
+    cancel = () => reject(new DOMException("Aborted", "AbortError"));
+    signal.addEventListener("abort", cancel, { once: true });
+  });
+  try {
+    // Compilation does not instantiate the module or run its imports. Native
+    // compilation cannot be canceled, so bound our wait and ignore late results.
+    await Promise.race([WebAssembly.compile(bytes), stopped]);
+  } finally { signal.removeEventListener("abort", cancel); }
+}
+
+/** Download and compile only public, pinned engine bytes. Never mount an editor,
+ * execute its JavaScript, instantiate WASM, load a document, or keep account data
+ * in CacheStorage. HTTP cache uses the iframe's exact URLs. Native compiled-code
+ * cache reuse across iframe startup depends on the browser; it is not guaranteed.
  */
 export function startEngineWarmup(force = false): Promise<void> {
   if (pending) return pending;
@@ -65,7 +94,7 @@ export function startEngineWarmup(force = false): Promise<void> {
   attempts++;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 45_000);
-  publish({ phase: "loading", completed: 0, total: 0 });
+  publish({ phase: "loading", stage: "download", completed: 0, total: 0 });
   pending = (async () => {
     try {
       const response = await fetch(publicPath("rhwp/build-info.json"), {
@@ -87,28 +116,42 @@ export function startEngineWarmup(force = false): Promise<void> {
         raw += decoder.decode();
       } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
       const assets = warmAssets(JSON.parse(raw));
-      publish({ phase: "loading", completed: 0, total: assets.length });
-      // Two bounded streams keep authentication and the page responsive. No
-      // arrayBuffer retained; SRI checks the bytes against the current receipt.
+      publish({ phase: "loading", stage: "download", completed: 0, total: assets.length });
+      // Two bounded streams keep authentication responsive. Only the bounded
+      // WASM bytes are retained for compilation after SRI verification.
       let next = 0, totalBytes = 0, completed = 0;
-      const worker = async () => {
-        while (next < assets.length) {
-          const asset = assets[next++];
-          const result = await fetch(asset.path, { credentials: "same-origin", redirect: "error",
-            cache: "default", integrity: asset.integrity, signal: controller.signal,
-            ...({ priority: "low" } as RequestInit) });
-          totalBytes += await consume(result, maximumBytes, controller.signal);
-          if (totalBytes > 64 * 1024 * 1024) throw new Error("Warmup size limit");
-          completed++;
-          publish({ phase: "loading", completed, total: assets.length });
+      let wasmBytes: Uint8Array<ArrayBuffer> | null = null;
+      const claim = (bytes: number) => {
+        totalBytes += bytes;
+        if (totalBytes > 64 * 1024 * 1024) {
+          controller.abort();
+          throw new Error("Warmup size limit");
         }
+      };
+      const worker = async () => {
+        try {
+          while (next < assets.length) {
+            if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+            const asset = assets[next++];
+            const result = await fetch(asset.path, { credentials: "same-origin", redirect: "error",
+              cache: "default", integrity: asset.integrity, signal: controller.signal,
+              ...({ priority: "low" } as RequestInit) });
+            const bytes = await consume(result, maximumBytes, controller.signal, claim, asset.path.endsWith(".wasm"));
+            if (bytes) wasmBytes = bytes;
+            completed++;
+            publish({ phase: "loading", stage: "download", completed, total: assets.length });
+          }
+        } catch (cause) { controller.abort(); throw cause; }
       };
       const results = await Promise.allSettled([worker(), worker()]);
       if (results.some(result => result.status === "rejected")) throw new Error("Incomplete warmup");
+      if (!wasmBytes) throw new Error("WASM asset unavailable");
+      publish({ phase: "loading", stage: "compile", completed, total: assets.length });
+      await compile(wasmBytes, controller.signal);
       publish({ phase: "ready", completed: assets.length, total: assets.length });
     } catch {
       // Optional work never blocks login or changes normal editor startup.
-      publish({ phase: "failed", completed: state.completed, total: state.total });
+      publish({ phase: "failed", stage: state.stage, completed: state.completed, total: state.total });
     } finally { clearTimeout(timeout); controller.abort(); pending = null; }
   })();
   return pending;

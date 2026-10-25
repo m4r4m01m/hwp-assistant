@@ -25,7 +25,7 @@ from .auth import (
     revoke_session,
 )
 from .schema import migrate
-from .accounts import AccountPolicy, UserAccount, initialize_accounts, install_accounts, require_active_if_registered
+from .accounts import AccountPolicy, UserAccount, initialize_accounts, install_accounts, require_active_if_registered, public_sample_accounts
 from .changes import apply_delta, describe_changes
 from .rewrite_jobs import invalidate_running
 
@@ -261,10 +261,12 @@ def create_app(database_url=None, storage_dir=None):
         with Session(engine) as db:
             guest = db.get(UserAccount, "guest") if account_policy.enabled else None
             guest_enabled = bool(guest and guest.is_active)
+            sample_accounts = public_sample_accounts(db, account_policy)
         return {"authentication_required": authentication_required,
                 "accounts_enabled": account_policy.enabled,
                 "registration_enabled": account_policy.enabled and account_policy.registration,
-                "guest_enabled": guest_enabled}
+                "guest_enabled": guest_enabled,
+                "sample_accounts": sample_accounts}
 
     class Login(BaseModel):
         token: str = Field(min_length=24, max_length=500)

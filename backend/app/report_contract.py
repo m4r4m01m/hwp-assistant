@@ -177,6 +177,17 @@ class ReportDraft(ReportValue):
             elif isinstance(node, list):
                 for child in node: strict(child)
         strict(schema)
+        # These bounds already apply in validators. Advertise them to the
+        # generator too, so a schema-valid rich report does not routinely fail
+        # only after its last streamed section. Stored draft policy is unchanged.
+        definitions = schema["$defs"]
+        definitions["ReportTable"]["properties"]["columns"]["items"].update(minLength=1, maxLength=20)
+        rows = definitions["ReportTable"]["properties"]["rows"]["items"]
+        rows.update(minItems=2, maxItems=4)
+        rows["items"].update(minLength=1, maxLength=52)
+        definitions["ReportDiagram"]["properties"]["steps"]["items"].update(minLength=1, maxLength=48)
+        definitions["ReportSection"]["properties"]["paragraphs"]["items"].update(minLength=1, maxLength=800)
+        schema["properties"]["limitations"]["items"].update(minLength=1, maxLength=400)
         return schema
 
     @model_validator(mode="after")
