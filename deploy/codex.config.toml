@@ -1,0 +1,6 @@
+# Dedicated service state only: no personal MCP servers, skills or integrations.
+# Login is performed interactively on the server, never in a Docker image/CI.
+cli_auth_credentials_store = "file"
+forced_login_method = "chatgpt"
+approval_policy = "never"
+sandbox_mode = "read-only"
