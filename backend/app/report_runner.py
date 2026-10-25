@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import time
 from .cli_process import run_process
+from .report_errors import ReportGenerationError
 
 CONTRACT = "korean-report-v4-visual-emphasis"
 PROMPT = """You write a Korean business report, not software. Return only the report JSON matching the schema.
@@ -184,13 +185,18 @@ def writing_prompt(value):
 def generate_report(value, settings, progress=lambda value: None, active=lambda: True):
     started = time.monotonic()
     if not settings.executable:
-        raise RuntimeError("설치된 Codex CLI가 필요합니다.")
+        raise ReportGenerationError("cli_unavailable")
     options = {"encoding": "utf-8", "errors": "replace", "env": dict(settings.environment),
                "creationflags": subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0}
-    login = run_process([settings.executable, "login", "status"], capture_output=True,
-                        timeout=settings.login_timeout, **options)
+    try:
+        login = run_process([settings.executable, "login", "status"], capture_output=True,
+                            timeout=settings.login_timeout, **options)
+    except subprocess.TimeoutExpired as exc:
+        raise ReportGenerationError("login_timeout") from exc
+    except (FileNotFoundError, PermissionError) as exc:
+        raise ReportGenerationError("cli_unavailable") from exc
     if login.returncode or "Logged in using ChatGPT" not in login.stdout + login.stderr:
-        raise RuntimeError("기존 Codex의 ChatGPT 로그인이 필요합니다. 다른 AI로 전환하지 않습니다.")
+        raise ReportGenerationError("login_required")
     with tempfile.TemporaryDirectory(prefix="hwp-report-") as directory:
         from .report_stream import generate_stream
         return generate_stream(value, settings, directory, writing_prompt(value), CONTRACT, progress, active, started=started)

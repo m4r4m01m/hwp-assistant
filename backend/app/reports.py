@@ -16,6 +16,7 @@ from .hwpx import digest, validate
 from .report_contract import ReportValue, ReportDraft, canonical, report_hash, report_blocks, paragraph
 from .report_hwpx import scaffold, paragraphs
 from .report_runner import generate_report, CONTRACT
+from .report_errors import MESSAGES, ReportGenerationError, failure_details
 from .rewrite_capacity import ExecutionSlot
 from .document_standard import load_standard, metadata as standard_metadata, format_signature, reference_view
 from .report_templates import ReportTemplate, catalog as template_catalog, validate_selection
@@ -97,6 +98,19 @@ def task_dict(row, *, detail=True):
             "approval": {k: approval[k] for k in ("id", "document_id", "saved_version") if k in approval} if approval else None}
 
 
+def fail_report(row, exc):
+    failure = failure_details(exc)
+    row.status = "failed"
+    row.error = ("보완본에서 기존 출처가 달라져 적용하지 않았습니다. 원래 초안은 보존되어 있습니다. 의견을 확인한 뒤 다시 요청하세요."
+        if isinstance(exc, RevisionSourceError) else MESSAGES[failure["code"]])
+    execution = json.loads(row.execution)
+    progress = execution.get("progress", {})
+    failure["stage"] = progress.get("stage", "starting")
+    failure["research_calls"] = progress.get("research_calls", 0)
+    execution.update(completed_at=time.time(), completed=False, failure=failure)
+    row.execution = canonical(execution)
+
+
 def run_report(engine, task_id, user, value, settings):
     from .report_rpc import ReportStopped
     def active():
@@ -125,7 +139,7 @@ def run_report(engine, task_id, user, value, settings):
             if row.status != "running":
                 return
             if time.time() - row.created_at > settings.timeout + 30:
-                row.status, row.error = "failed", "보고서 생성 시간이 만료되었습니다."
+                fail_report(row, ReportGenerationError("timeout"))
                 return
             row.draft, row.draft_sha256 = canonical(draft), report_hash(draft)
             execution = {**json.loads(row.execution), **evidence, "completed_at": time.time()}
@@ -136,13 +150,7 @@ def run_report(engine, task_id, user, value, settings):
         with transaction(engine) as db:
             row = lock_report(db, task_id, user)
             if row.status == "running":
-                row.status = "failed"
-                row.error = ("보완본에서 기존 출처가 달라져 적용하지 않았습니다. 원래 초안은 보존되어 있습니다. 의견을 확인한 뒤 다시 요청하세요."
-                    if isinstance(exc, RevisionSourceError) else
-                    "Codex 보고서 생성을 완료하지 못했습니다. 로그인·연결·출력 형식을 확인한 뒤 새 요청을 시작하세요.")
-                execution = json.loads(row.execution)
-                execution.update(completed_at=time.time(), completed=False)
-                row.execution = canonical(execution)
+                fail_report(row, exc)
 
 
 def install_reports(app, publish, check_lease, doc_dict):
@@ -254,7 +262,7 @@ def install_reports(app, publish, check_lease, doc_dict):
         with transaction(engine) as db:
             row = lock_report(db, task_id, request.state.user)
             if row.status == "running" and time.time() - row.created_at > 300:
-                row.status, row.error = "failed", "보고서 생성 결과 수신이 만료되었습니다."
+                fail_report(row, ReportGenerationError("timeout"))
             return task_dict(row)
 
     @app.post("/api/report-tasks/{task_id}/cancel")

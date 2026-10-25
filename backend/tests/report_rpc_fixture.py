@@ -28,8 +28,12 @@ for line in sys.stdin:
         result = {'turn': {'id': 'turn'}}
     send({'id': rid, 'result': result})
     if method != 'turn/start': continue
-    event('item/started', item={'id': 'search', 'type': 'webSearch', 'action': {'type': 'search', 'query': '합성 조회'}})
-    event('item/completed', item={'id': 'search', 'type': 'webSearch'})
+    if mode not in ('no_research', 'foreign_research'):
+        event('item/started', item={'id': 'search', 'type': 'webSearch', 'action': {'type': 'search', 'query': '합성 조회'}})
+        if mode != 'start_only_research':
+            event('item/completed', item={'id': 'search', 'type': 'webSearch'})
+    if mode == 'foreign_research':
+        send({'method': 'item/completed', 'params': {'threadId': 'foreign', 'turnId': 'turn', 'item': {'id': 'search', 'type': 'webSearch'}}})
     if mode == 'tool': event('item/started', item={'id': 'tool', 'type': 'commandExecution'})
     raw = json.dumps(draft, ensure_ascii=False)
     cut = raw.index('summary') - 3 if mode != 'e2e' else raw.index('summary') + len('summary": "') + 24
@@ -46,6 +50,15 @@ for line in sys.stdin:
     event('item/agentMessage/delta', itemId='answer', delta=raw[cut:])
     # A different request's event must not contaminate this report.
     send({'method': 'item/agentMessage/delta', 'params': {'threadId': 'foreign', 'turnId': 'turn', 'itemId': 'bad', 'delta': '{"title":"WRONG"}'}})
-    event('item/completed', item={'id': 'answer', 'type': 'agentMessage', 'text': '{}' if mode == 'invalid' else raw})
+    if mode not in ('delta_only', 'summary_only'):
+        event('item/completed', item={'id': 'answer', 'type': 'agentMessage', 'text': '{}' if mode == 'invalid' else raw,
+                                     'phase': None if mode == 'legacy_phase' else 'commentary' if mode == 'commentary_only' else 'final_answer',
+                                     'delivery': 'async' if mode == 'async_only' else None})
+    if mode == 'commentary_after_final':
+        event('item/completed', item={'id': 'comment', 'type': 'agentMessage', 'text': '{}', 'phase': 'commentary'})
+    if mode in ('retry_complete', 'upstream_failed'):
+        event('error', willRetry=mode == 'retry_complete', error={'message': 'PRIVATE-MODEL-ERROR',
+              'additionalDetails': 'PRIVATE-DETAILS', 'codexErrorInfo': {'httpConnectionFailed': {'httpStatusCode': 503}}})
     event('thread/tokenUsage/updated', tokenUsage={'total': {'outputTokens': 50}})
-    event('turn/completed', turn={'id': 'turn', 'status': 'failed' if mode == 'failed' else 'completed'})
+    event('turn/completed', turn={'id': 'turn', 'status': 'failed' if mode in ('failed', 'upstream_failed') else 'completed',
+                                 'items': [{'id': 'answer', 'type': 'agentMessage', 'text': raw, 'phase': 'final_answer'}] if mode == 'summary_only' else []})

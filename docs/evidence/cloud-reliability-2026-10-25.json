@@ -1,0 +1,161 @@
+{
+  "date_kst": "2026-10-25",
+  "base_main_sha": "295b6e19a81738cb0156889020f21d691df5db27",
+  "product_source_sha": "8a8c9afae4bd809362b8f2eb87507a10e44e1ad3",
+  "branch": "codex/cloud-reliability-2026-10-25",
+  "environment": {
+    "os": "cloud Linux",
+    "python": "3.14.0",
+    "dependency_locks": [
+      "backend/requirements.lock.txt",
+      "backend/requirements-mcp.lock.txt",
+      "frontend/package-lock.json"
+    ],
+    "node": "24.15.0",
+    "playwright": "1.56.1",
+    "browser": "Chromium 141.0.7390.37, build 1194, chromium-headless-shell",
+    "browser_limit": "Default Chromium channel could not start due cloud socket permission; supported headless-shell channel used"
+  },
+  "backend": {
+    "collected_unique_cases": 1071,
+    "passed_unique_cases": 1071,
+    "shards": [
+      {
+        "passed": 676,
+        "seconds": 137.75
+      },
+      {
+        "passed": 396,
+        "seconds": 107.61
+      }
+    ],
+    "overlap": 1,
+    "missing": 0,
+    "unexpected": 0,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "evidence": "Final isolated monolithic subprocess exit=0, JUnit1071 and terminal summary; testcase IDs equal complete collection; prior shards independently cross-checked",
+    "source_hashes": "137 backend files unchanged before/after verification",
+    "initial_monolithic_run": "Exit=0 but final summary missing; not counted as a pass; exact cause not reproduced",
+    "report_focused_passed": 76,
+    "known_dependency_warnings_per_report_run": 2,
+    "deployment_contract_passed": 75,
+    "monolithic_final": {
+      "passed": 1071,
+      "warnings": 2,
+      "seconds": 244.27,
+      "subprocess_returncode": 0,
+      "junit_tests": 1071,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "collected_ids_match": true,
+      "source_files_unchanged": 137
+    }
+  },
+  "frontend": {
+    "tsc": "passed",
+    "unit_passed": 30,
+    "mock_ui_passed": 40,
+    "node_contract_and_build_path_passed": 82
+  },
+  "codex": {
+    "version": "0.153.0",
+    "official_archive_sha256_verified": true,
+    "offline_cli_app_server_mcp_smoke": "passed",
+    "login_attempts": 0,
+    "model_calls": 0,
+    "safe_config_provider_probe": {
+      "real_pinned_binary": true,
+      "empty_temporary_codex_home": true,
+      "chatgpt_account": false,
+      "web_search_live": true,
+      "provider_advertises_web_search": true,
+      "default_provider_route": true,
+      "actual_model_calls": 0,
+      "meaning": "configuration and provider metadata only; no per-model or account search availability proof"
+    }
+  },
+  "engine": {
+    "version": "0.8.6",
+    "upstream_commit": "e8800c8def63449808a4092798442652ed460552",
+    "diagnostic": false,
+    "artifact": "reused optimized public production assets, not rebuilt from source",
+    "verified_bundle_assets": 7,
+    "wasm_sha256": "3eb52da9c5602c8036fd70ce0f5f759588224be0069eafb04aed39845310667b",
+    "bridge_sha256": "0ba18d4cf13fdc586b02384f497f87a735debf657709835301dc5a4dba6e096f",
+    "provenance": "pinned upstream, patches, binding and bridge checked against repository locks; release validateCore and check-engine-bundle passed",
+    "app_build_public_base": "/hwp-assistant/",
+    "app_build_and_served_bytes": "passed",
+    "native_node_checks": "fill serialization/reopen, selection/wrap/multipage, block-layout and known round-trip drift detection passed",
+    "browser_passed": 8,
+    "browser_skipped": 1,
+    "skip_reason": "requires absent recorded real Codex visuals",
+    "test_environment": "isolated SQLite and temporary loopback static/proxy server; synthetic AI",
+    "actual_model_calls": 0,
+    "font_limit": "Font assets absent from pinned served manifest were not fetched; complete font/visual/Hancom validation not claimed"
+  },
+  "production_direct_read_only": {
+    "https": 200,
+    "api_health_ok": true,
+    "accounts_enabled": false,
+    "registration_enabled": false,
+    "guest_enabled": false,
+    "repository_public_smoke": "routing, protected API, app/editor/comparison assets and WASM integrity passed",
+    "authenticated_checks": false,
+    "writes": 0
+  },
+  "user_handoff_distinct_from_cloud": {
+    "date_kst": "2026-10-25",
+    "codex_configured_allowed_chatgpt_login": "reported confirmed",
+    "research_failure_elapsed_seconds": [
+      99.5,
+      126.43,
+      111.23,
+      112.6
+    ],
+    "completed_research_calls": 0,
+    "http_llm_unconfigured_is_separate": true,
+    "research_false_success": {
+      "model": "gpt-6-astra",
+      "completed": true,
+      "status": "ready",
+      "startup_ms": 1847,
+      "first_text_ms": 6330,
+      "generation_ms": 19347,
+      "text_ms": 13017,
+      "review_pause_confirmed": true,
+      "formatted_fixed_engine_preview_pages": 2,
+      "approval": null,
+      "server_save_attempted": false,
+      "existing_documents_and_versions": "unchanged"
+    },
+    "local_baseline_checks": {
+      "python": "3.14.7",
+      "backend_passed": 1021,
+      "warnings": 2,
+      "seconds": 197.14,
+      "deployment_contract_passed": 75,
+      "frontend_aggregate_passed": 143,
+      "tsc": "passed"
+    }
+  },
+  "remaining": [
+    "cloud actual-model verification and research=true upstream web search completion",
+    "production authenticated sample login and three AI flows",
+    "PostgreSQL/HTTPS/restart container PR CI",
+    "Windows/Safari/Firefox/Hancom/manual isolated-network validation",
+    "measured first-document performance and browser compiled-code cache reuse"
+  ],
+  "operational_boundary": "No main merge, image publication or new deployment; no credentials/private env/production data collected or changed; review/format/explicit server-save boundaries preserved",
+  "sample_account_requirement": {
+    "confirmed_count": "2 or 3",
+    "login": "select configured account, then enter its own password",
+    "operator_creation": "read-only identity/history/token collision preflight, then interactive account_admin create; not executed in production",
+    "passwords_or_ai_grants_in_examples": false
+  },
+  "search_restoration_claimed": false,
+  "search_command_and_tool_configuration_changed": false,
+  "safe_search_diagnostics": "docs/codex-research-diagnostics-2026-10-25.md; no inference config/provider check plus explicit public synthetic test procedure; upstream actual recovery remains unverified"
+}

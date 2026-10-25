@@ -49,7 +49,7 @@ for (const accountsEnabled of [true, false]) {
 }
 
 test("ACCOUNT regression: browser SRI rejects corrupt warmup bytes, retry recovers without blocking login", async ({ page }) => {
-  const correct = Buffer.from("synthetic verified wasm bytes");
+  const correct = Buffer.from([0,97,115,109,1,0,0,0]);
   const hash = createHash("sha256").update(correct).digest("hex");
   let corrupt = true, authenticated = false, transfers = 0;
   await page.route("**/api/**", route => {

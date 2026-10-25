@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { api, ApiError, errorMessage, isAbortError, jsonRequest, downloadBytes, type Document } from "./api";
 import { EditorAdapter, type ExportSnapshot } from "./editor";
 import { ReportPreview, type ReportRecovery } from "./report-preview";
-import { ReportWriting, ReportTiming, type LiveReport } from "./report-progress";
+import { ReportWriting, ReportTiming, ReportFailureNotice, type LiveReport, type ReportFailure } from "./report-progress";
 import { ReportContent, ReportText } from "./report-content";
 import { ReportReview, type ReportDraft as Draft } from "./report-review";
 import type { VisualSelection } from "./standard-designer";
@@ -19,7 +19,7 @@ type Cover = { date: string; department: string };
 type ReportInput = { id: string; prompt: string; research: boolean; template?: Template; visual_standard?: VisualSelection; cover?: Cover };
 type RevisionRequest = { sourceId: string; body: { id: string; draft_sha256: string; feedback: string } };
 type Job = { id: string; input: { prompt: string; research: boolean; template?: Template; visual_standard?: VisualSelection; cover?: Cover }; status: string; preview_id?: string | null; draft: Draft | null;
-  draft_sha256: string | null; error: string; created_at?: number; execution?: { progress?: LiveReport; timings?: Record<string, number | null>; revision_of?: string };
+  draft_sha256: string | null; error: string; created_at?: number; execution?: { progress?: LiveReport; timings?: Record<string, number | null>; revision_of?: string; failure?: ReportFailure };
   approval: { id: string; document_id: string; saved_version?: string } | null };
 type Approved = { id: string; document_id: string; base_version: string; saved_version?: string; document: Document;
   scaffold_base64: string; plan: { paragraph: number; before: string; text: string; command_id: string }[] };
@@ -401,8 +401,8 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
     <section className="report-preview report-workspace-canvas" aria-label="보고서 초안">
       {pollError && <p className="report-workspace-error error" role="alert">{pollError}</p>}
       {error && <p className="report-workspace-error error" role="alert">{error}{restoreTaskId && <button onClick={() => { setError(""); setRestoreAttempt(value => value + 1); }}>이전 요청 다시 열기</button>}</p>}
-      {!error && job?.status === "failed" && <p className="report-workspace-error error" role="alert">{job.error}</p>}
-      {job?.status === "running" || (!job?.draft && !!job?.execution?.progress?.blocks.length) ? <ReportWriting key={job.id} startedAt={job.created_at} progress={job.execution?.progress} stopped={job.status !== "running"} controlsHost={writingTools} /> : job?.draft ? <>
+      {!error && job?.status === "failed" && <ReportFailureNotice message={job.error} failure={job.execution?.failure} onRequest={() => setWorkspacePanel("request")} />}
+      {job?.status === "running" || (job?.status === "failed" && !job.draft) || (!job?.draft && !!job?.execution?.progress?.blocks.length) ? <ReportWriting key={job.id} startedAt={job.created_at} progress={job.execution?.progress} stopped={job.status !== "running"} controlsHost={writingTools} /> : job?.draft ? <>
         {!job.approval && !hasPreview && <ReportReview draft={job.draft} formatName={formatName(frozenVisual)} includesSummary={frozenVisual?.settings.show_core_summary !== false} feedback={feedback} onFeedback={changeFeedback} onRevise={() => void reviseDraft()} onFormat={beginFormatting} busy={busy} retry={!!pendingRevision} revisionAvailable={feature.available} />}
         {hasPreview && <ReportPreview key={job.id} taskId={job.id} draftHash={job.draft_sha256!} onLock={setPreviewLocked} toolbarHost={previewTools} detailsHost={previewDetails}
           workspacePanelOpen={workspacePanel !== null} onShowDetails={() => setWorkspacePanel(null)}

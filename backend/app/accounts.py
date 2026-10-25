@@ -50,6 +50,8 @@ class AccountPolicy:
     enabled: bool
     registration: bool
     maximum: int
+    # Explicit public synthetic labels only, never a directory of account rows.
+    sample_accounts: tuple[tuple[str, str], ...] = ()
 
     @classmethod
     def from_env(cls):
@@ -58,7 +60,60 @@ class AccountPolicy:
         maximum = int(os.getenv("HWP_REGISTRATION_MAX_USERS", "100"))
         if not 1 <= maximum <= 10000 or registration and not enabled:
             raise ValueError("Enable accounts before registration; maximum must be 1..10000")
-        return cls(enabled, registration, maximum)
+        return cls(enabled, registration, maximum, sample_account_settings(enabled))
+
+
+def sample_account_settings(accounts_enabled):
+    """Validate a small public allowlist without logging configuration values.
+
+    Operators create accounts separately with account_admin. Listing an ID never
+    creates a principal, supplies a password or changes any document/AI grants.
+    """
+    error = "HWP_SAMPLE_ACCOUNTS must be a JSON array of at most 8 unique canonical member IDs and public labels; enable accounts first"
+    raw = os.getenv("HWP_SAMPLE_ACCOUNTS", "[]")
+    def unique(pairs):
+        value = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError("duplicate field")
+            value[key] = item
+        return value
+    try:
+        if len(raw) > 4096:
+            raise ValueError("size")
+        values = json.loads(raw, object_pairs_hook=unique)
+        if not isinstance(values, list) or len(values) > 8 or values and not accounts_enabled:
+            raise ValueError("list")
+        result, seen = [], set()
+        for item in values:
+            if not isinstance(item, dict) or set(item) != {"user_id", "label"}:
+                raise ValueError("fields")
+            user, label = item["user_id"], item["label"]
+            if (not isinstance(user, str) or not re.fullmatch(r"[a-z0-9][a-z0-9_.@-]{2,39}", user)
+                    or user in {"local", "guest"} or user in seen):
+                raise ValueError("identity")
+            if (not isinstance(label, str) or not 1 <= len(label) <= 40 or label != label.strip()
+                    or any(unicodedata.category(c).startswith("C") for c in label)):
+                raise ValueError("label")
+            seen.add(user)
+            result.append((user, label))
+        return tuple(result)
+    except (ValueError, TypeError, UnicodeError, RecursionError):
+        raise ValueError(error) from None
+
+
+def public_sample_accounts(db, policy):
+    """Filter configured cards to live password identities, preserving order.
+
+    Missing/retired/disabled IDs stay hidden. Database names, employee numbers
+    and hashes never enter this public response. Status does not issue a session.
+    """
+    if not policy.enabled or not policy.sample_accounts:
+        return []
+    ids = [user for user, _ in policy.sample_accounts]
+    active = set(db.scalars(select(UserAccount.user_id).where(
+        UserAccount.user_id.in_(ids), UserAccount.is_active.is_(True), UserAccount.kind == "member")))
+    return [{"user_id": user, "label": label} for user, label in policy.sample_accounts if user in active]
 
 
 def valid_password(value):
@@ -304,6 +359,8 @@ def install_accounts(app, policy, session_policy):
         value = await read_input(request, Register)
         limiter.charge(request.client.host if request.client else "unknown", value.username, registration=True)
         reserved = {"guest", "local", os.getenv("HWP_CODEX_USER", "local").lower(), *(user.lower() for user in tokens)}
+        # A missing configured sample must not be claimed through public signup.
+        reserved.update(user for user, _ in policy.sample_accounts)
         # A pre-authorized identity must be created by the operator, not claimed
         # through open signup before its intended owner arrives.
         for variable in ("HWP_CODEX_ALLOWED_USERS", "HWP_LLM_ALLOWED_USERS"):

@@ -46,7 +46,7 @@ def test_signup_hash_private_profile_session_and_logout(accounts):
     c, app, _, _ = accounts
     policy = c.get("/api/auth/status")
     assert policy.headers["cache-control"] == "no-store"
-    assert policy.json() == dict(authentication_required=True, accounts_enabled=True, registration_enabled=True, guest_enabled=True)
+    assert policy.json() == dict(authentication_required=True, accounts_enabled=True, registration_enabled=True, guest_enabled=True, sample_accounts=[])
     response = register(c)
     assert response.status_code == 200, response.text
     assert response.json() == {"user_id": "alice", "name": "합성 검수자", "kind": "member"}
