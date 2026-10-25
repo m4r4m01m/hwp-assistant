@@ -1,0 +1,204 @@
+{
+  "date_kst": "2026-10-26",
+  "repository": "m4r4m01m/hwp-assistant",
+  "branch": "codex/integrate-local-ui-2026-10-26",
+  "base_main": "e263091ae28ef73a3e1a087137cc70ddadc277b0",
+  "colleague_head": "1f10a09dda03d48ee6a734e3f009efb3f2dfe894",
+  "common_base": "14e52b23fdf41ddf8effcd0a92f219e5d667469f",
+  "source_unique_commits": 1,
+  "source_changed_files": 37,
+  "product_merge": "be59042d52efab14ee7cb026489d4df1f2217cc6",
+  "product_merge_parents": [
+    "e263091ae28ef73a3e1a087137cc70ddadc277b0",
+    "1f10a09dda03d48ee6a734e3f009efb3f2dfe894"
+  ],
+  "test_only_followup": "11209bb6979988913e34133b43296d6871807f59",
+  "final_head_ci": "Pending; exact-head results and actual logs will be recorded in PR body without extra documentation commits.",
+  "environment": {
+    "python": "3.14.0",
+    "node": "24.15.0",
+    "browser": "Chromium141/build1194headlessshell",
+    "dependencies": "backend/MCP/npm locked",
+    "data": "synthetic only"
+  },
+  "backend_full": {
+    "exit_code": 0,
+    "junit": {
+      "tests": 1429,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "seconds": 283.45
+    },
+    "collection_count": 1429,
+    "collection_and_junit_nodeids_equal": true,
+    "source_files_hashed": 158,
+    "source_unchanged": true,
+    "warnings": null,
+    "stdout_final_summary_missing": true
+  },
+  "initial_backend_full": {
+    "passed": 1425,
+    "failed": 4,
+    "warnings": 2,
+    "seconds": 305.58,
+    "exit_code": 1,
+    "source_unchanged": true,
+    "preserved": true,
+    "cause": "Old stars expectations for four reference-report cases vs new section grouping; test-only exact assertions strengthened, no backend product change."
+  },
+  "focused_backend": {
+    "first": 99,
+    "protected": 218,
+    "marker_followup": 38,
+    "existing_warnings_each": 2,
+    "not_additive_to_full": true,
+    "legacy_ungated_fullsource_v1_cases_preserved": 3
+  },
+  "frontend": {
+    "tsc": "passed before CSS-only followup; TS unchanged",
+    "unit_passed": 35,
+    "mock_junit": {
+      "id": "",
+      "name": "",
+      "tests": "78",
+      "failures": "0",
+      "skipped": "0",
+      "errors": "0",
+      "time": "62.79178700000001"
+    },
+    "mock_exit_code": 0,
+    "mock_source_files_hashed": 65,
+    "mock_source_unchanged": true,
+    "suite_count": 15,
+    "scope": "13 main suites + 2 colleague suites; final full mock after CSS."
+  },
+  "contracts": {
+    "python_deployment_passed": 75,
+    "node_passed": 82,
+    "cli_login_passed": 6,
+    "cli_login_skipped": 1,
+    "cli_skip_reason": "Real Windows resolver cannot execute on Linux",
+    "public_path_audit": true,
+    "shell_syntax_files": 4,
+    "engine_and_dependency_locks_unchanged_from_main": true
+  },
+  "real_engine": {
+    "counts": {
+      "unique": 40,
+      "passed": 33,
+      "skipped": 7,
+      "failed": 0
+    },
+    "single_full_run": false,
+    "limits": [
+      "The broad report and standard runs each had one stale expectation failure; only those nodes were replaced by the final focused runs. Their original failure logs are preserved.",
+      "The final preview-only notice CSS fix was tested in the full workspace flow including 360px. The other selected nodes were not all repeated after that two-property CSS change.",
+      "Recorded model tests are conditionally skipped because the private recorded fixtures are absent; this is not actual model success.",
+      "Assistant design adoption pauses the host 20-second autosave only; preview/apply/undo and target/live-byte fences, not complete default autosave validation.",
+      "Native isolated SQLite/Vite/optimized rhwp, not production/PostgreSQL/nginx/HTTPS/Hancom/Windows physical testing."
+    ],
+    "actual_model_calls": 0,
+    "ai": "Fixed synthetic model; real rhwp/backend/native SQLite/Vite",
+    "final_css_workspace": {
+      "passed": 1,
+      "seconds": 29.643163,
+      "exit_code": 0,
+      "source_files_hashed": 136,
+      "source_unchanged": true
+    },
+    "all_cases_rerun_after_css": false,
+    "prior_failures_preserved": true
+  },
+  "mobile_notice_defect": {
+    "before": {
+      "viewport_width": 360,
+      "canvas_x": 220,
+      "canvas_width": 140,
+      "canvas_right": 360,
+      "notice_width": 340,
+      "notice_right": 560,
+      "body_p_width": 304,
+      "body_p_right": 542,
+      "horizontal_clip": true
+    },
+    "cause": "Existing global aside width340 inherited by preview warning inside overflow:clip canvas",
+    "fix": "Preview direct notice selector only: width100%;min-width0. No global aside change. Existing border-box/wrap/height limit/scroll/flex retained.",
+    "after": {
+      "viewport_width": 360,
+      "canvas_width": 140,
+      "canvas_right": 360,
+      "notice_width": 140,
+      "notice_right": 360,
+      "body_p_width": 104,
+      "body_p_right": 342,
+      "horizontal_clip": false
+    },
+    "regression": "Wrapper==canvas, notice top/containment, surface exact remaining bounds/iframe identity, small-screen panels, manual bytes/save/reopen."
+  },
+  "engine_build": {
+    "upstream_commit": "e8800c8def63449808a4092798442652ed460552",
+    "core_wasm_sha256": "3eb52da9c5602c8036fd70ce0f5f759588224be0069eafb04aed39845310667b",
+    "verified_optimized_core_reused": true,
+    "rust_docker_core_rebuilt": false,
+    "bridge_sha256": "5654a7170e7c061193a2419b1b123f4bb2cdc166ab358e8c82c01e0060b81c29",
+    "fresh_studio_built": true,
+    "diagnostic": false,
+    "after_css_app_rebuild_only": true,
+    "public_base": "/hwp-assistant/",
+    "served_files_sha_checked": 27,
+    "manifest_files": 10,
+    "helper_files": 11,
+    "loopback_not_production": true
+  },
+  "roadmap_png": {
+    "path": "docs/프로젝트 개발 로드맵(참고용)_20260923.png",
+    "blob": "b0826b5b2e2fe11b323a7a5431a19c6f18d923fb",
+    "bytes": 1539559,
+    "local_materialization_unavailable": true,
+    "skip_worktree_only": true,
+    "remote_product_tree_verified_unchanged": true,
+    "must_be_unchanged_in_final_tree": true
+  },
+  "source_sha256": {
+    "backend/app/report_contract.py": "37eea6bac71df5dcf0c3f663073be4a9bb6b9869c7df10917392022ba0e5dcdd",
+    "backend/app/report_runner.py": "d9a859d9da7864742e0109f1a91fa99874cff8eea7ec616fa00ad4a7062f9c14",
+    "backend/app/report_stream.py": "30264d20e0e0f76b654d1479b181851b57200955329d0fe94951fca22014ebc1",
+    "backend/app/report_errors.py": "3b18325945618401758dc47ab03a0a4990e67290e336353d9f1f715d4b56a0a8",
+    "backend/app/report_structure.py": "d7569d47a8589c6667fb3e454e8a0643ec0ffda050b750a6645183949e2ec98c",
+    "backend/app/reports.py": "db37fabdf0dfc7e25b9fc5d8d41b1de821baef9a1a50da4e4991a34a83a31cba",
+    "frontend/src/reports.tsx": "e591b06ffc31fd0593099b589e91b6f93b1fb316a68d5817e05ab08a961bc124",
+    "frontend/src/report-structure.tsx": "5ee692c0844feba9e1bd994fe933f2306e588dd886e9ad6e5f08db5a3f0ec084",
+    "frontend/src/report-research.css": "1397fc4c576cd76918d8888e1cc37298dd993b7dadd3cd749e234b05e6d7c0b6",
+    "frontend/tests/standard-designer.spec.ts": "d185f97874a6eb505a58ea883e204be727a51fc804f37e4bc981e19b0884ca49",
+    "frontend/tests/report-workspace.spec.ts": "0973e738bd3019fab9c3dac01156215373e00b46e64058b7c7086c4c2a21b593",
+    "backend/tests/test_reference_report.py": "5ccdfdf29739d2c2c0cad08f99043a0b5c005b9384eda8c49ba173a7d76eafe3"
+  },
+  "prior_deployed_baseline": {
+    "source": "e263091ae28ef73a3e1a087137cc70ddadc277b0",
+    "run": "https://github.com/m4r4m01m/hwp-assistant/actions/runs/40212063392",
+    "event": "workflow_dispatch",
+    "all_five_jobs_success_cloud_readonly_metadata": true,
+    "ssh_image_lastsuccess_healthy": "Original-dialogue root direct read-only verification, not cloud",
+    "not_this_new_integration_deployment": true
+  },
+  "preservation": {
+    "source_branch_and_all_histories": true,
+    "existing_worktrees_services_documents_volumes": true,
+    "docs_532d1dd_and_uncommitted_handoffs": true,
+    "no_reset_clean_rebase_squash_delete": true
+  },
+  "rollback": "No DB migration. New section_outline inputs may be rejected by older extra=forbid schemas; older code lacks forced outline checking and new plan-marker semantics. Preserve input/draft/SHA/preview/manual HWPX and use a compatible continuation path; no hash rewrite/marker deletion/volume or auth reset.",
+  "scope_limits": {
+    "cloud_main_merge": false,
+    "cloud_deployment_dispatches": 0,
+    "actual_model_calls": 0,
+    "env_acl_accounts_production_documents_changes": 0,
+    "windows_physical_runtime": false,
+    "hancom_manual": false,
+    "isolated_network_model": false,
+    "production_postgresql_https_live_this_task": false,
+    "production_credentials_transferred": false
+  },
+  "next": "Original-dialogue root reviews final exact head, merges and dispatches one approved main workflow and live synthetic check; cloud PR/CI only."
+}

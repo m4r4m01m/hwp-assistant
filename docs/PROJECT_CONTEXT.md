@@ -463,11 +463,25 @@ production core lock/patch는 변경하지 않았다. 별도 vendor에서 고정
 
 PR #37의 별도 server-owned research_notice·유효 final draft만 내용 검토/서식으로 진행·chat/review provider/ACL/quota/210초·frozen hash/수동 HWPX 저장, PR #38의 연구 ON web 직접 노출·검색 ID/완료 집계·안전한 진단, PR #39의 편집 디자인·authoritative 완료 판정·부모 catalog/id+sha/즉시 abort를 유지한다. 새 outline가 없는 과거 입력은 키를 추가하지 않아 기존 입력 해시를 유지하고, 선택한 구성은 새 입력에 고정하여 보완본에도 상속한다. 완료 draft의 제목·순서·개수가 다르면 서식 준비 전에 거부한다. 새 인쇄 정책은 canonical 출처 URL·날짜를 보존하고 HWPX에는 제목을 표시한다. 미검증 경고·research provenance와 manual save 바이트를 바꾸지 않는다.
 
-### 16.2 통합 검증 진행
+### 16.2 검토 제품과 실제 검증
 
-backend/report 계약 5개, frontend 보고서·mock 목록 2개, context 1개 충돌을 양쪽 계약을 결합해 해결한다. main의 research policy/서버 소유 notice 금지·policy_prompt와 새 generation_schema/check_outline를 동시에 보존한다. mock UI 목록은 main 13개 suite와 새 structure/save-transition 2개를 합친다. 저장 뒤 옛 완료 패널을 기대하던 실제 엔진 시험은 새 일반 편집기 전환에 맞추되 warning·frozen same-bytes retry·수동 변경·한 버전·재열기·쪽수/바이트 assertion을 유지한다.
+검토용 merge commit **[`be59042d52efab14ee7cb026489d4df1f2217cc6`](https://github.com/m4r4m01m/hwp-assistant/commit/be59042d52efab14ee7cb026489d4df1f2217cc6)**의 부모는 exact main `e263091`과 동료 `1f10a09`다. 보고서 backend 5개·frontend 2개·context 1개의 충돌을 양쪽 계약을 결합해 해결했다. 원 대화의 backend/frontend·one-sided blob 독립 검토에서 차단 사유가 없다는 인계를 받았다. 후속 **`11209bb6979988913e34133b43296d6871807f59`**는 시험 한 파일의 +22/-7이며 제품 코드는 같았다. 새 policy의 동일 절 S1/S2에 맞춰 `주1)/주2)`·scope·citation_ranges·위첨자를 정확히 검사했고 과거 gate 없는 별표 재현은 유지했다.
 
-현재 전체 backend·frontend·새 optimized rhwp E2E와 정확한 최종 head CI는 진행 전/중이며 완료로 기록하지 않는다. Python 3.14.0+backend/MCP locks·Node 24.15.0·합성 자료만 사용한다. 기존 verified optimized core와 현재 bridge는 별도 vendor에서 검증·재사용하고 fresh Studio/app을 빌드하며 진단 Windows kit를 release core로 대신하지 않는다. 실제 엔진과 합성 AI/UI·조건부 skip, 실모델·한컴·Windows·폐쇄망 미실행은 구분한다. 검증 완료 후 exact product/head/PR·결과·한계를 이 절과 영수증에 기록하고 최종 CI 수치는 PR 설명에 남긴다.
+실제 360px viewport에서는 기존 전역 `aside` 340px 폭이 140px canvas의 경고에 상속돼 오른쪽 200px가 잘리는 결함을 재현했다. 제품 보완은 기존 preview 직계 경고 selector에 **`width: 100%; min-width: 0` 두 속성만 추가**한다. 전역 aside·문구·높이 상한·스크롤·문서/AI 계약은 유지한다. 같은 화면의 최종 실측은 notice 폭 140px/right 360, 본문 right 342로 수평 잘림이 없었다. wrapper=canvas·경고 상단·나머지 surface/iframe·작은 화면/도구 패널·동일 iframe·미저장/저장 바이트 검사를 유지했다.
+
+[통합 검증 영수증](evidence/local-ui-integration-2026-10-26.json)의 실제 결과다. Python 3.14.0·backend/MCP locks, Node 24.15.0, Chromium141/headless-shell1194, 합성 자료만 사용했다. 최종 문서/시험/CSS head의 CI는 아직 확인 전이며 그 수치와 링크는 PR 설명에 기록한다.
+
+| 검사 | 확인된 결과와 한계 |
+|---|---|
+| backend 전체 | 최종 단일 실행 **1,429 passed**, JUnit failure/error/skip0·283.450초·exit0·수집 node ID 일치·Py/locks158파일 SHA 불변. stdout 최종 요약 부재로 전체 warning 수 미확정 |
+| 초기 실패·집중 | 첫 전체 1,425 passed/4 failed/기존 warning2·305.58초는 보존. 새 절별 주석과 옛 별표 기대 4개를 시험에서 정정. 집중99/보호218/후속38 각각 통과(각 기존 warning2)이며 전체에 합산하지 않음 |
+| frontend | tsc·unit35 통과. 마지막 CSS 보완 후 mock UI **78 passed/62.792초**, 15suite·fail/error/skip0·65파일 SHA 불변. CSS만 바뀌어 tsc/unit은 앞선 동일 TS 소스 결과 유지 |
+| 배포·Node 계약 | Python 배포75·Node82 통과, 별도 CLI로그인6 passed/Windows실제resolver Linux skip1, public-path 감사·배포셸4개 문법 통과 |
+| 실제 optimized rhwp | 여러 JUnit/소스 snapshot의 고유 **33 passed/7 skipped/미해결 실패0**. skip7은 실제 모델 기록물 부재. 새 outline·주석·경고 저장3개, 등록 표준/저장 전환·TOC·rich/stream/recovery·PR39 디자인/AI 등을 포함. 마지막 CSS 뒤 모든 노드를 반복한 단일 전체가 아님 |
+| 최종 실제 viewport | 수정 후 360px 포함 workspace1개 **29.643초 pass**, 136파일 SHA 불변. 경고 문구·수평 containment·남은 높이·iframe 동일성·수동 bytes/저장·재열기 유지 |
+| 엔진·build path | 검증한 optimized core `3eb52da9…10667b`와 현재 bridge `5654a717…0b81c29`·고정 upstream을 별도 vendor에서 재사용해 fresh Studio 빌드(diagnostic=false). 최종 앱 `/hwp-assistant/` build·HTTP **27파일 SHA** 일치, engine manifest10/helper11. 마지막 CSS 뒤 앱만 재빌드했고 Rust/Docker core 재컴파일은 아님 |
+
+main-only 연구 경고 저장 시험은 새 title-only 인쇄에서 URL을 없앤 것으로 오해하지 않도록 canonical draft의 URL·날짜·SHA를 확인하고 경고·6×400자 한계·수동 편집·유실 응답의 frozen same-bytes retry·한 버전·일반 편집기 재열기/쪽수를 유지했다. 등록 서식은 새 요청 선택의 변경/복원을 draft 생성 전에, 생성 후 selector 잠금·현재 frozen 서식/bytes를 저장 전에, clean 저장 뒤 일반 편집기의 bytes/쪽수를 검사한다. 새 실제 outline 시험은 요청 제목을 복사해 보정하지 않는 고정 합성 출력이며 실제 모델은 호출하지 않았다. 초기 selector/옛 완료 패널/주석·viewport 기대 실패 영수증도 삭제하지 않았다. Windows diagnostic developer kit·실제 optimized 코어·mock UI/AI·실모델·한컴/폐쇄망을 구분한다.
 
 ### 16.3 호환성과 운영 경계
 

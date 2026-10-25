@@ -2081,6 +2081,13 @@ test("REAL rhwp + MOCK standard designer: registered settings survive report TOC
   await expect(page.getByLabel("문서 양식", { exact: true })).toHaveValue(standard.id);
   await expect(page.getByLabel("보고서 작성 요청", { exact: true })).toBeEmpty();
   expect((await (await request.get(`/api/report-tasks/${oldId}`)).json()).approval).toBeNull();
+  // Future-request choices are editable before generation; once a draft is
+  // pending they must stay locked instead of replacing its frozen settings.
+  await page.getByLabel("문서 양식", { exact: true }).selectOption("");
+  await expect(page.getByLabel("문서 양식", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("새 요청에 사용할 서식", { exact: true })).toContainText("괄호 요약어: 모든 본문 항목 · 핵심 요약 포함");
+  await page.getByLabel("문서 양식", { exact: true }).selectOption(standard.id);
+  await expect(page.getByLabel("문서 양식", { exact: true })).toHaveValue(standard.id);
   await page.getByLabel("보고서 작성 요청", { exact: true }).fill("[RICH] 합성 표준 적용: 자료 정리와 검토 절차를 표와 흐름도로 정리");
   await page.getByLabel("공개 웹 자료를 검색하고 출처 포함").uncheck();
   const posted = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname === "/api/report-tasks");
@@ -2155,10 +2162,8 @@ test("REAL rhwp + MOCK standard designer: registered settings survive report TOC
   await page.getByRole("button", { name: "작성 요청", exact: true }).click();
   await expect(page.getByLabel("현재 보고서 고정 서식", { exact: true })).toContainText(standard.name);
   await expect(page.getByLabel("현재 보고서 고정 서식", { exact: true })).toContainText("괄호 요약어: 사용 안 함 · 핵심 요약 미포함");
-  await page.getByLabel("문서 양식", { exact: true }).selectOption("");
-  await expect(page.getByLabel("문서 양식", { exact: true })).toHaveValue("");
-  await expect(page.getByLabel("새 요청에 사용할 서식", { exact: true })).toContainText("괄호 요약어: 모든 본문 항목 · 핵심 요약 포함");
-  await expect(page.getByLabel("현재 보고서 고정 서식", { exact: true })).toContainText(standard.name);
+  await expect(page.getByLabel("문서 양식", { exact: true })).toBeDisabled();
+  await expect(page.getByLabel("문서 양식", { exact: true })).toHaveValue(standard.id);
   expect(hash(Buffer.from(await engine.evaluate(() => Array.from((window as any).hwpAssistantBridge.exportSnapshot().bytes) as number[])))).toBe(hash(exported));
   await page.getByRole("button", { name: "결과·출처", exact: true }).click();
   await page.screenshot({ path: info.outputPath("custom-standard-report.png"), fullPage: true });
