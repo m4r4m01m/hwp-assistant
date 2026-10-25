@@ -1,9 +1,103 @@
 import { unzipSync } from "fflate";
-import type { ExportSnapshot, Snapshot } from "./editor";
+import type { ExportSnapshot, Snapshot, StyleTarget } from "./editor";
 
 export type AssistantDocumentContext = { text: string; sha256: string; truncated: boolean; revision: number; epoch: number };
-export type AssistantCapture = { base_version: string; document_context: AssistantDocumentContext; selection: Snapshot | null };
+export type AssistantDesignTarget = { kind: "paragraph" | "table"; section: 0; paragraph: number; control?: number };
+export type AssistantDesignContext = { source_sha256: string; target: AssistantDesignTarget | null;
+  target_text?: string; target_text_truncated?: boolean; target_is_title_frame?: boolean };
+export type AssistantCapture = { base_version: string; document_context: AssistantDocumentContext; selection: Snapshot | null; design_context?: AssistantDesignContext | null };
 const MAX_TEXT = 60000;
+const HP = "http://www.hancom.co.kr/hwpml/2011/paragraph", HH = "http://www.hancom.co.kr/hwpml/2011/head";
+const directControls = new Set(["tbl", "pic", "rect", "ellipse", "line", "connectLine", "arc", "polygon", "curve",
+  "container", "compose", "dutmal", "equation", "btn", "checkBtn", "radioBtn", "comboBox", "edit"]);
+const wrappedControls = new Set(["colPr", "header", "footer", "footNote", "endNote", "autoNum", "hiddenComment", "indexmark",
+  "fieldBegin", "pageHiding", "pageNumCtrl", "pageNum", "bookmark", "newNum"]);
+const children = (element: Element, name: string) => Array.from(element.children).filter(child => child.namespaceURI === HP && child.localName === name);
+function paragraphControls(paragraph: Element): Element[] | null {
+  const controls: Element[] = [];
+  for (const run of children(paragraph, "run")) for (const node of Array.from(run.children)) {
+    if (node.namespaceURI !== HP) return null;
+    if (node.localName === "t") continue;
+    if (node.localName === "secPr") { controls.push(node, ...Array.from(node.getElementsByTagNameNS(HP, "colPr"))); }
+    else if (directControls.has(node.localName)) controls.push(node);
+    else if (node.localName === "ctrl") {
+      for (const control of Array.from(node.children)) {
+        if (control.namespaceURI !== HP) return null;
+        if (wrappedControls.has(control.localName)) {
+          if (control.localName !== "hiddenComment" || control.children.length) controls.push(control);
+        } else if (control.localName !== "fieldEnd") return null;
+      }
+    } else return null;
+  }
+  return controls;
+}
+function paragraphText(paragraph: Element): string {
+  return children(paragraph, "run").flatMap(run => children(run, "t")).map(node => node.textContent || "").join("");
+}
+function titleFrame(table: Element, header?: XMLDocument): boolean {
+  const rows = children(table, "tr"), cells = rows.length === 1 ? children(rows[0], "tc") : [];
+  if (!header || table.getAttribute("rowCnt") !== "1" || table.getAttribute("colCnt") !== "1" || cells.length !== 1) return false;
+  const fill = Array.from(header.getElementsByTagNameNS(HH, "borderFill")).find(node => node.getAttribute("id") === cells[0].getAttribute("borderFillIDRef"));
+  const edge = (name: string) => fill && Array.from(fill.children).find(node => node.localName === name);
+  const blues = new Set(["#437fc1", "#107fb5", "#3f7fc1"]);
+  if (["topBorder", "bottomBorder"].every(name => edge(name)?.getAttribute("type") === "SOLID" && blues.has(edge(name)?.getAttribute("color")?.toLowerCase() || ""))
+    && ["leftBorder", "rightBorder"].every(name => !edge(name) || edge(name)?.getAttribute("type") === "NONE")) return true;
+  // App-applied title frames remain identifiable after the user changes rule color.
+  const styles = Array.from(header.getElementsByTagNameNS(HH, "style"));
+  return Array.from(cells[0].getElementsByTagNameNS(HP, "p")).some(p => styles.some(style => style.getAttribute("id") === p.getAttribute("styleIDRef")
+    && ["HWP Assistant editor title", "HWP Assistant editor cover_title"].includes(style.getAttribute("name") || "")));
+}
+
+// Exact read-only selection semantics from the same exported bytes as the
+// content snapshot. The all-controls order mirrors editor_design_hwpx.py;
+// a table ordinal would point at the wrong object when secPr/shapes precede it.
+export async function assistantDesignContext(source: ExportSnapshot, target: StyleTarget | null): Promise<AssistantDesignContext> {
+  if (source.contentLoss.count || source.bytes.length > 30 * 1024 * 1024) throw new Error("현재 문서의 디자인 대상을 안전하게 읽을 수 없습니다.");
+  const source_sha256 = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(source.bytes)))).map(value => value.toString(16).padStart(2, "0")).join("");
+  const empty: AssistantDesignContext = { source_sha256, target: null, target_text: "", target_text_truncated: false, target_is_title_frame: false };
+  const integer = (value: unknown) => Number.isSafeInteger(value) && Number(value) >= 0;
+  if (!target || target.section !== 0 || !integer(target.paragraph) || (target.kind === "table" && !integer(target.control))) return empty;
+  let size = 0, entries = 0;
+  const files = unzipSync(source.bytes, { filter: file => {
+    if (++entries > 3000) throw new Error("문서 구성 항목이 너무 많습니다.");
+    if (!["Contents/section0.xml", "Contents/header.xml"].includes(file.name)) return false;
+    size += file.originalSize;
+    if (size > 30 * 1024 * 1024) throw new Error("문서 선택 내용을 읽을 수 있는 크기를 초과했습니다.");
+    return true;
+  } });
+  const parse = (name: string) => {
+    if (!files[name]) return undefined;
+    const xml = new TextDecoder("utf-8", { fatal: true }).decode(files[name]);
+    if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error("안전하게 읽을 수 없는 문서 XML입니다.");
+    const doc = new DOMParser().parseFromString(xml, "application/xml");
+    if (doc.getElementsByTagName("parsererror").length) throw new Error("선택 내용 XML을 읽을 수 없습니다.");
+    return doc;
+  };
+  const section = parse("Contents/section0.xml");
+  if (!section) return empty;
+  const paragraph = children(section.documentElement, "p")[target.paragraph];
+  if (!paragraph) return empty;
+  const controls = paragraphControls(paragraph);
+  if (controls === null) return empty;
+  let text = "", isTitle = false;
+  if (target.kind === "paragraph") {
+    // Section/page metadata often shares the first title's run. The style-only
+    // transformer preserves it; these controls do not turn that title into an object.
+    const metadata = new Set(["secPr", "colPr", "pageNum", "pageNumCtrl", "newNum", "pageHiding"]);
+    if (controls.some(control => !metadata.has(control.localName)) || target.control !== undefined) return empty;
+    text = paragraphText(paragraph);
+  } else {
+    const table = controls[target.control!];
+    if (table?.localName !== "tbl" || table.getElementsByTagNameNS(HP, "tbl").length) return empty;
+    const paragraphs = Array.from(table.getElementsByTagNameNS(HP, "p"));
+    if (paragraphs.some(p => { const nested = paragraphControls(p); return nested === null || nested.length > 0; })) return empty;
+    text = children(table, "tr").map(row => children(row, "tc").map(cell => Array.from(cell.getElementsByTagNameNS(HP, "p")).map(paragraphText).join("\n")).join(" | ")).join("\n");
+    isTitle = titleFrame(table, parse("Contents/header.xml"));
+  }
+  const truncated = text.length > 8000;
+  return { source_sha256, target: { ...target, section: 0 }, target_text: text.slice(0, 8000).replace(/[\uD800-\uDBFF]$/, ""),
+    target_text_truncated: truncated, target_is_title_frame: isTitle };
+}
 
 // Read the current editor export, never a saved server version. Nested table/frame
 // paragraphs are visited in document order and their text is not counted twice.

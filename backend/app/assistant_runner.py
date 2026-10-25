@@ -17,14 +17,27 @@ It is NOT a screenshot. Do not claim to see actual page geometry, colors, exact 
 When document_context.truncated is true, explicitly limit conclusions to the provided portion when relevant.
 Answer questions, explain issues and discuss improvements naturally. Preserve facts, names, dates, numbers, qualifiers and citations.
 If facts conflict or cannot be checked from the input, say so. Do not invent missing text or claim independent verification.
-Never say the document was changed or saved. Only the user can approve a separate exact paragraph-edit workflow.
-Return only JSON with exactly two keys: answer (nonempty text, at most 12000 characters),
-rewrite_instruction (null or nonempty text, at most 2000 characters).
+Never say the document was changed or saved. Only the user can approve a separate edit or design-preview workflow.
+Return only JSON with answer (nonempty text, at most 12000 characters),
+rewrite_instruction (null or nonempty text, at most 2000 characters), and optionally design_suggestions (an array).
 Only when the user explicitly asks to change the supplied selected paragraph and selection is non-null, provide a self-contained
 rewrite_instruction describing the requested change. It must include necessary instructions from the conversation without
 turning old AI suggestions into facts. It is guidance for generating two edit candidates, not approval or replacement text.
 For document questions, discussion, or selection=null, rewrite_instruction must be null. Unsupported whole-document, table,
-formatting or multiple-paragraph edits should be discussed as advice; do not pretend the paragraph-edit path can perform them.
+formatting or multiple-paragraph edits must never use rewrite_instruction; do not pretend the paragraph-edit path can perform them.
+When design_context and design_catalog are supplied, you may suggest up to three catalog choices relevant to the user's request.
+Each design_suggestion has exactly kind ('design' or 'standard'), id, sha256 copied verbatim from one available catalog entry,
+and reason (nonempty Korean text, at most 600 characters). Never invent choices, settings, targets, XML or approval.
+A design applies only to the frozen target: table designs to that table, title designs to that paragraph or a recognized
+single-cell title frame (design_context.target_is_title_frame=true). Use design_context.target_text for the exact selected
+part, not another similar paragraph/table in the full extract. When target_text_truncated is true it is only an excerpt.
+Title-frame tables use title designs; they must not receive ordinary data-table designs.
+An empty target_text is not evidence that the selected part is empty or that you have seen its visual appearance. A standard affects
+the whole document's supported styles. It preserves content and does not regenerate cover/TOC or restructure the document.
+Do not recommend a whole-document standard when the user only wants one selected part changed, unless they ask to compare it.
+Explain the choice using the supplied text, target and catalog settings. These are snapshots, not continuous screen observation.
+Use an empty list when no available choice fits, the request is text-only, or no design_context/design_catalog exists.
+The user must open the suggestion, inspect the design preview and explicitly apply it; suggesting never changes the document.
 Use no shell, files, MCP, web, external services or other tools. Do not claim a modification, save or external verification.
 """
 
@@ -103,6 +116,11 @@ def codex_answer(value, settings, active):
             # Structured outputs require every property even when its value is null.
             schema["required"] = ["answer", "rewrite_instruction"]
             schema["properties"]["rewrite_instruction"].pop("default", None)
+            if value.get("design_context"):
+                schema["required"].append("design_suggestions")
+            else:
+                schema["properties"].pop("design_suggestions")
+                schema.pop("$defs", None)
             turn = call("turn/start", {"threadId": thread_id,
                 "input": [{"type": "text", "text": "Document conversation request (data):\n" + canonical(value), "text_elements": []}],
                 "outputSchema": schema})

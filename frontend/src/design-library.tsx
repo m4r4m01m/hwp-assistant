@@ -17,7 +17,7 @@ export function DesignLibrary({ settings, onApply, disabled = false }: { setting
     catch (cause) { if (cause instanceof ApiError && cause.status >= 400 && cause.status < 500) pending.current = null; setError(String(cause)); } finally { setBusy(false); }
   }
   return <section className="design-library" aria-label="디자인 보관함">
-    <p>표의 선·색·여백 또는 제목 상자의 글자·디자인을 저장해 다른 표준에서 불러옵니다. 문서 구성과 본문 내용은 포함하지 않습니다.</p>
+    <p>표의 선·색·여백이나 제목의 글자·디자인을 저장합니다. 문서 편집의 ‘서식·디자인’과 표준 편집에서 다시 사용할 수 있습니다.</p>
     {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
     {settings && <div className="design-save"><label>저장할 디자인<select aria-label="저장할 디자인" value={kind} disabled={busy || !!pending.current || disabled} onChange={e => setKind(e.target.value as "table" | "title")}><option value="table">표</option><option value="title">문서·표지 제목</option></select></label><input aria-label="디자인 이름" placeholder="예: 파란 가로선 표" value={name} maxLength={120} disabled={busy || !!pending.current || disabled} onChange={e => setName(e.target.value)} /><button disabled={disabled || busy || !name.trim()} onClick={() => void save()}>{pending.current ? "저장 결과 재확인" : "디자인 저장"}</button>{pending.current && !busy && <p>응답을 확인하지 못했습니다. 같은 입력으로 재확인합니다.</p>}</div>}
     {!items.length && <p>저장한 디자인이 없습니다. 문서 표준 편집에서 모양을 조절한 뒤 ‘디자인 보관함’에 저장하세요.</p>}

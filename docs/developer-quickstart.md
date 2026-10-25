@@ -4,7 +4,7 @@
 
 ## 이 브랜치의 준비 상태 (2026-10-25)
 
-실행 기준은 로컬 QA에서 검증한 `a013b8633e2d488d0c1a4799f9698ec310bcb92d`다. 현재 bridge와 일치하는 [개발용 엔진 kit](https://github.com/m4r4m01m/hwp-assistant/releases/tag/developer-engine-2026-10-25-local-cli)를 게시하고 lock의 자산 ID·SHA-256을 갱신했다. 기존 2026-10-18 kit의 bridge 불일치 때문에 최초 설치가 중단되던 문제를 해결하는 분기다. 2026-10-22 당시 미게시 상태는 과거 기록이다.
+실행 기준은 로컬 QA에서 검증한 `a013b8633e2d488d0c1a4799f9698ec310bcb92d`다. 현재 bridge와 일치하는 [개발용 엔진 kit](https://github.com/m4r4m01m/hwp-assistant/releases/tag/developer-engine-2026-10-25-editor-designs)를 게시하고 lock의 자산 ID·SHA-256을 갱신했다. 기존 2026-10-18 kit의 bridge 불일치 때문에 최초 설치가 중단되던 문제를 해결하는 분기다. 2026-10-22 당시 미게시 상태는 과거 기록이다.
 
 kit는 **Windows native diagnostic 빌드**이며 최적화 운영 엔진을 대체하지 않는다. Git·Node·Python과 저장소 접근 권한이 있으면 기본 경로에서 Rust·Docker 소스 빌드를 요구하지 않는다. 작성 중이던 선택 영역 디자인 적용 기능은 이 브랜치에 섞지 않았다. [CLI 인수인계와 검증 범위](local-cli-ready-2026-10-25.md)를 함께 읽는다.
 

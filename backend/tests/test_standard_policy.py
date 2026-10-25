@@ -21,6 +21,52 @@ def test_optional_controls_do_not_change_historical_settings_hash():
     assert report_hash(parsed) == "e9895a9204a8ee1e144d65cc038df3f115d4d879d08e5354cafa2e928cb355dc"
 
 
+def test_line_policy_catalog_explains_each_selectable_value_without_becoming_settings():
+    from app.reference_standard import field_catalog
+    from app.reference_source import roles_source
+    from app.standard_policy import BODY_ROLES, HEADING_ROLES
+    catalog = {field["key"]: field for field in field_catalog()}
+    for key in ("line_break_unit", "line_space_policy"):
+        field = catalog[key]
+        assert set(field["help_by_value"]) == {option["value"] for option in field["options"]}
+        assert all(field["help_by_value"].values()) and field["help"]
+        assert len(set(field["help_by_value"].values())) == len(field["options"])
+        for option in field["options"]:
+            settings = VisualSettingsV3.model_validate({**defaults(), key: option["value"]}).model_dump(mode="json")
+            assert settings[key] == option["value"]
+            assert "help_by_value" not in settings
+    source = roles_source()
+    source_condense = {int(source[role]["para"].get("condense", "0"))
+                      for role in (*BODY_ROLES, *HEADING_ROLES, "table", "note", "table_source")}
+    assert all(f"{value}%" in catalog["line_space_policy"]["help_by_value"]["ORIGINAL"] for value in source_condense)
+    assert "한글" in catalog["line_break_unit"]["help_by_value"]["WORD"]
+    assert "영문" in catalog["line_break_unit"]["help_by_value"]["WORD"]
+    assert "기준서" not in catalog["line_break_unit"]["help_by_value"]["WORD"]
+
+
+def test_reference_alias_requires_equivalence_for_every_affected_role(monkeypatch):
+    from app import reference_source
+    from app.standard_policy import LINE_POLICY_EXCLUDED_ROLES, line_fields
+    source = reference_source.roles_source()
+    for role, item in source.items():
+        if role in LINE_POLICY_EXCLUDED_ROLES:
+            continue
+        item["para"].set("condense", "0")
+        item["para"].find(f"{{{HH}}}breakSetting").attrib.update(
+            breakNonLatinWord="BREAK_WORD", breakLatinWord="KEEP_WORD")
+    monkeypatch.setattr(reference_source, "roles_source", lambda: copy.deepcopy(source))
+    fields = {field["key"]: field for field in line_fields()}
+    assert fields["line_space_policy"]["option_aliases"] == {"ORIGINAL": "NONE"}
+    assert fields["line_break_unit"]["option_aliases"] == {"ORIGINAL": "WORD"}
+    # A less common role still participates: aliasing only common body/table
+    # roles could otherwise hide a real difference in an attachment heading.
+    source["attachment"]["para"].set("condense", "10")
+    source["attachment"]["para"].find(f"{{{HH}}}breakSetting").set("breakLatinWord", "BREAK_WORD")
+    fields = {field["key"]: field for field in line_fields()}
+    assert fields["line_space_policy"]["option_aliases"] == {}
+    assert fields["line_break_unit"]["option_aliases"] == {}
+
+
 def test_reduced_heading_structure_integrates_context_without_repeated_headings():
     from app.standard_policy import organize_paragraphs
     original = copy.deepcopy(SAMPLE)
@@ -84,20 +130,40 @@ def test_disabled_roles_preserve_words_and_semantic_heading_links():
     assert len([item for item in plan if item["kind"] == "heading"]) == 3
 
 
-def test_line_controls_write_native_styles_without_touching_titles_or_text():
-    settings = {**defaults(), "line_break_unit": "WORD", "line_space_policy": "TIGHTER", "body_tracking_percent": -3}
+@pytest.mark.parametrize("policy,percent", [("TIGHTER", 20), ("TIGHT_30", 30), ("TIGHT_50", 50)])
+def test_line_controls_write_native_styles_without_touching_titles_or_text(policy, percent):
+    from app.standard_policy import LINE_POLICY_EXCLUDED_ROLES
+    settings = VisualSettingsV3.model_validate({**defaults(), "line_break_unit": "WORD",
+        "line_space_policy": policy, "body_tracking_percent": -3}).model_dump(mode="json")
     _, header, _, formats = report_styles(settings)
     chars = {node.get("id"): node for node in header.iter(f"{{{HH}}}charPr")}
     paras = {node.get("id"): node for node in header.iter(f"{{{HH}}}paraPr")}
     cid, pid = formats["square"]
     assert set(chars[cid].find(f"{{{HH}}}spacing").attrib.values()) == {"-3"}
-    assert paras[pid].get("condense") == "20"
+    assert paras[pid].get("condense") == str(percent)
     assert paras[pid].find(f"{{{HH}}}breakSetting").get("breakLatinWord") == "KEEP_WORD"
     assert paras[pid].find(f"{{{HH}}}breakSetting").get("breakNonLatinWord") == "BREAK_WORD"
     _, old_header, _, old_formats = report_styles(defaults())
     old_chars = {node.get("id"): node for node in old_header.iter(f"{{{HH}}}charPr")}
+    old_paras = {node.get("id"): node for node in old_header.iter(f"{{{HH}}}paraPr")}
+    for role, (_, paragraph_id) in formats.items():
+        if role in LINE_POLICY_EXCLUDED_ROLES or role == "empty":
+            assert paras[paragraph_id].get("condense") == old_paras[old_formats[role][1]].get("condense")
+        else:
+            assert paras[paragraph_id].get("condense") == str(percent)
     assert chars[formats["title"][0]].find(f"{{{HH}}}spacing").attrib == old_chars[old_formats["title"][0]].find(f"{{{HH}}}spacing").attrib
     assert report_blocks(SAMPLE, concise=True, rich=True, visual_settings=settings) == report_blocks(SAMPLE, concise=True, rich=True, visual_settings=defaults())
+
+
+def test_minus_five_tracking_adds_to_each_role_and_clamps_only_final_spacing():
+    settings = {**defaults(), "body_tracking_percent": -5, "line_space_policy": "TIGHT_50",
+                "square_spacing_percent": 0, "circle_spacing_percent": 3, "dash_spacing_percent": 45,
+                "dot_spacing_percent": -18}
+    _, header, _, formats = report_styles(settings)
+    chars = {node.get("id"): node for node in header.iter(f"{{{HH}}}charPr")}
+    for role, expected in {"square": -5, "circle": -2, "dash": 40, "dot": -20}.items():
+        assert set(chars[formats[role][0]].find(f"{{{HH}}}spacing").attrib.values()) == {str(expected)}
+    assert settings["body_tracking_percent"] == -5 and settings["dot_spacing_percent"] == -18
 
 
 def test_new_prompt_limits_roles_and_never_requires_generic_parenthetical_labels():
@@ -110,11 +176,12 @@ def test_new_prompt_limits_roles_and_never_requires_generic_parenthetical_labels
     assert "Allowed heading styles: heading." in prompt
 
 
-def test_policy_settings_survive_registration_retry(secured):
+@pytest.mark.parametrize("policy", ["TIGHT", "TIGHT_50"])
+def test_policy_settings_survive_registration_retry(secured, policy):
     client, _, _, _ = secured
     settings = {**defaults(), "enabled_body_roles": "square,dash", "enabled_heading_roles": "heading,subheading",
                 "body_parenthetical_labels": True, "body_parenthetical_scope": "square", "line_break_unit": "WORD",
-                "line_space_policy": "TIGHT", "body_tracking_percent": -2}
+                "line_space_policy": policy, "body_tracking_percent": -2}
     _, stage = prepare(client, settings)
     complete = finish(client, stage)
     body = registration(complete)

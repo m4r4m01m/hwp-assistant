@@ -24,6 +24,12 @@ export type ExportSnapshot = {
   epoch: number;
 };
 export type DocumentState = RhwpDocumentStateV1;
+export type StyleTarget = {
+  kind: "paragraph" | "table";
+  section: number;
+  paragraph: number;
+  control?: number;
+};
 export type LayoutHeading = {
   id: string;
   section: number;
@@ -44,6 +50,7 @@ type Bridge = {
   subscribe(cb: () => void): () => void;
   snapshot(): Snapshot;
   documentState(): DocumentState;
+  styleTarget?(): StyleTarget;
   exportSnapshot(): ExportSnapshot;
   layoutEvidence(headings: LayoutHeading[]): LayoutEvidence;
   bodyLayoutEvidence?(): BodyLayoutEvidence;
@@ -117,8 +124,8 @@ export class EditorAdapter {
     }
     return new EditorAdapter(sdk, bridge);
   }
-  async load(bytes: ArrayBuffer, name: string) {
-    await this.sdk.loadFile(bytes, name, { suppressDialogs: false });
+  async load(bytes: ArrayBuffer, name: string, options: { suppressDialogs?: boolean; skipUnsavedGuard?: boolean } = {}) {
+    await this.sdk.loadFile(bytes, name, { suppressDialogs: false, ...options });
     return this.sdk.getDocumentState();
   }
   exportHwpx() {
@@ -131,6 +138,11 @@ export class EditorAdapter {
   }
   selection() {
     return this.bridge.snapshot();
+  }
+  styleTarget() {
+    if (!this.bridge.styleTarget)
+      throw new Error("디자인 적용을 위한 위치 조회 기능이 없습니다. 편집 내용을 저장한 뒤 문서를 다시 열어 주세요.");
+    return this.bridge.styleTarget();
   }
   async apply(snapshot: Snapshot, replacement: string, commandId: string = crypto.randomUUID()) {
     const current = this.selection();

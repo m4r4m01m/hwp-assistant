@@ -1,6 +1,6 @@
 # 로컬 실행·Codex CLI 작업 인수인계 — 2026-10-25
 
-브랜치: **`codex/local-cli-ready-2026-10-25`**. 앱 기준 커밋은 `a013b8633e2d488d0c1a4799f9698ec310bcb92d`이며, 지금 검수하던 로컬 QA 기능과 main 동기화 내용을 포함한다. 이 분기는 현재 실행 상태를 재현하기 위한 준비다. AI·문서 설계 변경을 새로 구현한 버전은 아니다.
+브랜치: **`codex/local-cli-ready-2026-10-25`**. 앱 기준 커밋은 `a013b8633e2d488d0c1a4799f9698ec310bcb92d`이며, 지금 검수하던 로컬 QA 기능과 main 동기화 내용을 포함한다. 후속 통합으로 QA 커밋 `41a64bd`의 편집 디자인·AI 추천·표준 편집 개선도 포함한다. 새 bridge에 맞춘 엔진 kit로 실행한다.
 
 ## 새 PC에서 실행
 
@@ -12,7 +12,7 @@ cd hwp-assistant
 & ".\Start HWP Assistant.cmd"
 ```
 
-처음에는 인터넷으로 잠금 의존성과 [호환 엔진 ZIP](https://github.com/m4r4m01m/hwp-assistant/releases/tag/developer-engine-2026-10-25-local-cli)을 받는다. 기본 웹/API 포트는 15190/18190이며 사용 중이면 다음 빈 포트를 찾는다. 창을 유지하고 종료할 때 `Ctrl+C`를 사용한다. 다음 실행은 같은 `.cache/developer/data` 문서함을 연다. 기존 PC의 문서·DB·로그인 정보는 Git이나 kit에 포함하지 않았으므로 새 clone은 빈 문서함으로 시작한다. [자세한 실행 안내](developer-quickstart.md).
+처음에는 인터넷으로 잠금 의존성과 [호환 엔진 ZIP](https://github.com/m4r4m01m/hwp-assistant/releases/tag/developer-engine-2026-10-25-editor-designs)을 받는다. 기본 웹/API 포트는 15190/18190이며 사용 중이면 다음 빈 포트를 찾는다. 창을 유지하고 종료할 때 `Ctrl+C`를 사용한다. 다음 실행은 같은 `.cache/developer/data` 문서함을 연다. 기존 PC의 문서·DB·로그인 정보는 Git이나 kit에 포함하지 않았으므로 새 clone은 빈 문서함으로 시작한다. [자세한 실행 안내](developer-quickstart.md).
 
 ## Codex CLI와 연결
 
@@ -24,7 +24,7 @@ cd hwp-assistant
 
 ## 보존한 작업과 다음 시작점
 
-- 기존 QA checkout의 작성 중인 **선택 영역 디자인 적용·대화 중 디자인 추천** 변경은 그대로 보존했다. 검증되지 않은 변경은 이 실행 브랜치에 넣지 않았다.
+- **선택 영역 디자인 적용·대화 중 디자인 추천**과 표준 편집 후속 검증이 완료되어 이 실행 브랜치에 병합했다. 세부 검증과 한계는 PROJECT_CONTEXT의 최신 기록을 따른다.
 - 기존 문서함·원본·과거 버전·표준·기준서·frozen 초안과 기존 실행 중인 로컬 앱을 변경하지 않는다. 사용자 데이터 이전이 필요하면 Git push와 별도로 DB와 파일을 함께 백업·복원한다.
 - 새 설계에서도 원문·선택·버전 fence, 사용자 승인 후 적용, 새 버전 저장, 소유권/AI ACL을 유지한다. 기존 문서를 덮어쓰거나 인증 파일을 포함시키지 않는다.
 - kit는 **Windows native diagnostic** 빌드다. Docker/최적화 운영 이미지·원격 배포는 이 분기의 실행 검증과 별개다. 운영 워크플로는 변경하지 않았다.

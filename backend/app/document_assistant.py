@@ -8,6 +8,7 @@ import unicodedata
 import uuid
 from contextlib import ExitStack
 from threading import Thread
+from typing import Literal
 from fastapi import Header, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import select
@@ -45,12 +46,49 @@ class DocumentContext(Input):
         return self
 
 
+class DesignTarget(Input):
+    kind: Literal["paragraph", "table"]
+    section: Literal[0]
+    paragraph: int = Field(ge=0, le=100000, strict=True)
+    control: int | None = Field(default=None, ge=0, le=100000, strict=True)
+
+    @field_validator("section", mode="before")
+    @classmethod
+    def section_number(cls, value):
+        if type(value) is not int:
+            raise ValueError("본문 구역 번호가 올바르지 않습니다.")
+        return value
+
+    @model_validator(mode="after")
+    def address(self):
+        if (self.kind == "table") != (self.control is not None):
+            raise ValueError("디자인을 적용할 문단 또는 표 위치가 올바르지 않습니다.")
+        return self
+
+
+class DesignContext(Input):
+    source_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    target: DesignTarget | None
+    target_text: str = Field(default="", max_length=8000)
+    target_text_truncated: bool = Field(default=False, strict=True)
+    target_is_title_frame: bool = Field(default=False, strict=True)
+
+    @model_validator(mode="after")
+    def target_details(self):
+        if self.target is None and (self.target_text or self.target_text_truncated or self.target_is_title_frame):
+            raise ValueError("선택 위치가 없는 요청에는 선택 내용을 포함할 수 없습니다.")
+        if self.target_is_title_frame and self.target.kind != "table":
+            raise ValueError("제목 상자 표 정보가 올바르지 않습니다.")
+        return self
+
+
 class TurnInput(Input):
     id: uuid.UUID
     base_version: str = Field(min_length=1, max_length=36)
     message: str = Field(min_length=1, max_length=12000)
     document_context: DocumentContext
     selection: dict | None = None
+    design_context: DesignContext | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -75,10 +113,26 @@ class TurnInput(Input):
         return self
 
 
+class DesignSuggestion(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    kind: Literal["design", "standard"]
+    id: str = Field(min_length=1, max_length=120)
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    reason: str = Field(min_length=1, max_length=600)
+
+    @field_validator("reason")
+    @classmethod
+    def visible(cls, value):
+        if not value.strip() or any(unicodedata.category(c) in ("Cs", "Cc") and c not in "\n\r\t" for c in value):
+            raise ValueError("유효한 제안 설명이 필요합니다.")
+        return value
+
+
 class AssistantResponse(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     answer: str = Field(min_length=1, max_length=12000)
     rewrite_instruction: str | None = Field(default=None, min_length=1, max_length=2000)
+    design_suggestions: list[DesignSuggestion] = Field(default_factory=list, max_length=3)
 
     @field_validator("answer", "rewrite_instruction")
     @classmethod
@@ -86,6 +140,78 @@ class AssistantResponse(BaseModel):
         if value is not None and (not value.strip() or any(unicodedata.category(c) in ("Cs", "Cc") and c not in "\n\r\t" for c in value)):
             raise ValueError("유효한 답변 텍스트가 필요합니다.")
         return value
+
+
+def request_payload(value):
+    # Omission preserves accepted v1 request fingerprints and retry semantics.
+    result = value.model_dump(mode="json")
+    if result["design_context"] is None:
+        result.pop("design_context")
+    else:
+        result["design_context"] = value.design_context.model_dump(mode="json", exclude_unset=True)
+        target = result["design_context"]["target"]
+        if target is not None and target.get("control") is None:
+            target.pop("control", None)
+    return result
+
+
+def design_catalog(db, user, context):
+    from .editor_designs import editor_design_catalog
+    catalog = editor_design_catalog(db, user)
+    target = context.get("target")
+    expected = "table" if target and target["kind"] == "table" else "title" if target else None
+    allowed_kinds = {expected}
+    if context.get("target_is_title_frame"):
+        allowed_kinds = {"title"}
+    choices, size = [], 0
+    for category, items in (("design", catalog["designs"]), ("standard", catalog["standards"])):
+        for item in items[:40]:
+            if category == "design" and item["kind"] not in allowed_kinds:
+                continue
+            # Only presentation facts help select a design. Do not send the
+            # complete standard (or arbitrary persisted fields) to the model.
+            prefixes = ("table_",) if item.get("kind") == "table" else ("title_",)
+            if category == "standard":
+                prefixes = ("title_", "body_", "square_", "table_", "page_")
+            summary = {key: value for key, value in item["settings"].items() if
+                key.startswith(prefixes) or category == "standard" and key in ("preset_id", "cover_mode", "toc_mode")}
+            choice = {"kind": category, "id": item["id"], "sha256": item["sha256"],
+                "name": item["name"], "design_kind": item.get("kind") if category == "design" else None,
+                "settings": summary}
+            length = len(canonical(choice).encode("utf-8"))
+            if size + length > 64000:
+                continue
+            choices.append(choice)
+            size += length
+    return choices
+
+
+def validated_design_proposals(db, user, payload, suggestions):
+    if not suggestions:
+        return []
+    context = payload.get("design_context")
+    if not context:
+        raise ValueError("문서 디자인 정보가 없는 요청에는 디자인을 제안할 수 없습니다.")
+    frozen = {(item["kind"], item["id"], item["sha256"]): item for item in payload.get("design_catalog", [])}
+    current = {(item["kind"], item["id"], item["sha256"]) for item in design_catalog(db, user, context)}
+    result, seen = [], set()
+    for suggestion in suggestions:
+        key = (suggestion.kind, suggestion.id, suggestion.sha256)
+        item = frozen.get(key)
+        if item is None or key not in current:
+            raise ValueError("제안한 디자인이 요청 당시 목록과 다르거나 더 이상 사용할 수 없습니다.")
+        if key in seen:
+            raise ValueError("같은 디자인을 중복 제안할 수 없습니다.")
+        seen.add(key)
+        target = {"kind": "document", "section": 0} if suggestion.kind == "standard" else context["target"]
+        allowed_kinds = {"table" if target and target["kind"] == "table" else "title"}
+        if context.get("target_is_title_frame"):
+            allowed_kinds = {"title"}
+        if not target or (suggestion.kind == "design" and item["design_kind"] not in allowed_kinds):
+            raise ValueError("디자인 종류와 현재 선택 위치가 다릅니다.")
+        target = {key: value for key, value in target.items() if value is not None}
+        result.append({**suggestion.model_dump(), "name": item["name"], "design_kind": item["design_kind"], "target": target})
+    return result
 
 
 def parse_response(raw):
@@ -152,7 +278,8 @@ def finish_turn(engine, turn_id, response=None, evidence=None, error=""):
             payload = json.loads(row.input)
             if payload["selection"] is None and value.rewrite_instruction is not None:
                 raise ValueError("선택 문단이 없는 답변에 수정 요청이 포함됐습니다.")
-            row.response, row.status = canonical(value.model_dump()), "ready"
+            proposals = validated_design_proposals(db, row.requested_by, payload, value.design_suggestions)
+            row.response, row.status = canonical({**value.model_dump(), "design_proposals": proposals}), "ready"
             # A completed turn is also visible to the existing shared conversation.
             for role, content in (("user", payload["message"]), ("assistant", value.answer)):
                 db.add(Message(id=str(uuid.uuid5(uuid.UUID(row.id), role)), conversation_id=row.conversation_id,
@@ -193,6 +320,7 @@ def public_turn(row, doc, user, role):
     return {"id": row.id, "conversation_id": row.conversation_id, "document_id": row.document_id,
         "base_version": row.base_version, "requested_by": row.requested_by, "message": payload["message"],
         "status": status(row), "answer": result.get("answer"), "rewrite_instruction": result.get("rewrite_instruction"),
+        "design_proposals": result.get("design_proposals", []), "design_context": payload.get("design_context"),
         "selection": payload["selection"], "document_context": {k: context[k] for k in ("sha256", "truncated", "revision", "epoch")} | {"characters": len(context["text"])},
         "error": row.error or ("응답 제한 시간이 지났습니다. 같은 질문을 자동으로 다시 실행하지 않습니다." if status(row) == "expired" else ""),
         "execution": {k: v for k, v in json.loads(row.execution).items() if not k.startswith("_")},
@@ -226,7 +354,7 @@ def install_document_assistant(app, check_lease):
                 if not thread:
                     raise HTTPException(404, "대화를 찾을 수 없습니다.")
                 doc = require_access(db, thread.document_id, request.state.user, "editor", lock=True)
-                fingerprint = digest(canonical(value.model_dump(mode="json")).encode())
+                fingerprint = digest(canonical(request_payload(value)).encode())
                 old = db.get(ConversationTurn, str(value.id))
                 role = db.get(Access, (doc.id, request.state.user)).role
                 if old:
@@ -246,9 +374,11 @@ def install_document_assistant(app, check_lease):
                     require_codex_ready(settings)
                 history = list(db.scalars(select(ConversationTurn).where(ConversationTurn.conversation_id == thread_id,
                     ConversationTurn.status == "ready").order_by(ConversationTurn.created_at.desc()).limit(10)))
-                payload = {**value.model_dump(mode="json"), "_assistant_contract": CONTRACT, "document_name": doc.name, "history": [
+                payload = {**request_payload(value), "_assistant_contract": CONTRACT, "document_name": doc.name, "history": [
                     {"message": json.loads(turn.input)["message"], "answer": json.loads(turn.response)["answer"],
                      "base_version": turn.base_version} for turn in reversed(history)]}
+                if value.design_context is not None:
+                    payload["design_catalog"] = design_catalog(db, request.state.user, payload["design_context"])
                 encoded = canonical(payload)
                 row = ConversationTurn(id=str(value.id), conversation_id=thread_id, document_id=doc.id,
                     requested_by=request.state.user, base_version=value.base_version, input=encoded,
