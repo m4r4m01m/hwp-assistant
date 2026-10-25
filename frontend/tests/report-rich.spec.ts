@@ -92,9 +92,9 @@ test('REAL rhwp + MOCK report: streamed table diagram emphasis, edited save retr
     await expect.poll(() => frame.evaluate(() => (window as any).hwpAssistantBridge.snapshot().evidence.text)).toContain('수동 편집 보존 확인');
     await page.getByRole('button', { name: '초안 확정·서버 저장', exact: true }).click();
     await page.getByRole('button', { name: '같은 보고서 저장 재확인', exact: true }).click({ timeout: 60000 });
-    await expect(page.getByRole('status')).toHaveText('HWPX 서버 저장 완료');
+    await expect(page.getByRole('status')).toHaveText('저장 완료');
     expect(saves).toHaveLength(2); expect(saves[1]).toEqual(saves[0]);
-    const href = (await page.getByRole('link', { name: '완성 보고서 다운로드', exact: true }).getAttribute('href'))!;
+    const href = (await page.getByRole('link', { name: '저장본 다운로드', exact: true }).getAttribute('href'))!;
     const saved = await (await request.get(href)).body(); const zip = unzipSync(saved);
     const xml = strFromU8(zip['Contents/section0.xml']), header = strFromU8(zip['Contents/header.xml']);
     const evidence = await page.evaluate(({ xml, header }) => {
@@ -126,7 +126,7 @@ test('REAL rhwp + MOCK report: streamed table diagram emphasis, edited save retr
     expect(xml).toContain('수동 편집 보존 확인'); expect(xml).not.toContain('REPORT_SLOT_');
     expect(await (await request.get(href.split('/versions/')[0] + '/versions')).json()).toHaveLength(1);
     await writeFile(info.outputPath('rich-saved.hwpx'), saved);
-    await page.getByRole('button', { name: '보고서 편집하기', exact: true }).click();
+    // A clean save opens the regular editor automatically.
     await expect(page.getByRole('status')).toHaveText('저장 완료');
     await expect(page.getByRole('alert')).toHaveCount(0);
     await page.screenshot({ path: info.outputPath('rich-reopened.png'), fullPage: true });

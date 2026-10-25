@@ -1906,15 +1906,15 @@ test("REAL rhwp + MOCK standard designer: a fresh report freezes the original ap
   expect(pages).toBeGreaterThan(0);
   await page.screenshot({ path: info.outputPath("original-appendix1-report.png"), fullPage: true });
   await page.getByRole("button", { name: "초안 확정·서버 저장", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("HWPX 서버 저장 완료");
-  const href = (await page.getByRole("link", { name: "완성 보고서 다운로드", exact: true }).getAttribute("href"))!;
+  await expect(page.getByRole("status")).toHaveText("저장 완료");
+  const href = (await page.getByRole("link", { name: "저장본 다운로드", exact: true }).getAttribute("href"))!;
   const saved = await (await request.get(href)).body();
   expect(hash(saved)).toBe(hash(bytes));
   const retained = await (await request.get(`/api/report-tasks/${job.id}/preview`)).json();
   expect(retained.layout_sha256).toBe(frozen.layout_sha256);
   expect(retained.layout_base64).toBe(frozen.layout_base64);
   expect(retained.visual_standard).toEqual(selection);
-  await page.getByRole("button", { name: "보고서 편집하기", exact: true }).click();
+  // A clean save opens the regular editor automatically.
   await expect(page.getByRole("status")).toHaveText("저장 완료");
   const reopened = await (await page.locator(".block-editor-slot.active iframe").elementHandle())!.contentFrame();
   if (!reopened) throw new Error("별첨 1 보고서의 일반 편집기 재열기에 실패했습니다.");
@@ -1993,11 +1993,11 @@ for (const composition of [{ preset: "appendix-2", tocPage: 2, firstBodyPage: 3 
     }
     await page.screenshot({ path: info.outputPath(`${composition.preset}-report.png`), fullPage: true });
     await page.getByRole("button", { name: "초안 확정·서버 저장", exact: true }).click();
-    await expect(page.getByRole("status")).toHaveText("HWPX 서버 저장 완료");
-    const href = (await page.getByRole("link", { name: "완성 보고서 다운로드", exact: true }).getAttribute("href"))!;
+    await expect(page.getByRole("status")).toHaveText("저장 완료");
+    const href = (await page.getByRole("link", { name: "저장본 다운로드", exact: true }).getAttribute("href"))!;
     const saved = await (await request.get(href)).body();
     expect(hash(saved)).toBe(hash(bytes));
-    await page.getByRole("button", { name: "보고서 편집하기", exact: true }).click();
+    // A clean save opens the regular editor automatically.
     await expect(page.getByRole("status")).toHaveText("저장 완료");
     const reopened = await (await page.locator(".block-editor-slot.active iframe").elementHandle())!.contentFrame();
     if (!reopened) throw new Error("별첨 보고서의 일반 편집기 재열기에 실패했습니다.");
@@ -2150,13 +2150,8 @@ test("REAL rhwp + MOCK standard designer: registered settings survive report TOC
   expect(evidence.page_count).toBe(frozen.toc.page_count);
   expect(Object.fromEntries(evidence.headings.map((heading: any) => [heading.id, heading.page]))).toEqual(frozen.toc.pages);
   expect(strFromU8(unzipSync(exported)["Contents/section0.xml"])).toContain("표준 옵션 적용 후 미저장 편집 보존 확인");
-  await page.screenshot({ path: info.outputPath("custom-standard-report.png"), fullPage: true });
-  await page.getByRole("button", { name: "초안 확정·서버 저장", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("HWPX 서버 저장 완료");
-  const href = (await page.getByRole("link", { name: "완성 보고서 다운로드", exact: true }).getAttribute("href"))!;
-  const saved = await (await request.get(href)).body();
-  expect(hash(saved)).toBe(hash(exported));
-  expect(await (await request.get(href.split("/versions/")[0] + "/versions")).json()).toHaveLength(1);
+  // A future request's settings cannot alter this frozen preview. Check while
+  // it is still open: a clean save now switches to the ordinary editor.
   await page.getByRole("button", { name: "작성 요청", exact: true }).click();
   await expect(page.getByLabel("현재 보고서 고정 서식", { exact: true })).toContainText(standard.name);
   await expect(page.getByLabel("현재 보고서 고정 서식", { exact: true })).toContainText("괄호 요약어: 사용 안 함 · 핵심 요약 미포함");
@@ -2164,10 +2159,16 @@ test("REAL rhwp + MOCK standard designer: registered settings survive report TOC
   await expect(page.getByLabel("문서 양식", { exact: true })).toHaveValue("");
   await expect(page.getByLabel("새 요청에 사용할 서식", { exact: true })).toContainText("괄호 요약어: 모든 본문 항목 · 핵심 요약 포함");
   await expect(page.getByLabel("현재 보고서 고정 서식", { exact: true })).toContainText(standard.name);
-  expect(hash(Buffer.from(await engine.evaluate(() => Array.from((window as any).hwpAssistantBridge.exportSnapshot().bytes) as number[])))).toBe(hash(saved));
+  expect(hash(Buffer.from(await engine.evaluate(() => Array.from((window as any).hwpAssistantBridge.exportSnapshot().bytes) as number[])))).toBe(hash(exported));
   await page.getByRole("button", { name: "결과·출처", exact: true }).click();
-  await page.getByRole("button", { name: "보고서 편집하기", exact: true }).click();
+  await page.screenshot({ path: info.outputPath("custom-standard-report.png"), fullPage: true });
+  await page.getByRole("button", { name: "초안 확정·서버 저장", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("저장 완료");
+  await expect(page.locator(".report-editor-slot.active iframe")).toHaveCount(0);
+  const href = (await page.getByRole("link", { name: "저장본 다운로드", exact: true }).getAttribute("href"))!;
+  const saved = await (await request.get(href)).body();
+  expect(hash(saved)).toBe(hash(exported));
+  expect(await (await request.get(href.split("/versions/")[0] + "/versions")).json()).toHaveLength(1);
   const reopened = await (await page.locator(".block-editor-slot.active iframe").elementHandle())!.contentFrame();
   if (!reopened) throw new Error("일반 편집기 재열기에 실패했습니다.");
   const reopenedBytes = Buffer.from(await reopened.evaluate(() => Array.from((window as any).hwpAssistantBridge.exportSnapshot().bytes) as number[]));

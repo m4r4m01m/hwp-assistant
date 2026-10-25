@@ -78,8 +78,8 @@ test("REVIEW flow: read before layout, frozen feedback retry, stable sidebar and
   expect((await page.locator(".workspace-nav").boundingBox())!.width).toBe(220);
   await expect(page.getByRole("alert")).toHaveCount(0);
   await page.getByRole("button", { name: "초안 확정·서버 저장", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("HWPX 서버 저장 완료");
-  await page.getByRole("button", { name: "보고서 편집하기", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("저장 완료");
+  // A clean save opens the regular editor automatically.
   await expect(page.getByRole("status")).toHaveText("저장 완료");
   await writeFile(info.outputPath("review-flow-proof.json"), JSON.stringify({ real_engine: true, actual_model_calls: 0,
     original_task: originalId, revised_task: revisedId, frozen_revision_retry_after_reload: true,

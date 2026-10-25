@@ -1,5 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
+import { createHash } from "node:crypto";
 import { unzipSync, strFromU8 } from "fflate";
+
+const hash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 
 async function documentText(page: Page, bytes: Uint8Array) {
   const sections = Object.entries(unzipSync(bytes)).filter(([name]) => /^Contents\/section\d+\.xml$/.test(name)).map(([, data]) => strFromU8(data));
@@ -54,31 +57,44 @@ test("REAL rhwp + MOCK research: incomplete lookup final draft preserves warning
   await page.getByRole("button", { name: "이 내용으로 문서 만들기", exact: true }).click();
   await expect(page.locator(".formatted-report").getByLabel("자료 확인 상태")).toContainText("최신 정보 미검증");
   await expect(page.getByRole("button", { name: "초안 확정·서버 저장", exact: true })).toBeEnabled({ timeout: 90000 });
+  const preview = await (await request.get(`/api/report-tasks/${id}/preview`)).json();
+  expect(preview.plan[0].note_presentation).toBe("reference-note-titles-v1");
+  expect(task.draft.sources).toEqual([{ id: "S1", title: "합성 참고 자료",
+    url: "https://example.invalid/synthetic-reference", published: "2026-01-01" }]);
   expect(previewPosts).toBe(1); expect(saves).toHaveLength(0);
   expect(await (await request.get("/api/documents")).json()).toEqual(documentsBefore);
   const frame = page.frames().find(frame => frame.url().includes("/rhwp/"))!;
   await frame.locator("#scroll-container canvas").first().click({ position: { x: 160, y: 150 }, force: true });
   await page.keyboard.press("Control+End"); await page.keyboard.insertText(" 수동 편집 보존 확인");
   await expect.poll(() => frame.evaluate(() => (window as any).hwpAssistantBridge.snapshot().evidence.text)).toContain("수동 편집 보존 확인");
+  const edited = Uint8Array.from(await frame.evaluate(() => Array.from((window as any).hwpAssistantBridge.exportSnapshot().bytes) as number[]));
+  const pages = await frame.evaluate(() => (window as any).hwpAssistantBridge.documentState().pageCount);
   await page.getByRole("button", { name: "초안 확정·서버 저장", exact: true }).click();
   await expect(page.getByRole("button", { name: "같은 보고서 저장 재확인", exact: true })).toBeEnabled();
   await expect(page.locator(".formatted-report").getByLabel("자료 확인 상태")).toContainText("최신 정보 미검증");
   await page.getByRole("button", { name: "같은 보고서 저장 재확인", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("HWPX 서버 저장 완료");
+  await expect(page.getByRole("status")).toHaveText("저장 완료");
+  await expect(page.locator(".report-editor-slot.active iframe")).toHaveCount(0);
   expect(saves).toHaveLength(2); expect(saves[1]).toEqual(saves[0]); expect(generationPosts).toBe(1);
-  const file = (await page.getByRole("link", { name: "완성 보고서 다운로드" }).getAttribute("href"))!;
+  const file = (await page.getByRole("link", { name: "저장본 다운로드", exact: true }).getAttribute("href"))!;
   const bytes = await (await request.get(file)).body(), nativeText = await documentText(page, bytes);
-  expect(nativeText).toContain("수동 편집 보존 확인"); expect(nativeText).toContain("https://example.invalid/synthetic-reference");
+  expect(hash(bytes)).toBe(hash(edited));
+  expect(nativeText).toContain("수동 편집 보존 확인"); expect(nativeText).toContain("합성 참고 자료");
+  // A newly frozen titles-only plan does not print candidate URLs; the full
+  // unverified source and date remain in the canonical draft checked below.
+  expect(nativeText).not.toContain(task.draft.sources[0].url);
   for (const warning of task.draft.research_notice.warnings) expect(nativeText).toContain(warning.message);
   for (const limitation of task.draft.limitations) expect(nativeText).toContain(limitation);
   const versions = await (await request.get(file.split("/versions/")[0] + "/versions")).json();
   expect(versions).toHaveLength(1);
   const frozen = await (await request.get(`/api/report-tasks/${id}`)).json();
   expect(frozen.draft_sha256).toBe(task.draft_sha256); expect(frozen.draft).toEqual(task.draft);
-  await page.getByRole("button", { name: "보고서 편집하기", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("저장 완료", { timeout: 90000 });
-  const reopened = page.frames().find(frame => frame.url().includes("/rhwp/"))!;
+  const reopened = await (await page.locator(".block-editor-slot.active iframe").elementHandle())!.contentFrame();
+  if (!reopened) throw Error("저장한 미검증 보고서의 일반 편집기를 찾지 못했습니다.");
   const reopenedBytes = Uint8Array.from(await reopened.evaluate(() => Array.from((window as any).hwpAssistantBridge.exportSnapshot().bytes) as number[]));
+  expect(hash(reopenedBytes)).toBe(hash(bytes));
+  expect(await reopened.evaluate(() => (window as any).hwpAssistantBridge.documentState().pageCount)).toBe(pages);
   const body = await documentText(page, reopenedBytes);
   expect(body).toContain("수동 편집 보존 확인");
   for (const warning of task.draft.research_notice.warnings) expect(body).toContain(warning.message);
