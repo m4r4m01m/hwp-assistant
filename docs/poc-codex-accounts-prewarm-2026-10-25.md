@@ -87,6 +87,53 @@ HWP_SAMPLE_ACCOUNTS=[{"user_id":"sample-a","label":"합성 작성자"},{"user_id
 
 카드를 누르면 비밀번호 입력 화면만 열린다. 다른 샘플로 전환하면 이전 입력 비밀번호를 지운다. 서로 다른 ID는 기존 문서 ACL로 격리되지만 같은 샘플 ID를 사용하는 체험자들은 그 ID의 문서함을 공유한다. AI 사용은 `HWP_CODEX_USER`/`HWP_CODEX_ALLOWED_USERS`에서 별도로 결정한다. 실제 적용에는 새 코드 이미지와 운영자 설정·기존 백업 절차가 필요하며, 이 변경만으로 운영 계정 기능이 켜지지 않는다.
 
+**확정된 사용자 요구는 체험 계정 2~3개를 선택하고 각 계정의 비밀번호로 로그인하는 방식이다.** 위 예시는 2개이며 세 번째가 필요하면 `sample-c`와 공개 합성 라벨을 같은 목록에 명시한다. 기억한 ID만으로 대체하지 않는다. 운영 적용 승인 후 아래 절차를 사용한다. 이 문서를 작성하면서 실제 운영 계정·암호·ACL·env는 변경하지 않았다.
+
+1. 기존 백업·배포 절차로 새 코드를 적용하고 원하는 샘플 ID를 목록에 예약한다. `HWP_ACCOUNTS_ENABLED=1`을 명시하되 공개 가입은 필요한 경우에만 별도로 결정한다. DB 비밀번호·토큰·기존 AI ACL은 그대로 보존한다. env 변경은 현재 승인된 이미지로 컨테이너 재생성이 필요하며 restart만으로 반영되지 않는다.
+2. 공개할 ID와 가상 사번이 기존 회원·토큰·과거 문서 주체와 충돌하지 않는지 **읽기만** 확인한다. 아래는 2개 예시이며 세 번째를 쓸 때는 사전 확인 목록에도 추가한다. 충돌하면 새 ID/가상 사번을 선택한다. 기존 주체에 샘플을 연결하거나 암호 재설정으로 해결하지 않는다.
+
+```sh
+docker exec -i hwp-assistant-prod-api-1 python - <<'PY'
+import os
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+from app.accounts import UserAccount, historical_identity_in_use
+from app.auth import credentials
+from app.db import make_engine
+
+engine = None
+try:
+    engine = make_engine(os.environ['DATABASE_URL'])
+    requested = {'sample-a': 'TEST-SAMPLE-A', 'sample-b': 'TEST-SAMPLE-B'}
+    token_ids = {user.lower() for user in credentials()}
+    with Session(engine) as db:
+        conflict = any(user in token_ids or db.get(UserAccount, user) is not None
+            or historical_identity_in_use(db, user)
+            or db.scalar(select(UserAccount.user_id).where(UserAccount.employee_number == employee).limit(1)) is not None
+            for user, employee in requested.items())
+    if conflict:
+        raise SystemExit('샘플 ID 또는 가상 사번이 사용 중입니다. 새 값을 선택하세요. 변경하지 않았습니다.')
+    print('샘플 ID와 가상 사번 사용 가능. 계정은 아직 생성하지 않았습니다.')
+except Exception:
+    raise SystemExit('샘플 사전 확인 실패. 운영자가 설정을 확인하세요. 변경하지 않았습니다.') from None
+finally:
+    if engine is not None:
+        engine.dispose()
+PY
+```
+
+3. 각 계정을 대화형 터미널에서 별도로 생성한다. 계정별 비밀번호를 본인이 두 번 입력하며 프런트엔드·명령 인자·env 예시·PR·로그에 기록하지 않는다. `create`는 기존 계정을 덮어쓰지 않는다. 하나가 이미 존재해 실패하면 원인을 확인하고 다른 ID를 사용하며 `password`로 기존 계정을 재설정하지 않는다.
+
+```sh
+docker exec -it hwp-assistant-prod-api-1 python -m app.account_admin create \
+  --user sample-a --name '체험 작성자' --employee TEST-SAMPLE-A
+docker exec -it hwp-assistant-prod-api-1 python -m app.account_admin create \
+  --user sample-b --name '체험 검토자' --employee TEST-SAMPLE-B
+# 3개로 결정하고 목록/사전 확인에 추가한 경우에만 같은 방식으로 sample-c 생성.
+```
+
+4. 공개 상태 응답의 카드가 2~3개인지 확인하고 각각의 비밀번호로 로그인한다. 합성 문서 하나를 첫 계정에서 저장한 뒤 다른 계정에서 보이지 않는지 확인한다. 같은 계정 재로그인 시에는 다시 보여야 한다. AI 실행을 원하면 **별도 운영 판단으로** 해당 ID만 기존 허용목록에 추가하고 현재 이용 ID를 누락하지 않는다. 카드 표시나 회원 생성 자체가 AI 허용을 뜻하지 않는다.
+
 회원가입 입력: 아이디 3~40자, 비밀번호 8~128자, 이름, 사번. 사번은 대문자로 정규화하고 중복을 막는다. 재직 여부 확인이나 SSO가 아니다. 비밀번호는 랜덤 salt가 있는 scrypt(N=32768,r=8,p=3)로만 저장한다. 본인확인 이메일·비밀번호 분실 복구·관리자 웹 화면은 범위 밖이며 운영자 CLI로 재설정한다. 암호 해시도 민감 정보이므로 조회/백업 권한을 제한한다.
 
 ```sql
