@@ -128,6 +128,11 @@ async function sha256(bytes: Uint8Array) {
   return Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(bytes))))
     .map(value => value.toString(16).padStart(2, "0")).join("");
 }
+function fieldRange(field: Field) {
+  const unit = field.unit || "";
+  const upper = field.key === "body_tracking_percent" && Number(field.max) > 0 ? `+${field.max}` : field.max ?? "최댓값";
+  return `${field.min ?? "최솟값"}${unit} ~ ${upper}${unit}`;
+}
 function readSettings(fields: Field[], values: Record<string, string>, legacyIntegerPercent = false): { settings: Settings; error: string } {
   const settings: Settings = {};
   for (const field of fields) {
@@ -150,7 +155,7 @@ function readSettings(fields: Field[], values: Record<string, string>, legacyInt
     } else {
       const number = Number(input);
       if (!input.trim() || !Number.isFinite(number))
-        return { settings, error: `${field.group} ${field.label}: ${field.min ?? "최솟값"}~${field.max ?? "최댓값"}${field.unit || ""} 범위의 수치를 입력하세요.` };
+        return { settings, error: `${field.group} ${field.label}: ${fieldRange(field)} 범위의 수치를 입력하세요.` };
       if (legacyIntegerPercent && field.unit === "%" && !Number.isInteger(number)) return { settings, error: `${field.group} ${field.label}: 정수로 입력하세요.` };
       const bounded = Math.min(field.max ?? Infinity, Math.max(field.min ?? -Infinity, number));
       settings[field.key] = bounded;
@@ -776,12 +781,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
     if (!field) return undefined;
     const raw = values[field.key] ?? String(field.default ?? "");
     const selected = optionAliases(field, checked.settings)[raw] ?? raw;
-    const help = field.help_by_value?.[selected] || field.help;
-    if (field.key === "body_tracking_percent" && !checked.error) {
-      const amount = Number(checked.settings.body_tracking_percent || 0);
-      return `${help || ""} 현재 ${amount}%: ${amount < 0 ? "기존 자간에서 " + Math.abs(amount) + "%p 좁힙니다." : amount > 0 ? "기존 자간에서 " + amount + "%p 넓힙니다." : "각 항목의 자간을 유지합니다."}`;
-    }
-    return help;
+    return field.help_by_value?.[selected] || field.help;
   }
   function fieldControl(field: Field) {
     const label = `${field.group} ${field.label}`, disabled = fieldDisabled(field);
@@ -822,7 +822,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
       const step = field.step || 1, origin = field.min ?? 0;
       const snapped = Math.min(field.max ?? Infinity, Math.max(field.min ?? -Infinity, Number((origin + Math.round((bounded - origin) / step) * step).toFixed(4))));
       if (String(snapped) !== event.target.value) { change(field.key, String(snapped)); setInputNotice(`${field.label}: ${snapped}${field.unit || ""}로 보정했습니다.`); }
-    }} /><span>{field.unit}</span></span><small>입력 범위: {field.min} ~ {field.max}{field.unit}</small></span>;
+    }} /><span>{field.unit}</span></span><small>입력 범위: {fieldRange(field)}</small></span>;
   }
   const stateText = view === "settings" && checked.error ? "입력값 확인 필요" : !seed || !catalog ? "예시 준비 중…" : phase === "waiting" ? "변경 반영 대기…" : phase === "loading" ? view === "reference" ? "기준서 불러오는 중…" : "예시 서식 적용 중…" : phase === "rendering" ? view === "settings" ? renderDetail || "한글 엔진으로 배치 중…" : "한글 엔진으로 배치 중…" : phase === "ready" && (current || view === "reference" && reference) ? `${view === "reference" ? "기준서 전체" : "반영 완료"} · ${view === "reference" ? reference?.pages.length : preview?.pages.length}쪽` : "미리보기 확인 필요";
   const displayError = view === "reference" ? error : checked.error || error;
@@ -969,7 +969,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
             {roleToggle(group)}
             {unavailable(group) && <span className="standard-absence" title={unavailable(group)}>없음</span>}
           </div>
-          {(searching || openGroups.includes(group)) && <div className="standard-setting-fields">{unavailable(group) ? <p className="standard-category-help">{unavailable(group)} 기존 설정값은 보존합니다.</p> : <>{roleForGroup(group) && <p className="standard-category-help">{settingImpact(fields.find(field => field.group === group && !field.key.endsWith("_marker"))?.key || "", values.preset_id || "").description}</p>}{group === "줄바꿈·줄 채움" && <p className="standard-category-help">자간 최종값: {bodyRoles.map(role => `${roleGroups[role].replace("문단 내용 · ", "")} ${Math.min(50, Math.max(-20, Number(values[role + "_spacing_percent"] || 0) + Number(checked.settings.body_tracking_percent || 0)))}%`).join(" / ")}. 마지막 절의 긴 문장은 강제 개행 없이 자동 줄바꿈됩니다.</p>}{filteredFields.filter(field => field.group === group).sort((a, b) => Number(b.key.endsWith("_marker")) - Number(a.key.endsWith("_marker"))).map(field => settingRow(field))}</>}</div>}
+          {(searching || openGroups.includes(group)) && <div className="standard-setting-fields">{unavailable(group) ? <p className="standard-category-help">{unavailable(group)} 기존 설정값은 보존합니다.</p> : <>{roleForGroup(group) && <p className="standard-category-help">{settingImpact(fields.find(field => field.group === group && !field.key.endsWith("_marker"))?.key || "", values.preset_id || "").description}</p>}{group === "줄바꿈·줄 채움" && <p className="standard-category-help">예시 마지막 절의 긴 문장으로 줄바꿈과 자간 변화를 확인하세요.</p>}{filteredFields.filter(field => field.group === group).sort((a, b) => Number(b.key.endsWith("_marker")) - Number(a.key.endsWith("_marker"))).map(field => settingRow(field))}</>}</div>}
         </section>)}</details>)}
         {catalog && !filteredFields.length && <p className="standard-settings-no-results" role="status">일치하는 설정이 없습니다.</p>}
         {catalog && <div className="standard-settings-footer"><button disabled={locked} onClick={() => requestChange({ type: "source", id: "" })}>새 표준 기본값 복원</button><p>별첨 1과 새 보고서 기본 설정으로 돌아갑니다. 현재 조절한 값은 초기화하고, 저장한 표준은 유지합니다.</p></div>}
