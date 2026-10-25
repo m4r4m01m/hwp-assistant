@@ -1,3 +1,4 @@
+from .standard_policy import cover_enabled, toc_mode
 """Blank report scaffolds. AI text enters them only through approved exact commands."""
 import copy
 import io
@@ -82,7 +83,7 @@ def scaffold(seed, blocks, *, visual_settings=None):
         p = ET.SubElement(root, f"{{{HP}}}p", {**original.attrib, "id": str(index), "pageBreak": "1" if block["page_break"] else "0"})
         r = ET.SubElement(p, f"{{{HP}}}run", dict(run.attrib))
         kind = block.get("style_kind", role(block["text"], block["kind"]))
-        if kind == "title" and visual_settings and visual_settings.get("preset_id") in ("appendix-2", "appendix-3"):
+        if kind == "title" and visual_settings and cover_enabled(visual_settings):
             kind = "cover_title"
         if kind in formats:
             cid, pid = formats[kind]

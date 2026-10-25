@@ -240,7 +240,7 @@ def test_native_preview_defaults_are_explicit_and_catalog_consistent():
     assert new["toc_major_horizontal_align"] == new["toc_minor_horizontal_align"] == "LEFT"
     assert old["unit_horizontal_align"] == "CENTER"
     assert old["toc_major_horizontal_align"] == old["toc_minor_horizontal_align"] == "JUSTIFY"
-    assert all(item["default"] == new[item["key"]] for item in field_catalog())
+    assert all(item["key"] not in new if item.get("optional") else item["default"] == new[item["key"]] for item in field_catalog())
     assert builtin_identity("appendix-1") != builtin_identity("appendix-1", legacy=True)
 
 

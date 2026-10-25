@@ -97,7 +97,8 @@ def install_preview(app, publish, doc_dict, lock_report, decode):
                                        visual_settings=visual["settings"] if visual else None,
                                        cover=json.loads(row.input).get("cover"))
                 if len(blocks) > 180: raise HTTPException(422, "보고서가 너무 큽니다. 본문이나 표를 줄여 다시 요청하세요.")
-                needs_toc = bool(selection and not (visual and visual.get("revision") == 3 and visual["settings"]["preset_id"] == "appendix-1"))
+                from .standard_policy import toc_mode
+                needs_toc = (toc_mode(visual["settings"]) != "NONE") if visual and visual.get("revision") == 3 else bool(selection)
                 if needs_toc:
                     count = sum(heading_level(item, blocks) is not None for item in blocks)
                     if not 1 <= count <= 30:

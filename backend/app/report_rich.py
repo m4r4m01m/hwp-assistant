@@ -26,8 +26,9 @@ def emphasis_ranges(text, emphasis=()):
 
 
 class RichLayout:
-    def __init__(self, header, sample, *, visual_settings=None, page_width=481.9, page_budget=625, body_spacing=False):
+    def __init__(self, header, sample, *, visual_settings=None, page_width=481.9, page_budget=625, body_spacing=False, native_wrap=False):
         self.header = header
+        self.native_wrap = native_wrap
         self.chars = header.find(f".//{{{HH}}}charProperties")
         self.paras = header.find(f".//{{{HH}}}paraProperties")
         self.borders = header.find(f".//{{{HH}}}borderFills")
@@ -152,6 +153,10 @@ class RichLayout:
             percent = settings["table_width_percent"] if item.get("note_visual_kind") == "table" else 100
             left = self.page_width * (1 - percent / 100) / 2
             right = left
+            if item.get("note_visual_kind") == "table":
+                from .standard_policy import table_geometry
+                left, table_width = table_geometry(settings, self.page_width)
+                right = self.page_width - left - table_width
         else:
             parent = item["note_parent_role"].removesuffix("_continuation")
             left = settings.get(parent + "_left_indent_pt", 0) + max(0, -settings.get(parent + "_first_line_indent_pt", 0))
@@ -181,6 +186,9 @@ class RichLayout:
         if limit <= 0:
             raise ValueError("Paragraph margins leave no room for report text")
         parts = lines(item["text"], limit, item["kind"] == "title")
+        estimated_parts = parts
+        if self.native_wrap and self.reference and item["kind"] != "title" and item.get("style_kind") not in ("cover_date", "cover_department"):
+            parts = [item["text"]]
         flags = emphasis_ranges(item["text"], item.get("emphasis", []))
         if self.body_spacing:
             from .reference_report import report_role
@@ -210,7 +218,7 @@ class RichLayout:
             if n < len(parts) - 1: E.SubElement(t, f"{{{HP}}}lineBreak")
             offset += len(part)
         p.set("pageBreak", "0")
-        count = sum(max(1, math.ceil(width(part.rstrip()) / limit)) for part in parts)
+        count = sum(max(1, math.ceil(width(part.rstrip()) / limit)) for part in estimated_parts)
         factor = paragraph_line_factor(pr) if self.visual_settings is not None else 1.25 if style else 1.3 if item["kind"] == "source" else 1.6
         return count * size * factor + margin["next"] + (margin["prev"] if self.reference or self.visual_settings is not None and "title_vertical_offset_pt" in self.visual_settings else 0)
 
@@ -243,12 +251,19 @@ class RichLayout:
             raise ValueError("Invalid frozen table geometry")
         table_width = round(self.page_width * 100)
         if self.reference and not diagram:
-            table_width = round(table_width * self.visual_settings["table_width_percent"] / 100)
+            from .standard_policy import table_geometry
+            table_left, table_points = table_geometry(self.visual_settings, self.page_width)
+            table_width = round(table_points * 100)
         widths = ([round((table_width - (columns // 2) * 2400) / ((columns + 1) // 2)) if x % 2 == 0 else 2400 for x in range(columns)]
                   if diagram else [table_width // columns] * columns)
         widths[-1] = table_width - sum(widths[:-1])
         self.serial += 1
         cid, pid = self.styles["host"]
+        if self.reference and not diagram and self.visual_settings.get("table_anchor_role", "PAGE") != "PAGE":
+            from .reference_source import apply_paragraph
+            para = copy.deepcopy(self.para_map[pid])
+            apply_paragraph(para, "body", {"body_horizontal_align": "LEFT", "body_left_indent_pt": table_left, "body_right_indent_pt": 0, "body_first_line_indent_pt": 0})
+            pid = self.append(self.paras, para)
         host = E.Element(f"{{{HP}}}p", dict(id=str(self.serial), paraPrIDRef=pid, styleIDRef="0", pageBreak="0", columnBreak="0", merged="0"))
         run = E.SubElement(host, f"{{{HP}}}run", dict(charPrIDRef=cid))
         self.serial += 1
@@ -306,7 +321,7 @@ def layout_rich_report(data, plan, *, visual_settings=None):
         header = E.fromstring(source.read("Contents/header.xml"))
         from .reference_report import has_body_spacing
         layout = RichLayout(header, original[3], visual_settings=visual_settings, page_width=page_width, page_budget=page_budget,
-                            body_spacing=has_body_spacing(plan))
+                            body_spacing=has_body_spacing(plan), native_wrap=bool(plan and plan[0].get("native_wrap") == "reference-native-wrap-v1"))
         prepared, index = [], 0
         while index < len(plan):
             item = plan[index]

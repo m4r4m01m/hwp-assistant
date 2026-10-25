@@ -43,6 +43,10 @@ def localize_notes(blocks, sources, settings):
         for identifier in identifiers:
             source = known[identifier]
             marker = citation_marker(f"S{numbers[identifier]}", style)
+            # This optional policy applies only to explanation labels. Inline
+            # ranges continue to use full 주1), 주2) markers at their source token.
+            if settings.get("citation_note_abbreviated") and style == "NOTE" and numbers[identifier] > 1:
+                marker = f"{numbers[identifier]})"
             value = f"{marker} {source.title} ({source.published or '발행일 미확인'}) · {source.url}"
             result.append((value, "source", False, {
                 "style_kind": note_role, "note_scope": scope, "note_source_id": identifier,
@@ -50,7 +54,7 @@ def localize_notes(blocks, sources, settings):
             }))
     # Keep supplied but uncited references without pretending they annotate a
     # nearby claim. No cited source is duplicated into a trailing notes section.
-    remaining = [source for source in sources if source.id not in used]
+    remaining = list(sources) if settings.get("reference_list") == "ALL" else [source for source in sources if source.id not in used]
     if remaining:
         result.append(("참고자료", "heading", True, {}))
         for source in remaining:

@@ -1,7 +1,7 @@
 """Additive tables, including frozen assistant turns; preserve documents, versions and blob keys."""
 import os
 from sqlalchemy import select, update
-from .db import Base, Access, Conversation, Document, VisualStandard, transaction
+from .db import Base, Access, Conversation, DesignFragment, Document, VisualStandard, transaction
 from .codex_runtime import CodexUsage  # Durable request admission, no prompts.
 from .accounts import UserAccount  # Additive password accounts; no document migration.
 from .ai_requests import AIRequest  # Register additive reservation table before create_all.
@@ -22,6 +22,8 @@ def migrate(engine, users):
             raise ValueError("Set HWP_LEGACY_OWNER explicitly to migrate the local workspace")
         if users and "local" not in users and not owner and db.scalar(select(VisualStandard).where(VisualStandard.owner_id == "local")):
             raise ValueError("Set HWP_LEGACY_OWNER explicitly to migrate local visual standards")
+        if users and "local" not in users and not owner and db.scalar(select(DesignFragment).where(DesignFragment.owner_id == "local")):
+            raise ValueError("Set HWP_LEGACY_OWNER explicitly to migrate local design fragments")
         for doc in legacy:
             db.add(Access(document_id=doc.id, user_id=owner, role="owner"))
             doc.lease_token = None
@@ -42,3 +44,4 @@ def migrate(engine, users):
             if "local" not in users:
                 db.execute(update(Conversation).where(Conversation.owner_id == "local").values(owner_id=owner))
                 db.execute(update(VisualStandard).where(VisualStandard.owner_id == "local").values(owner_id=owner))
+                db.execute(update(DesignFragment).where(DesignFragment.owner_id == "local").values(owner_id=owner))

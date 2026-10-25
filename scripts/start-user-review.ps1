@@ -38,7 +38,7 @@ if ($LASTEXITCODE -ne 0) { throw 'TypeScript failed; no servers started.' }
 & $node (Join-Path $PSScriptRoot 'build-frontend.mjs') --diagnostic --public (Join-Path $runRoot 'public') --out (Join-Path $runRoot 'app-dist')
 if ($LASTEXITCODE -ne 0) { throw 'Diagnostic app build failed; no servers started.' }
 
-$environmentNames = @('DATABASE_URL','STORAGE_DIR','HWP_AUTH_TOKENS','HWP_LEGACY_OWNER','HWP_REWRITE_PROVIDER','HWP_CODEX_USER','HWP_CODEX_API_URL','LLM_PROVIDER')
+$environmentNames = @('DATABASE_URL','STORAGE_DIR','HWP_AUTH_TOKENS','HWP_LEGACY_OWNER','HWP_REWRITE_PROVIDER','HWP_CODEX_USER','HWP_CODEX_API_URL','HWP_LOCAL_AI_SETUP','LLM_PROVIDER')
 $savedEnvironment = @{}
 foreach ($name in $environmentNames) { $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
 $children = [Collections.Generic.List[object]]::new()
@@ -82,6 +82,7 @@ try {
   $env:STORAGE_DIR = Join-Path $dataRoot 'files'
   $env:HWP_AUTH_TOKENS = ''; $env:HWP_LEGACY_OWNER = ''
   $env:HWP_REWRITE_PROVIDER = 'codex'; $env:HWP_CODEX_USER = 'local'
+  $env:HWP_LOCAL_AI_SETUP = '1'
   $env:HWP_CODEX_API_URL = "http://127.0.0.1:$ApiPort"
   $env:LLM_PROVIDER = ''
   Start-ReviewService 'api' $python @('-m','uvicorn','app.main:app','--app-dir','backend','--host','127.0.0.1','--port',"$ApiPort") $ApiPort '/api/health'

@@ -36,6 +36,7 @@ import { SavedDownload } from "./saved-download";
 import { useComparisonDialog } from "./version-comparison";
 import { CapabilitiesProvider, CapabilityNotice, useFeature } from "./capabilities";
 import { useDebouncedValue, useMobileDrawerCanvas } from "./ui-state";
+import { AiConnectionProvider, useAiSetupLanding } from "./ai-connection";
 
 class WorkspaceLoadBoundary extends React.Component<{ children: React.ReactNode; onBack: () => void }, { failed: boolean }> {
   state = { failed: false };
@@ -78,6 +79,7 @@ function App({
   const uploadBusy = useRef(false), dragDepth = useRef(0);
   const frozenUpload = useRef<{ bytes: Uint8Array; name: string; id: string; key: string } | null>(null);
   const inLibrary = !active && !creating && !standardDesigner && !reports && !templates;
+  useAiSetupLanding(inLibrary && !loading && !copying && !uploading && !history && !sharing);
   useEffect(() => {
     if (!inLibrary) return;
     const clearDrag = () => { dragDepth.current = 0; setDragOver(false); };
@@ -1358,5 +1360,5 @@ function Editor({
   );
 }
 createRoot(document.getElementById("root")!).render(
-  <AccountGate>{account => <CapabilitiesProvider><App account={account} /></CapabilitiesProvider>}</AccountGate>,
+  <AccountGate>{account => <CapabilitiesProvider><AiConnectionProvider><App account={account} /></AiConnectionProvider></CapabilitiesProvider>}</AccountGate>,
 );

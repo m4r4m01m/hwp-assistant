@@ -38,7 +38,7 @@ def test_scope_is_a_strict_canonical_scalar(model, settings, invalid):
 @pytest.mark.parametrize("selected", [key for key, _ in PARENTHETICAL_SCOPES])
 @pytest.mark.parametrize("numbering", ["BULLETS", "NUMBERED"])
 def test_individual_scope_uses_canonical_roles_and_preserves_conditions_and_sources(selected, numbering):
-    draft = copy.deepcopy(standard_samples.SAMPLE)
+    draft = copy.deepcopy(standard_samples.SAMPLE_V2)  # Keep coverage of historical unmarked body paragraphs.
     before = copy.deepcopy(draft)
     settings = {**defaults(), "show_core_summary": True, "body_parenthetical_labels": True,
                 "body_parenthetical_scope": selected, "numbering_style": numbering}

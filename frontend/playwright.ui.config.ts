@@ -3,11 +3,11 @@ import base from "./playwright.config";
 
 export default defineConfig({
   ...base,
-  testMatch: ["account-entry.spec.ts", "account-entry-regression.spec.ts", "responsiveness.spec.ts", "document-assistant-lifecycle.spec.ts", "rewrite-lifecycle.spec.ts"],
+  testMatch: ["account-entry.spec.ts", "account-entry-regression.spec.ts", "responsiveness.spec.ts", "document-assistant-lifecycle.spec.ts", "rewrite-lifecycle.spec.ts", "ai-connection.spec.ts", "catalog-lifecycle.spec.ts"],
   use: {
     ...base.use,
     baseURL: "http://127.0.0.1:5184",
-    launchOptions: { channel: "chromium" },
+    launchOptions: { channel: process.env.HWP_E2E_BROWSER_CHANNEL || "chromium" },
   },
   webServer: {
     command: "npm exec vite -- --config vite.ui-test.config.ts --host 127.0.0.1 --port 5184 --strictPort",

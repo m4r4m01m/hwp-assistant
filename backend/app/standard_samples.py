@@ -1,3 +1,4 @@
+from .standard_policy import cover_enabled, toc_mode
 """Fixed synthetic reports through production formatting, without AI or documents.
 
 An owner-bound, short-lived signed stage pins the settings and rendered source.
@@ -38,7 +39,7 @@ from .visual_standards import (
     matches_base, settings_revision, snapshot_value, verified_file, write_immutable,
 )
 
-SAMPLE_ID = "standard-business-report-v2"
+SAMPLE_ID = "standard-business-report-v6"
 TTL_SECONDS = 600
 MAX_JSON = 5_000_000
 MAX_CONTEXT = 3_000_000
@@ -48,7 +49,7 @@ MAX_RECEIPT_BYTES = 64_000_000
 
 # The complete, validated draft is shared by every preset/settings revision.
 # No source-document example facts or user document contents are imported.
-SAMPLE = ReportDraft.model_validate({
+SAMPLE_V2 = ReportDraft.model_validate({
     "title": "문서 관리 개선 계획",
     "summary": "□ (요약) 문서 수집과 검토 절차를 정비하여 자료의 누락을 줄이고 담당자의 확인 기준을 통일함.",
     "sections": [
@@ -84,6 +85,28 @@ SAMPLE = ReportDraft.model_validate({
     ],
     "limitations": [], "emphasis": [],
 }).model_dump(mode="json")
+# Keep the previous synthetic draft available; new previews use symbol body paragraphs.
+SAMPLE = copy.deepcopy(SAMPLE_V2)
+SAMPLE["sections"][1]["paragraphs"][0] = "□ " + SAMPLE["sections"][1]["paragraphs"][0]
+SAMPLE_V3 = copy.deepcopy(SAMPLE)
+# Show each deep heading with its actual content, rather than an empty chain of headings.
+first = SAMPLE["sections"][0]["paragraphs"]
+SAMPLE["sections"][0]["paragraphs"] = [*first[:4], first[5], first[4], *first[6:]]
+SAMPLE_V4 = copy.deepcopy(SAMPLE)
+# One uninterrupted paragraph deliberately crosses several native line boundaries.
+# No manual linefeeds or pre-wrapped chunks are stored in the synthetic draft.
+SAMPLE["sections"][2]["paragraphs"].extend([
+    "□ (방안) 문서관리체계와 업무인수인계절차를 함께 점검하여 자료의 누락 여부를 확인하고 담당자별 검토 결과를 기록함. 한글어절단위줄바꿈과 글자단위줄바꿈의 차이를 비교할 수 있도록 이 문장은 강제 개행 없이 이어지며 문서작성표준화와 부서간협업절차에 관한 설명을 같은 문단에 담음.",
+    "ㅇ (조치) 필수 항목 확인과 검토 결과 기록을 구분하여 아래 기준으로 관리함.",
+    "- (현황) 필수 항목은 문서명과 담당 부서이며 작성 담당자가 확인함. [S1]",
+    "- (조치) 검토 담당자는 확인 일자와 담당자를 검토 결과에 함께 기록함. [S2]",
+])
+SAMPLE_V5 = copy.deepcopy(SAMPLE)
+# Demonstrate word-level citations without changing claims or source identities.
+SAMPLE["sections"][1]["paragraphs"][1] = "□ (방안) 문서명과 담당 부서[S1]를 필수 항목으로 지정하고 검토 결과[S2]를 같은 목록에 기록함."
+SAMPLE["sections"][1]["tables"][0]["rows"][0][2] = "문서명·부서[S1] 확인"
+SAMPLE["sections"][1]["tables"][0]["rows"][1][2] = "확인 결과[S2] 기록"
+SAMPLE = ReportDraft.model_validate(SAMPLE).model_dump(mode="json")
 SAMPLE_SHA256 = report_hash(SAMPLE)
 SAMPLE_COVER = {"date": "2026. 10. 23.", "department": "예시 운영팀"}
 
@@ -104,6 +127,7 @@ class RegisterSample(BlockInput):
     name: str = Field(min_length=1, max_length=120)
     context: str = Field(min_length=1, max_length=MAX_CONTEXT)
     preview_base64: str = Field(min_length=1, max_length=MAX_OUTPUT)
+    replaces: uuid.UUID | None = None
 
     _name = field_validator("name")(paragraph)
 
@@ -178,13 +202,20 @@ def materialize(seed, settings, identifier):
 
 
 def sample_regions(plan, settings, needs_toc):
-    groups = {}
+    groups, note_regions, occurrences = {}, [], {}
     for index, item in enumerate(plan):
         kind = ("table" if item.get("visual_id") else "caption" if item.get("visual_caption")
                 else item.get("style_kind", role(item["text"], item["kind"])))
-        if kind == "title" and settings.get("preset_id") in ("appendix-2", "appendix-3"):
+        if kind == "title" and cover_enabled(settings):
             kind = "cover_title"
-        groups.setdefault(kind, []).append(item["text"])
+        if item.get("note_source_id"):
+            normalized = "".join(item["text"].split())
+            occurrence = occurrences.get(normalized, 0)
+            occurrences[normalized] = occurrence + 1
+            note_regions.append({"role": kind, "texts": [item["text"]], "occurrence": occurrence,
+                                 "id": f"{item['note_scope']}:{item['note_source_id']}"})
+        else:
+            groups.setdefault(kind, []).append(item["text"])
         if item.get("parenthetical_role"):
             groups.setdefault("parenthetical_" + item["parenthetical_role"], []).append(item["text"])
         if item["text"] == "핵심 요약" and item["kind"] == "heading":
@@ -195,7 +226,7 @@ def sample_regions(plan, settings, needs_toc):
               "minor_heading": "세부 제목", "body": "일반 설명", "square": "□ 항목", "circle": "ㅇ 항목",
               "dash": "- 항목", "dot": "․ 항목", "table": "표", "caption": "표 제목", "note": "본문 주석",
               "table_source": "표 주석", "toc_title": "목차 제목", "cover_date": "표지 일자", "cover_department": "표지 부서", "summary": "핵심 요약"}
-    return [{"role": key, "label": labels.get(key, key), "texts": list(dict.fromkeys(values))} for key, values in groups.items()]
+    return [{"role": key, "label": labels.get(key, key), "texts": list(dict.fromkeys(values))} for key, values in groups.items()] + note_regions
 
 
 def verified_regions(regions, result):
@@ -276,7 +307,7 @@ def install_standard_samples(app):
         settings = value.settings.model_dump(mode="json")
         standard = base_standard()
         data, plan = await run_in_threadpool(materialize, decoded_seed(value.seed_base64), settings, str(value.id))
-        needs_toc = settings.get("preset_id") in ("appendix-2", "appendix-3")
+        needs_toc = toc_mode(settings) != "NONE"
         state = dict(owner=request.state.user, expires=time.time() + TTL_SECONDS, id=str(value.id),
                      sample_id=SAMPLE_ID, sample_sha256=SAMPLE_SHA256, settings=settings,
                      revision=settings_revision(value.settings), base_standard=standard, phase="layout",
@@ -368,7 +399,7 @@ def install_standard_samples(app):
 
     def register_sample(value, user):
         data = decoded(value.preview_base64)
-        registration_sha256 = report_hash({**value.model_dump(mode="json"), "preview_base64": digest(data)})
+        registration_sha256 = report_hash({**value.model_dump(mode="json", exclude_none=True), "preview_base64": digest(data)})
         with transaction(engine) as db:
             if engine.dialect.name == "postgresql":
                 db.execute(text("SELECT pg_advisory_xact_lock(:key)"),
@@ -381,6 +412,10 @@ def install_standard_samples(app):
                     raise HTTPException(409, "같은 표준 등록 ID에 다른 입력을 사용할 수 없습니다.")
                 verified_file(folder, old)
                 return snapshot_value(old)
+            catalog_state = None
+            if value.replaces:
+                from .standard_library import active_standard
+                catalog_state = active_standard(db, str(value.replaces), user)
             state = unseal(value.context, key, user)
             if state["phase"] != "ready" or state.get("preview_sha256") != digest(data) or not state.get("page_count"):
                 raise HTTPException(409, "실제 배치를 확인한 최종 예시만 등록할 수 있습니다.")
@@ -398,5 +433,11 @@ def install_standard_samples(app):
                 registration_sha256=registration_sha256, storage_key=storage_key, size=len(data), created_at=time.time())
             db.add(row)
             db.flush()
+            if value.replaces:
+                from .db import VisualStandardState
+                if catalog_state is None:
+                    catalog_state = VisualStandardState(standard_id=str(value.replaces))
+                    db.add(catalog_state)
+                catalog_state.replacement_id = str(value.id)
             result = snapshot_value(row)
         return result

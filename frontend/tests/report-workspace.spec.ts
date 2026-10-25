@@ -20,7 +20,15 @@ async function expectViewport(page: Page, withEditor: boolean, panelName?: strin
     bodyHeight: document.body.scrollHeight,
   }))).toEqual({ x: 0, y: 0, width: viewport.width, height: viewport.height, bodyHeight: viewport.height });
   const canvas = (await page.locator(".report-workspace-canvas").boundingBox())!;
-  const navigation = (await page.getByRole("navigation", { name: "보고서 작업 도구", exact: true }).boundingBox())!;
+  const navigationElement = page.getByRole("navigation", { name: "보고서 작업 도구", exact: true, includeHidden: true });
+  const hiddenNavigation = await navigationElement.getAttribute("data-mode") === "hidden";
+  if (hiddenNavigation) await expect(navigationElement).toBeHidden();
+  else await expect(navigationElement).toBeVisible();
+  const navigation = await navigationElement.evaluate(element => {
+    const { x, y, width, height } = element.getBoundingClientRect();
+    return { x, y, width, height };
+  });
+  if (hiddenNavigation) expect(navigation.width).toBe(0);
   let left = navigation.x + navigation.width;
   let panelBounds: typeof canvas | null = null;
   if (panelName) {
@@ -87,6 +95,10 @@ test("REAL rhwp + MOCK report workspace: full height editor, local drawers and p
     expect(sha(await output())).toBe(editedHash);
   };
   for (const mode of ["사이드바 아이콘만", "사이드바 숨기기", "사이드바 열기"]) {
+    if (mode === "사이드바 열기") {
+      await page.mouse.move(2, page.viewportSize()!.height / 2);
+      await expect(page.getByRole("button", { name: mode, exact: true })).toHaveCSS("opacity", "1");
+    }
     await page.getByRole("button", { name: mode, exact: true }).click();
     layoutEvidence.push(await expectViewport(page, true));
     await expectPreserved();

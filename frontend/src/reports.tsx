@@ -190,7 +190,7 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
     if (!pending && !visualCatalogReady) { setError("문서 표준을 확인한 뒤 요청하세요."); return; }
     if (!pending && visualId && !visual) { setError("선택한 문서 표준을 다시 확인하세요."); return; }
     const frozen = pending || { id: crypto.randomUUID(), prompt, research, template, ...(visual ? { visual_standard: selectionSnapshot(visual) } : {}),
-      ...(visual?.revision === 3 && ["appendix-2", "appendix-3"].includes(String(visual.settings.preset_id)) ? { cover: { date: coverDate.trim(), department: coverDepartment.trim() } } : {}) };
+      ...(visual?.revision === 3 && (visual.settings.cover_mode === "ON" || (visual.settings.cover_mode !== "OFF" && ["appendix-2", "appendix-3"].includes(String(visual.settings.preset_id)))) ? { cover: { date: coverDate.trim(), department: coverDepartment.trim() } } : {}) };
     setPending(frozen); active.current = frozen.id; setRestoreTaskId(null); setBusy(true); setError("");
     sessionStorage.setItem("hwp-report-task", frozen.id);
     try { const result = await api<Job>("/report-tasks", jsonRequest("POST", frozen));
@@ -364,7 +364,7 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
           </select>
           <p className="hint">내용 구성은 글의 흐름을, 문서 양식은 표지·목차와 글꼴·여백을 정합니다.</p>
           <p className="hint" aria-label="새 요청에 사용할 서식">{formatDescription(selectedVisual)}</p>
-          {selectedVisual?.revision === 3 && selectedVisual.settings.preset_id !== "appendix-1" && <div className="report-cover-fields">
+          {selectedVisual?.revision === 3 && (selectedVisual.settings.cover_mode === "ON" || (selectedVisual.settings.cover_mode !== "OFF" && selectedVisual.settings.preset_id !== "appendix-1")) && <div className="report-cover-fields">
             <label htmlFor="report-cover-date">표지 작성일</label><input id="report-cover-date" value={coverDate} maxLength={60} disabled={locked || job?.status === "running"} placeholder="예: 2026. 10. 20." onChange={e => setCoverDate(e.target.value)} />
             <label htmlFor="report-cover-department">표지 작성 부서</label><input id="report-cover-department" value={coverDepartment} maxLength={100} disabled={locked || job?.status === "running"} placeholder="예: 운영지원부 문서관리팀" onChange={e => setCoverDepartment(e.target.value)} />
           </div>}

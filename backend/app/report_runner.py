@@ -1,4 +1,5 @@
 """Report-only Codex execution; no shell, file editing, MCP, approval or paid fallback."""
+from .standard_policy import toc_mode
 import os
 import subprocess
 import tempfile
@@ -89,6 +90,8 @@ def parenthetical_prompt(prompt, settings):
     prompt = prompt.replace("Where useful, begin square points with a short parenthesized label such as (배경), (차이점), (조치), or (제안).",
                             "Use short parenthesized lead summaries only in the selected scopes below, when useful.")
     prompt += ("\nFrozen parenthetical lead-summary scope: " + (",".join(enabled) or "none") + ". "
+               "This is permission, never a requirement. Omit a label when it adds no useful distinction. "
+               "Do not routinely prepend (요약), (핵심), or another generic repetition of the sentence or heading. "
                "Scopes refer to canonical inputs before displayed numbering: square=□ items; circle=ㅇ/○ items; "
                "dash=- items; dot=․ items; body=unmarked section.paragraphs; summary=the separate summary value, "
                "even when it starts with □. Do not introduce parenthesized lead summaries in unselected scopes. "
@@ -125,6 +128,10 @@ def writing_prompt(value):
                "inventing certainty or dropping information. Write table cells as short parallel phrases "
                "while retaining the same factual meaning. Apply this guidance only while composing the "
                "new ReportDraft, not by rewriting a frozen draft or formatted document.\n")
+    prompt += ("When a parent item has a parenthesized lead summary and subordinate items, keep the parent "
+               "to one concise overview or conclusion. Put distinct supporting facts, actors, dates, conditions "
+               "and citations in the subordinate ㅇ/-/․ items, without duplicating or dropping them. "
+               "Use children only when the content needs them; never invent details to fill a hierarchy.\n")
     prompt += ("\nIn this request, □/ㅇ/-/․ at the beginning of a paragraph are canonical structural tokens. "
                "The renderer uses the frozen numbered or bullet hierarchy and selected glyphs. Do not manually "
                "duplicate their displayed numbering. The chosen hierarchy is " + settings["numbering_style"] + ".\n")
@@ -146,7 +153,7 @@ def writing_prompt(value):
                    "the structure that fits those limits while preserving important facts, conditions and "
                    "citations; do not omit meaning to make room for labels. Spacing and indentation are "
                    "applied by the renderer: do not add blank entries, tabs or leading spaces.\n")
-    if settings["preset_id"] in ("appendix-2", "appendix-3"):
+    if toc_mode(settings) != "NONE":
         prompt += ("\nThis report uses the existing automatic TOC limit of 30 headings in total. Count all "
                    "section headings, explicit 가./나. subheadings, the optional displayed core-summary "
                    "heading and the source/limitations heading. Plan useful groups within that limit; "
@@ -155,7 +162,22 @@ def writing_prompt(value):
                    "silently remove an existing heading to meet the limit.\n")
     prompt += "\nFrozen document-writing rules from the selected reference standard:\n" + "\n".join(rules) + (
         "\nKeep canonical [S1] source IDs in JSON. The document renderer applies the selected note marks and superscripts. "
+        "Place each source token immediately after the specific word or claim it explains, before the following particle or punctuation when appropriate: "
+        "for example 'A는 B[S1]이다.' puts the note on B. Use a sentence-end token only when the source supports that whole sentence. "
+        "This applies to prose and table cells; never collect all source tokens at paragraph ends by default. "
         "Formatting rules never permit inventing or changing facts, figures, names, dates or citations.\n")
+    if settings.get("enabled_body_roles") is not None or settings.get("enabled_heading_roles") is not None:
+        prompt += ("\nAllowed body roles: " + settings.get("enabled_body_roles", "square,circle,dash,dot") +
+                   ". Allowed heading styles: " + settings.get("enabled_heading_roles", "heading,subheading,minor_heading,numbered_4,numbered_5,numbered_6") +
+                   ". Use only enabled body tokens and optional subordinate heading levels. section.heading remains the unnumbered semantic heading. "
+                   "Do not discard facts to avoid a disabled level; express them using an enabled level. Do not add manual newlines or spacing to fill a visual line.\n")
+    if settings.get("heading_structure_policy") == "CONTENT_V1":
+        prompt += ("\nChoose document structure according to content, not merely the appearance of heading markers. "
+                   "Disabled heading levels must not survive as repeated headings at an enabled level. "
+                   "Integrate their distinctions into the surrounding enabled body items; retain facts, figures, conditions and citations. "
+                   "Enabled deep levels are permission, not an instruction to manufacture more headings or content. "
+                   "Use levels 4, 5 and 6 only when a parent genuinely contains several distinct subtopics with enough supporting content. "
+                   "Avoid chains of empty headings or single-child subdivisions. Never rewrite an existing or frozen draft.\n")
     return revision_prompt(value, parenthetical_prompt(prompt, settings))
 
 

@@ -1,0 +1,123 @@
+{
+  "result": "passed",
+  "verified_at": "2026-10-24T16:15:35.820753+00:00",
+  "scope": "standard comparison, compression diagnostics, anchored notes and content page alignment",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "head": "1b4e1a054c47e4ee4087b3f8cea1b0cfadf032e5",
+  "backend": {
+    "passed": 57,
+    "files": [
+      "test_standard_note_positions.py",
+      "test_report_local_notes.py",
+      "test_standard_policy.py",
+      "test_standard_management.py",
+      "test_standard_samples.py"
+    ],
+    "final_anchor_rerun_passed": 25
+  },
+  "frontend_unit": {
+    "passed": 5,
+    "file": "frontend/unit/standard-comparison.test.mjs"
+  },
+  "real_engine_runs": {
+    "e2e-notes": {
+      "result": "passed",
+      "commands": [
+        {
+          "built_app": false,
+          "command": "Playwright E2E",
+          "pattern": "REAL rhwp comparison:|REAL rhwp standard management:",
+          "exit_code": 0
+        }
+      ],
+      "engine_wasm": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0"
+    },
+    "e2e-final-notes": {
+      "result": "passed",
+      "commands": [
+        {
+          "built_app": false,
+          "command": "Playwright E2E",
+          "pattern": "REAL rhwp comparison:",
+          "exit_code": 0
+        }
+      ],
+      "engine_wasm": "e2a21d71f65045ed0d432e33859590e1ae229a654109e4a1f4ceb4aa2eb3b2e0"
+    },
+    "e2e-anchors": {
+      "result": "passed",
+      "commands": [
+        {
+          "built_app": false,
+          "command": "Playwright E2E",
+          "pattern": "REAL rhwp comparison: align inserted cover",
+          "exit_code": 0
+        }
+      ]
+    }
+  },
+  "compression": {
+    "unchanged_lines": [
+      "문서관리체계와업무인수인계절차를함께점검하여자료의누락\n여부를확인하고담당자별검토결과를기록함.",
+      "문서관리체계와업무인수인계절차를함께점검하여자료의누락\n여부를확인하고담당자별검토결과를기록함."
+    ],
+    "affected_lines": [
+      "예시운영팀은2026년10월30일까지합성점검대상20건의\n확인을완료할계획임.",
+      "예시운영팀은2026년10월30일까지합성점검대상20건의확인을\n완료할계획임."
+    ],
+    "labelMarks": [
+      {
+        "role": "parenthetical_square",
+        "key": "body_parenthetical_labels",
+        "width": 50.09306510026562,
+        "height": 1.5
+      },
+      {
+        "role": "parenthetical_square",
+        "key": "body_parenthetical_labels",
+        "width": 50.09306510026562,
+        "height": 1.5
+      }
+    ],
+    "colors": [
+      "rgb(180, 83, 9)",
+      "rgb(37, 99, 235)"
+    ],
+    "preserved_text": true,
+    "exported_condense": 20
+  },
+  "notes_and_alignment": {
+    "inline_superscript": true,
+    "full_inline_marks": true,
+    "abbreviated_explanation_only": true,
+    "appendix2_body_pair": [
+      1,
+      3
+    ],
+    "original_no_cover_restored": true
+  },
+  "actual_model_calls": 0,
+  "hancom_verification": false,
+  "sample": "standard-business-report-v6",
+  "previous_sample_v5_preserved": true,
+  "engine_changed": false,
+  "limitations": [
+    "Comparison highlights measured text/style/local line geometry, not nontext border or fill pixels.",
+    "New draft prompt was checked; no actual AI generation was requested or run.",
+    "Hancom manual verification not performed."
+  ],
+  "live_rollout": {
+    "result": "verified",
+    "url": "http://127.0.0.1:15201/",
+    "runtime": "C:\\Users\\alsdu\\Documents\\ChatGPT\\hwp-assistant\\.cache\\standard-comparison-20261025\\source",
+    "source_fingerprint": "094d3da9b1460d3c1094dd69cb5b0df6947d3d0b2706bce07955523004a93efc",
+    "preserved_documents": 10,
+    "preserved_versions": 13,
+    "preserved_visual_standards": 4,
+    "preserved_files": 17,
+    "existing_rows_changed": 0,
+    "existing_blobs_changed": 0
+  },
+  "repeated_note_anchors_verified": true,
+  "live_screenshot": ".cache/standard-comparison-20261025/live-notes-comparison.png"
+}

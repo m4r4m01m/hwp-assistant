@@ -1,3 +1,4 @@
+from .standard_policy import cover_enabled, toc_mode
 """Bounded report drafts. A draft is never a saved HWPX document."""
 import json
 import re
@@ -39,6 +40,8 @@ def parenthetical_role(value):
 
 def parenthetical_enabled(settings, scope):
     if settings.get("body_parenthetical_labels") is False:
+        return False
+    if scope in ("square", "circle", "dash", "dot") and settings.get("enabled_body_roles") is not None and scope not in settings["enabled_body_roles"].split(","):
         return False
     selected = settings.get("body_parenthetical_scope")
     return selected is None or scope in selected.split(",")
@@ -233,6 +236,8 @@ def citation_marker(identifier, style):
     number = identifier[1:]
     if style == "STARS":
         return "*" * int(number)
+    if style == "NOTE_SHORT":
+        return f"주{number})" if number == "1" else f"{number})"
     return f"주{number})" if style == "NOTE" else f"*{number}" if style == "ASTERISK" else f"[{identifier}]"
 
 
@@ -255,6 +260,10 @@ def presentation_text(value, settings, source_ids, *, body=False, marks=None, ma
     if style == "AUTO":
         count = len(marker_numbers) if marker_numbers is not None else len({identifier for identifier in re.findall(r"\[(S\d+)\]", value) if identifier in source_ids})
         style = citation_style_for_scope(style, count)
+    if style == "NOTE_SHORT":
+        # Consecutive canonical citations become one displayed list. Their
+        # source identities remain unchanged and ranges use the final text.
+        value = re.sub(r"\[(S\d+)\]\s+(?=\[S\d+\])", r"[\1]", value)
     offset = 0
     previous_end = None
     def replace(match):
@@ -298,13 +307,17 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
         # restyled merely because the application code has been updated.
         blocks[0][3]["body_spacing"] = BODY_SPACING_POLICY
         blocks[0][3]["title_overflow"] = TITLE_OVERFLOW_POLICY
-        if settings["preset_id"] in ("appendix-2", "appendix-3"):
+        # New plans explicitly own automatic wrapping. Replaying a frozen plan
+        # without this marker retains its original manual line partition.
+        blocks[0][3]["native_wrap"] = "reference-native-wrap-v1"
+        if toc_mode(settings) != "NONE":
             from .reference_report import TOC_LAYOUT_POLICY
             blocks[0][3]["toc_layout"] = TOC_LAYOUT_POLICY
-    if reference and settings["preset_id"] == "appendix-1":
+    if reference and not cover_enabled(settings):
         from .reference_report import TITLE_LAYOUT_POLICY
         blocks[0][3]["title_layout"] = TITLE_LAYOUT_POLICY
-    if reference and settings["preset_id"] in ("appendix-2", "appendix-3") and cover is not None:
+    if reference and cover_enabled(settings) and (cover is not None or "cover_mode" in settings or "toc_mode" in settings):
+        cover = cover or {}
         from .reference_report import COVER_LAYOUT_POLICY
         # Presence is an explicit new layout contract. Absence preserves the
         # shape of older plans, including previews frozen before this feature.
@@ -313,25 +326,34 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
             if cover.get(field):
                 blocks.append((paragraph(cover[field]), "body", False, {"style_kind": "cover_" + field}))
     if settings.get("show_core_summary", True):
-        blocks.extend([("핵심 요약", "heading", False, {}),
+        summary_heading = {}
+        if reference and settings.get("enabled_heading_roles"):
+            from .standard_policy import enabled_role
+            summary_heading = {"style_kind": enabled_role("heading", settings)}
+        blocks.extend([("핵심 요약", "heading", False, summary_heading),
                        (present(draft.summary, body=True, scope="summary"), "body", False, {"parenthetical_role": "summary"})])
     table_number = diagram_number = 0
     for i, section in enumerate(draft.sections, 1):
         if reference:
             from .reference_report import body_item, numbered_marker
-            marker = numbered_marker(settings["numbered_1_marker"], i)
-            blocks.append((f"{marker} {section.heading}", "heading", True, {}))
+            from .standard_policy import enabled_role, HEADING_ROLES
+            heading_role = enabled_role("heading", settings)
+            marker = numbered_marker(settings[f"numbered_{HEADING_ROLES.index(heading_role) + 1}_marker"], i)
+            blocks.append((f"{marker} {section.heading}", "heading", True, {"style_kind": heading_role} if heading_role != "heading" else {}))
             counters = [0, 0, 0, 0]
-            for prose in section.paragraphs:
+            from .standard_policy import organize_paragraphs
+            for prose in organize_paragraphs(section.paragraphs, settings):
                 label_role = parenthetical_role(prose)
+                if label_role:
+                    label_role = enabled_role(label_role, settings)
                 # Strip only eligible lead labels before replacing the canonical
                 # bullet with a numbered marker; (1)/(가) are structural text.
-                prose = presentation_text(prose, {**settings, "citation_style": "BRACKET_S"}, source_ids, body=True)
+                prose = presentation_text(prose, {**settings, "citation_style": "BRACKET_S"}, source_ids, body=True, scope=label_role)
                 text, reference_role = body_item(prose, settings, counters, apply_numbered_markers=True)
                 item_meta = {"style_kind": reference_role, **({"parenthetical_role": label_role} if label_role else {})}
                 # A numbered display of a square body item is still prose.
                 # Only an explicit subordinate title joins the native TOC.
-                if reference_role == "subheading" and re.match(r"^[가-하]\.\s", prose):
+                if re.match(r"^[가-하]\.\s", prose):
                     item_meta["toc_level"] = 2
                 blocks.append((present(text), "body", False, item_meta))
         else:

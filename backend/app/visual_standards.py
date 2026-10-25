@@ -384,12 +384,17 @@ def install_visual_standards(app):
     engine, folder = app.state.engine, app.state.folder
     from .standard_samples import install_standard_samples
     install_standard_samples(app)
+    from .standard_library import install_standard_library
+    install_standard_library(app)
 
     @app.get("/api/visual-standards")
     def catalog(request: Request):
         with Session(engine) as db:
+            from .db import VisualStandardState
+            inactive = set(db.scalars(select(VisualStandardState.standard_id).where(
+                (VisualStandardState.hidden == True) | (VisualStandardState.replacement_id.is_not(None)))))
             items = [snapshot_value(row) for row in db.scalars(select(VisualStandard)
-                     .where(VisualStandard.owner_id == request.state.user).order_by(VisualStandard.created_at.desc()))]
+                     .where(VisualStandard.owner_id == request.state.user).order_by(VisualStandard.created_at.desc())) if row.id not in inactive]
         presets = builtin_selections()
         return {"defaults": reference_standard.defaults(), "fields": reference_standard.field_catalog(), "items": items,
                 "revision": 3, "legacy": {

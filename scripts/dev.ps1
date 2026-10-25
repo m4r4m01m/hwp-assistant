@@ -41,7 +41,7 @@ try {
     if ($codexExecutable) {
         # Login status does not start a model turn. Do not retain stdout/auth data.
         & (Get-Command python).Source (Join-Path $PSScriptRoot 'check-codex-login.py') $codexExecutable
-        if ($LASTEXITCODE -eq 0) { Write-Host '[HWP] Codex login found. No AI request was made.' }
+        if ($LASTEXITCODE -eq 0) { Write-Host '[HWP] Codex credentials found. Confirm ChatGPT sign-in in AI connection settings. No AI request was made.' }
         else { Write-Host '[HWP] Codex login is required for AI: run codex login using your own ChatGPT account.' }
     } else {
         Write-Host '[HWP] Codex CLI not found. Editing works; AI needs Codex CLI + your own ChatGPT login. See docs/developer-quickstart.md.'
