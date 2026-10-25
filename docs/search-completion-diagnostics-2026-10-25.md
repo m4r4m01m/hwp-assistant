@@ -1,6 +1,6 @@
 # 검색 완료 집계와 안전한 실행 진단 보완
 
-기록일: **2026-10-25 KST**. 기준 main은 **`4e364c1a4e74eed5a6ad86a9694adb1189a54bee`**, branch는 `codex/search-completion-diagnostics-2026-10-25`다. 처음에는 집계·진단 수정과 로컬 검증만 승인됐고 도구 노출 flag는 보류했다. 이후 아래 원 대화의 격리 A/B 결과를 근거로 사용자가 **연구 ON 보고서에 한정한 명령 보완·회귀·commit/push·Draft PR 준비**를 승인했다. 새 코드의 main 병합·운영 배포는 승인·실행하지 않았다. 클라우드 실제 모델 호출은 0회이며 운영 credential도 클라우드에 없다. 기존 배포 인수인계의 미커밋 문서 두 개는 원래 작업 트리에 그대로 보존한다.
+기록일: **2026-10-25 KST**. 기준 main은 **`4e364c1a4e74eed5a6ad86a9694adb1189a54bee`**, branch는 `codex/search-completion-diagnostics-2026-10-25`다. 사용자의 직접 요청은 **“검색 완료를 왜 확인하지 못할까? 개선할 방법은 없나?”**였다. 그 개선 요청 범위에서 원 대화 root가 조사·구현·회귀·PR 준비를 인계했다. 처음에는 집계·진단을 보완하고 도구 노출 flag는 격리 진단 결과까지 보류했으며, A/B 뒤 root의 구현 인계에 따라 연구 ON 보고서에 한정한 web 직접 노출과 commit/push·Draft PR을 준비했다. 사용자가 특정 flag나 세부 실행 절차를 직접 지정·명시 승인한 것은 아니다. 새 코드의 main 병합·운영 배포는 별도 미승인·미실행이다. 클라우드 실제 모델 호출은 0회이며 운영 credential도 클라우드에 없다. 기존 배포 인수인계의 미커밋 문서 두 개는 원래 작업 트리에 그대로 보존한다.
 
 제품 commit **[`081adee4ee7f14d712283dc80243a41390f1af81`](https://github.com/m4r4m01m/hwp-assistant/commit/081adee4ee7f14d712283dc80243a41390f1af81)**(parent exact main `4e364c1a`, tree `7f5dd1ba5b8c411968774057dbc61dc588306a42`)를 push하고 **[Draft PR #38](https://github.com/m4r4m01m/hwp-assistant/pull/38)**을 만들었다. 이후 문서 commit의 새 head에서는 CI를 다시 확인해야 한다. source·시험·운영 인계의 기계 판독 기록은 [검증 영수증](evidence/search-completion-diagnostics-2026-10-25.json)에 남긴다.
 
@@ -16,7 +16,7 @@
 | started 이벤트 + summary의 완료 검색 | 0/1/1, notice `unverified` | 1/1/0, notice `completed` |
 | 연구 OFF + summary의 검색 | draft 완료로 진행, notice `not_requested` | `scope_violation`으로 거부 |
 
-summary-only의 **1/0/0**은 완료 검색 payload 1개를 관측했지만 별도 시작 이벤트를 받지 않았다는 뜻이다. 시작 횟수를 가정해 채우지 않는다. B 진단의 terminal 검색 item 수 0과 이 합성 summary 재현은 별도 증거다.
+`started_calls`는 **시작이 관측된 고유 검색 수**이며 요약에 남은 시작 스냅샷도 포함한다. 개별 시작 알림 수가 아니다. summary-only의 **1/0/0**은 완료 검색 payload 1개는 관측했지만 시작은 관측하지 않았다는 뜻이며 횟수를 가정해 채우지 않는다. B 진단의 terminal 검색 item 수 0과 이 합성 summary 재현은 별도 증거다.
 
 **이 재현은 현재 운영에서 검색 0회가 나온 원인 증거가 아니다.** 고정 0.153의 실제 app-server는 현재 terminal items에 최종 agent 메시지만 넣는다. 검색 payload가 요약에 오는 경로를 처리하는 것은 계약 보강이다. 운영 검색 도구 노출·호출 여부와 upstream 실패 원인은 별도 진단으로 확인해야 한다.
 
@@ -74,7 +74,7 @@ Python **3.14.0**, 기존 backend/MCP requirements lock 환경에서 합성 자�
 - flag 포함 최종 backend 전체는 **단일 실행 exit 0·JUnit 1,268 case·failure/error/skip 0·256.117초**로 확인했다. JUnit timestamp는 `2026-10-25T23:13:16.946062+09:00`이며 실행 중 제품 파일 2개는 전후 모두 제품 commit `081adee4`와 동일했다. stdout은 85%까지만 있고 최종 요약이 없어 **전체 warning 수는 미확정**이다. 집중 회귀의 warning 2개를 전체 실행에 복제하지 않는다. JUnit·정상 종료·source 대조를 완료 근거로 사용하며 stdout 요약이 있다고 쓰지 않는다.
 - 후속 문서 commit의 새 head에서는 exact CI를 다시 확인한다. 이전 head의 성공으로 최종 head 성공을 대신하지 않는다.
 
-frontend·고정 rhwp·문서 표준·DB schema·배포 설정은 이번 변경 대상이 아니다. frontend mock UI와 실제 rhwp E2E를 이번 후속에서 재실행하지 않았다. 새 코드의 실제 운영 검색·한컴·폐쇄망 실모델 검증도 하지 않았다. 기존 배포 run의 통과 수를 이번 로컬 변경의 검증으로 대체하지 않는다.
+frontend·고정 rhwp·문서 표준·DB schema·배포 설정은 이번 변경 대상이 아니다. frontend mock UI와 실제 rhwp E2E를 이번 후속에서 재실행하지 않았다. 새 코드가 배포된 앱 endpoint의 실제 검색·한컴·폐쇄망 실모델 검증도 하지 않았다. 아래 candidate의 별도 프로세스 검증과 구분하며 기존 배포 run의 통과 수를 이번 로컬 변경의 검증으로 대체하지 않는다.
 
 ## 6. 별도 운영 진단과 남은 판단
 
@@ -93,6 +93,22 @@ frontend·고정 rhwp·문서 표준·DB schema·배포 설정은 이번 변경 
 | terminal summary의 검색 item 수 | 0 | 0 |
 | 오류 알림 | 없음 | 별도 수치 미인계 |
 
-실모델 호출은 이 격리 진단의 **2회**다. app DB 작업·문서 생성·운영 설정 변경은 0회였고 raw 출력·오류 원문·credential을 보존하지 않았다. 따라서 집계 누락보다 **도구 노출 형태가 검색 호출 여부에 영향을 준다는 직접 관측**이 추가됐다. 단일 A/B의 비결정성은 남아 있으며 모든 주제·시간·모델의 성공이나 검색 결과의 사실 검증을 보증하지 않는다. 같은 원인으로 모든 과거 0회를 확정하거나 이미 배포돼 복구됐다고 표현하지 않는다.
+A/B 진단의 실모델 호출은 **2회**다. app DB 작업·문서 생성·운영 설정 변경은 0회였고 raw 출력·오류 원문·credential을 보존하지 않았다. 따라서 집계 누락보다 **도구 노출 형태가 검색 호출 여부에 영향을 준다는 직접 관측**이 추가됐다. 단일 A/B의 비결정성은 남아 있으며 모든 주제·시간·모델의 성공이나 검색 결과의 사실 검증을 보증하지 않는다. 같은 원인으로 모든 과거 0회를 확정하거나 이미 배포돼 복구됐다고 표현하지 않는다.
 
-사용자는 이 결과 후 연구 ON 보고서 명령에만 해당 설정을 추가하도록 승인했고, 제품 코드에 조건부 override를 반영했다. 연구 OFF는 기존 `web_search=disabled`를 유지하고 직접 노출 override를 넣지 않는다. 모델·CLI·provider를 교체하거나 추가 turn·유료 fallback·다른 도구 허용을 추가하지 않는다. 명령이 조건부 override를 정확히 전달하는 회귀와 기존 scope fence를 확인하고 위 제품 commit과 Draft PR을 준비했다. 새 코드의 main 병합·운영 배포와 제품 경로의 실제 재검증은 후속 승인 범위다.
+원 대화 root는 사용자 개선 요청 범위에서 이 결과에 따른 연구 ON 보고서의 명령 보완·회귀·commit/push·Draft PR 준비를 구현 인계했고, 제품 코드에 조건부 override를 반영했다. 연구 OFF는 기존 `web_search=disabled`를 유지하고 직접 노출 override를 넣지 않는다. 모델·CLI·provider를 교체하거나 추가 turn·유료 fallback·다른 도구 허용을 추가하지 않는다. 명령이 조건부 override를 정확히 전달하는 회귀와 기존 scope fence를 확인하고 위 제품 commit과 Draft PR을 준비했다. 새 코드의 main 병합·운영 배포는 별도 미승인이다.
+
+## 7. Exact 제품 candidate의 별도 프로세스 검증
+
+원 대화 root는 제품 commit **`081adee4ee7f14d712283dc80243a41390f1af81`**의 정확한 두 Python 파일 blob을 별도 프로세스 메모리에 불러와 candidate의 전체 `generate_stream` 경로를 실제 모델로 검증했다. wrapper가 flag를 추가하지 않았고 제품 코드에 있는 조건부 설정을 그대로 사용했다. 같은 `gpt-6-astra`·ReportDraft schema·공개 합성 Python 공식 문서 요청을 app idle 확인 후 **단일 turn·150초 상한**으로 실행했다. 원 대화 root의 직접 실행이며 앱 endpoint 호출이나 클라우드 모델 실행이 아니다.
+
+| 관측 | Candidate 결과 |
+|---|---|
+| 실행 시간 | 32.111초 |
+| 최종 출력 | 정상 완료·유효 ReportDraft |
+| 검색 이벤트 started/completed/incomplete | 2/2/0 |
+| notice | `completed` |
+| upstream 오류 | 없음 |
+| terminal summary의 검색 item 수 | 0 |
+| 운영 변경 | 운영 파일·private env·app DB 문서/작업 불변 |
+
+이 검증의 실제 모델 호출은 **1회**이고, 이번 검색 조사의 operator 호출 합계는 **A/B 2회 + candidate 1회 = 3회**다. raw 출력·오류 원문·credential은 보존하지 않았다. 실제 배포된 앱 경로의 검증, 전체 주제·시점·모델 성공 또는 검색 결과의 개별 사실 검증으로 확대하지 않는다. 기존 HWPX·동결 초안·수동 편집과 롤백 계약은 이번 문서 정정으로 바뀌지 않았다.

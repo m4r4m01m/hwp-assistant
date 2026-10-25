@@ -230,7 +230,8 @@
     "frozen_drafts_rewritten": false,
     "manual_hwpx_modified": false,
     "diagnostic_changes_draft_sha": false,
-    "queries_urls_results_raw_errors_in_new_diagnostics": false
+    "queries_urls_results_raw_errors_in_new_diagnostics": false,
+    "started_calls_definition": "Unique searches whose start was observed, including a started-form summary snapshot; not the number of individual start notifications."
   },
   "cloud_operational_actions": {
     "actual_model_calls": 0,
@@ -243,5 +244,33 @@
   "original_uncommitted_handoff_preserved": {
     "docs/PROJECT_CONTEXT.md": "331ac722f23b61e2d15f2a6bdefeaf80ce2f1bea414a5d5751fd0860e1a942e0",
     "docs/evidence/research-warning-drafts-2026-10-25.json": "6367d05f8084b790d8c106df4ea9e67dbd160f02057c9516a75c2207a2817494"
-  }
+  },
+  "implementation_direction_source": {
+    "human_request": "검색 완료를 왜 확인하지 못할까? 개선할 방법은 없나?",
+    "concrete_flag_and_pr_preparation": "The original-dialogue root selected and handed off this implementation under the user improvement request; not a human explicit approval of the exact flag.",
+    "new_pr_merge_or_production_deploy_approved": false
+  },
+  "operator_candidate_handoff": {
+    "source": "Original-dialogue root direct operator-isolated execution; user handoff, not cloud or app endpoint execution",
+    "product_sha": "081adee4ee7f14d712283dc80243a41390f1af81",
+    "exact_two_modules_imported_in_separate_process_memory": true,
+    "wrapper_added_flag": false,
+    "used_product_command_flag": true,
+    "model": "gpt-6-astra",
+    "same_reportdraft_schema_and_public_synthetic_topic": true,
+    "turns": 1,
+    "timeout_seconds": 150,
+    "application_idle_checked": true,
+    "elapsed_seconds": 32.111,
+    "started": 2,
+    "completed": 2,
+    "incomplete": 0,
+    "validated_report": true,
+    "notice_status": "completed",
+    "upstream_error_observed": false,
+    "terminal_summary_searches": 0,
+    "production_files_env_db_documents_tasks_unchanged": true,
+    "raw_output_or_credentials_retained": false
+  },
+  "operator_investigation_total_model_turns": 3
 }
