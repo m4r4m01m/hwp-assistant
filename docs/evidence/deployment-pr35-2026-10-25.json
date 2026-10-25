@@ -1,0 +1,128 @@
+{
+  "date_kst": "2026-10-25",
+  "reviewed_pr": {
+    "number": 35,
+    "head_sha": "f7a1da1bfa2f32a9034282fdb81a59c791bc0298",
+    "merge_method": "merge",
+    "merge_sha": "49dda2c8de06288111216a61ba720dc148834257",
+    "parents": [
+      "295b6e19a81738cb0156889020f21d691df5db27",
+      "f7a1da1bfa2f32a9034282fdb81a59c791bc0298"
+    ],
+    "reviewed_and_merge_tree": "fa0298aa41b134f9c70249d537bdbbb20f283328",
+    "source_branch_retained": true
+  },
+  "product_source_sha": "8a8c9afae4bd809362b8f2eb87507a10e44e1ad3",
+  "main_push_checks": {
+    "sha": "49dda2c8de06288111216a61ba720dc148834257",
+    "run_ids": [
+      40185311735,
+      40185311749,
+      40185311706
+    ],
+    "all_workflows": "success",
+    "python_job": 121144749249,
+    "python_passed": 1071,
+    "warnings": 2,
+    "seconds": 316.99,
+    "unit_passed": 30,
+    "node_workflow_subset_passed": 46,
+    "mock_ui_passed": 40,
+    "tls_service_worker_passed": 1,
+    "publish_and_deploy": "skipped as expected for push"
+  },
+  "manual_run": {
+    "id": 40185409373,
+    "url": "https://github.com/m4r4m01m/hwp-assistant/actions/runs/40185409373",
+    "event": "workflow_dispatch",
+    "head_branch": "main",
+    "head_sha": "49dda2c8de06288111216a61ba720dc148834257",
+    "attempt": 1,
+    "created_at_utc": "2026-10-25T10:35:34Z",
+    "deploy_input": "true, supplied by original-dialogue dispatcher",
+    "dispatcher": "original dialogue root via existing authenticated CLI",
+    "cloud_dispatches": 0,
+    "cloud_reruns": 0,
+    "python_job": 121145041526,
+    "python_passed": 1071,
+    "warnings": 2,
+    "seconds": 288.04,
+    "frontend_unit_passed": 30,
+    "node_workflow_subset_passed": 46,
+    "mock_ui_passed": 40,
+    "tls_service_worker_passed": 1,
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "image_publication": {
+    "job": 121146097092,
+    "conclusion": "success",
+    "isolated_https_upload_persist_and_restart": "success",
+    "real_browser_step": "success",
+    "images": {
+      "ghcr.io/m4r4m01m/hwp-assistant-api": {
+        "tag": "49dda2c8de06288111216a61ba720dc148834257",
+        "digest": "sha256:4098a871f464d8581241643ee75dc998c1f527e565f6989944c8983307ae2a0a",
+        "manifest_bytes": 3040
+      },
+      "ghcr.io/m4r4m01m/hwp-assistant-web": {
+        "tag": "49dda2c8de06288111216a61ba720dc148834257",
+        "digest": "sha256:93747143ebb68bce29a7c7ad853890bc0c73218a8bdde44af6c7c2cfd6304bf8",
+        "manifest_bytes": 2409
+      }
+    }
+  },
+  "deployment": {
+    "job": 121146882648,
+    "status": "completed",
+    "conclusion": "success",
+    "backup_confirmed": true,
+    "local_smoke_confirmed": true,
+    "public_workflow_smoke_confirmed": true,
+    "started_at_utc": "2026-10-25T10:44:50Z",
+    "completed_at_utc": "2026-10-25T10:45:45Z",
+    "completed_at_kst": "2026-10-25 19:45:45 KST",
+    "successful_routing_smoke_count": 2,
+    "image_revision_fence": "Exact source revision labels validated before backup on successful deploy.sh path",
+    "last_success_receipt": "Created after local smoke by successful script; private receipt contents not copied",
+    "registry_digest_note": "Published digests recorded; existing rollout validates tag/revision and is not digest-pinned"
+  },
+  "live_research": {
+    "executor": "original dialogue root authenticated operational session",
+    "cloud_credentials_copied": false,
+    "cloud_actual_model_calls": 0,
+    "research_true_restoration": "unverified",
+    "final_report_draft_validation": "unverified"
+  },
+  "preservation": {
+    "source_branch_deleted": false,
+    "squash_or_rebase": false,
+    "private_env_changed": false,
+    "passwords_or_accounts_changed": false,
+    "ai_acl_changed": false,
+    "codex_auth_collected_or_reset": false,
+    "production_volume_reinitialized_or_deleted": false,
+    "worker_count_changed": false
+  },
+  "scope_limits": [
+    "Image publication is distinct from operational deployment",
+    "No sample account/password/env activation approved by this deployment authorization",
+    "Hosted synthetic model checks do not prove operational research=true success"
+  ],
+  "cloud_post_deploy_read_only": {
+    "repository_smoke": "passed: routing, protected API, app/editor/comparison assets and WASM integrity",
+    "login_cookie_or_data_write_checks": false,
+    "api_health_ok": true,
+    "authentication_required": true,
+    "accounts_enabled": false,
+    "registration_enabled": false,
+    "guest_enabled": false,
+    "sample_accounts_field_present": true,
+    "sample_account_count": 0
+  },
+  "documentation_only_followup": {
+    "branch": "codex/deployment-evidence-2026-10-25",
+    "runtime_image_sha_unchanged": "49dda2c8de06288111216a61ba720dc148834257",
+    "sample_json_quoting": "Full JSON value single-quoted, verified using scripts/deploy/config.py read_env with synthetic data; private env unchanged"
+  }
+}
