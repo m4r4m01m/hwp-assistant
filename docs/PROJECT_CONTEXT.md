@@ -1,6 +1,6 @@
 # HWP Assistant 프로젝트 컨텍스트
 
-갱신일: **2026-10-25 (한국 시간)**. 코드 기준: [main `95eb0dab99f1ac3f9aa55a56c35bb20908ea71c5`](https://github.com/m4r4m01m/hwp-assistant/commit/95eb0dab99f1ac3f9aa55a56c35bb20908ea71c5), [PR #33](https://github.com/m4r4m01m/hwp-assistant/pull/33). 이 파일은 ChatGPT Work와 Codex가 함께 읽는 인수인계 기준이다. 이후 작업에서는 실제 최신 main·CI·운영 상태를 다시 확인한다.
+갱신일: **2026-10-25 (한국 시간)**. 통합 기준: [main `295b6e19a81738cb0156889020f21d691df5db27`](https://github.com/m4r4m01m/hwp-assistant/commit/295b6e19a81738cb0156889020f21d691df5db27), [문서 PR #34](https://github.com/m4r4m01m/hwp-assistant/pull/34). 제품 코드는 #33 기준이다. 후속 클라우드 점검 코드 [8a8c9afae4bd809362b8f2eb87507a10e44e1ad3](https://github.com/m4r4m01m/hwp-assistant/commit/8a8c9afae4bd809362b8f2eb87507a10e44e1ad3)는 별도 `codex/cloud-reliability-2026-10-25` 브랜치에 있으며 **main 병합·운영 배포 전**이다. 후속 결과와 한계는 [10절](#10-2026-10-25-클라우드-신뢰성-점검)을 우선한다. 이 파일은 ChatGPT Work와 Codex가 함께 읽는 인수인계 기준이다. 이후 작업에서는 실제 최신 main·CI·운영 상태를 다시 확인한다.
 
 ## 1. 읽는 순서와 증거 기준
 
@@ -61,6 +61,8 @@
 
 **최신 확인 증거:** #33 병합 후 [HWP deployment 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40174658302), [frontend build path](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40174657544), [deployment-only 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40174657560)는 성공했다. 일반 push에서는 게시/운영 배포 job이 건너뛰어지는 것이 정상이다.
 
+**후속 확인:** #34의 정확한 `295b6e1`에서 [수동 run 40180482900](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40180482900)의 검사·게시·홈서버 배포 5개 job이 성공했고, 배포 job 종료는 **2026-10-25 18:33:29 KST**였다. Python 1,021개, frontend unit 26개, mocked UI 35개, TLS 1개, 배포 브라우저 2 passed/1 skipped가 로그에 기록됐다. 같은 SHA의 push 검사도 성공했으며 게시·배포 2개 skip은 정상이다. 아래 #33 기록을 대체하는 후속 운영 증거이며 실제 Codex 모델 성공을 증명하지 않는다.
+
 후속 [수동 run](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40177050099)의 [Python job](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40177050099/job/121119882634)에서 **1,021 passed, 2 warnings**를 확인했다. 경고는 의존성의 httpx/TestClient·anyio portal 폐기 예정 API다. [게시 job](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40177050099/job/121120768129)과 [홈서버 배포 job](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40177050099/job/121121722084)도 성공했다. 이는 해당 시점/SHA의 기록이며 이후 서버 설정까지 보장하지 않는다.
 
 | 구분 | 확인된 범위 / 제한 |
@@ -76,6 +78,8 @@
 ## 6. 운영: 계정·Codex·환경변수
 
 ### 6.1 마지막 사용자 보고와 원인
+
+이 절의 ACL/login 관측은 #34 문서화 당시 기록이다. 후속 2026-10-25 사용자 인계에서는 운영 Codex 로그인·허용이 확인됐고 보고서 검색 완료 0건 문제가 관측됐다. [10절](#10-2026-10-25-클라우드-신뢰성-점검)의 후속 근거를 우선하며, 아래 미완료 표현을 현재 로그아웃 상태로 단정하지 않는다.
 
 사용자는 운영 API에서 `HWP_CODEX_USER=local`, `HWP_CODEX_ALLOWED_USERS` 빈 값과 “서버에서 Codex ChatGPT 로그인이 필요합니다” 안내를 확인했다. 이어 **`/opt/hwp-assistant/production.env`에는 두 ACL 키 자체가 없다**고 정정했다. 로그인/허용목록 변경 완료 보고는 없다. 이번 문서화 작업에서 서버의 private env·인증파일을 열거나 설정을 변경하지 않았다.
 
@@ -172,7 +176,7 @@ docker exec hwp-assistant-prod-api-1 codex login status
 
 ## 7. 다음 작업과 알려진 한계
 
-1. 마지막 보고에서 미확인인 **서버 Codex device login·앱 ID 허용·환경 반영**을 구분해 확인하고, 합성 자료로 세 실제 AI 경로를 검수한다. 인증파일이나 private env를 수집하지 않는다.
+1. 후속 사용자 인계에서 서버 Codex 로그인·앱 ID 허용은 확인됐으나 세 실제 AI 경로 완료는 미확인이다. [10절](#10-2026-10-25-클라우드-신뢰성-점검)의 새 진단과 합성 자료로 실제 검색/보고서·대화·문단 수정을 완료까지 검수한다. 인증파일이나 private env를 수집하지 않는다.
 2. 최신 Windows/한컴·Safari/Firefox 실제 장치, 복잡한 문서 왕복과 표 외곽선 시각 차이를 검수한다. 일반 HWPX 왕복 결함이 블록 보호 기능으로 해결됐다고 표현하지 않는다.
 3. 개발자 엔진 kit와 현재 bridge의 불일치를 해소·게시하고 fresh clone 설치를 재검증한다. 기존 kit로 모든 환경에서 원클릭 실행된다고 보장하지 않는다.
 4. 사내 모델의 정확한 계약을 확인하고, 의존성/이미지/폰트 사전 반입 → 외부 통신 차단 → 새 브라우저 → 내부 실모델 → 편집/승인/저장/복원 전체 흐름을 별도로 검증한다.
@@ -217,3 +221,60 @@ AI 출력 계약/원문 검사는 사실성·회사 규정 적합성의 자동 �
 > `m4r4m01m/hwp-assistant` 최신 main의 `AGENTS.md`와 `docs/PROJECT_CONTEXT.md`를 먼저 읽고 기준 SHA와 실제 HEAD를 대조해 줘. 현재 코드·정확한 Actions 결과를 우선하고, 과거 검증/현재 운영/미확인을 구분해 이어서 작업해 줘. 비밀정보와 실제 회사 자료는 가져오지 마.
 
 의미 있는 결정·병합·실행 검증 후에는 이 문서의 갱신일·source SHA·PR/Actions·관측 환경·미완료·다음 단계를 함께 갱신한다. 테스트 숫자만 올리거나 오래된 운영 상태를 그대로 복제하지 않는다.
+
+## 10. 2026-10-25 클라우드 신뢰성 점검
+
+### 10.1 범위와 증거 구분
+
+사용자는 맥북을 계속 켜둘 수 없어 클라우드에서 점검·수정·검증·PR 준비까지 수행하도록 요청했다. 최신 main `295b6e19a81738cb0156889020f21d691df5db27`과 AGENTS/이 문서 전체를 확인한 뒤 독립 브랜치를 만들었다. 로컬 원 대화의 체크아웃·미저장 작업·과거 HWPX·운영 볼륨·계정·인증파일은 수정하지 않았다. GitHub 연결로 source를 확보했고, 큰 과거 로드맵 PNG는 다운로드 도구 제한으로 로컬에 가져오지 않았지만 **원격 기준 tree를 보존하여 변경 대상에서 제외**했다.
+
+클라우드에서 공개 HTTPS GET으로 `/hwp-assistant/` 200, `/api/health`의 `ok=true`, `/api/auth/status`의 accounts/registration/guest 모두 false를 직접 확인했다. 저장소의 `scripts/deploy/smoke.py --url https://pseudowasabi-svr.taile7b6c4.ts.net/hwp-assistant/`도 경로·보호 API 401·앱/편집/비교 정적 자원·WASM 무결성 검사를 통과했다. 로그인·쿠키·업로드·문서 수정은 요청/실행하지 않았다. 운영 자격은 클라우드에 제공되지 않았으며 기존 토큰을 추정하거나 인증파일을 수집하지 않았다.
+
+사용자가 별도 로컬 read-only 인계로 제공한 관측은 **2026-10-25 KST 사용자 관측**이다: 운영 Codex 세 기능 configured/allowed 및 ChatGPT 로그인 확인, HTTP chat/review 미설정, `/ai/models` 503. 이는 별도 HTTP LLM의 미설정이며 Codex 보고서 실패와 혼동하지 않는다. 클라우드에서 해당 인증 후 검사를 직접 성공시킨 것으로 쓰지 않는다.
+
+### 10.2 보고서 원인과 수정
+
+사용자 관측의 실패 4건은 research=true, 실제 소요 99.5/126.43/111.23/112.6초, 마지막 writing·research_calls=0·draft 없음이었다. 두 출력에 웹 검색 도구 오류가 명시됐다는 인계를 받았다. **240초 timeout 전에 끝났고, 완료된 공개자료 조회가 없는 연구 요청을 거부하는 코드 경로와 일치한다.** upstream 웹 검색 자체가 왜 사용 불가였는지는 실제 모델 시험 없이 확정·해결 완료로 표현하지 않는다.
+
+후속 코드의 변경:
+
+- `execution.failure`에 고정 code·stage·완료 검색 수와 제한된 검증 경로/공식 upstream 오류 종류/HTTP 상태만 기록한다. 원문 예외·모델 본문·자격정보는 진단에 기록하지 않는다. 기존 실패 작업에 원인을 추정해 소급 저장하지 않는다.
+- 검색 완료 없음, 로그인/확인 지연, 모델 실패, 연결 단절, 출력 계약·크기·내용 검증 오류, 시간 만료를 서로 다른 한국어 안내로 표시한다. 실패 후 부분 내용은 표시 전용이며 preview·서식·승인·저장 대상으로 승격하지 않는다. 복구 버튼은 요청 화면만 열며 연구를 자동 해제하거나 생성 POST를 재실행하지 않는다.
+- 고정 Codex 0.153.0의 완료 계약에 맞춰 final/legacy 완료 메시지와 `turn/completed.items`의 최종 메시지를 사용한다. async/commentary·delta만 있는 출력은 완료 draft가 아니다. 재시도 알림은 같은 turn의 최종 상태를 기다리며 앱이 별도 모델 호출을 자동 생성하지 않는다.
+- 표·흐름도·본문 길이의 기존 validator 제한을 신규 생성 schema에도 전달한다. 역사 draft/서식 정책을 완화하거나 바꾸지 않는다.
+- 별도 세션의 자식이 파이프를 보유하면 deadline 후 정리가 무기한 대기하는 POSIX 결함을 재현해 비차단 입출력·DefaultSelector·유한 정리로 수정했다. FD 1024 초과, UTF-8 분할, 막힌 stdin, 상속 파이프 회귀를 시험했다. Windows Job 경로는 보존했으며 이번 환경에서 Windows 실기기를 검수한 것은 아니다.
+
+연구 자동 해제·유료 fallback·추가 연구 preflight turn·저장 경계 우회는 도입하지 않았다. owner/status fence, 동일 요청 결과 재조회, 독립 새 요청 ID, 내용 검토 → 서식 → 사용자 확정 저장을 유지한다.
+
+### 10.3 로그인 자원 준비와 샘플 계정
+
+`totalBytes += await consume(...)`가 병렬 worker 사이에서 공유 합계를 덮어쓰는 결함을 수정했다. 청크마다 동기적으로 공통 합계를 확인하고 64MiB 초과/실패 즉시 모든 worker를 취소한다. 한 자원 32MiB·24개·SRI·정확한 하위 경로·저속/절약/비활성 보류·제한된 재시도를 유지한다.
+
+SRI 다운로드 후 실제 `WebAssembly.compile`을 수행하고 다운로드·컴파일·후속 엔진 초기화/문서 배치를 구분한다. WASM 인스턴스나 숨은 편집기를 만들지 않으며 로그인은 기다리지 않는다. 대기 45초 뒤 늦은 native 결과를 무시한다. iframe에서 브라우저 코드 캐시 재사용 및 실제 최초 문서 지연 개선은 보장하지 않는다.
+
+기존 기억한 ID 최대 5개는 사전 구성된 샘플 계정 선택과 별개였다. 새 `HWP_SAMPLE_ACCOUNTS=[]`는 기본 비공개/비활성이며 운영자가 공개 합성 ID·라벨을 최대 8개 지정해야 한다. 기존 활성 member 비밀번호 계정만 카드에 표시하고 미생성 ID의 공개 가입 선점을 막는다. 비밀번호·계정 자동 생성/초기화·AI ACL 확대는 하지 않는다. 서로 다른 ID의 문서는 기존 ACL로 격리되고 같은 샘플 ID 이용자들은 문서함을 공유한다. [설정·보존 절차](poc-codex-accounts-prewarm-2026-10-25.md)를 따른다. **현재 운영은 계정 기능이 꺼져 있어 새 이미지·설정 적용 전에는 토큰 화면이 정상**이다.
+
+### 10.4 실행 환경·검증·남은 판단
+
+검증한 제품 코드 SHA는 `8a8c9afae4bd809362b8f2eb87507a10e44e1ad3`이며 이후 이 인수인계 갱신은 문서 변경이다. 클라우드 Linux, CPython **3.14.0**과 두 requirements lock, Node **24.15.0**과 package lock을 사용했다. Playwright 1.56.1의 Chromium 141 build 1194 headless-shell을 사용했다. 기본 Chromium 채널은 이 클라우드의 socket 권한 제한으로 시작하지 못했고, 설정에서 지원하는 headless-shell로 실행했다.
+
+| 검사 | 확인된 결과 / 실제 범위 |
+|---|---|
+| backend 전체 | 수집된 **1,071개 고유 case 전부 통과**. 격리 subprocess/JUnit 676개 + 396개, 중복 1개를 실제 case ID로 대조해 누락/추가/실패/오류/skip 0개 확인. 두 실행 모두 Python 3.14.0이며 backend 137개 파일의 전후 해시 불변 확인 |
+| Python 배포 계약 | 75개 통과: deployment 13, isolated host preflight 4, CI 16, smoke 12, developer download 6, published run 24 |
+| 보고서 집중 회귀 | 76 passed, 기존 의존성 warning 2개. 합성 실제 stdio이며 실제 모델 호출 0회 |
+| frontend | tsc 통과, unit 30/30, mock UI 40/40 |
+| Node 계약·build path | 82/82 통과, public path 감사·배포 셸 문법 통과 |
+| 실제 고정 Codex | 공식 0.153.0 archive SHA-256 확인 후 CLI flags·app-server initialize/account-read·packaged MCP smoke 통과. 로그인/모델 호출 0회 |
+| 최적화 rhwp | 공개 운영 build receipt의 upstream/패치/bridge/바인딩과 7개 정적 자산 SHA-256을 확인. diagnostic=false, WASM `3eb52da9c5602c8036fd70ce0f5f759588224be0069eafb04aed39845310667b` |
+| 실제 엔진 build/serve | 검증된 배포 엔진을 재사용한 현재 앱 `/hwp-assistant/` 빌드·served bytes 검사 통과. Docker/Rust 부재로 엔진 소스 재빌드는 하지 않음 |
+| 실제 엔진 Node | fill 보존/재열기, 선택·줄바꿈·다중 페이지, 블록 배치/왕복 차이 감지 통과 |
+| 실제 엔진 browser | 8 passed / 1 skipped. 격리 SQLite·임시 정적/proxy, 합성 AI. 생성/편집/업로드/버전/재열기, 승인·stale·undo, 응답 유실 재시도, 내용 검토·서식·확정 저장, rich 표/흐름도, 스트림·취소 확인. skip은 실제 Codex 기록물 부재 |
+
+운영 엔진의 해시 검증 재사용은 소스 재빌드나 새 운영 배포를 뜻하지 않는다. manifest에 없는 폰트 자산은 임의로 내려받지 않았으며 완전한 폰트/시각/한컴 검수로 일반화하지 않는다. 이번 로컬 통합은 PostgreSQL·실제 nginx·HTTPS 재시작을 검증한 것이 아니므로 PR의 일회용 컨테이너 CI와 구분한다. 실제 모델 upstream 검색·운영 토큰/샘플 로그인, Safari/Firefox/Windows·한컴·폐쇄망 모델은 미검증이다.
+
+초기 단일 backend 실행은 exit 0이지만 약 60% 뒤 최종 요약이 없어 통과 증거로 계산하지 않았다. 원인은 재현되지 않아 단정하지 않는다. 위 전체 1,071개 결과는 이후 **독립된 두 실행의 JUnit·정상 종료·요약과 수집 목록 대조**에 근거한다. 같은 제품 tree에 대한 추가 단일 실행/PR CI 결과가 있으면 그 정확한 head의 Actions를 함께 확인한다. 비밀정보 없는 수치·환경·한계는 [검증 영수증](evidence/cloud-reliability-2026-10-25.json)에 기록했다.
+
+main 병합·이미지 게시·운영 배포는 별도 사용자 결정이 필요하며 이번 작업에서 수행하지 않는다. 계정 설정을 적용하려면 공개할 합성 ID·비밀번호 계정·별도 AI ACL을 운영자가 선택한다. 보고서 연구 기능은 새 이미지에서 합성 주제로 실제 검색 완료와 최종 draft → 내용 검토 → 서식 → 확정 저장·재열기를 추가 확인해야 한다. 공개 검색 불가가 계속되면 새 진단 종류로 운영 upstream을 점검하고, 연구 옵션 해제는 사용자가 직접 제공 자료 기반 요청을 선택할 때만 사용한다.
+
+DB schema migration은 추가하지 않았다. 적용 전 기존 일관 백업과 실제 게시 SHA 확인을 유지한다. 롤백은 새 이미지/환경을 덮어 추정하지 말고 마지막 성공 배포 영수증의 기존 이미지로 되돌리며 `HWP_SAMPLE_ACCOUNTS=[]`를 사용한다. 기존 계정·문서·버전·세션/사용량 테이블과 세 운영 볼륨은 삭제·초기화하지 않는다.
