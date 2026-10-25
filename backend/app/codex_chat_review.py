@@ -27,6 +27,10 @@ from .report_stream import stream_command
 
 MAX_OUTPUT = 131072
 MAX_INPUT_BYTES = 1000000
+# Synchronous chat/review must finish before the existing 240-second ingress
+# deadline, including bounded login readiness, CLI cleanup and response fences.
+# Report/rewrite background workers retain their separate execution budgets.
+BASIC_MODEL_TIMEOUT_SECONDS = 210
 ALLOWED_ITEMS = {"userMessage", "agentMessage", "reasoning", "plan", "contextCompaction"}
 
 CHAT_PROMPT = """You answer a Korean document conversation, not a coding task.
@@ -213,7 +217,7 @@ class CodexBasicProvider:
             instructions = Path(directory) / "basic-instructions.txt"
             instructions.write_text(prompt, encoding="utf-8")
             with ReportRpc(stream_command(settings, instructions, False), environment=dict(settings.environment),
-                           cwd=directory, timeout=settings.timeout, active=active) as rpc:
+                           cwd=directory, timeout=min(settings.timeout, BASIC_MODEL_TIMEOUT_SECONDS), active=active) as rpc:
                 pending, serial = [], 0
 
                 def check(event):
@@ -270,14 +274,15 @@ class CodexBasicProvider:
 
                 def completed(item):
                     nonlocal final, completed_size, completed_count
-                    if item.get("phase") not in (None, "final_answer") or item.get("delivery") is not None:
-                        return
                     text = item.get("text", "")
                     if not isinstance(text, str):
                         raise ValueError("invalid message")
                     item_id = item.get("id")
                     if isinstance(item_id, str):
-                        fingerprint = sha256(text.encode("utf-8")).hexdigest()
+                        # A terminal summary may repeat an immutable completion,
+                        # but cannot change its final/commentary or async status.
+                        # Check this before ignoring non-final messages.
+                        fingerprint = sha256(canonical([text, item.get("phase"), item.get("delivery")]).encode("utf-8")).hexdigest()
                         if item_id in seen:
                             if seen[item_id] != fingerprint:
                                 raise ValueError("changed completed item")
@@ -289,6 +294,8 @@ class CodexBasicProvider:
                     completed_count += 1
                     if completed_size > MAX_OUTPUT or completed_count > 32:
                         raise ValueError("completed output limit")
+                    if item.get("phase") not in (None, "final_answer") or item.get("delivery") is not None:
+                        return
                     # Later non-JSON final invalidates an earlier JSON completion.
                     final = text if text.lstrip().startswith("{") else None
 

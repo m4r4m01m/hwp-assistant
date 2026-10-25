@@ -1,5 +1,14 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { unzipSync, strFromU8 } from "fflate";
+
+async function documentText(page: Page, bytes: Uint8Array) {
+  const sections = Object.entries(unzipSync(bytes)).filter(([name]) => /^Contents\/section\d+\.xml$/.test(name)).map(([, data]) => strFromU8(data));
+  return page.evaluate(sources => sources.map(source => {
+    const document = new DOMParser().parseFromString(source, "application/xml");
+    if (document.querySelector("parsererror")) throw Error("Invalid synthetic HWPX section XML");
+    return [...document.getElementsByTagNameNS("http://www.hancom.co.kr/hwpml/2011/paragraph", "t")].map(node => node.textContent || "").join("");
+  }).join("\n"), sections);
+}
 
 test("REAL rhwp + MOCK research: incomplete lookup final draft preserves warning, six full limitations, manual edits and frozen save retry", async ({ page, request }) => {
   test.skip(process.env.HWP_E2E_REPORT_MOCK !== "1" || !!process.env.HWP_REPORT_FIXTURES, "Synthetic completed model output and reused verified real engine only.");
@@ -58,13 +67,7 @@ test("REAL rhwp + MOCK research: incomplete lookup final draft preserves warning
   await expect(page.getByRole("status")).toHaveText("HWPX 서버 저장 완료");
   expect(saves).toHaveLength(2); expect(saves[1]).toEqual(saves[0]); expect(generationPosts).toBe(1);
   const file = (await page.getByRole("link", { name: "완성 보고서 다운로드" }).getAttribute("href"))!;
-  const bytes = await (await request.get(file)).body(), files = unzipSync(bytes);
-  const xml = Object.entries(files).filter(([name]) => /^Contents\/section\d+\.xml$/.test(name)).map(([, data]) => strFromU8(data)).join("\n");
-  const nativeText = await page.evaluate(source => {
-    const document = new DOMParser().parseFromString(source, "application/xml");
-    if (document.querySelector("parsererror")) throw Error("Invalid synthetic HWPX section XML");
-    return [...document.getElementsByTagNameNS("http://www.hancom.co.kr/hwpml/2011/paragraph", "t")].map(node => node.textContent || "").join("");
-  }, xml);
+  const bytes = await (await request.get(file)).body(), nativeText = await documentText(page, bytes);
   expect(nativeText).toContain("수동 편집 보존 확인"); expect(nativeText).toContain("https://example.invalid/synthetic-reference");
   for (const warning of task.draft.research_notice.warnings) expect(nativeText).toContain(warning.message);
   for (const limitation of task.draft.limitations) expect(nativeText).toContain(limitation);
@@ -75,7 +78,8 @@ test("REAL rhwp + MOCK research: incomplete lookup final draft preserves warning
   await page.getByRole("button", { name: "보고서 편집하기", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("저장 완료", { timeout: 90000 });
   const reopened = page.frames().find(frame => frame.url().includes("/rhwp/"))!;
-  const body = await reopened.evaluate(() => (window as any).hwpAssistantBridge.snapshot().evidence.text);
+  const reopenedBytes = Uint8Array.from(await reopened.evaluate(() => Array.from((window as any).hwpAssistantBridge.exportSnapshot().bytes) as number[]));
+  const body = await documentText(page, reopenedBytes);
   expect(body).toContain("수동 편집 보존 확인");
   for (const warning of task.draft.research_notice.warnings) expect(body).toContain(warning.message);
 });

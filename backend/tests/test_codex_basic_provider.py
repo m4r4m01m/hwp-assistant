@@ -50,7 +50,8 @@ def test_only_authoritative_completed_chat_answers_are_returned(rpc, mode):
 
 
 @pytest.mark.parametrize("mode", ["commentary-only", "async-only", "delta-only", "nonjson-after-final", "failed",
-    "tool-request", "tool-item", "web-item", "terminal-tool", "oversize-delta", "conflicting-summary", "nonjson-after-final-summary"])
+    "tool-request", "tool-item", "web-item", "terminal-tool", "oversize-delta", "conflicting-summary", "nonjson-after-final-summary",
+    "summary-commentary-conflict", "summary-async-conflict", "summary-phase-and-async-conflict", "commentary-then-final-same-id"])
 def test_partial_async_failed_or_out_of_scope_output_is_rejected_without_raw_error(rpc, mode):
     folder, selected, provider = rpc
     selected[0] = mode
@@ -116,6 +117,26 @@ def test_deadline_kills_the_owned_child_and_does_not_retry(rpc):
     assert failure.value.status_code == 504
     assert time.monotonic() - started < 4
     assert_child_reaped(folder)
+
+
+@pytest.mark.parametrize("configured, expected", [(240, 210), (3, 3), (.15, .15)])
+def test_basic_transport_deadline_leaves_ingress_headroom_and_preserves_shorter_limits(rpc, monkeypatch, configured, expected):
+    folder, _, provider = rpc
+    provider.settings = CodexSettings(sys.executable, "synthetic-model", "http://127.0.0.1:8000", (), timeout=configured)
+    deadlines = []
+
+    def capture_deadline(*args, **kwargs):
+        deadlines.append(kwargs["timeout"])
+        # Capture the actual transport boundary without waiting 210 seconds or
+        # starting a model. Real deadline/process cleanup is exercised above.
+        raise TimeoutError("synthetic deadline capture")
+
+    monkeypatch.setattr(basic, "ReportRpc", capture_deadline)
+    with pytest.raises(HTTPException) as failure:
+        ask(provider)
+    assert failure.value.status_code == 504
+    assert deadlines == [expected]
+    assert not (folder / "pid").exists()
 
 
 def test_inactive_request_never_starts_a_process(rpc):

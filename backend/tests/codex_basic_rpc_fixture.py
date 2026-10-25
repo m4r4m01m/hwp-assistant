@@ -62,7 +62,7 @@ for line in sys.stdin:
     send({"method": "item/completed", "params": {"threadId": "foreign-thread", "turnId": "synthetic-turn",
           "item": {"id": "foreign", "type": "agentMessage", "text": '{"answer":"WRONG"}', "phase": "final_answer"}}})
     item = {"id": "answer", "type": "agentMessage", "text": raw,
-            "phase": "commentary" if mode == "commentary-only" else None if mode == "legacy" else "final_answer",
+            "phase": "commentary" if mode in {"commentary-only", "commentary-then-final-same-id"} else None if mode == "legacy" else "final_answer",
             "delivery": "async" if mode == "async-only" else None}
     if mode not in {"delta-only", "summary-only"}:
         event("item/completed", item=item)
@@ -73,5 +73,9 @@ for line in sys.stdin:
     terminal = [item] if mode in {"summary-only", "duplicate-summary", "nonjson-after-final-summary"} else [{"type": "commandExecution"}] if mode == "terminal-tool" else []
     if mode == "conflicting-summary":
         terminal = [{**item, "text": '{"answer":"conflicting completed value"}'}]
+    if mode in {"summary-commentary-conflict", "summary-async-conflict", "summary-phase-and-async-conflict", "commentary-then-final-same-id"}:
+        terminal = [{**item,
+            "phase": "final_answer" if mode == "commentary-then-final-same-id" else "commentary" if "commentary" in mode or "phase-and" in mode else item["phase"],
+            "delivery": "async" if "async" in mode else item["delivery"]}]
     event("turn/completed", turn={"id": "synthetic-turn", "status": "failed" if mode == "failed" else "completed",
           "items": terminal, "error": {"message": "SECRET-MUST-NOT-ECHO"} if mode == "failed" else None})
