@@ -17,6 +17,84 @@ eventBus.on('document-mutated', () => {
   for (const listener of assistantListeners) listener();
 });
 
+// Read-only target lookup for manual design cards. The pinned Studio cursor
+// carries note/header modes separately from DocumentPosition. Read those flags
+// explicitly so their body-shaped coordinates never target the body by mistake.
+type AssistantStyleTarget = {kind: 'paragraph' | 'table'; section: number; paragraph: number; control?: number};
+function assistantStyleTarget(): AssistantStyleTarget {
+  if (!documentAgent || !inputHandler) throw new Error('편집기 준비가 끝난 뒤 다시 선택하세요.');
+  const invalid = () => new Error('본문의 제목 문단 또는 표 하나에 커서를 놓으세요. 여러 문단·중첩 표·글상자·필드는 지원하지 않습니다.');
+  const cursor = (inputHandler as unknown as {cursor?: {
+    isInHeaderFooter?: () => boolean; isInFootnote?: () => boolean;
+  }}).cursor;
+  if (!cursor || typeof cursor.isInHeaderFooter !== 'function' || typeof cursor.isInFootnote !== 'function'
+    || cursor.isInHeaderFooter() || cursor.isInFootnote()
+    || inputHandler.isFormMode() || inputHandler.isInField() || inputHandler.isInPictureObjectSelection()) throw invalid();
+  const integer = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
+  type Position = ReturnType<NonNullable<typeof inputHandler>['getCursorPosition']>;
+  const targetFor = (position: Position): AssistantStyleTarget => {
+    if (!integer(position.sectionIndex) || !integer(position.paragraphIndex) || !integer(position.charOffset)
+      || position.isTextBox || (position.cellPath?.length ?? 0) > 1) throw invalid();
+    const inCell = position.parentParaIndex !== undefined;
+    if (!inCell && (position.controlIndex !== undefined || position.cellIndex !== undefined
+      || position.cellParaIndex !== undefined || (position.cellPath?.length ?? 0) > 0)) throw invalid();
+    const target: AssistantStyleTarget = inCell
+      ? {kind: 'table', section: position.sectionIndex, paragraph: position.parentParaIndex!, control: position.controlIndex}
+      : {kind: 'paragraph', section: position.sectionIndex, paragraph: position.paragraphIndex};
+    const sectionCount = wasm.getSectionCount();
+    if (!integer(target.paragraph) || !integer(sectionCount) || target.section >= sectionCount) throw invalid();
+    const paragraphCount = wasm.getParagraphCount(target.section);
+    if (!integer(paragraphCount) || target.paragraph >= paragraphCount) throw invalid();
+    if (inCell) {
+      if (!integer(target.control) || !integer(position.cellIndex) || !integer(position.cellParaIndex)) throw invalid();
+      const path = position.cellPath?.[0];
+      if (path && (path.controlIndex !== target.control || path.cellIndex !== position.cellIndex
+        || path.cellParaIndex !== position.cellParaIndex)) throw invalid();
+      const dimensions = wasm.getTableDimensions(target.section, target.paragraph, target.control);
+      if (!integer(dimensions.rowCount) || !dimensions.rowCount || !integer(dimensions.colCount) || !dimensions.colCount
+        || !integer(dimensions.cellCount) || position.cellIndex! >= dimensions.cellCount) throw invalid();
+      const count = wasm.getCellParagraphCount(target.section, target.paragraph, target.control, position.cellIndex!);
+      if (!integer(count) || position.cellParaIndex! >= count) throw invalid();
+      const length = wasm.getCellParagraphLength(target.section, target.paragraph, target.control, position.cellIndex!, position.cellParaIndex!);
+      if (!integer(length) || position.charOffset > length) throw invalid();
+    } else {
+      const length = wasm.getParagraphLength(target.section, target.paragraph);
+      if (!integer(length) || position.charOffset > length) throw invalid();
+    }
+    return target;
+  };
+  const selectedTable = inputHandler.isInTableObjectSelection() ? inputHandler.getSelectedTableRef() : null;
+  if (inputHandler.isInTableObjectSelection() && (!selectedTable || (selectedTable.cellPath?.length ?? 0) > 1)) throw invalid();
+  // Direct object selection can intentionally leave the text caret elsewhere.
+  // Its explicit object reference is authoritative, not that stale text caret.
+  const position = inputHandler.getCursorPosition();
+  const target = selectedTable ? targetFor({sectionIndex: selectedTable.sec, paragraphIndex: 0, charOffset: 0,
+    parentParaIndex: selectedTable.ppi, controlIndex: selectedTable.ci, cellIndex: 0, cellParaIndex: 0}) : targetFor(position);
+  const sameTarget = (candidate: AssistantStyleTarget) => candidate.kind === target.kind && candidate.section === target.section
+    && candidate.paragraph === target.paragraph && candidate.control === target.control;
+  const selection = inputHandler.getSelection();
+  if (selection && !selectedTable) {
+    if (!sameTarget(targetFor(selection.start)) || !sameTarget(targetFor(selection.end))
+      || selection.start.paragraphIndex !== selection.end.paragraphIndex
+      || selection.start.cellIndex !== selection.end.cellIndex
+      || selection.start.cellParaIndex !== selection.end.cellParaIndex) throw invalid();
+  }
+  // A single selected cell identifies its whole table; partial multi-cell
+  // selections are rejected rather than silently broadening their scope.
+  if (inputHandler.isInCellSelectionMode()) {
+    if (target.kind !== 'table' || inputHandler.hasMultiCellSelection() || inputHandler.hasExcludedCellSelection()) throw invalid();
+    const context = inputHandler.getCellTableContext();
+    if (!context || context.sec !== target.section || context.ppi !== target.paragraph || context.ci !== target.control
+      || (context.cellPath?.length ?? 0) > 1) throw invalid();
+  }
+  if (inputHandler.isInTableObjectSelection()) {
+    const selected = inputHandler.getSelectedTableRef();
+    if (target.kind !== 'table' || !selected || selected.sec !== target.section || selected.ppi !== target.paragraph
+      || selected.ci !== target.control || (selected.cellPath?.length ?? 0) > 1) throw invalid();
+  }
+  return target;
+}
+
 // A read-only rendering receipt for block insertion. It compares the actual
 // body glyph positions, independently of HWPX's disposable line-segment cache.
 // Page/y positions are deliberately not in the receipt: inserting a block may
@@ -118,6 +196,7 @@ function assistantBodyLayoutEvidence() {
     if (!documentAgent) throw new Error('문서가 열려 있지 않습니다.');
     return documentAgent.getDocumentState();
   },
+  styleTarget: assistantStyleTarget,
   subscribe(listener: () => void) {
     assistantListeners.add(listener);
     return () => assistantListeners.delete(listener);

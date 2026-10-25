@@ -68,7 +68,7 @@ test("REAL rhwp comparison: default split precise labels and space compression",
   expect(colors.length).toBeGreaterThan(1);
   await changeSharedSample(page, () => setCatalogField(page, catalog, 'body_parenthetical_labels', false), s => s.body_parenthetical_labels === false);
   await expect(page.locator('.comparison-highlight rect[data-setting-key="body_parenthetical_labels"]')).toHaveCount(0);
-  await compare.click();
+  await page.getByRole('button', { name: '한 쪽 보기', exact: true }).click();
   await changeSharedSample(page, () => setCatalogField(page, catalog, 'line_break_unit', 'WORD'), s => s.line_break_unit === 'WORD');
   await changeSharedSample(page, () => setCatalogField(page, catalog, 'line_space_policy', 'NONE'), s => s.line_space_policy === 'NONE');
   const none = await sharedSampleSnapshot(page, observed);
@@ -168,7 +168,7 @@ test("REAL rhwp standard management: compare clamp cascade custom composition an
   }
   await expect(page.locator('.comparison-highlight rect').first()).toBeVisible();
   await page.screenshot({path:info.outputPath('before-after.png'),fullPage:true});
-  await page.getByRole('button',{name:'변경 전·후 비교',exact:true}).click();
+  await page.getByRole('button',{name:'한 쪽 보기',exact:true}).click();
   await page.getByText('디자인 보관함 · 표와 제목',{exact:true}).click();
   await page.getByLabel('디자인 이름',{exact:true}).fill('검수용 ㅇ 들여쓰기 표');
   await page.getByRole('button',{name:'디자인 저장',exact:true}).click();
@@ -258,7 +258,7 @@ async function openDesigner(page: Page, compare = false) {
   await expect(page.getByRole("heading", { name: "문서 표준 편집", exact: true })).toBeVisible();
   await expectDesignerReady(page);
   await expect(page.getByRole("img", { name: "문서 표준 예시 1쪽", exact: true })).toBeVisible();
-  if (!compare && await page.getByRole("button", { name: "변경 전·후 비교", exact: true }).getAttribute("aria-pressed") === "true") await page.getByRole("button", { name: "변경 전·후 비교", exact: true }).click();
+  if (!compare) await page.getByRole("button", { name: "한 쪽 보기", exact: true }).click();
   return (await preview).postDataJSON().seed_base64 as string;
 }
 async function legacyDesigner(page: Page, request: APIRequestContext, revision: 1 | 2 = 2) {

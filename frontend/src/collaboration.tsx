@@ -34,7 +34,7 @@ export function CollaborationPanel({
   cancelRewrite,
   onContextDirty,
   getPendingRewrite,
-  captureDocument, sendAssistant, onAssistantActive, active = true,
+  captureDocument, sendAssistant, onAssistantActive, onDesignProposal, active = true,
 }: AssistantActions & {
   document: Document;
   capture?: () => Snapshot;
@@ -229,7 +229,7 @@ export function CollaborationPanel({
       {detail && (
         <div className="conversation-content" inert={createPending}>
           <DocumentAssistantPanel active={active} key={`assistant-${detail.id}`} thread={detail.id} document={doc} captureDocument={captureDocument} sendAssistant={sendAssistant}
-            onDirty={assistantDirtyChanged} onActive={assistantActiveChanged} requestRewrite={requestRewrite} onShowRewrite={() => setShowRewrite(true)} />
+            onDirty={assistantDirtyChanged} onActive={assistantActiveChanged} requestRewrite={requestRewrite} onDesignProposal={onDesignProposal} onShowRewrite={() => setShowRewrite(true)} />
           <details className="assistant-secondary-tools" open={showRewrite} onToggle={event => setShowRewrite(event.currentTarget.open)}><summary>문단 수정 후보 · 직접 요청</summary>
           <RewritePanel key={detail.id} thread={detail.id} document={doc} context={detail.context} contextDirty={contextDirty}
             active={active && showRewrite} requestRewrite={requestRewrite} approveRewrite={approveRewrite} cancelRewrite={cancelRewrite} getPendingRewrite={getPendingRewrite} />

@@ -1,0 +1,45 @@
+{
+  "date": "2026-10-25",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "base_head": "a013b8633e2d488d0c1a4799f9698ec310bcb92d",
+  "uncommitted": true,
+  "runtime": "http://127.0.0.1:15330/ with QA API 18330",
+  "changes": [
+    "Remove restored-setting change marks using display-only effective values",
+    "Reset comparison images and settings after a verified save receipt",
+    "Skip equivalent numeric/select changes without rewriting frozen stored settings",
+    "Show a baseline check on concrete options and hide only proven equivalent aliases",
+    "Fix radio sizing and alignment in the standard-save dialog",
+    "Clarify input range and current body tracking adjustment",
+    "Add opt-in 30% and 50% blank compression within the pinned engine's supported range"
+  ],
+  "tests": {
+    "backend_policy_passed": 27,
+    "mock_ui_passed": 3,
+    "real_rhwp_passed": 2,
+    "typescript": "passed",
+    "frontend_build": "passed; existing diagnostic engine; .cache/standard-editor-fix-20261025/final-polish-build",
+    "actual_model_calls": 0,
+    "scope": "Changed controls, registration baseline and save dialog only; no full regression suite",
+    "real_evidence": [
+      ".cache/editor-design-20261025/qa/standard-compression-baseline-r6/standard-layout-controls-R-e89d7-t-and-exports-actual-limits/stronger-compression-proof.json",
+      ".cache/editor-design-20261025/qa/standard-baseline-final-r6/standard-layout-controls-R-49142--resets-comparison-baseline/baseline-noop-proof.json"
+    ],
+    "notes": [
+      "A run affected by a live source update was replaced by the final baseline/no-op test.",
+      "An additional mock launch without the configured browser cache stopped before product execution because the default browser binary was absent."
+    ]
+  },
+  "observed": {
+    "baseline_reselection_preview_requests": 0,
+    "saved_value_reselection_preview_requests": 0,
+    "restored_changes": 0,
+    "saved_changes": 0,
+    "sample_text_preserved": true,
+    "sample_pages": 3,
+    "compression": "In the existing synthetic schedule paragraph, '확인을' moves to the first line at 20/30/50% compared with 0%. Another long paragraph keeps identical wrapping at all four values.",
+    "tracking": "-20% to +50% is the allowed input range; -5% is valid and subtracts five percentage points from each bullet role's tracking, subject to the existing final bounds."
+  },
+  "preserved": ["Original/reference HWPX", "Historical standards and hash-pinned inputs", "Existing document storage", "Main and CLI snapshot branches"],
+  "not_performed": ["Hancom inspection", "Production deployment", "Commit/push"]
+}

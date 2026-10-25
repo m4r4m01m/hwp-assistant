@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { DesignLibrary } from "./design-library";
+import { EditorDesignShelf, type DesignChoice, type DesignItem } from "./editor-designs";
 import "./standard-designer.css";
 import { api, ApiError, downloadFile, errorMessage, isAbortError, jsonRequest, type Document, type Version } from "./api";
 import { EditorAdapter } from "./editor";
@@ -869,8 +870,33 @@ function DocumentTemplateMarket({
   );
 }
 
-export function TemplateMarket(props: Omit<Parameters<typeof DocumentTemplateMarket>[0], "onDesignLibrary">) {
+export function TemplateMarket(props: Omit<Parameters<typeof DocumentTemplateMarket>[0], "onDesignLibrary"> & {
+  onApplyDesign?: (document: Document, choice: DesignChoice) => void;
+}) {
   const [documents, setDocuments] = useState(!!props.registerDocument);
+  const [design, setDesign] = useState<DesignItem | null>(null), [targets, setTargets] = useState<Document[]>([]);
+  const [loading, setLoading] = useState(false), [error, setError] = useState("");
+  useEffect(() => {
+    if (!design) return;
+    const controller = new AbortController(); setLoading(true); setError(""); setTargets([]);
+    void api<Document[]>("/documents", { signal: controller.signal }).then(rows => {
+      if (!controller.signal.aborted) setTargets(rows.filter(row => row.role !== "reader"));
+    }).catch(cause => { if (!controller.signal.aborted) setError(errorMessage(cause)); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [design?.id]);
   if (documents) return <DocumentTemplateMarket {...props} onDesignLibrary={() => setDocuments(false)} />;
-  return <div className="workspace-shell"><WorkspaceNav active="templates" onNavigate={props.onNavigate} onBack={props.onClose} backLabel="← 문서함" /><main className="design-library-page"><h1>양식 보관함</h1><p>자주 쓰는 표와 제목 디자인을 모아 두세요.</p><div className="market-actions"><button onClick={props.onDesignStandard}>표준 편집에서 디자인 만들기·적용</button><button onClick={() => setDocuments(true)}>기존 문서 양식</button></div><DesignLibrary /><p>기존 문서 양식은 등록 당시 문서 전체로 새 문서를 만드는 기능입니다. 표·제목 디자인은 표준 편집에서 현재 서식의 일부만 바꿉니다.</p></main></div>;
+  return <div className="workspace-shell"><WorkspaceNav active="templates" onNavigate={props.onNavigate} onBack={props.onClose} backLabel="← 문서함" />
+    <main className="design-library-page"><h1>양식 보관함</h1><p>예시를 고르고, 편집 중인 문서의 표나 제목에 적용하세요.</p>
+      {design ? <section className="design-document-picker" aria-label="디자인을 적용할 문서">
+        <h2>‘{design.name}’을 사용할 문서</h2><p>문서를 열고 {design.kind === "table" ? "표 안" : "제목 문단"}에 커서를 놓은 뒤 선택한 디자인을 적용합니다.</p>
+        <button onClick={() => setDesign(null)}>예시 목록으로</button>
+        {error && <p role="alert">{error}</p>}{loading && <p role="status">문서 불러오는 중…</p>}
+        {!loading && !error && !targets.length && <p>편집할 문서가 없습니다. 문서함에서 HWPX를 가져오거나 새 문서를 저장하세요.</p>}
+        <ul>{targets.map(document => <li key={document.id}><button onClick={() => props.onApplyDesign?.(document, { kind: "design", id: design.id, sha256: design.sha256 })}>{document.name}</button></li>)}</ul>
+      </section> : <EditorDesignShelf onUse={props.onApplyDesign ? setDesign : undefined} />}
+      <details className="design-library-management"><summary>저장한 디자인 관리</summary><DesignLibrary />
+        <button onClick={props.onDesignStandard}>새 디자인 만들기</button><p>문서 표준 편집에서 표·제목 모양을 조절한 뒤 디자인으로 저장하면 이 보관함에서도 선택할 수 있습니다.</p></details>
+      <details className="design-library-management"><summary>문서 전체 양식</summary><p>등록 당시의 내용과 서식을 복사해 새 문서로 시작합니다.</p><button onClick={() => setDocuments(true)}>기존 문서 양식</button></details>
+    </main></div>;
 }

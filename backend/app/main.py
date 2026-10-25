@@ -585,6 +585,8 @@ def create_app(database_url=None, storage_dir=None):
     install_document_copy(app, locked, publish, doc_dict)
     from .document_blocks import install_document_blocks
     install_document_blocks(app, check_lease)
+    from .editor_designs import install_editor_designs
+    install_editor_designs(app, check_lease)
     from .toc_contract import install_toc
     install_toc(app, check_lease)
     from .reports import install_reports

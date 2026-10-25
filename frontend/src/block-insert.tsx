@@ -95,7 +95,7 @@ export function blockJson(value: unknown): string {
       : item,
   );
 }
-function safeSvg(value: string) {
+export function safeSvg(value: string) {
   if (value.length > 8_000_000 || /<!DOCTYPE|<!ENTITY/i.test(value))
     throw new Error("표시할 수 없는 미리보기입니다.");
   const doc = new DOMParser().parseFromString(value, "image/svg+xml");

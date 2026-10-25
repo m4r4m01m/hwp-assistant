@@ -254,7 +254,7 @@ class _SettingsBase(ReportValue):
     enabled_heading_roles: str | None = None
     heading_structure_policy: Literal["CONTENT_V1"] | None = None
     line_break_unit: Literal["ORIGINAL", "WORD", "CHARACTER"] | None = None
-    line_space_policy: Literal["ORIGINAL", "NONE", "TIGHT", "TIGHTER"] | None = None
+    line_space_policy: Literal["ORIGINAL", "NONE", "TIGHT", "TIGHTER", "TIGHT_30", "TIGHT_50"] | None = None
     body_tracking_percent: int | None = Field(default=None, strict=True, ge=-20, le=50)
     cover_mode: Literal["ORIGINAL", "OFF", "ON"] | None = None
     toc_mode: Literal["ORIGINAL", "NONE", "SEPARATE", "COVER"] | None = None

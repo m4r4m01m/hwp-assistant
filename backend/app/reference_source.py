@@ -335,8 +335,9 @@ def apply_character(header, char, role, settings):
 
 def apply_paragraph(para, role, settings):
     """Apply role spacing and signed first-line indent in both unit branches."""
+    from .standard_policy import LINE_POLICY_EXCLUDED_ROLES, SPACE_COMPRESSION_PERCENT
     # These optional controls never change a historical standard with absent keys.
-    if role not in ("title", "cover_title", "cover_date", "cover_department", "toc_title", "toc_major", "toc_minor"):
+    if role not in LINE_POLICY_EXCLUDED_ROLES:
         unit = settings.get("line_break_unit")
         if unit in ("WORD", "CHARACTER"):
             breaking = para.find(f"{{{HH}}}breakSetting")
@@ -345,7 +346,7 @@ def apply_paragraph(para, role, settings):
                 # the pinned renderer's composer/line_breaking.rs documents it.
                 breaking.set("breakNonLatinWord", "BREAK_WORD" if unit == "WORD" else "KEEP_WORD")
                 breaking.set("breakLatinWord", "KEEP_WORD" if unit == "WORD" else "BREAK_WORD")
-        condense = {"NONE": 0, "TIGHT": 10, "TIGHTER": 20}.get(settings.get("line_space_policy"))
+        condense = SPACE_COMPRESSION_PERCENT.get(settings.get("line_space_policy"))
         if condense is not None:
             para.set("condense", str(condense))
     alignment = settings.get(f"{role}_horizontal_align")
