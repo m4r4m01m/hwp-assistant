@@ -2,10 +2,11 @@
 import json
 import re
 import time
+from hashlib import sha256
 from .report_contract import ReportDraft, canonical
 from .report_partial import preview_blocks
 from .report_rpc import ReportRpc
-from .report_errors import ReportGenerationError, upstream_details
+from .report_errors import ReportGenerationError, upstream_details, retain_upstream_details
 from .report_research import apply_research_policy, research_policy
 
 DISABLED = ('shell_tool', 'unified_exec', 'apps', 'plugins', 'browser_use', 'computer_use',
@@ -19,6 +20,10 @@ def stream_command(settings, instructions, research):
         'notify': [], 'project_doc_max_bytes': 0, 'model_instructions_file': str(instructions),
         'developer_instructions': '', 'web_search': 'live' if research else 'disabled',
         'model_reasoning_effort': 'medium', 'model_verbosity': 'medium', 'service_tier': 'default'}
+    if research:
+        # code_mode_only models otherwise hide web.run inside functions.exec.
+        # Expose only the already permitted web namespace to report research.
+        overrides['features.code_mode.direct_only_tool_namespaces'] = ['web']
     if settings.model: overrides['model'] = settings.model
     for key, value in overrides.items(): args += ['-c', key + '=' + json.dumps(value, ensure_ascii=False)]
     for feature in DISABLED: args += ['--disable', feature]
@@ -37,6 +42,7 @@ def generate_stream(value, settings, directory, prompt, contract, progress, acti
                 'completed': False, 'web_search_calls': 0, 'shell_tool': False, 'streamed': True}
     pending, buffers, searches = [], {}, {}
     started_searches = set()
+    item_types, completed_items = {}, {}
     first_text = None
     last_emit = 0
     pending_emit = False
@@ -71,6 +77,68 @@ def generate_stream(value, settings, directory, prompt, contract, progress, acti
         final = text if text.lstrip().startswith('{') else None
         if final is not None:
             state['blocks'] = preview_blocks(text); emit(True)
+    def identify_item(item_id, kind):
+        if not isinstance(item_id, str) or not item_id.strip():
+            raise ReportGenerationError('protocol_error')
+        if item_id in item_types and item_types[item_id] != kind:
+            raise ReportGenerationError('protocol_error')
+        item_types[item_id] = kind
+    def observe_item(item, *, completed, summary=False):
+        # The same checks cover lifecycle events and terminal summary fallback.
+        # Started items may acquire query/action/results on completion; only
+        # repeated *completed* payloads must agree. Never retain search content.
+        if not isinstance(item, dict): raise ReportGenerationError('protocol_error')
+        kind, item_id = item.get('type'), item.get('id')
+        if kind not in ('userMessage', 'agentMessage', 'reasoning', 'webSearch', 'plan', 'contextCompaction'):
+            raise ReportGenerationError('scope_violation')
+        if kind == 'webSearch' and not value['research']:
+            raise ReportGenerationError('scope_violation')
+        identify_item(item_id, kind)
+        if kind == 'webSearch':
+            action = item.get('action')
+            if 'query' in item and not isinstance(item['query'], str):
+                raise ReportGenerationError('protocol_error')
+            if item.get('results') is not None and not isinstance(item['results'], list):
+                raise ReportGenerationError('protocol_error')
+            if action is not None and (not isinstance(action, dict) or action.get('type') not in ('search', 'openPage', 'findInPage', 'other')):
+                raise ReportGenerationError('protocol_error')
+            if action is not None:
+                fields = {'search': ('query',), 'openPage': ('url',), 'findInPage': ('url', 'pattern'), 'other': ()}
+                if any(action.get(key) is not None and not isinstance(action[key], str) for key in fields[action['type']]):
+                    raise ReportGenerationError('protocol_error')
+                queries = action.get('queries') if action['type'] == 'search' else None
+                if queries is not None and (not isinstance(queries, list) or any(not isinstance(query, str) for query in queries)):
+                    raise ReportGenerationError('protocol_error')
+            if summary and action is None:
+                # 0.153 has no webSearch.status. History may retain a started
+                # snapshot (null action/results); turn success cannot promote
+                # that snapshot. A completed history payload has an action.
+                completed = False
+            fingerprint = [item.get('query'), action, item.get('results')]
+        elif kind == 'agentMessage':
+            fingerprint = [item.get('text'), item.get('phase'), item.get('delivery')]
+        else:
+            fingerprint = item
+        if completed:
+            digest = sha256(canonical(fingerprint).encode('utf-8')).hexdigest()
+            if item_id in completed_items:
+                if completed_items[item_id] != digest:
+                    raise ReportGenerationError('protocol_error')
+                return  # Replayed events/summary must not recount or revive an old final.
+            completed_items[item_id] = digest
+        if kind == 'webSearch':
+            state.update(stage='researching', activity='공개자료 확인')
+            if not completed:
+                started_searches.add(item_id)
+                searches.setdefault(item_id, [time.monotonic(), None])
+            else:
+                searches.setdefault(item_id, [time.monotonic(), None])
+                searches[item_id][1] = time.monotonic()
+                evidence['web_search_calls'] += 1
+                state['research_calls'] = evidence['web_search_calls']
+            emit(True)
+        if kind == 'agentMessage' and completed:
+            completed_message(item)
     with ReportRpc(stream_command(settings, instructions, value['research']), environment=dict(settings.environment),
                    cwd=directory, timeout=settings.timeout, active=active) as rpc:
         serial = 0
@@ -117,34 +185,27 @@ def generate_stream(value, settings, directory, prompt, contract, progress, acti
             event = pending.pop(0) if pending else rpc.receive(on_idle=flush_pending)
             check_request(event)
             method, params = event.get('method'), event.get('params', {})
-            if params.get('threadId', thread_id) != thread_id or params.get('turnId', turn_id) != turn_id: continue
+            if not isinstance(params, dict): raise ReportGenerationError('protocol_error')
+            if params.get('threadId') != thread_id: continue
+            if method == 'turn/completed':
+                # Pinned TurnCompletedNotification has threadId + turn, not a
+                # required outer turnId. Validate the authoritative nested ID.
+                turn = params.get('turn')
+                if not isinstance(turn, dict): raise ReportGenerationError('protocol_error')
+                if turn.get('id') != turn_id or params.get('turnId', turn_id) != turn_id: continue
+            elif params.get('turnId') != turn_id:
+                continue
             item = params.get('item', {})
             if method == 'error':
                 # A retry notice is not a completed/failed turn. Wait for the
                 # authoritative turn/completed event within the same deadline.
-                upstream_error = upstream_details(params.get('error'))
+                upstream_error = retain_upstream_details(upstream_error, params.get('error'))
             if method in ('item/started', 'item/completed'):
-                kind, item_id = item.get('type'), item.get('id')
-                if kind not in ('userMessage', 'agentMessage', 'reasoning', 'webSearch', 'plan', 'contextCompaction'):
-                    raise ReportGenerationError('scope_violation')
-                if kind == 'webSearch':
-                    if not value['research']: raise ReportGenerationError('scope_violation')
-                    action = item.get('action') or {}
-                    label = action.get('query') or item.get('query') or action.get('url') or '공개자료 확인'
-                    state.update(stage='researching', activity=str(label)[:240])
-                    if method == 'item/started':
-                        started_searches.add(item_id)
-                        searches.setdefault(item_id, [time.monotonic(), None])
-                    else:
-                        if item_id not in searches: searches[item_id] = [time.monotonic(), None]
-                        if searches[item_id][1] is None:
-                            searches[item_id][1] = time.monotonic(); evidence['web_search_calls'] += 1
-                        state['research_calls'] = evidence['web_search_calls']
-                    emit(True)
-                if kind == 'agentMessage' and method == 'item/completed':
-                    completed_message(item)
+                observe_item(item, completed=method == 'item/completed')
             if method == 'item/agentMessage/delta':
-                item_id = params['itemId']
+                item_id = params.get('itemId')
+                identify_item(item_id, 'agentMessage')
+                if not isinstance(params.get('delta'), str): raise ReportGenerationError('protocol_error')
                 text = buffers.get(item_id, '') + params['delta']
                 buffers[item_id] = text
                 if sum(map(len, buffers.values())) > 131072 or len(buffers) > 32: raise ReportGenerationError('output_limit')
@@ -161,17 +222,14 @@ def generate_stream(value, settings, directory, prompt, contract, progress, acti
                 if params['turn']['id'] != turn_id: continue
                 if params['turn']['status'] != 'completed':
                     raise ReportGenerationError('model_failed', **(upstream_details(params['turn'].get('error')) or upstream_error))
-                # Codex 0.153 also supplies the final agent message in the
-                # terminal turn summary. This is a completed-item fallback,
-                # never permission to promote an incomplete delta buffer.
+                # 0.153 currently summarizes only the final agent message.
+                # Also handle completed search payloads if supplied; this is
+                # defensive compatibility, not proof of a missing live event.
                 for completed in params['turn'].get('items', []):
-                    if completed.get('type') == 'agentMessage':
-                        completed_message(completed)
-                    elif completed.get('type') not in ('userMessage', 'reasoning', 'webSearch', 'plan', 'contextCompaction'):
-                        raise ReportGenerationError('scope_violation')
+                    observe_item(completed, completed=True, summary=True)
                 if final is None: raise ReportGenerationError('incomplete_output')
                 if value['research'] and not evidence['web_search_calls'] and research_policy(value) == 'require_completed':
-                    raise ReportGenerationError('research_unavailable')
+                    raise ReportGenerationError('research_unavailable', **upstream_error)
                 ended = time.monotonic()
                 state['timings'].update(generation_ms=round((ended-started)*1000),
                     text_ms=round((ended-first_text)*1000) if first_text else None)
@@ -187,4 +245,6 @@ def generate_stream(value, settings, directory, prompt, contract, progress, acti
                 evidence.update(completed=True, timings=dict(state['timings']),
                     web_search_started=len(started_searches),
                     web_search_incomplete=sum(searches[item_id][1] is None for item_id in started_searches))
+                if upstream_error:
+                    evidence['upstream_diagnostics'] = dict(upstream_error)
                 return apply_research_policy(value, draft, evidence)
