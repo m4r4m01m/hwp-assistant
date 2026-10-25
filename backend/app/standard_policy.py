@@ -102,25 +102,16 @@ def line_fields():
     original_break = "WORD" if breaking == {("BREAK_WORD", "KEEP_WORD")} else "CHARACTER" if breaking == {("KEEP_WORD", "BREAK_WORD")} else None
     break_label = {"WORD": "단어·어절 유지", "CHARACTER": "글자 단위"}.get(original_break, "역할별 줄바꿈")
     original_compression = next((key for key, value in SPACE_COMPRESSION_PERCENT.items() if condense == [value]), None)
-    role_names = {"square": "□ 항목", "circle": "ㅇ 항목", "dash": "- 항목", "dot": "․ 항목", "heading": "문단 1단계", "subheading": "2단계", "minor_heading": "3단계", "numbered_4": "4단계", "numbered_5": "5단계", "numbered_6": "6단계", "table": "표", "note": "본문 주석", "table_source": "표 주석"}
-    original_groups = {}
-    for role, name in role_names.items():
-        breaking = roles[role]["para"].find(f"{{{HH}}}breakSetting")
-        pair = ("어절" if breaking.get("breakNonLatinWord") == "BREAK_WORD" else "글자",
-                "단어" if breaking.get("breakLatinWord") == "KEEP_WORD" else "글자")
-        original_groups.setdefault(pair, []).append(name)
-    original_breaks = "; ".join(f"{'·'.join(names)}: 한글 {korean}, 영문 {latin}"
-                                for (korean, latin), names in original_groups.items())
     compression_label = "·".join(str(value) + "%" for value in condense)
     break_help = {
-        "ORIGINAL": "기준서의 역할별 줄바꿈을 유지합니다. " + original_breaks + ".",
-        "WORD": "한글은 띄어쓰기로 구분한 어절, 영문은 단어를 같은 줄에 유지합니다. 남은 폭에 들어가지 않으면 다음 줄로 넘기며, 한 줄보다 긴 단어는 나뉠 수 있습니다. 본문·문단 구분·표·주석에 적용합니다.",
-        "CHARACTER": "한글과 영문 모두 글자 단위로 다음 줄에 이어 씁니다. 단어 중간에서도 줄이 바뀔 수 있습니다. 본문·문단 구분·표·주석에 적용합니다.",
+        "ORIGINAL": "기준서에 지정된 문단별 줄바꿈을 유지합니다.",
+        "WORD": "한글 어절·영문 단어를 가급적 같은 줄에 둡니다. 남은 폭에 들어가지 않으면 다음 줄로 넘깁니다.",
+        "CHARACTER": "단어 중간에서도 글자 단위로 줄을 바꿉니다.",
     }
     space_help = {
-        "ORIGINAL": f"기준서의 역할별 공백 압축값({compression_label})을 유지합니다. 글자 자간 보정과는 별개입니다.",
-        "NONE": "단어 사이 빈칸을 압축하지 않습니다. 글자 자간 보정과 문단 정렬은 현재 설정을 따릅니다.",
-        **{key: f"다음 단어가 같은 줄에 들어갈 수 있을 때 그 줄의 빈칸 너비를 최대 {percent}% 줄입니다. ‘단어·어절 유지’에서도 압축 후 다음 어절이 들어가지 않거나 줄이 이미 빽빽하면 줄바꿈은 그대로입니다. 글자 자간을 {percent}% 줄이는 기능이 아닙니다."
+        "ORIGINAL": f"기준서의 공백 압축값({compression_label})을 유지합니다.",
+        "NONE": "단어 사이 빈칸을 압축하지 않습니다.",
+        **{key: f"다음 단어가 들어갈 때만 그 줄의 빈칸을 최대 {percent}% 줄입니다. 글자 간격은 바꾸지 않습니다."
            for key, percent in SPACE_COMPRESSION_PERCENT.items() if percent},
     }
     return [
@@ -133,10 +124,10 @@ def line_fields():
         dict(key="line_space_policy", label="줄 끝 공백 압축", group="줄바꿈·줄 채움", type="select", optional=True, default="ORIGINAL",
              options=[dict(value="ORIGINAL", label=f"기준서 값 · 공백 압축 {compression_label}"),
                       *[dict(value=key, label=f"빈칸 너비의 최대 {percent}%" if percent else "사용 안 함 · 0%") for key, percent in SPACE_COMPRESSION_PERCENT.items()]],
-             help="줄 끝에 다음 단어가 들어갈 수 있도록 빈칸 너비를 줄이는 설정입니다. 글자 자간 보정과는 별개입니다.", help_by_value=space_help,
+             help="다음 단어가 같은 줄에 들어갈 수 있도록 빈칸만 줄입니다.", help_by_value=space_help,
              option_aliases={"ORIGINAL": original_compression} if original_compression else {}),
         dict(key="body_tracking_percent", label="문단 내용 자간 보정", group="줄바꿈·줄 채움", type="number", optional=True, default=0, min=-20, max=50, step=1, unit="%",
-             help="입력 가능한 보정 범위는 -20%~+50%이며 현재 값은 입력칸에 표시됩니다. 각 기호 항목의 자간에 이 값을 더합니다. 예를 들어 항목 자간이 0%일 때 -5%를 입력하면 글자 크기의 5%만큼 글자 사이를 좁힙니다. 음수는 좁게, 양수는 넓게, 0은 유지합니다. 항목별 최종 자간도 -20%~+50% 안에서 적용하며, 빈칸만 줄이는 공백 압축과는 별개입니다."),
+             help="각 기호 항목의 자간에 더하는 값입니다. -5%처럼 음수는 좁히고, 0%는 유지하며 양수는 넓힙니다."),
         dict(key="cover_mode", label="표지", group="문서 구성", type="select", optional=True, default="ORIGINAL", options=[dict(value=v, label=l) for v, l in (("ORIGINAL", "기본 별첨 구성"), ("OFF", "없음"), ("ON", "사용"))]),
         dict(key="toc_mode", label="목차", group="문서 구성", type="select", optional=True, default="ORIGINAL", options=[dict(value=v, label=l) for v, l in (("ORIGINAL", "기본 별첨 구성"), ("NONE", "없음"), ("SEPARATE", "별도 쪽"), ("COVER", "표지 안 · 표지가 없으면 별도 쪽"))]),
         dict(key="reference_list", label="참고·출처 목록", group="문서 구성", type="select", optional=True, default="LOCAL", options=[dict(value=v, label=l) for v, l in (("LOCAL", "인용 위치 주석 · 미인용 자료만 끝에"), ("ALL", "주석과 별도 전체 출처 목록"))], help="출처는 삭제하지 않습니다. 전체 목록을 켜면 같은 출처를 문서 끝에서도 확인할 수 있습니다."),
