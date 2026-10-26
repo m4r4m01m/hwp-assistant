@@ -120,19 +120,27 @@ def fail_report(row, exc):
 
 def run_report(engine, task_id, user, value, settings):
     from .report_rpc import ReportStopped
+    from .account_settings import registered_codex_allowed
+
+    def check_account_access():
+        if not registered_codex_allowed(user, engine):
+            raise ReportGenerationError("access_revoked")
     def active():
         with transaction(engine) as db:
             row = lock_report(db, task_id, user)
-            return row.status == "running" and time.time() - row.created_at <= settings.timeout + 30
+            return (row.status == "running" and time.time() - row.created_at <= settings.timeout + 30
+                    and registered_codex_allowed(user, engine))
     def progress(value):
         with transaction(engine) as db:
             row = lock_report(db, task_id, user)
             if row.status != "running" or time.time() - row.created_at > settings.timeout + 30:
                 raise ReportStopped("Report reception stopped")
+            check_account_access()
             execution = json.loads(row.execution)
             execution["progress"] = {**value, "revision": execution.get("progress", {}).get("revision", 0) + 1}
             row.execution = canonical(execution)
     try:
+        check_account_access()
         draft, evidence = generate_report(value, settings, progress, active)
         draft = ReportDraft.model_validate(draft).model_dump()
         check_outline(value, draft)
@@ -147,6 +155,7 @@ def run_report(engine, task_id, user, value, settings):
             row = lock_report(db, task_id, user)
             if row.status != "running":
                 return
+            check_account_access()
             if time.time() - row.created_at > settings.timeout + 30:
                 fail_report(row, ReportGenerationError("timeout"))
                 return
@@ -156,6 +165,8 @@ def run_report(engine, task_id, user, value, settings):
             row.execution = canonical(execution)
             row.status = "ready"
     except Exception as exc:
+        if not registered_codex_allowed(user, engine):
+            exc = ReportGenerationError("access_revoked")
         with transaction(engine) as db:
             row = lock_report(db, task_id, user)
             if row.status == "running":

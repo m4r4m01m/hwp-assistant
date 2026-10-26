@@ -1,6 +1,6 @@
 """Password accounts for a bounded PoC. Static automation tokens remain separate.
 
-No public member directory, plaintext password storage, or automatic Codex grants.
+No public member directory or plaintext password storage. New signups await review.
 The shared guest identity deliberately retains its existing document ownership.
 """
 import hashlib
@@ -33,6 +33,10 @@ class UserAccount(Base):
     employee_number: Mapped[str | None] = mapped_column(String(32), unique=True, nullable=True)
     kind: Mapped[str] = mapped_column(String(12), default="member")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    role: Mapped[str] = mapped_column(String(12), default="member", server_default="member")
+    approval_status: Mapped[str] = mapped_column(String(12), default="approved", server_default="approved")
+    reviewed_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    reviewed_at: Mapped[float | None] = mapped_column(Float, nullable=True)
     session_revision: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[float] = mapped_column(Float)
     last_login_at: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -52,6 +56,7 @@ class AccountPolicy:
     maximum: int
     # Explicit public synthetic labels only, never a directory of account rows.
     sample_accounts: tuple[tuple[str, str], ...] = ()
+    require_approval: bool = True
 
     @classmethod
     def from_env(cls):
@@ -60,7 +65,8 @@ class AccountPolicy:
         maximum = int(os.getenv("HWP_REGISTRATION_MAX_USERS", "100"))
         if not 1 <= maximum <= 10000 or registration and not enabled:
             raise ValueError("Enable accounts before registration; maximum must be 1..10000")
-        return cls(enabled, registration, maximum, sample_account_settings(enabled))
+        return cls(enabled, registration, maximum, sample_account_settings(enabled),
+                   flag("HWP_REGISTRATION_REQUIRE_APPROVAL", "1"))
 
 
 def sample_account_settings(accounts_enabled):
@@ -112,7 +118,7 @@ def public_sample_accounts(db, policy):
         return []
     ids = [user for user, _ in policy.sample_accounts]
     active = set(db.scalars(select(UserAccount.user_id).where(
-        UserAccount.user_id.in_(ids), UserAccount.is_active.is_(True), UserAccount.kind == "member")))
+        UserAccount.user_id.in_(ids), UserAccount.is_active.is_(True), UserAccount.approval_status == "approved", UserAccount.kind == "member")))
     return [{"user_id": user, "label": label} for user, label in policy.sample_accounts if user in active]
 
 
@@ -157,13 +163,13 @@ def session_binding(row):
 def account_exists(engine, user):
     with Session(engine) as db:
         row = db.get(UserAccount, user)
-        return bool(row and row.is_active)
+        return bool(row and row.is_active and row.approval_status == "approved")
 
 
 def require_active_if_registered(engine, user):
     with Session(engine) as db:
         row = db.get(UserAccount, user)
-        if row is not None and not row.is_active:
+        if row is not None and (not row.is_active or row.approval_status != "approved"):
             raise HTTPException(401, "이 계정은 비활성화되어 있습니다.")
 
 
@@ -177,7 +183,13 @@ def historical_identity_in_use(db, user):
     from .db import (Access, Application, AuthSession, Conversation, ConversationTurn,
                      LeaseOwner, Message, Proposal, ReportTask, RewriteTask,
                      TemplateFavorite, VersionAuthor, VisualStandard)
-    columns = (Access.user_id, Application.approved_by, AuthSession.user_id,
+    from .audit import AuditEvent
+    from .account_notifications import RegistrationNotification
+    if db.scalar(select(AuditEvent.id).where(AuditEvent.target_type == "account",
+                 func.lower(AuditEvent.target_id) == user).limit(1)) is not None:
+        return True
+    columns = (AuditEvent.actor_id, RegistrationNotification.user_id,
+               Access.user_id, Application.approved_by, AuthSession.user_id,
                Conversation.owner_id, ConversationTurn.requested_by,
                LeaseOwner.user_id, Message.author_id, Proposal.author_id,
                ReportTask.owner_id, RewriteTask.requested_by,
@@ -319,6 +331,7 @@ async def read_input(request, model):
 
 def install_accounts(app, policy, session_policy):
     from .auth import COOKIE, issue_session
+    from .audit import record_event
     engine, tokens = app.state.engine, app.state.users
     limiter = AttemptLimiter()
     app.state.account_limiter = limiter
@@ -343,9 +356,15 @@ def install_accounts(app, policy, session_policy):
         def operation():
             with Session(engine) as db:
                 row = db.get(UserAccount, value.username)
-                encoded = row.password_hash if row and row.is_active else DUMMY_HASH
+                # Pending users can see the review notice only after proving the
+                # password. Absent/rejected/disabled users retain generic errors.
+                encoded = row.password_hash if row and (row.is_active or row.approval_status == "pending") else DUMMY_HASH
                 valid = verify_password(value.password, encoded)
-                if not row or not row.is_active or not valid:
+                if not row or not valid:
+                    raise HTTPException(401, "아이디 또는 비밀번호를 확인하세요.")
+                if row.approval_status == "pending":
+                    raise HTTPException(403, "관리자 승인을 기다리고 있습니다. 승인 후 로그인할 수 있습니다.")
+                if not row.is_active or row.approval_status != "approved":
                     raise HTTPException(401, "아이디 또는 비밀번호를 확인하세요.")
                 user, binding = public_account(row), session_binding(row)
             return response_for(user, binding, request)
@@ -358,7 +377,7 @@ def install_accounts(app, policy, session_policy):
             raise HTTPException(403, "현재 새 계정 생성을 받지 않습니다. 관리자에게 문의하세요.")
         value = await read_input(request, Register)
         limiter.charge(request.client.host if request.client else "unknown", value.username, registration=True)
-        reserved = {"guest", "local", os.getenv("HWP_CODEX_USER", "local").lower(), *(user.lower() for user in tokens)}
+        reserved = {"guest", "admin", "local", os.getenv("HWP_CODEX_USER", "local").lower(), *(user.lower() for user in tokens)}
         # A missing configured sample must not be claimed through public signup.
         reserved.update(user for user, _ in policy.sample_accounts)
         # A pre-authorized identity must be created by the operator, not claimed
@@ -378,14 +397,26 @@ def install_accounts(app, policy, session_policy):
                     if historical_identity_in_use(db, value.username):
                         raise HTTPException(409, "이 아이디 또는 사번으로 계정을 만들 수 없습니다.")
                     row = UserAccount(user_id=value.username, password_hash=encoded, name=value.name,
-                        employee_number=value.employee_number, kind="member", is_active=True,
+                        employee_number=value.employee_number, kind="member", is_active=not policy.require_approval,
+                        role="member", approval_status="pending" if policy.require_approval else "approved",
                         session_revision=secrets.token_hex(32), created_at=time.time())
                     db.add(row)
                     db.flush()
                     user, binding = public_account(row), session_binding(row)
+                    record_event(db, row.user_id, "account.signup", "account", row.user_id,
+                                 details={"outcome": row.approval_status})
+                    if policy.require_approval:
+                        from .account_notifications import enqueue_registration_notification
+                        enqueue_registration_notification(db, row.user_id)
             except IntegrityError:
                 raise HTTPException(409, "이 아이디 또는 사번으로 계정을 만들 수 없습니다.") from None
-            # Commit precedes session issuance. A lost reply is recovered by
-            # signing in, never overwriting the existing account's credentials.
+            # Commit precedes both notification and session issuance. A pending
+            # signup never receives a cookie, document access, or AI capability.
+            if policy.require_approval:
+                from starlette.background import BackgroundTask
+                from .account_notifications import deliver_safely
+                return JSONResponse({"status": "pending", "user_id": user["user_id"],
+                    "message": "가입 요청을 접수했습니다. 관리자 승인 후 로그인할 수 있습니다."}, status_code=202,
+                    background=BackgroundTask(deliver_safely, engine, user["user_id"]))
             return response_for(user, binding, request)
         return await run_in_threadpool(limiter.run, operation)

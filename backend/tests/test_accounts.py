@@ -23,6 +23,9 @@ TOKENS = {"guest": "synthetic-guest-" + "a" * 32, "owner": "synthetic-owner-" + 
 def accounts(tmp_path, monkeypatch):
     monkeypatch.setenv("HWP_ACCOUNTS_ENABLED", "1")
     monkeypatch.setenv("HWP_REGISTRATION_ENABLED", "1")
+    # Preserve legacy immediate-registration coverage explicitly. New default
+    # approval flows are verified separately in test_account_management.py.
+    monkeypatch.setenv("HWP_REGISTRATION_REQUIRE_APPROVAL", "0")
     monkeypatch.setenv("HWP_AUTH_TOKENS", json.dumps(TOKENS))
     monkeypatch.setenv("HWP_GUEST_PASSWORD", PASSWORD)
     monkeypatch.setenv("HWP_CODEX_USER", "owner")
@@ -46,7 +49,7 @@ def test_signup_hash_private_profile_session_and_logout(accounts):
     c, app, _, _ = accounts
     policy = c.get("/api/auth/status")
     assert policy.headers["cache-control"] == "no-store"
-    assert policy.json() == dict(authentication_required=True, accounts_enabled=True, registration_enabled=True, guest_enabled=True, sample_accounts=[])
+    assert policy.json() == dict(authentication_required=True, accounts_enabled=True, registration_enabled=True, registration_requires_approval=False, guest_enabled=True, sample_accounts=[], library_access_mode="private", token_login_enabled=True)
     response = register(c)
     assert response.status_code == 200, response.text
     assert response.json() == {"user_id": "alice", "name": "합성 검수자", "kind": "member"}
@@ -179,8 +182,10 @@ def test_signup_no_automatic_local_development_bypass(tmp_path, monkeypatch):
     monkeypatch.setenv("HWP_AUTH_TOKENS", "")
     with TestClient(create_app("sqlite:///" + str(tmp_path / "isolated.db"), tmp_path / "files")) as c:
         assert c.get("/api/documents").status_code == 401
-        assert register(c).status_code == 200
-        assert c.get("/api/auth/me").json()["authentication_required"] is True
+        assert register(c).status_code == 202
+        assert c.get("/api/auth/me").status_code == 401
+        assert c.get("/api/auth/status").json()["authentication_required"] is True
+        assert login(c, "alice").status_code == 403
 
 
 def test_rate_limit_is_bounded_before_hash_and_honors_retry_after(accounts, monkeypatch):

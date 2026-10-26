@@ -1,3 +1,4 @@
+from .library_access import document_role
 """One frozen selection -> configured generator -> candidates -> approval -> version."""
 from .codex_runtime import allowed as codex_allowed, require_ready as require_codex_ready, reserve_usage as reserve_codex_usage
 import io
@@ -284,8 +285,8 @@ def install_rewrite(app, check_lease):
             if not thread:
                 raise HTTPException(404, "대화를 찾을 수 없습니다.")
             doc = require_access(db, thread.document_id, request.state.user)
-            grant = db.get(Access, (doc.id, request.state.user))
-            if not grant:
+            grant_role = document_role(db, doc.id, request.state.user)
+            if grant_role is None:
                 raise HTTPException(404, "문서를 찾을 수 없습니다.")
             rows = db.scalars(select(RewriteTask).where(RewriteTask.conversation_id == thread_id).order_by(RewriteTask.created_at.desc()))
             result = []
@@ -298,8 +299,8 @@ def install_rewrite(app, check_lease):
                     "status": effective_status(row),
                     "error": row.error or ("제한 시간 안에 완료 응답을 확인하지 못했습니다. 원문과 후보는 보존되며 자동 재실행하지 않습니다." if effective_status(row) == "expired" else ""),
                     "execution": public_execution(row),
-                    "can_cancel": row.status == "running" and grant.role != "reader" and
-                        (row.requested_by == request.state.user or grant.role == "owner"),
+                    "can_cancel": row.status == "running" and grant_role != "reader" and
+                        (row.requested_by == request.state.user or grant_role == "owner"),
                     "stale": doc.current_version != row.base_version or (changed_context and not application),
                     "context_stale": changed_context,
                     "candidates": [{"id": c.id, "ordinal": c.ordinal, "replacement": c.replacement, "reason": c.reason} for c in choices],

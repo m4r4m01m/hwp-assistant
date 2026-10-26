@@ -3,6 +3,8 @@ import os
 import secrets
 import time
 import uuid
+import asyncio
+from contextlib import suppress
 from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException, Header, Query
@@ -22,12 +24,15 @@ from .rewrite_capacity import ExecutionSlot
 from .auth import (
     COOKIE, LOGIN_REQUIRED, LoginRateLimiter, SessionPolicy, allowed_hosts, authenticate, authenticate_session,
     credentials, issue_session, request_origin, require_access, bind_lease, require_lease_owner,
-    revoke_session,
+    revoke_session, require_password_session,
 )
 from .schema import migrate
 from .accounts import AccountPolicy, UserAccount, initialize_accounts, install_accounts, require_active_if_registered, public_sample_accounts
 from .changes import apply_delta, describe_changes
 from .rewrite_jobs import invalidate_running
+from .audit import actor_context, record_event
+from .account_settings import engine_context
+from .library_access import library_mode, shared_library, document_role
 
 
 class Name(BaseModel):
@@ -45,6 +50,10 @@ class Review(BaseModel):
 def create_app(database_url=None, storage_dir=None):
     users = credentials()
     account_policy = AccountPolicy.from_env()
+    library_mode()
+    legacy_tokens_enabled = os.getenv("HWP_LEGACY_TOKEN_ACCESS_ENABLED", "1")
+    if legacy_tokens_enabled not in {"0", "1"} or (legacy_tokens_enabled == "0" and not account_policy.enabled):
+        raise ValueError("Disabling legacy token access requires password accounts")
     authentication_required = bool(users) or account_policy.enabled
     session_policy = SessionPolicy.from_env()
     hosts = allowed_hosts()
@@ -59,11 +68,17 @@ def create_app(database_url=None, storage_dir=None):
     async def lifespan(app):
         migrate(engine, users)
         initialize_accounts(engine, account_policy, users)
+        from .account_notifications import notification_loop
+        notifications = asyncio.create_task(notification_loop(engine)) if account_policy.enabled else None
         try:
             async with pooled_client() as client:
                 app.state.llm_client = client
                 yield
         finally:
+            if notifications is not None:
+                notifications.cancel()
+                with suppress(asyncio.CancelledError):
+                    await notifications
             engine.dispose()
 
     app = FastAPI(title="HWPX 공용 문서함", lifespan=lifespan)
@@ -87,6 +102,8 @@ def create_app(database_url=None, storage_dir=None):
             # No CORS. SameSite cookies and this check also reject simple cross-origin POSTs.
             if request.method not in ("GET", "HEAD", "OPTIONS") and origin and origin != expected_origin:
                 raise HTTPException(403, "다른 출처의 쓰기 요청은 허용하지 않습니다.")
+            if path.startswith("/api/admin/") and not account_policy.enabled:
+                raise HTTPException(404, "계정 관리가 활성화되지 않았습니다.")
             public = (request.method, path) in {
                 ("GET", "/api/health"), ("GET", "/api/auth/status"),
                 ("POST", "/api/auth/login"), ("POST", "/api/auth/logout"),
@@ -106,6 +123,8 @@ def create_app(database_url=None, storage_dir=None):
                 elif not authentication_required:
                     request.state.user = "local"
                 elif authorization:
+                    if legacy_tokens_enabled == "0":
+                        raise HTTPException(401, LOGIN_REQUIRED)
                     # Static credentials remain supported only for explicit automation Bearer auth.
                     request.state.user = authenticate(token, users)
                 else:
@@ -113,6 +132,8 @@ def create_app(database_url=None, storage_dir=None):
                     request.state.user = await run_in_threadpool(
                         authenticate_session, engine, request.cookies.get(COOKIE, ""), users, session_policy, account_policy.enabled
                     )
+                    if legacy_tokens_enabled == "0":
+                        await run_in_threadpool(require_password_session, engine, request.cookies.get(COOKIE, ""))
                 if account_policy.enabled:
                     await run_in_threadpool(require_active_if_registered, engine, request.state.user)
         except HTTPException as exc:
@@ -123,7 +144,13 @@ def create_app(database_url=None, storage_dir=None):
                 response.delete_cookie(COOKIE, path="/api", httponly=True, samesite="strict",
                                        secure=request.scope.get("scheme") == "https")
             return response
-        response = await call_next(request)
+        actor_token = actor_context.set(getattr(request.state, "user", None))
+        engine_token = engine_context.set(engine if account_policy.enabled else None)
+        try:
+            response = await call_next(request)
+        finally:
+            actor_context.reset(actor_token)
+            engine_context.reset(engine_token)
         if api_path:
             response.headers["Cache-Control"] = "no-store"
         return response
@@ -265,8 +292,11 @@ def create_app(database_url=None, storage_dir=None):
         return {"authentication_required": authentication_required,
                 "accounts_enabled": account_policy.enabled,
                 "registration_enabled": account_policy.enabled and account_policy.registration,
+                "registration_requires_approval": account_policy.require_approval,
                 "guest_enabled": guest_enabled,
-                "sample_accounts": sample_accounts}
+                "sample_accounts": sample_accounts,
+                "library_access_mode": library_mode(),
+                "token_login_enabled": legacy_tokens_enabled == "1"}
 
     class Login(BaseModel):
         token: str = Field(min_length=24, max_length=500)
@@ -289,6 +319,8 @@ def create_app(database_url=None, storage_dir=None):
 
     @app.post("/api/auth/login")
     def login(value: Login, request: Request):
+        if legacy_tokens_enabled == "0":
+            raise HTTPException(403, "아이디와 비밀번호로 로그인하세요.")
         if not users:
             raise HTTPException(400, "단일 사용자 개발 모드입니다.")
         user = app.state.login_limiter.authenticate(
@@ -306,7 +338,15 @@ def create_app(database_url=None, storage_dir=None):
     @app.post("/api/auth/logout")
     def logout(request: Request):
         # Idempotent even for an expired session; never revoke an automation credential.
+        try:
+            actor = authenticate_session(engine, request.cookies.get(COOKIE, ""), users,
+                                         session_policy, account_policy.enabled)
+        except HTTPException:
+            actor = None
         revoke_session(engine, request.cookies.get(COOKIE, ""))
+        if actor:
+            with transaction(engine) as db:
+                record_event(db, actor, "account.logout", "account", actor)
         response = JSONResponse({"ok": True})
         response.delete_cookie(COOKIE, path="/api", httponly=True, samesite="strict",
                                secure=request.scope.get("scheme") == "https")
@@ -318,7 +358,10 @@ def create_app(database_url=None, storage_dir=None):
             row = db.get(UserAccount, request.state.user) if account_policy.enabled else None
             return {"user_id": request.state.user, "authentication_required": authentication_required,
                     "name": row.name if row else request.state.user,
-                    "kind": row.kind if row else "legacy"}
+                    "kind": row.kind if row else "legacy",
+                    "library_access_mode": library_mode(),
+                    "is_admin": bool(row and row.role == "admin" and row.is_active
+                                     and row.approval_status == "approved")}
 
     @app.get("/api/health")
     def health():
@@ -327,6 +370,9 @@ def create_app(database_url=None, storage_dir=None):
     @app.get("/api/documents")
     def documents(request: Request, q: str = Query("", max_length=200)):
         with Session(engine) as db:
+            if shared_library(db, request.state.user):
+                return [{**doc_dict(doc), "role": "owner"} for doc in db.scalars(
+                    select(Document).where(Document.name.contains(q, autoescape=True)).order_by(Document.created_at.desc()))]
             return [
                 {**doc_dict(d), "role": role}
                 for d, role in db.execute(
@@ -411,7 +457,7 @@ def create_app(database_url=None, storage_dir=None):
             return {
                 "token": doc.lease_token,
                 "expires_at": doc.lease_until,
-                "document": {**doc_dict(doc), "role": db.get(Access, (doc.id, request.state.user)).role},
+                "document": {**doc_dict(doc), "role": document_role(db, doc.id, request.state.user)},
             }
 
     @app.put("/api/documents/{doc_id}/session")
@@ -449,11 +495,13 @@ def create_app(database_url=None, storage_dir=None):
 
     @app.get("/api/documents/{doc_id}/versions/{version_id}/file")
     def download(doc_id: str, version_id: str, request: Request):
-        with Session(engine) as db:
+        with transaction(engine) as db:
             doc = require_access(db, doc_id, request.state.user)
             v = db.get(Version, version_id)
             if not doc or not v or v.document_id != doc_id:
                 raise HTTPException(404, "버전을 찾을 수 없습니다.")
+            record_event(db, request.state.user, "document.download", "document", doc.id,
+                         document_id=doc.id, version_id=v.id, document_name=doc.name)
             return FileResponse(
                 folder / v.storage_key,
                 filename=doc.name,
@@ -622,6 +670,12 @@ def create_app(database_url=None, storage_dir=None):
     install_reports(app, publish, check_lease, doc_dict)
     install_capabilities(app)
     install_accounts(app, account_policy, session_policy)
+    from .account_management import install_account_management
+    install_account_management(app)
+    from .audit import install_audit
+    install_audit(app)
+    from .account_settings import install_account_settings
+    install_account_settings(app)
     from .ai_connection import install_ai_connection
     install_ai_connection(app)
     app.add_middleware(RequestTelemetry, runtime=app)

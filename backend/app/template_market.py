@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from .auth import require_access
 from .db import Access, Template, TemplateCatalog, TemplateFavorite, Version, transaction
+from .library_access import document_role
 from .hwpx import digest, validate
 
 Category = Literal["보고서", "회의록", "계획서", "점검표", "기타"]
@@ -79,7 +80,7 @@ def item_value(db, row, user, doc=None):
         **{key: getattr(row, key) for key in ("id", "name", "description", "document_id", "version_id", "created_at")},
         "tags": json.loads(row.tags), "category": category, "revision": revision,
         "favorite": db.get(TemplateFavorite, (row.id, user)) is not None,
-        "can_manage": db.get(Access, (row.document_id, user)).role in ("owner", "editor"),
+        "can_manage": document_role(db, row.document_id, user) in ("owner", "editor"),
         "sha256": version.sha256, "size": version.size, "source_name": display_source_name(doc),
     }
 
@@ -140,8 +141,11 @@ def install_template_market(app, locked):
                 favorite: bool = False, sort: Literal["newest", "name", "relevance"] = "newest",
                 offset: int = Query(0, ge=0), limit: int = Query(24, ge=1, le=100)):
         with Session(engine) as db:
-            rows = db.scalars(select(Template).join(Access, Access.document_id == Template.document_id)
-                              .where(Access.user_id == request.state.user))
+            from .library_access import shared_library
+            query = select(Template)
+            if not shared_library(db, request.state.user):
+                query = query.join(Access, Access.document_id == Template.document_id).where(Access.user_id == request.state.user)
+            rows = db.scalars(query)
             results = []
             for row in rows:
                 version = db.get(Version, row.version_id)

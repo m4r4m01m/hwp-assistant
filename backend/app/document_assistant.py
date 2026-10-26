@@ -1,3 +1,4 @@
+from .library_access import document_role
 """Document conversations with frozen live-editor context and explicit edit proposals."""
 from .codex_runtime import allowed as codex_allowed, require_ready as require_codex_ready, reserve_usage as reserve_codex_usage
 import json
@@ -259,6 +260,10 @@ def require_current(db, row, doc):
     require_access(db, doc.id, row.requested_by, "editor", fresh=True)
     require_lease_owner(db, doc, row.requested_by, fresh=True)
     execution = json.loads(row.execution)
+    if execution.get("provider") == "codex":
+        from .account_settings import registered_codex_allowed
+        if not registered_codex_allowed(row.requested_by, db.get_bind()):
+            raise HTTPException(403, "계정 또는 AI 이용 권한이 변경되어 답변 생성을 중단했습니다.")
     if status(row) != "running" or doc.current_version != row.base_version:
         raise HTTPException(409, "질문이 종료됐거나 문서의 저장 버전이 바뀌었습니다.")
     if doc.lease_until <= time.time() or not secrets.compare_digest(execution["_lease_sha256"], digest((doc.lease_token or "").encode())):
@@ -356,7 +361,7 @@ def install_document_assistant(app, check_lease):
                 doc = require_access(db, thread.document_id, request.state.user, "editor", lock=True)
                 fingerprint = digest(canonical(request_payload(value)).encode())
                 old = db.get(ConversationTurn, str(value.id))
-                role = db.get(Access, (doc.id, request.state.user)).role
+                role = document_role(db, doc.id, request.state.user)
                 if old:
                     if old.conversation_id != thread_id or old.requested_by != request.state.user or old.request_sha256 != fingerprint:
                         raise HTTPException(409, "같은 질문 ID의 내용 또는 사용자가 다릅니다.")
@@ -419,7 +424,7 @@ def install_document_assistant(app, check_lease):
             if not thread:
                 raise HTTPException(404, "대화를 찾을 수 없습니다.")
             doc = require_access(db, thread.document_id, request.state.user)
-            role = db.get(Access, (doc.id, request.state.user)).role
+            role = document_role(db, doc.id, request.state.user)
             rows = db.scalars(select(ConversationTurn).where(ConversationTurn.conversation_id == thread_id)
                 .order_by(ConversationTurn.created_at.desc()).limit(100))
             return [public_turn(row, doc, request.state.user, role) for row in rows]
@@ -431,7 +436,7 @@ def install_document_assistant(app, check_lease):
             if not row:
                 raise HTTPException(404, "질문을 찾을 수 없습니다.")
             doc = require_access(db, row.document_id, request.state.user)
-            return public_turn(row, doc, request.state.user, db.get(Access, (doc.id, request.state.user)).role)
+            return public_turn(row, doc, request.state.user, document_role(db, doc.id, request.state.user))
 
     @app.post("/api/assistant-turns/{turn_id}/cancel")
     def cancel(turn_id: str, request: Request):
@@ -445,4 +450,4 @@ def install_document_assistant(app, check_lease):
                     raise HTTPException(409, "이미 종료된 질문입니다.")
                 row.status, row.error = "cancelled", "답변 수신을 중단했습니다. 문서는 변경되지 않았습니다."
                 row.execution = canonical({**json.loads(row.execution), "completed": False, "outcome": "cancelled", "finished_at": time.time()})
-            return public_turn(row, doc, request.state.user, db.get(Access, (doc.id, request.state.user)).role)
+            return public_turn(row, doc, request.state.user, document_role(db, doc.id, request.state.user))
