@@ -81,6 +81,20 @@ class BuildCacheContracts(unittest.TestCase):
         self.assertLess(workflow.index("bash ../scripts/deploy/run-browser-checks.sh"), workflow.index("Authenticate to GHCR only after verification"))
         self.assertLess(workflow.index("--grep 'CI TLS:'"), workflow.index("  build-verify-publish:"))
 
+    def test_both_container_workflows_prepare_the_webhook_network_before_startup(self):
+        for filename, job in (("hwp-deploy.yml", "build-verify-publish"),
+                              ("poc-integration.yml", "container-regression")):
+            with self.subTest(workflow=filename):
+                workflow = (ROOT / ".github/workflows" / filename).read_text()
+                body = workflow.split(f"\n  {job}:\n", 1)[1]
+                body = re.split(r"(?m)^  [\w-]+:\s*$", body, maxsplit=1)[0]
+                self.assertIn("runs-on: ubuntu-24.04", body)
+                create = "run: docker network create --driver bridge --internal hwp-mattermost-hook"
+                self.assertEqual(body.count(create), 1)
+                startup = re.search(r"(?m)^ +docker compose [^\n]* up -d\b", body)
+                self.assertIsNotNone(startup, "Missing Compose startup")
+                self.assertLess(body.index(create), startup.start())
+
 
 class RestartSmokeOrchestration(unittest.TestCase):
     def run_restart_step(self, fail_operation=""):
