@@ -321,7 +321,7 @@ test("MOCK UI: idle rewrite history does not poll, and hidden tools stop active 
   await openEditor(page);
   await page.getByRole("button", { name: "문서 AI 대화 열기", exact: true }).click();
   await page.getByLabel("대화 선택").selectOption("thread-one");
-  await page.getByText("문단 수정 후보 · 직접 요청", { exact: true }).click();
+  await page.getByText("문단 수정 후보 기록", { exact: true }).click();
   await expect(page.getByTestId("rewrite-provider")).toContainText("로컬·사내 모델");
   const idleReads = reads;
   await page.clock.install();

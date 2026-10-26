@@ -29,6 +29,19 @@
   "typescript": "passed",
   "actual_codex_report_calls": 2,
   "actual_codex_evidence": "report-wording-actual-2026-10-27.json",
+  "recorded_codex_native_render_evidence": "report-wording-native-2026-10-27.json",
+  "followup_checks": [
+    {"source": "75c1b2c4c89bae7c6097d3306990e3ff04a35311", "group": "lost restore response lease renewal and explicit expiry UI", "passed": 2},
+    {"source": "1639748c293d07dd4c9e4a36824eb8f0bcbeb43c", "group": "assistant completion schemas and document rewrite", "passed": 93},
+    {"source": "1639748c293d07dd4c9e4a36824eb8f0bcbeb43c", "group": "rich report bounds and real process restart", "passed": 19}
+  ],
+  "ci_python": {
+    "source": "1639748c293d07dd4c9e4a36824eb8f0bcbeb43c",
+    "run_id": 40368691770,
+    "job_id": 121733840998,
+    "passed": 1555,
+    "scope": "full pytest on Linux Python 3.14; separate from later workflow revisions and other CI jobs"
+  },
   "history_preserved": ["original and historical HWPX blobs", "frozen report inputs and hashes", "shared branch history", "user runtime data and existing service during implementation"],
   "limits": ["Focused suites are not one latest full regression count", "Model wording checks and synthetic AI/real-engine checks are distinct", "Hancom and human review not performed", "Original web-process termination cause not conclusively identified", "CI, merge and deployment remain separate subsequent evidence"]
 }

@@ -1,10 +1,10 @@
 import { expect, type Page } from "@playwright/test";
 
 export async function openConversationTools(page: Page) {
-  for (const title of ["문단 수정 후보 · 직접 요청", "작성 정보·검토 메모"]) {
+  for (const title of ["문단 수정 후보 기록", "작성 정보·검토 메모"]) {
     const summary = page.getByText(title, { exact: true });
     await expect(summary).toBeVisible();
-    if (await summary.locator("..").getAttribute("open") === null) await summary.click();
+    if (await summary.locator("xpath=ancestor::details[1]").getAttribute("open") === null) await summary.click();
   }
 }
 
