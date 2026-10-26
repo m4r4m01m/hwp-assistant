@@ -572,3 +572,6 @@ GitHub workflow 파일은 변경하지 않았다. 현재 HWP deployment는 main-
 **로그인 후 CI 후속(2026-10-27):** 정렬 수정 source `8bea26c1b40bc7b3145d1255885b9d8937ef6059` 이후 사용자 추가 요청에 따라 공통 `WorkspaceNav` 상단에도 금융결제원 CI를 적용했다. 펼침 모드는 공식 가로 로고126px와 HWP Assistant, 아이콘 모드는 공식 심벌30px를 표시한다. 문서함·문서 편집·보고서·문서 표준·양식·관리자 화면에서 같은 컴포넌트를 사용한다. 숨김 모드와 기존 사용자 사이드바 선택은 유지한다.
 
 최종 로컬 macOS / Node22.19.0 / Chrome에서 TypeScript, 모의 UI82개, Node 계약52개, public path source audit, `/hwp-assistant/` 기준 UI 전용 build가 통과했다. 합성 화면의 전체/아이콘 메뉴·관리자 진입·로그인/가입·모바일 캡처에서 pageerror0과 가로 넘침 없음을 확인했다. 로컬 후속 캡처는 `reports/kftc-ui-followup-2026-10-27/`로 앞선 검수본과 분리했다. 실제 엔진 release build/실제 AI·운영 서버 검증은 아니며 인증·문서 데이터·기능을 변경하지 않았다. 이전 두 커밋은 보존하고 정렬 및 로그인 후 CI를 각각 후속 커밋으로 남겼다. 새 PR CI·push·main 병합·배포는 수행하지 않았다.
+
+
+**제품명 크기 후속(2026-10-27):** 사용자 검수 source `75355833deaf00d7d117694ac7e1730134ad39e2`에서 공통 사이드바의 HWP Assistant를 12px/650에서 18px/700·줄 높이1.3으로 키웠다. 로고 크기는 유지한다. Chrome 합성 문서함1440/390px에서 글자 잘림 없음과 아이콘 모드의 제품명 숨김·심벌 표시를 확인하고 새 캡처 `13-larger-workspace-title.png`를 로컬 후속 검수 폴더에 남겼다. 한 CSS 규칙 변경으로 기존 전체 테스트를 재실행하지 않았으며 whitespace 검사와 실제 브라우저 배치 확인을 수행했다. 같은 브랜치의 후속 커밋이며 미병합·미배포다.
