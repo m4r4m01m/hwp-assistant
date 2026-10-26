@@ -2,6 +2,7 @@
 import asyncio
 import json
 import sqlite3
+import sys
 import uuid
 
 import pytest
@@ -177,7 +178,15 @@ def test_shared_library_blocks_disabled_pending_and_old_legacy_tokens(policy_app
         assert other.get(f"/api/documents/{document['id']}/versions").status_code == 401
 
 
-def test_approved_account_codex_setting_applies_immediately_to_guest_and_members(policy_app):
+def test_approved_account_codex_setting_applies_immediately_to_guest_and_members(policy_app, monkeypatch):
+    from app import codex_runner
+    # This is an admission-policy test. An operator's installed CLI/auth/config
+    # must not determine whether its synthetic provider is locally configured.
+    settings = codex_runner.CodexSettings(sys.executable, "synthetic-no-inference",
+                                         "http://127.0.0.1:8000", ())
+    monkeypatch.setattr(codex_runner, "capture_settings", lambda: settings)
+    monkeypatch.setenv("HWP_CODEX_CHECK_AUTH", "0")
+    monkeypatch.setenv("HWP_DOCUMENT_ASSISTANT_PROVIDER", "codex")
     client, app, _, _ = policy_app
     assert login(client).status_code == 200
     # Report/document-assistant provider checks execute in a worker thread.

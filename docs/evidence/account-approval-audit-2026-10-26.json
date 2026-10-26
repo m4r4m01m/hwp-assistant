@@ -74,6 +74,21 @@
     "public_path": "pass",
     "compose": "isolated config validated; Docker daemon unavailable"
   },
+  "ci_first_head": {
+    "sha": "100f0535da1d1d93c80ee40eece70f573400652e",
+    "postgres_https_engine": "success",
+    "container_run": "https://github.com/m4r4m01m/hwp-assistant/actions/runs/40273617625",
+    "real_engine_browser_passed": 3,
+    "real_engine_browser_seconds": 14.7,
+    "frontend_ui_build_contracts": "success",
+    "linux_backend_passed": 1484,
+    "linux_backend_failed": 1,
+    "linux_backend_seconds": 423.4,
+    "test_fix": "Admission-policy test now uses synthetic runner metadata, independent of an operator-installed Codex CLI. Product code unchanged.",
+    "after_fix_focused_passed": 43,
+    "after_fix_no_cli_path_test_passed": 1,
+    "latest_head_ci": "Recheck after test-only fix"
+  },
   "preserved": {
     "workflow_files_changed": false,
     "dependency_engine_locks_changed": false,
