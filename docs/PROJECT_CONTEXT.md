@@ -558,3 +558,9 @@ GitHub workflow 파일은 변경하지 않았다. 현재 HWP deployment는 main-
 기준은 [main `2257e31b78129a5be71c35565d9914f7b2b30904`](https://github.com/m4r4m01m/hwp-assistant/commit/2257e31b78129a5be71c35565d9914f7b2b30904)이다. 정확한 SHA의 [HWP 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40352998365), [Vite 경로 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40352998583), [배포 계약 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40352998427) 성공을 조회했다. 이는 새 UI 브랜치의 CI가 아니다. 기존 작업 폴더와 서비스를 보존하고 별도 작업 트리에서 진행한다.
 
 첫 커밋은 사용자 화면의 PoC 표시를 제거하고, 관리자 메뉴를 `로그아웃 → 계정 관리` 순서와 명시적인 간격으로 배치한다. 아이콘 사이드바에서는 두 동작이 세로로 표시되도록 보존한다. 가입 승인·가상 정보 사용 안내·인증 동작은 유지한다. 로컬 macOS / Node22.19.0 / 설치된 Chrome에서 TypeScript 검사와 기존 로그인·가입·관리자 모의 UI **12개**를 통과했다. 실제 엔진·AI·운영 계정 시험과 구분한다. CI/캐릭터 작업은 이 첫 수정 이후 별도 커밋으로 진행하며 최종 화면을 검수한다.
+
+첫 수정 source는 `21bb481b1864e0e55def4e5d3293282e0052c50b`이다. 두 번째 커밋은 공식 금융결제원 로고와 CI 청색을 로그인·가입·승인 대기 화면에 적용한다. PC는 소개/입력 2열, 모바일은 입력 중심 1열이며 이름/사번도 화면에 맞게 배치한다. 로고는 원본 그대로 앱에 포함하고 외부 이미지 요청을 추가하지 않는다. 금결이는 공식 채널을 참고한 뒤 사용자 허용에 따라 생략했다. [자산 출처·SHA](../frontend/src/assets/README.md)를 따른다. 첫 커밋 이후의 미완료 문장은 당시 작업 순서 기록이며 이 후속으로 UI 구현·로컬 검수를 완료했다.
+
+로컬 macOS / Node22.19.0 / Chrome에서 TypeScript, unit **35개**, workflow Node 계약 **52개**, URL source audit, 기존 전체 모의 UI **82개**를 통과했다. 마지막 소개 패널 폭/이름·사번 배치 보완 뒤 계정 UI **12개**를 다시 통과했다. UI 전용 Vite build와 `/hwp-assistant/` preview에서 실제 번들 로고 경로·이미지 로딩, 320/390/768/1024/1440px의 계정 선택·가입 화면 가로 넘침 없음을 확인했다. 이것은 verified rhwp release build 또는 backend/실제 AI/한컴/운영 배포 검증이 아니다. 로컬 Node 버전은 CI24.15.0과 다르며 새 PR CI는 실행하지 않았다.
+
+합성 API·최소 WASM fixture로 실제 React 화면을 캡처했다. 화면의 편집 자원 준비 표시는 해당 fixture의 다운로드·컴파일 결과이며 실제 문서 엔진 검증을 뜻하지 않는다. 로그인·가입·승인 대기·문서함·관리자 메뉴/화면·모바일 캡처를 로컬 `reports/kftc-auth-ui-2026-10-27/`에 보관한다. 사용자 정보/비밀번호가 포함된 이미지는 없으며 캡처는 Git에서 제외한다. 관리자 메뉴 간격16px, 아이콘 모드 접근 유지, 브라우저 pageerror0을 확인했다. 새 브랜치의 두 변경 커밋을 유지한 상태이며 사용자 화면 검토가 다음 단계다. main 병합·push·PR 생성·운영 배포는 수행하지 않았다.
