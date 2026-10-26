@@ -1,5 +1,7 @@
 # HWP Assistant 프로젝트 컨텍스트
 
+**최신 후속(2026-10-27):** PR #43의 Mattermost 공유 네트워크 추가 뒤 발생한 배포 테스트 실패와 PoC 통합 CI의 네트워크 준비 누락을 수정했다. 정확한 수정 source·검증 범위는 [19절](#19-2026-10-27-mattermost-공유-네트워크-배포-검사)을 따른다. 아래 운영 기록은 각 시점의 증거로 보존한다.
+
 갱신일: **2026-10-26 (한국 시간)**. 이번 통합 기준은 [main `e263091ae28ef73a3e1a087137cc70ddadc277b0`](https://github.com/m4r4m01m/hwp-assistant/commit/e263091ae28ef73a3e1a087137cc70ddadc277b0), [PR #39](https://github.com/m4r4m01m/hwp-assistant/pull/39)의 merge commit이다. 검토 head `ae7d1da77664019b6ab23fcf4b750f336bcc80eb`의 CI 4개와 같은 tree인 main push CI 3개가 성공했다. 이후 기존 [수동 배포 run `40212063392`](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40212063392)의 5개 job 성공을 확인했고, 원 대화 root가 SSH read-only로 last-success·API/web image source `e263091`과 DB/API/web healthy를 확인했다고 인계했다. 이는 아래 새 QA 통합의 배포가 아니다. 현재 `codex/integrate-local-ui-2026-10-26`의 별도 작업 트리에서 동료 `1f10a09dda03d48ee6a734e3f009efb3f2dfe894`를 통합·검증한다. 최신 범위·완료/미완료·롤백 한계는 [16절](#16-2026-10-26-보고서-작성outline저장-전환-통합)을 따른다. 3~15절의 과거 미승인·미병합·운영 상태는 각 작업 당시 기록이며 현재 코드·exact CI·위 배포 근거를 우선한다. `532d1dd` 문서와 기존 작업 트리·미커밋 handoff는 보존한다. 클라우드는 이번 작업의 main 병합·배포 dispatch·실모델·env/ACL/계정·운영 문서 변경을 수행하지 않는다.
 
 **후속 계정관리 작업(2026-10-26):** 최신 main `82d3126b0133895abcab462d38121f6768fc9a81`에서 `codex/account-approval-audit`를 분리했다. 제품 `747ff3faf93b8535a2a82617aa147d1dcca8306b`의 승인·공용 문서함·감사·AI 정책·Mattermost 알림과 검증은 [17절](#17-2026-10-26-계정-승인공용-문서함감사)을 따른다. main 병합·운영 배포·운영 계정 정리는 수행하지 않았다.
@@ -539,3 +541,11 @@ GitHub workflow 파일은 변경하지 않았다. 현재 HWP deployment는 main-
 로컬 Python3.14.7에서 수정 전 알림 회귀는 **9 failed/19 passed·기존 warning2·3.67초**, 수정 후 보안 사례를 추가한 알림 회귀는 **34 passed·기존 warning2·4.40초**다. 알림·계정관리·감사 정책의 집중 실행은 **59 passed·기존 warning2·33.11초**다. HTTPX MockTransport로 실제 sender/로그 보호/가입202·세션 미발급/정확한 prefix 경로/관리 상태/기존 대기 outbox 복구를 검사했다. 기존 대기 알림 처리에서 계정·비밀번호 해시·생성시각을 다시 쓰지 않았다. 실제 Mattermost나 모델 호출은 0회이며 최종 PR exact-head CI는 별도로 확인한다. [검증 영수증](evidence/mattermost-webhook-subpath-2026-10-26.json)과 [운영 안내](account-approval-audit-2026-10-26.md)를 함께 읽는다.
 
 사용자는 admin 승인 동작으로도 시험했다. 현재 알림은 새 공개 가입의 승인 대기 접수 시점에만 생성되고 CLI 계정 생성이나 admin 승인 순간에는 생성하지 않는다. 수정 버전 배포 뒤 아직 승인 대기인 기존 요청은 dispatcher가 처리하지만 이미 승인·거절된 요청은 전송하지 않는다. 검수 시 새 계정의 가입 신청을 승인 대기로 유지한 상태에서 관리자 알림 상태와 대상 채널을 확인한다. 이 수정의 main 병합·운영 배포·실제 webhook 전송은 수행하지 않았다.
+
+## 19. 2026-10-27 Mattermost 공유 네트워크 배포 검사
+
+기준 main은 [PR #43](https://github.com/m4r4m01m/hwp-assistant/pull/43)의 merge commit [`1262f88ba5674b684e7d537d2e62146eaca75688`](https://github.com/m4r4m01m/hwp-assistant/commit/1262f88ba5674b684e7d537d2e62146eaca75688)이다. API가 기존 app/data와 함께 external 네트워크 `hwp-mattermost-hook`를 사용하고, HWP deployment의 hosted CI가 같은 이름의 내부 bridge 네트워크를 준비하도록 추가됐다. 사용자 제공 운영 관측에서는 API에서 Mattermost의 `/mattermost/api/v4/system/ping`이 성공했다. 이는 실제 webhook 전송 성공이나 클라우드의 서버 직접 검증이 아니다.
+
+[실패한 Python job](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40347702252/job/121658953157)은 `test_compose_boundaries`의 파일 전체 `external: true` 개수 비교에서 `4 != 3`으로 종료됐다. 볼륨 3개에 외부 네트워크 1개가 더해졌기 때문이다. 수정 source는 [`4d95c4e41ed2684fb9f5e574e7a79c3b9499ace9`](https://github.com/m4r4m01m/hwp-assistant/commit/4d95c4e41ed2684fb9f5e574e7a79c3b9499ace9)이다. 볼륨 metadata/documents/codex-state 각각의 외부 선언·고정 이름을 검사하고, webhook 네트워크의 외부 선언·이름·API 전용 연결 및 DB 격리를 별도로 검증한다. 같은 Compose를 사용하는 `poc-integration.yml`에도 최초 기동 전 내부 bridge 준비를 추가하고, 두 hosted 워크플로의 준비 순서를 검사한다. PR #43의 Compose와 운영 배포 게이트는 유지한다.
+
+클라우드 Linux/Python 3.12.14에서 기준 SHA의 필요한 파일을 GitHub blob SHA로 대조해 가져와 원래 실패를 재현했다. 수정 후 오프라인 검사 **84 passed/Windows 전용 1 skipped**: deployment 15, host preflight 4, CI 계약 17, smoke 12, published-run 24, developer download 6, Codex login 6 passed/1 skipped. 별도 메모리 변형 검사에서 볼륨 보호/이름 손상, webhook 이름/연결 손상, DB/web의 잘못된 연결, 두 CI의 네트워크 준비 누락/순서 오류 등 **12개 잘못된 구성**을 거부했다. 배포 셸 문법과 whitespace 검사도 통과했다. 이는 전체 backend 실행·Docker 기동·이미지 빌드가 아니며 Python 3.14/실제 PostgreSQL·HTTPS·엔진 검증은 수정 PR의 exact-head CI와 구분한다. 운영 설정·계정·문서·볼륨·실제 알림은 변경하지 않았다.
