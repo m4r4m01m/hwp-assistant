@@ -1,5 +1,7 @@
 # HWP Assistant 프로젝트 컨텍스트
 
+**UI 검수 작업(2026-10-27):** 최신 main `2257e31b78129a5be71c35565d9914f7b2b30904`에서 `codex/kftc-auth-ui`를 분리했다. PoC 표시 제거·관리자 메뉴 배치와 후속 금융결제원 CI 작업은 [20절](#20-2026-10-27-로그인-ci와-관리자-메뉴-ui-검수)을 따른다. 사용자 요청에 따라 별도 커밋으로 남기고 병합·배포하지 않는다.
+
 **최신 후속(2026-10-27):** PR #43의 Mattermost 공유 네트워크 추가 뒤 발생한 배포 테스트 실패와 PoC 통합 CI의 네트워크 준비 누락을 수정했다. 정확한 수정 source·검증 범위는 [19절](#19-2026-10-27-mattermost-공유-네트워크-배포-검사)을 따른다. 아래 운영 기록은 각 시점의 증거로 보존한다.
 
 갱신일: **2026-10-26 (한국 시간)**. 이번 통합 기준은 [main `e263091ae28ef73a3e1a087137cc70ddadc277b0`](https://github.com/m4r4m01m/hwp-assistant/commit/e263091ae28ef73a3e1a087137cc70ddadc277b0), [PR #39](https://github.com/m4r4m01m/hwp-assistant/pull/39)의 merge commit이다. 검토 head `ae7d1da77664019b6ab23fcf4b750f336bcc80eb`의 CI 4개와 같은 tree인 main push CI 3개가 성공했다. 이후 기존 [수동 배포 run `40212063392`](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40212063392)의 5개 job 성공을 확인했고, 원 대화 root가 SSH read-only로 last-success·API/web image source `e263091`과 DB/API/web healthy를 확인했다고 인계했다. 이는 아래 새 QA 통합의 배포가 아니다. 현재 `codex/integrate-local-ui-2026-10-26`의 별도 작업 트리에서 동료 `1f10a09dda03d48ee6a734e3f009efb3f2dfe894`를 통합·검증한다. 최신 범위·완료/미완료·롤백 한계는 [16절](#16-2026-10-26-보고서-작성outline저장-전환-통합)을 따른다. 3~15절의 과거 미승인·미병합·운영 상태는 각 작업 당시 기록이며 현재 코드·exact CI·위 배포 근거를 우선한다. `532d1dd` 문서와 기존 작업 트리·미커밋 handoff는 보존한다. 클라우드는 이번 작업의 main 병합·배포 dispatch·실모델·env/ACL/계정·운영 문서 변경을 수행하지 않는다.
@@ -549,3 +551,36 @@ GitHub workflow 파일은 변경하지 않았다. 현재 HWP deployment는 main-
 [실패한 Python job](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40347702252/job/121658953157)은 `test_compose_boundaries`의 파일 전체 `external: true` 개수 비교에서 `4 != 3`으로 종료됐다. 볼륨 3개에 외부 네트워크 1개가 더해졌기 때문이다. 수정 source는 [`4d95c4e41ed2684fb9f5e574e7a79c3b9499ace9`](https://github.com/m4r4m01m/hwp-assistant/commit/4d95c4e41ed2684fb9f5e574e7a79c3b9499ace9)이다. 볼륨 metadata/documents/codex-state 각각의 외부 선언·고정 이름을 검사하고, webhook 네트워크의 외부 선언·이름·API 전용 연결 및 DB 격리를 별도로 검증한다. 같은 Compose를 사용하는 `poc-integration.yml`에도 최초 기동 전 내부 bridge 준비를 추가하고, 두 hosted 워크플로의 준비 순서를 검사한다. PR #43의 Compose와 운영 배포 게이트는 유지한다.
 
 클라우드 Linux/Python 3.12.14에서 기준 SHA의 필요한 파일을 GitHub blob SHA로 대조해 가져와 원래 실패를 재현했다. 수정 후 오프라인 검사 **84 passed/Windows 전용 1 skipped**: deployment 15, host preflight 4, CI 계약 17, smoke 12, published-run 24, developer download 6, Codex login 6 passed/1 skipped. 별도 메모리 변형 검사에서 볼륨 보호/이름 손상, webhook 이름/연결 손상, DB/web의 잘못된 연결, 두 CI의 네트워크 준비 누락/순서 오류 등 **12개 잘못된 구성**을 거부했다. 배포 셸 문법과 whitespace 검사도 통과했다. 이는 전체 backend 실행·Docker 기동·이미지 빌드가 아니며 Python 3.14/실제 PostgreSQL·HTTPS·엔진 검증은 수정 PR의 exact-head CI와 구분한다. 운영 설정·계정·문서·볼륨·실제 알림은 변경하지 않았다.
+
+
+## 20. 2026-10-27 로그인 CI와 관리자 메뉴 UI 검수
+
+기준은 [main `2257e31b78129a5be71c35565d9914f7b2b30904`](https://github.com/m4r4m01m/hwp-assistant/commit/2257e31b78129a5be71c35565d9914f7b2b30904)이다. 정확한 SHA의 [HWP 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40352998365), [Vite 경로 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40352998583), [배포 계약 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40352998427) 성공을 조회했다. 이는 새 UI 브랜치의 CI가 아니다. 기존 작업 폴더와 서비스를 보존하고 별도 작업 트리에서 진행한다.
+
+첫 커밋은 사용자 화면의 PoC 표시를 제거하고, 관리자 메뉴를 `로그아웃 → 계정 관리` 순서와 명시적인 간격으로 배치한다. 아이콘 사이드바에서는 두 동작이 세로로 표시되도록 보존한다. 가입 승인·가상 정보 사용 안내·인증 동작은 유지한다. 로컬 macOS / Node22.19.0 / 설치된 Chrome에서 TypeScript 검사와 기존 로그인·가입·관리자 모의 UI **12개**를 통과했다. 실제 엔진·AI·운영 계정 시험과 구분한다. CI/캐릭터 작업은 이 첫 수정 이후 별도 커밋으로 진행하며 최종 화면을 검수한다.
+
+첫 수정 source는 `21bb481b1864e0e55def4e5d3293282e0052c50b`이다. 두 번째 커밋은 공식 금융결제원 로고와 CI 청색을 로그인·가입·승인 대기 화면에 적용한다. PC는 소개/입력 2열, 모바일은 입력 중심 1열이며 이름/사번도 화면에 맞게 배치한다. 로고는 원본 그대로 앱에 포함하고 외부 이미지 요청을 추가하지 않는다. 금결이는 공식 채널을 참고한 뒤 사용자 허용에 따라 생략했다. [자산 출처·SHA](../frontend/src/assets/README.md)를 따른다. 첫 커밋 이후의 미완료 문장은 당시 작업 순서 기록이며 이 후속으로 UI 구현·로컬 검수를 완료했다.
+
+로컬 macOS / Node22.19.0 / Chrome에서 TypeScript, unit **35개**, workflow Node 계약 **52개**, URL source audit, 기존 전체 모의 UI **82개**를 통과했다. 마지막 소개 패널 폭/이름·사번 배치 보완 뒤 계정 UI **12개**를 다시 통과했다. UI 전용 Vite build와 `/hwp-assistant/` preview에서 실제 번들 로고 경로·이미지 로딩, 320/390/768/1024/1440px의 계정 선택·가입 화면 가로 넘침 없음을 확인했다. 이것은 verified rhwp release build 또는 backend/실제 AI/한컴/운영 배포 검증이 아니다. 로컬 Node 버전은 CI24.15.0과 다르며 새 PR CI는 실행하지 않았다.
+
+합성 API·최소 WASM fixture로 실제 React 화면을 캡처했다. 화면의 편집 자원 준비 표시는 해당 fixture의 다운로드·컴파일 결과이며 실제 문서 엔진 검증을 뜻하지 않는다. 로그인·가입·승인 대기·문서함·관리자 메뉴/화면·모바일 캡처를 로컬 `reports/kftc-auth-ui-2026-10-27/`에 보관한다. 사용자 정보/비밀번호가 포함된 이미지는 없으며 캡처는 Git에서 제외한다. 관리자 메뉴 간격16px, 아이콘 모드 접근 유지, 브라우저 pageerror0을 확인했다. 새 브랜치의 두 변경 커밋을 유지한 상태이며 사용자 화면 검토가 다음 단계다. main 병합·push·PR 생성·운영 배포는 수행하지 않았다.
+
+
+**상단 정렬 후속(2026-10-27):** 사용자 검수 source `d77c49094e00467ff9ad9e7585804fbef4449096`에서 금융결제원 글자와 HWP Assistant의 바닥선을 맞췄다. 공식 PNG의 국문 글자 하단은 원본39px 중34px이며 아래5px가 투명하므로, 이미지 원본을 바꾸지 않고 inline baseline을5px(모바일90% 크기는4.5px) 보정한다. Chrome1440/390px에서 국문 이미지 글자 하단과 실제 텍스트 baseline의 차이는0px/0.0063px 미만이다. CSS·마크업 변경과 화면 캡처로 확인했으며 인증/엔진 동작 변경은 없다. 같은 브랜치에서 후속 커밋으로 보존하며 미병합·미배포 상태를 유지한다.
+
+
+**로그인 후 CI 후속(2026-10-27):** 정렬 수정 source `8bea26c1b40bc7b3145d1255885b9d8937ef6059` 이후 사용자 추가 요청에 따라 공통 `WorkspaceNav` 상단에도 금융결제원 CI를 적용했다. 펼침 모드는 공식 가로 로고126px와 HWP Assistant, 아이콘 모드는 공식 심벌30px를 표시한다. 문서함·문서 편집·보고서·문서 표준·양식·관리자 화면에서 같은 컴포넌트를 사용한다. 숨김 모드와 기존 사용자 사이드바 선택은 유지한다.
+
+최종 로컬 macOS / Node22.19.0 / Chrome에서 TypeScript, 모의 UI82개, Node 계약52개, public path source audit, `/hwp-assistant/` 기준 UI 전용 build가 통과했다. 합성 화면의 전체/아이콘 메뉴·관리자 진입·로그인/가입·모바일 캡처에서 pageerror0과 가로 넘침 없음을 확인했다. 로컬 후속 캡처는 `reports/kftc-ui-followup-2026-10-27/`로 앞선 검수본과 분리했다. 실제 엔진 release build/실제 AI·운영 서버 검증은 아니며 인증·문서 데이터·기능을 변경하지 않았다. 이전 두 커밋은 보존하고 정렬 및 로그인 후 CI를 각각 후속 커밋으로 남겼다. 새 PR CI·push·main 병합·배포는 수행하지 않았다.
+
+
+**제품명 크기 후속(2026-10-27):** 사용자 검수 source `75355833deaf00d7d117694ac7e1730134ad39e2`에서 공통 사이드바의 HWP Assistant를 12px/650에서 18px/700·줄 높이1.3으로 키웠다. 로고 크기는 유지한다. Chrome 합성 문서함1440/390px에서 글자 잘림 없음과 아이콘 모드의 제품명 숨김·심벌 표시를 확인하고 새 캡처 `13-larger-workspace-title.png`를 로컬 후속 검수 폴더에 남겼다. 한 CSS 규칙 변경으로 기존 전체 테스트를 재실행하지 않았으며 whitespace 검사와 실제 브라우저 배치 확인을 수행했다. 같은 브랜치의 후속 커밋이며 미병합·미배포다.
+
+
+**제품명 최종 크기(2026-10-27):** 사용자가 `3693268339239d3d6c84850a22248aa9c38729cc`의 18px 검수 후 16px를 지정해 공통 사이드바 제품명에 반영했다. 굵기700·줄 높이1.3과 로고는 유지한다. Chrome1440/390px에서16px 적용·잘림 없음·아이콘 모드 표시를 확인했다. 로컬 캡처는 `15-workspace-title-16px.png`와 `16-title-detail-16px.png`이며 앞선18px 검수본을 보존한다. 전체 테스트는 다시 실행하지 않았고 whitespace 검사를 통과했다. 미병합·미배포다.
+
+
+**제품명 시작선 정렬(2026-10-27):** 사용자 검수 source `d752c879d0ee9b9764c01733bdd058986908170a`에서 제품명 H를 금융결제원 '금' 시작점 아래로 맞췄다. 원본 국문 글자는 x46에서 시작하고126px 표시 시41.4px이므로 H의 자체 글자 여백을 고려해 제품명에40px 들여쓰기를 적용했다. 16px/700과 로고 원본은 유지한다. Chrome1440/390px에서 잘림 없음·아이콘 모드 정상 표시를 확인했고, `17-workspace-title-wordmark-aligned.png`와 `18-title-wordmark-aligned-detail.png`를 로컬 후속 검수 폴더에 보관했다. CSS 배치 확인·whitespace 검사 범위이며 전체 테스트는 재실행하지 않았다. 미병합·미배포다.
+
+
+**원격 공유·PR 생성(2026-10-27):** 사용자 승인으로 `codex/kftc-auth-ui`를 원격에 푸시하고 [PR #46](https://github.com/m4r4m01m/hwp-assistant/pull/46)을 main 대상으로 생성했다. 최종 제품 source는 [`dc048f9701c866f3a8e771b43c17c2c81cf86d41`](https://github.com/m4r4m01m/hwp-assistant/commit/dc048f9701c866f3a8e771b43c17c2c81cf86d41)이며, 푸시 전 최신 main은 기존 기준 `2257e31`과 같았다. 제품 source 그대로 TypeScript·단위35개·모의 UI82개를 macOS/Node22.19.0/Chrome에서 다시 통과했다. 이후 이 문단만 추가했으며 새 PR의 Linux CI 완료 여부는 Actions에서 별도로 확인한다. 이전 절의 미푸시·PR 미생성 문구는 당시 기록이며 이 후속으로 대체한다. 사용자 검수 후 후속 수정까지 기존 커밋 이력을 모두 보존했고 main 병합·배포는 수행하지 않았다.
