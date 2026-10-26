@@ -8,6 +8,11 @@ test(`REAL rhwp + MOCK report template ${profileId}: lost reception retries the 
   const catalog = await (await request.get("/api/report-templates")).json();
   const selected = catalog.items.find((item: any) => item.id === profileId);
   expect(selected).toBeTruthy();
+  // The request UI uses the catalog default; all historical profile snapshots
+  // remain accepted and frozen without exposing a redundant purpose selector.
+  await page.route("**/api/report-templates", route => route.fulfill({
+    contentType: "application/json", body: JSON.stringify({ ...catalog, default_id: profileId }),
+  }));
   const posts: any[] = [];
   await page.route("**/api/report-tasks", async route => {
     if (route.request().method() !== "POST") return route.continue();
@@ -23,13 +28,13 @@ test(`REAL rhwp + MOCK report template ${profileId}: lost reception retries the 
   await page.getByRole("button", { name: "보고서 작성", exact: true }).click();
   await expect(page.getByLabel("문서 양식", { exact: true })).toBeEnabled();
   await page.getByLabel("문서 양식", { exact: true }).selectOption(""); // Keep this existing profile/TOC contract on the legacy visual standard.
-  await page.getByLabel("작성 목적", { exact: true }).selectOption(profileId);
+  await expect(page.getByLabel("작성 목적", { exact: true })).toHaveCount(0);
   await page.getByLabel("보고서 작성 요청", { exact: true }).fill("금융권 해킹 위험과 경영진 결정 사항을 정리하는 합성 보고서");
   await page.getByLabel("공개 웹 자료를 검색하고 출처 포함").uncheck();
   await page.getByRole("button", { name: "초안 작성하기", exact: true }).click();
   const retry = page.getByRole("button", { name: "같은 요청 접수 재확인", exact: true });
   await expect(retry).toBeEnabled();
-  await expect(page.getByLabel("작성 목적", { exact: true })).toBeDisabled();
+  await expect(page.getByLabel("대제목 구성 방식")).toBeDisabled();
   await expect(page.getByLabel("보고서 작성 요청", { exact: true })).toBeDisabled();
   await retry.click();
   await page.getByRole("button", { name: "이 내용으로 문서 만들기", exact: true }).click();
@@ -42,7 +47,6 @@ test(`REAL rhwp + MOCK report template ${profileId}: lost reception retries the 
   expect((await (await request.get("/api/report-tasks")).json()).length).toBe(beforeJobs + 1);
   expect((await (await request.get("/api/documents")).json()).length).toBe(beforeDocs);
   await page.getByRole("button", { name: "결과·출처", exact: true }).click();
-  await expect(page.getByText(`작성 목적: ${selected.values.name}`, { exact: true })).toBeVisible();
   const preview = await (await request.get(`/api/report-tasks/${posts[0].id}/preview`)).json();
   expect(preview.toc_policy).toBe("report-native-toc-v1");
 });

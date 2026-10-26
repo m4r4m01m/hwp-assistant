@@ -31,15 +31,17 @@ import { TocPanel, type TocCapture, type PreparedToc } from "./toc";
 import "./editor-workspace.css";
 import { WorkspaceNav, WorkspaceIcon, type WorkspaceSection } from "./workspace-nav";
 import "./workspace-shell.css";
-import { assistantDocumentContext, assistantDesignContext, type AssistantDesignTarget } from "./document-assistant-context";
+import { assistantDocumentContext, assistantDesignContext, assistantRewriteContext, type AssistantDesignTarget } from "./document-assistant-context";
 import type { AssistantTurn } from "./document-assistant";
 import { EditorDesignPanel, type DesignCapture, type PreparedDesign, type DesignIntent, type DesignChoice } from "./editor-designs";
 import { blockHash } from "./block-insert";
 import { SavedDownload } from "./saved-download";
+import { DocumentTrashDialog } from "./document-trash";
 import { useComparisonDialog } from "./version-comparison";
 import { CapabilitiesProvider, CapabilityNotice, useFeature } from "./capabilities";
 import { useDebouncedValue, useMobileDrawerCanvas } from "./ui-state";
 import { AiConnectionProvider, useAiSetupLanding } from "./ai-connection";
+import { AccountPasswordChange } from "./account-password-change";
 
 class WorkspaceLoadBoundary extends React.Component<{ children: React.ReactNode; onBack: () => void }, { failed: boolean }> {
   state = { failed: false };
@@ -78,13 +80,20 @@ function App({
     [registerTemplate, setRegisterTemplate] = useState<Document | undefined>(),
     [reports, setReports] = useState(false);
   const [editorDesign, setEditorDesign] = useState<DesignChoice | null>(null);
+  const [trashDialog, setTrashDialog] = useState<{ document: Document | null } | null>(null);
   const [managingAccounts, setManagingAccounts] = useState(false);
   const listGeneration = useRef(0), listController = useRef<AbortController | null>(null);
+  const libraryRestore = useRef<{ document: string; version: string; key: string; token: string } | null>(null);
+  useEffect(() => {
+    if (history && !active) return;
+    const frozen = libraryRestore.current; libraryRestore.current = null;
+    if (frozen) void api(`/documents/${frozen.document}/session`, { method: "DELETE", headers: { "X-Edit-Session": frozen.token } }).catch(() => {});
+  }, [history, active]);
   const [searchQuery, flushSearch] = useDebouncedValue(query);
   const uploadBusy = useRef(false), dragDepth = useRef(0);
   const frozenUpload = useRef<{ bytes: Uint8Array; name: string; id: string; key: string } | null>(null);
   const inLibrary = !active && !creating && !standardDesigner && !reports && !templates && !managingAccounts;
-  useAiSetupLanding(inLibrary && !loading && !copying && !uploading && !history && !sharing);
+  useAiSetupLanding(inLibrary && !loading && !copying && !uploading && !history && !sharing && !trashDialog);
   useEffect(() => {
     if (!inLibrary) return;
     const clearDrag = () => { dragDepth.current = 0; setDragOver(false); };
@@ -93,7 +102,7 @@ function App({
       if (!filesDragged(event)) return;
       event.preventDefault();
       if (event.type === "drop") clearDrag();
-      else if (!(event.target instanceof Element) || !event.target.closest(".library-drop-target") || history || sharing)
+      else if (!(event.target instanceof Element) || !event.target.closest(".library-drop-target") || history || sharing || trashDialog)
         event.dataTransfer!.dropEffect = "none";
     };
     const escape = (event: KeyboardEvent) => { if (event.key === "Escape") clearDrag(); };
@@ -107,7 +116,7 @@ function App({
       window.removeEventListener("dragend", clearDrag); window.removeEventListener("blur", clearDrag); window.removeEventListener("keydown", escape);
       dragDepth.current = 0;
     };
-  }, [inLibrary, history, sharing]);
+  }, [inLibrary, history, sharing, trashDialog]);
   const sortedDocs = [...docs].sort((a, b) => sort === "name" ? a.name.localeCompare(b.name, "ko", { numeric: true }) || a.id.localeCompare(b.id)
     : sort === "oldest" ? a.created_at - b.created_at || a.id.localeCompare(b.id) : b.created_at - a.created_at || a.id.localeCompare(b.id));
   const refresh = () => {
@@ -122,6 +131,7 @@ function App({
   };
   useEffect(() => { refresh(); return () => { listController.current?.abort(); listGeneration.current++; }; }, [searchQuery]);
   function navigate(section: WorkspaceSection) {
+    setTrashDialog(null);
     setManagingAccounts(false);
     setEditorDesign(null);
     setDragOver(false); dragDepth.current = 0;
@@ -214,25 +224,25 @@ function App({
     );
   return (
     <div className="workspace-shell library-shell">
-      <WorkspaceNav active="documents" onNavigate={navigate} disabled={copying || uploading} footer={<><strong>{account.authentication_required ? account.user_id : "개인 작업 공간"}</strong><details className="library-account-note"><summary>이용 안내</summary><p>{account.authentication_required ? account.library_access_mode === "shared" ? "공용 문서함입니다. 저장·수정 작업은 로그인한 계정으로 기록됩니다." : "문서별 열람·편집·소유자 권한과 대화 공개 범위가 적용됩니다." : "현재 이 컴퓨터의 개인 문서함입니다. 사용자 간 공유는 서버 인증 설정 후 사용할 수 있습니다."}</p><p>저장본은 이전 버전을 보존합니다. 한컴 호환성은 실제 파일로 확인하세요.</p></details>{account.is_admin && <button onClick={() => setManagingAccounts(true)}>계정 관리</button>}{account.authentication_required && <button onClick={async () => { await api("/auth/logout", { method: "POST" }); clearAccountWorkspaceState(); location.reload(); }}>로그아웃</button>}</>}>
+      <WorkspaceNav active="documents" onNavigate={navigate} disabled={copying || uploading} footer={<><strong>{account.authentication_required ? account.user_id : "개인 작업 공간"}</strong><details className="library-account-note"><summary>이용 안내</summary><p>{account.authentication_required ? account.library_access_mode === "shared" ? "공용 문서함입니다. 저장·수정 작업은 로그인한 계정으로 기록됩니다." : "문서별 열람·편집·소유자 권한과 대화 공개 범위가 적용됩니다." : "현재 이 컴퓨터의 개인 문서함입니다. 사용자 간 공유는 서버 인증 설정 후 사용할 수 있습니다."}</p><p>저장본은 이전 버전을 보존합니다. 한컴 호환성은 실제 파일로 확인하세요.</p></details>{account.is_admin && <button onClick={() => setManagingAccounts(true)}>계정 관리</button>}<AccountPasswordChange account={account} />{account.authentication_required && <button onClick={async () => { await api("/auth/logout", { method: "POST" }); clearAccountWorkspaceState(); location.reload(); }}>로그아웃</button>}</>}>
         <button className="primary workspace-nav-action" aria-label="빈 문서 만들기" disabled={uploading} onClick={() => setCreating(true)}><WorkspaceIcon name="plus"/><span>빈 문서 만들기</span></button>
         <label className="button workspace-nav-action" title="HWPX 업로드"><WorkspaceIcon name="upload"/><span>HWPX 업로드</span><input aria-label="HWPX 업로드" type="file" accept=".hwpx" disabled={uploading || !!uploadPending} onChange={event => { if (event.target.files?.[0]) void incoming(event.target.files[0]); event.target.value = ""; }} /></label>
         <p className="workspace-nav-note">문서를 만들거나 기존 HWPX를 가져와 작업하세요.</p>
       </WorkspaceNav>
     <main className={`drive drive-workspace library-drop-target${dragOver ? " is-file-dragging" : ""}`}
       onDragEnter={event => {
-        if (!Array.from(event.dataTransfer.types).includes("Files") || history || sharing) return;
+        if (!Array.from(event.dataTransfer.types).includes("Files") || history || sharing || trashDialog) return;
         event.preventDefault(); dragDepth.current++; setDragOver(true);
       }}
       onDragOver={event => {
         if (!Array.from(event.dataTransfer.types).includes("Files")) return;
-        event.preventDefault(); event.dataTransfer.dropEffect = history || sharing || uploading || uploadPending ? "none" : "copy";
+        event.preventDefault(); event.dataTransfer.dropEffect = history || sharing || trashDialog || uploading || uploadPending ? "none" : "copy";
       }}
       onDragLeave={() => { dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragOver(false); }}
       onDrop={event => {
         if (!Array.from(event.dataTransfer.types).includes("Files")) return;
         event.preventDefault(); event.stopPropagation(); dragDepth.current = 0; setDragOver(false);
-        if (history || sharing) return;
+        if (history || sharing || trashDialog) return;
         const files = Array.from(event.dataTransfer.files);
         if (files.length !== 1) { setError("한 번에 HWPX 파일 한 개씩 가져오세요. 여러 파일이나 폴더는 업로드하지 않았습니다."); return; }
         void incoming(files[0]);
@@ -261,6 +271,7 @@ function App({
         <option value="newest">최근 등록순</option><option value="oldest">오래된 등록순</option><option value="name">이름순</option>
       </select></label>
       <button aria-label="문서 목록 새로고침" title="문서 목록 새로고침" disabled={loading} onClick={refresh}><WorkspaceIcon name="refresh" size={18}/></button>
+      <button className="library-trash-button" disabled={copying || uploading} onClick={() => setTrashDialog({ document: null })}><WorkspaceIcon name="trash" size={18}/>휴지통</button>
       </div>
       {loading && docs.length > 0 && <p role="status">문서 목록을 갱신하는 중…</p>}
       {copyPending && <div className="notice">{copyPending.source.name}의 저장본 복제를 확인 중입니다.
@@ -387,6 +398,9 @@ function App({
                       <WorkspaceIcon name="templates" size={17}/><span>양식으로 등록</span>
                     </button>
                   )}
+                  {d.can_trash && <button disabled={copying || uploading} onClick={() => setTrashDialog({ document: d })}>
+                    <WorkspaceIcon name="trash" size={17}/><span>휴지통으로 이동</span>
+                  </button>}
                 </div>
               </td></tr>}
               </React.Fragment>
@@ -394,6 +408,7 @@ function App({
           </tbody>
         </table></div>
       )}
+      {trashDialog && <DocumentTrashDialog document={trashDialog.document} onClose={() => setTrashDialog(null)} onChanged={() => { setExpandedDocument(null); refresh(); }} />}
       {sharing && (
         <AccessPanel document={sharing} onClose={() => setSharing(null)} />
       )}
@@ -401,34 +416,42 @@ function App({
         <History
           document={history}
           onClose={() => setHistory(null)}
-          onRestore={async (v) => {
+          onRestore={async (v, requestId) => {
             let token = "";
+            let release = false;
             try {
-              const s = await api<{ token: string }>(
-                `/documents/${history.id}/session`,
-                { method: "POST" },
-              );
-              token = s.token;
-              await api(
+              const previous = libraryRestore.current;
+              if (previous && (previous.document !== history.id || previous.version !== v.id || previous.key !== requestId)) {
+                await api(`/documents/${previous.document}/session`, { method: "DELETE", headers: { "X-Edit-Session": previous.token } });
+                libraryRestore.current = null;
+              }
+              token = libraryRestore.current?.token || (await api<{ token: string }>(`/documents/${history.id}/session`, { method: "POST" })).token;
+              libraryRestore.current = { document: history.id, version: v.id, key: requestId, token };
+              const restored = await api<Version>(
                 `/documents/${history.id}/versions/${v.id}/restore?base_version=${history.current_version}`,
                 {
                   method: "POST",
                   headers: {
                     "X-Edit-Session": token,
-                    "Idempotency-Key": crypto.randomUUID(),
+                    "Idempotency-Key": requestId,
                   },
                 },
               );
-              setHistory(null);
+              setHistory({ ...history, current_version: restored.id });
               refresh();
-            } catch (e) {
-              setError(String(e));
+              release = true;
+              return restored;
+            } catch (cause) {
+              release = cause instanceof ApiError && cause.status < 500;
+              throw cause;
             } finally {
-              if (token)
+              if (release && token) {
+                libraryRestore.current = null;
                 await api(`/documents/${history.id}/session`, {
                   method: "DELETE",
                   headers: { "X-Edit-Session": token },
                 }).catch(() => {});
+              }
             }
           }}
         />
@@ -486,6 +509,7 @@ function Editor({
       applicationId?: string;
     } | null>(null);
   const reviewHold = useRef(false);
+  const restoring = useRef<{ document: Document; sourceVersion: string; requestId: string; token: string; adapter: EditorAdapter; source: ExportSnapshot; receipt?: Version } | null>(null);
   const assistantHold = useRef(false);
   const onAssistantActive = React.useCallback((value: boolean) => { assistantHold.current = value; }, []);
   const [discardTarget, setDiscardTarget] = useState<"panel" | "document" | null>(null);
@@ -531,7 +555,7 @@ function Editor({
     [blockUndoAvailable, setBlockUndoAvailable] = useState(false), [activeBlockHost, setActiveBlockHost] = useState(0);
   const [tocPanel, setTocPanel] = useState(false), [tocStatus, setTocStatus] = useState<"unknown" | "none" | "recorded" | "current" | "stale" | "damaged">("unknown");
   const [designPanel, setDesignPanel] = useState(!!initialDesign), [designIntent, setDesignIntent] = useState<DesignIntent | null>(initialDesign ? { choice: initialDesign, nonce: crypto.randomUUID() } : null);
-  const [undoLabel, setUndoLabel] = useState("방금 삽입 취소");
+  const [undoLabel, setUndoLabel] = useState("삽입한 블록 되돌리기");
   const tocKnown = useRef(false);
   const fileMenu = useRef<HTMLDetailsElement>(null), helpMenu = useRef<HTMLDetailsElement>(null), documentMenu = useRef<HTMLDetailsElement>(null), toolsMenu = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
@@ -627,7 +651,7 @@ function Editor({
     const instance = adapter.current, document = doc.current;
     if (!ready || !instance || !document) throw new BlockFenceError("먼저 문서를 서버에 저장한 뒤 블록을 준비하세요.");
     if (document.role === "reader" || !token.current) throw new BlockFenceError("현재 문서의 편집 세션이 없습니다.");
-    if (busy.current || pending.current || applied.current || rewriteRequest.current || reviewHold.current || blockHold.current || aiBusy)
+    if (busy.current || pending.current || applied.current || rewriteRequest.current || reviewHold.current || blockHold.current || aiBusy || restoring.current)
       throw new BlockFenceError("진행 중인 저장·승인·후보 비교를 먼저 마무리하세요.");
     let selection: Snapshot;
     try { selection = instance.selection(); } catch { throw new BlockFenceError("단일 서식의 본문 문단에 커서를 놓으세요. 표 안이나 혼합 서식 문단은 삽입 위치로 지원하지 않습니다."); }
@@ -652,7 +676,7 @@ function Editor({
     const instance = adapter.current, document = doc.current;
     if (!ready || !instance || !document) throw new BlockFenceError(`먼저 문서를 서버에 저장한 뒤 ${purpose}를 확인하세요.`);
     if (document.role === "reader" || !token.current) throw new BlockFenceError("현재 문서의 편집 세션이 없습니다.");
-    if (busy.current || pending.current || applied.current || rewriteRequest.current || reviewHold.current || blockHold.current || aiBusy)
+    if (busy.current || pending.current || applied.current || rewriteRequest.current || reviewHold.current || blockHold.current || aiBusy || restoring.current)
       throw new BlockFenceError("진행 중인 저장·승인·후보 비교를 먼저 마무리하세요.");
     // TOC targets are selected from analyzed body coordinates. Unsupported
     // live cursor locations need no navigation and remain exactly untouched.
@@ -740,7 +764,7 @@ function Editor({
       activateBlockHost(nextHost);
       watchAdapter(prepared.adapter);
       blockUndo.current = { previous: captured.adapter, current: prepared.adapter, snapshot: staged };
-      setUndoLabel(check === "design-check" ? "방금 적용 취소" : "방금 삽입 취소");
+      setUndoLabel(check === "design-check" ? "이전 서식으로 되돌리기" : check === "toc-check" ? "목차 갱신 되돌리기" : check === "assistant-rewrite-check" ? "AI 문장 수정 되돌리기" : "삽입한 블록 되돌리기");
       setBlockUndoAvailable(true); dirtyRef.current = true; setDirty(true); setStatus("저장되지 않은 변경 있음");
       if (check === "toc-check") { tocKnown.current = true; setTocStatus("current"); }
       else if (tocKnown.current) setTocStatus("stale");
@@ -862,6 +886,7 @@ function Editor({
     };
   }, []);
   async function save(force = false) {
+    if (restoring.current) { setError("복원 결과를 먼저 확인하세요. 버전 기록에서 같은 버전을 다시 복원하면 보관한 요청을 확인합니다."); return false; }
     const a = adapter.current;
     if (!a || busy.current || blockHold.current || (!dirtyRef.current && !force)) return false;
     dropBlockUndo();
@@ -1119,7 +1144,7 @@ function Editor({
             </div>
           </details>
         </div>
-        {blockUndoAvailable && <button className="editor-rail-action editor-undo" title={undoLabel} aria-label={undoLabel} disabled={blockHolding || status === "저장 중"} onClick={undoBlock}><WorkspaceIcon name="undo" /><span>취소</span></button>}
+        {blockUndoAvailable && <button className="editor-rail-action editor-undo" title={`${undoLabel} · 방금 적용하기 전 상태로 돌아갑니다. 다른 편집을 시작하기 전까지 사용할 수 있습니다.`} aria-label={undoLabel} disabled={blockHolding || status === "저장 중"} onClick={undoBlock}><WorkspaceIcon name="undo" /><span>되돌리기</span></button>}
           <details className="editor-menu editor-help" name="editor-overflow" ref={helpMenu}>
             <summary className="editor-rail-action" aria-label="편집 안내 및 진단" title={`편집 안내${warnings ? " · 엔진 진단 있음" : ""}`}><WorkspaceIcon name="help" /><span>안내</span></summary>
             <div className="editor-menu-content editor-help-content">
@@ -1184,7 +1209,7 @@ function Editor({
               active={conversationPanel}
               capture={() => adapter.current!.selection()}
               onAssistantActive={onAssistantActive}
-              captureDocument={async () => {
+              captureDocument={async (scope = "document") => {
                 const instance = adapter.current, document = doc.current;
                 if (!ready || !instance || !document || !epoch.current) throw new Error("문서를 먼저 열고 저장한 뒤 대화를 시작하세요.");
                 if (blockHold.current || busy.current || pending.current || applied.current || rewriteRequest.current) throw new Error("진행 중인 저장·수정 적용을 먼저 마무리하세요.");
@@ -1197,10 +1222,42 @@ function Editor({
                 const target = currentStyleTarget(instance);
                 const document_context = await assistantDocumentContext(source);
                 const design_context = await assistantDesignContext(source, target);
+                const rewrite_context = scope === "document" ? await assistantRewriteContext(source) : null;
                 if (adapter.current !== instance || doc.current?.current_version !== document.current_version || instance.bridge.revision() !== source.revision || epoch.current !== source.epoch)
                   throw new Error("읽는 동안 문서가 바뀌었습니다. 현재 내용으로 다시 요청하세요.");
                 if (blockJson(currentStyleTarget(instance)) !== blockJson(target)) throw new Error("읽는 동안 문단이나 표 선택이 바뀌었습니다. 현재 위치에서 다시 요청하세요.");
-                return { base_version: document.current_version, document_context, selection, design_context };
+                return { base_version: document.current_version, document_context, selection, design_context, rewrite_context };
+              }}
+              documentRewrite={{
+                capture: async turn => {
+                  if (!turn.rewrite_context || !turn.document_rewrites?.length || turn.status !== "ready" || turn.stale ||
+                      turn.document_id !== doc.current?.id || turn.base_version !== doc.current?.current_version)
+                    throw new BlockFenceError("수정안을 작성한 문서나 저장 버전이 바뀌었습니다. 현재 문서로 다시 요청하세요.");
+                  const captured = captureToc("AI 문장 수정", true);
+                  // Whole-document requests do not depend on a cursor location.
+                  captured.selection = null;
+                  try {
+                    if (captured.source.revision !== turn.document_context.revision || captured.source.epoch !== turn.document_context.epoch ||
+                        await blockHash(captured.source.bytes) !== turn.rewrite_context.source_sha256 || !ownsBlock(captured) ||
+                        captured.adapter.bridge.revision() !== captured.source.revision)
+                      throw new BlockFenceError("AI가 읽은 원문이 바뀌었습니다. 현재 문서로 다시 요청하세요.");
+                    return captured;
+                  } catch (cause) { releaseBlock(captured); throw cause; }
+                },
+                isOwner: captured => ownsBlock(captured) && captured.adapter.bridge.revision() === captured.source.revision &&
+                  blockJson(captured.adapter.bridge.documentState()) === blockJson(captured.state),
+                release: releaseBlock,
+                adopt: async (prepared, turn) => {
+                  if (prepared.requestId !== turn.id || turn.stale || turn.document_id !== doc.current?.id ||
+                      turn.base_version !== doc.current?.current_version || prepared.outputSha256 !== await blockHash(prepared.output.bytes))
+                    throw new BlockFenceError("확인한 수정안이 달라졌습니다. 현재 문서로 다시 비교하세요.");
+                  await adoptBlock(prepared, "assistant-rewrite-check");
+                },
+                getStagingHost: () => {
+                  const host = blockHosts.current.find(node => node && !node.querySelector("iframe"));
+                  if (!host) throw new BlockFenceError("별도 미리보기 영역을 확인할 수 없습니다.");
+                  return host;
+                },
               }}
               onDesignProposal={async (proposal, turn) => {
                 const instance = adapter.current, document = doc.current;
@@ -1252,6 +1309,7 @@ function Editor({
                     headers: { "Content-Type": "application/json", "X-Edit-Session": token.current },
                   });
                   if (rewriteRequest.current === frozen) rewriteRequest.current = null;
+                  return frozen.id;
                 } catch (e) {
                   // A remounted panel may have cancelled this request and started another.
                   if (rewriteRequest.current !== frozen) throw e;
@@ -1268,6 +1326,22 @@ function Editor({
                 const frozen = rewriteRequest.current;
                 await api(`/rewrite-tasks/${task}/cancel`, { method: "POST" });
                 if (frozen?.id === task && rewriteRequest.current === frozen) rewriteRequest.current = null;
+              }}
+              captureRewritePreview={async (task) => {
+                const instance = adapter.current, document = doc.current;
+                if (!ready || !instance || !document || document.role === "reader" || !token.current)
+                  throw new Error("현재 문서의 편집 세션을 확인한 뒤 다시 비교하세요.");
+                if (busy.current || pending.current || applied.current || blockHold.current || rewriteRequest.current)
+                  throw new Error("진행 중인 저장·수정 적용을 마무리한 뒤 비교하세요.");
+                if (task.status !== "ready" || task.stale || task.context_stale || task.document_id !== document.id || task.base_version !== document.current_version)
+                  throw new Error("후보를 작성한 문서나 저장 버전이 바뀌었습니다. 현재 문단으로 다시 요청하세요.");
+                const selection = instance.selection(), source = instance.exportHwpx();
+                if (blockJson(selection) !== blockJson(task.snapshot) || source.contentLoss.count ||
+                    source.epoch !== epoch.current || source.epoch !== selection.state.documentEpoch || source.revision !== selection.revision)
+                  throw new Error("후보 요청 이후 문서나 선택 문단이 바뀌었습니다. 현재 문단으로 다시 요청하세요.");
+                // Only a copy enters the isolated comparison editor. Approval
+                // continues through the existing exact-command/save fences.
+                return source.bytes.slice();
               }}
               approveRewrite={async (task, candidate, applicationId) => {
                 if (blockHold.current) throw new Error("블록 삽입 준비를 먼저 마무리하세요.");
@@ -1395,41 +1469,68 @@ function Editor({
         <History
           document={history}
           onClose={closeHistory}
-          onRestore={async (v) => {
-            if (blockHold.current || pending.current || applied.current) { setError("블록 준비와 진행 중인 저장·승인을 먼저 마무리하세요."); return; }
+          onRestore={async (v, requestId) => {
+            if (blockHold.current || pending.current || applied.current) throw new Error("블록 준비와 진행 중인 저장·승인을 먼저 마무리하세요.");
             if (dirtyRef.current) {
-              setError(
+              throw new Error(
                 "먼저 변경사항을 저장하거나 복구용 다운로드 후 목록에서 복원하세요.",
               );
-              return;
             }
-            if (busy.current) return;
+            if (busy.current) throw new Error("진행 중인 저장이 끝난 뒤 복원하세요.");
+            if (restoring.current && restoring.current.sourceVersion !== v.id)
+              throw new Error("결과 확인 중인 복원이 있습니다. 같은 버전을 먼저 확인하거나 문서를 다시 여세요.");
+            const task = restoring.current || { document: { ...doc.current! }, sourceVersion: v.id, requestId,
+              token: token.current, adapter: adapter.current!, source: adapter.current!.exportHwpx() };
+            restoring.current = task;
+            const unchanged = () => editorAlive.current && doc.current?.id === task.document.id &&
+              doc.current.current_version === task.document.current_version && token.current === task.token &&
+              adapter.current === task.adapter && task.adapter.bridge.revision() === task.source.revision && epoch.current === task.source.epoch;
+            if (!unchanged()) throw new Error("복원 확인 중 문서가 바뀌었습니다. 변경사항을 복구용으로 내려받은 뒤 문서를 다시 여세요.");
             busy.current = true;
+            let preview: EditorAdapter | null = null;
             try {
-              const d = doc.current!;
-              const restored = await api<Version>(
+              const d = task.document;
+              const restored = task.receipt || await api<Version>(
                 `/documents/${d.id}/versions/${v.id}/restore?base_version=${d.current_version}`,
                 {
                   method: "POST",
                   headers: {
-                    "X-Edit-Session": token.current,
-                    "Idempotency-Key": crypto.randomUUID(),
+                    "X-Edit-Session": task.token,
+                    "Idempotency-Key": task.requestId,
                   },
                 },
               );
-              doc.current = { ...d, current_version: restored.id };
-              const bytes = await downloadFile(fileUrl(doc.current));
-              const state = await adapter.current!.load(bytes, name);
+              task.receipt = restored;
+              const next = { ...d, current_version: restored.id };
+              const bytes = await downloadFile(fileUrl(next));
+              if (await blockHash(new Uint8Array(bytes)) !== restored.sha256 || !unchanged())
+                throw new Error("복원 파일 또는 현재 문서 상태가 다릅니다. 버전 기록에서 다시 확인하세요.");
+              const host = blockHosts.current.find(node => node && !node.querySelector("iframe"));
+              if (!host) throw new Error("복원 문서를 확인할 편집 공간이 없습니다. 다른 미리보기를 닫으세요.");
+              preview = await EditorAdapter.mount(host);
+              const state = await preview.load(bytes, name);
+              if (!unchanged() || preview.exportHwpx().contentLoss.count)
+                throw new Error("복원 문서를 손실 없이 열지 못했습니다. 현재 편집 내용은 유지됩니다.");
+              const previous = adapter.current!;
+              dropBlockUndo(); adapterOff.current();
+              adapter.current = preview;
+              activateBlockHost(blockHosts.current.indexOf(host));
+              watchAdapter(preview);
+              doc.current = next;
               baseBytes.current = new Uint8Array(bytes);
               epoch.current = state.documentEpoch;
-              savedRevision.current = adapter.current!.bridge.revision();
+              savedRevision.current = preview.bridge.revision();
+              preview = null; previous.destroy(); restoring.current = null;
               setDirty(false);
               dirtyRef.current = false;
               setStatus("저장 완료");
-              closeHistory();
-            } catch (e) {
-              setError(String(e));
+              onHistory({ ...doc.current });
+              return restored;
+            } catch (cause) {
+              if (!task.receipt && cause instanceof ApiError && cause.status < 500) restoring.current = null;
+              throw cause;
             } finally {
+              preview?.destroy();
               busy.current = false;
             }
           }}

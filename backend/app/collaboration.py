@@ -463,7 +463,8 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
     def recommend(request: Request, q: str = Query("", max_length=200)):
         with Session(engine) as db:
             from .library_access import shared_library
-            query = select(Template)
+            from .db import document_is_trashed
+            query = select(Template).where(~document_is_trashed(Template.document_id))
             if not shared_library(db, request.state.user):
                 query = query.join(Access, Access.document_id == Template.document_id).where(Access.user_id == request.state.user)
             rows = db.scalars(query)

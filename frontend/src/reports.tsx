@@ -61,7 +61,7 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
   const [coverDate, setCoverDate] = useState(""), [coverDepartment, setCoverDepartment] = useState("");
   const [sectionOutline, setSectionOutline] = useState<string[] | undefined>();
   const [restoreTaskId, setRestoreTaskId] = useState<string | null>(null), [restoreAttempt, setRestoreAttempt] = useState(0);
-  const [templates, setTemplates] = useState<Template[]>([]), [templateId, setTemplateId] = useState("standard-business"),
+  const [templates, setTemplates] = useState<Template[]>([]), [defaultTemplateId, setDefaultTemplateId] = useState("standard-business"),
     [savedWithUnsaved, setSavedWithUnsaved] = useState(false);
   const recovery = useRef<ReportRecovery | null>(null);
   const [recoverySnapshot, setRecoverySnapshot] = useState<ExportSnapshot | null>(null);
@@ -122,15 +122,17 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
     let stopped = false;
     const generation = ++templateFetch.current;
     void api<{ items: Template[]; default_id: string }>("/report-templates").then(value => {
-      if (!stopped && generation === templateFetch.current) setTemplates(value.items);
+      if (!stopped && generation === templateFetch.current) {
+        setTemplates(value.items); setDefaultTemplateId(value.default_id || "standard-business");
+      }
     }).catch(e => { if (!stopped) setError(String(e)); });
     return () => { stopped = true; };
   }, []);
   async function refreshTemplates() {
     const generation = ++templateFetch.current;
     try {
-      const value = await api<{ items: Template[] }>("/report-templates");
-      if (generation === templateFetch.current) { setTemplates(value.items); setError(""); }
+      const value = await api<{ items: Template[]; default_id?: string }>("/report-templates");
+      if (generation === templateFetch.current) { setTemplates(value.items); setDefaultTemplateId(value.default_id || "standard-business"); setError(""); }
     } catch (e) { if (generation === templateFetch.current) setError(String(e)); }
   }
   useEffect(() => {
@@ -182,15 +184,15 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
     setCoverDate(value.input.cover?.date || ""); setCoverDepartment(value.input.cover?.department || "");
     setSectionOutline(value.input.section_outline ? [...value.input.section_outline] : undefined);
     setVisualId(value.input.visual_standard?.id || "");
-    setTemplateId(value.input.template?.id || "standard-business"); setSavedWithUnsaved(false);
+    setSavedWithUnsaved(false);
     recovery.current = null; setRecoverySnapshot(null); setRecoveryError("");
     setSaved(null); setError(""); setProgress(""); approval.current = null; approvalBody.current = null; output.current = null;
   }
   async function requestReport() {
     if (!pending && !feature.available) { setError(feature.message); return; }
-    const template = templates.find(item => item.id === templateId);
+    const template = templates.find(item => item.id === defaultTemplateId);
     const visual = visualStandards.find(item => item.id === visualId);
-    if (!pending && !template) { setError("작성 목적을 선택한 뒤 요청하세요."); return; }
+    if (!pending && !template) { setError("보고서 작성 기준을 불러오지 못했습니다. 연결 정보를 다시 확인해 주세요."); return; }
     if (!pending && structureError(sectionOutline)) { setError(structureError(sectionOutline)); return; }
     if (!pending && !visualCatalogReady) { setError("문서 표준을 확인한 뒤 요청하세요."); return; }
     if (!pending && visualId && !visual) { setError("선택한 문서 표준을 다시 확인하세요."); return; }
@@ -362,9 +364,6 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
         <label htmlFor="report-prompt">보고서 작성 요청</label>
         <textarea id="report-prompt" rows={5} maxLength={6000} value={prompt} disabled={locked || job?.status === "running"} onChange={e => setPrompt(e.target.value)} placeholder="보고할 주제, 대상 독자, 반드시 포함할 사실과 요청 사항을 적어 주세요." />
         <div className="report-form-options">
-          <label htmlFor="report-template">작성 목적</label>
-          <select id="report-template" value={templateId} disabled={locked || !templates.length || job?.status === "running"} onChange={e => setTemplateId(e.target.value)}>{templates.map(item => <option key={item.id} value={item.id}>{item.values.name}</option>)}</select>
-          <p className="hint">{templates.find(item => item.id === templateId)?.values.description || "작성 목적 확인 중"}</p>
           <ReportStructure value={sectionOutline} onChange={setSectionOutline} disabled={locked || job?.status === "running"} />
           <label htmlFor="report-visual-standard">문서 양식</label>
           <select id="report-visual-standard" value={visualId} disabled={locked || job?.status === "running" || !visualCatalogReady} onChange={e => setVisualId(e.target.value)}>
@@ -385,13 +384,13 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
         </details>
         <details><summary>양식 관리·연결 정보</summary>
           <button className="report-open-standard" disabled={locked || job?.status === "running" || !onNavigate} onClick={() => onNavigate?.("standards")}>문서작성 기준 열기</button>
-          <button disabled={locked} onClick={() => void refreshTemplates()}>작성 목적 목록 다시 확인</button>
+          <button disabled={locked} onClick={() => void refreshTemplates()}>작성 기준 다시 확인</button>
           <button disabled={locked} onClick={() => void loadVisualStandards().then(() => setError("")).catch(e => setError(String(e)))}>문서 표준 목록 다시 확인</button>
           <p className="hint">기존 Codex 로그인으로 처리합니다. 공개자료 검색에는 검색어가 사용됩니다.</p>
         </details>
       </section>
       <div className="report-request-submit">
-        <button className="primary" disabled={busy || saving || !!lease.current || previewLocked || !!pendingRevision || (!pending && (!feature.available || !visualCatalogReady || prompt.trim().length < 5 || !!structureError(sectionOutline) || !templates.some(item => item.id === templateId))) || job?.status === "running"} onClick={() => void requestReport()}>{busy ? "요청 확인 중…" : pending ? "같은 요청 접수 재확인" : "초안 작성하기"}</button>
+        <button className="primary" disabled={busy || saving || !!lease.current || previewLocked || !!pendingRevision || (!pending && (!feature.available || !visualCatalogReady || prompt.trim().length < 5 || !!structureError(sectionOutline) || !templates.some(item => item.id === defaultTemplateId))) || job?.status === "running"} onClick={() => void requestReport()}>{busy ? "요청 확인 중…" : pending ? "같은 요청 접수 재확인" : "초안 작성하기"}</button>
         <p className="hint">초안을 확인하고 보완한 뒤 문서로 만듭니다.</p>
       </div>
     </aside>
@@ -440,7 +439,6 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
       {job?.status === "cancelled" && <p>작성을 중단했습니다. 새 요청으로 다시 시작할 수 있습니다.</p>}
       {completedDraft && job?.draft ? <><h1>{job.draft.title}</h1>
         <ReportResearchNotice notice={job.draft.research_notice} />
-        {job.input.template && <p className="hint">작성 목적: {job.input.template.values.name}</p>}
         {job.input.section_outline && <p className="hint">대제목 구성: {job.input.section_outline.join(" → ")}</p>}
         {job.input.visual_standard && <p className="hint">문서 양식: {job.input.visual_standard.name}</p>}
         <ReportTiming timings={job.execution?.timings} />

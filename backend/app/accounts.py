@@ -17,7 +17,7 @@ from threading import BoundedSemaphore, Lock
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import Boolean, Float, String, func, select, text
+from sqlalchemy import Boolean, Float, String, func, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Mapped, Session, mapped_column
 from starlette.concurrency import run_in_threadpool
@@ -306,6 +306,36 @@ class Register(PasswordLogin):
         return value
 
 
+class PasswordChange(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    current_password: str = Field(min_length=8, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
+    _passwords = field_validator("current_password", "new_password")(valid_password)
+
+
+def password_change_account(db, user, token, session_policy, *, lock=False):
+    """Only a live personal password session may change its own credential.
+
+    Recheck the session and account under the write transaction after hashing:
+    an intervening logout, admin reset or competing change must win the fence.
+    """
+    from .auth import SESSION_PATTERN, session_hash
+    from .db import AuthSession
+    if not SESSION_PATTERN.fullmatch(token):
+        return None
+    account_query = select(UserAccount).where(UserAccount.user_id == user)
+    row = db.scalar(account_query.with_for_update() if lock else account_query)
+    session_query = select(AuthSession).where(AuthSession.token_hash == session_hash(token))
+    session = db.scalar(session_query.with_for_update() if lock else session_query)
+    now = time.time()
+    if (not row or row.kind != "member" or not row.is_active or row.approval_status != "approved"
+            or not session or session.user_id != user or session.revoked_at is not None
+            or session.expires_at <= now or session.last_seen_at <= now - session_policy.idle_seconds
+            or not secrets.compare_digest(session.credential_hash, session_binding(row))):
+        return None
+    return row
+
+
 async def read_input(request, model):
     # Manual bounded parsing prevents framework validation errors from echoing
     # password/employee-number fields, including malformed and surrogate JSON.
@@ -347,6 +377,42 @@ def install_accounts(app, policy, session_policy):
         response.set_cookie(COOKIE, token, httponly=True, samesite="strict",
             secure=request.scope.get("scheme") == "https", path="/api", max_age=session_policy.absolute_seconds)
         return response
+
+    @app.post("/api/auth/password-change")
+    async def change_password(request: Request):
+        from .db import AuthSession
+        check_enabled()
+        # Automation credentials and shared guest accounts never get this action.
+        if request.headers.get("authorization"):
+            raise HTTPException(403, "개인 계정의 비밀번호로 로그인한 뒤 변경하세요.")
+        user, cookie = request.state.user, request.cookies.get(COOKIE, "")
+        value = await read_input(request, PasswordChange)
+        limiter.charge(request.client.host if request.client else "unknown", user)
+
+        def operation():
+            with Session(engine) as db:
+                row = password_change_account(db, user, cookie, session_policy)
+                if row is None:
+                    raise HTTPException(403, "개인 계정의 비밀번호로 로그인한 뒤 변경하세요.")
+                previous_binding, encoded = session_binding(row), row.password_hash
+            if not verify_password(value.current_password, encoded):
+                raise HTTPException(400, "현재 비밀번호가 일치하지 않습니다.")
+            if secrets.compare_digest(value.current_password.encode(), value.new_password.encode()):
+                raise HTTPException(422, "현재 비밀번호와 다른 새 비밀번호를 입력하세요.")
+            replacement = hash_password(value.new_password)
+            with transaction(engine) as db:
+                row = password_change_account(db, user, cookie, session_policy, lock=True)
+                if row is None or not secrets.compare_digest(previous_binding, session_binding(row)):
+                    raise HTTPException(409, "로그인 상태가 바뀌었습니다. 다시 로그인한 뒤 변경하세요.")
+                row.password_hash, row.session_revision = replacement, secrets.token_hex(32)
+                db.execute(update(AuthSession).where(AuthSession.user_id == user,
+                    AuthSession.revoked_at.is_(None)).values(revoked_at=time.time()))
+                record_event(db, user, "account.password_change", "account", user)
+                account, binding = public_account(row), session_binding(row)
+            # Commit first, then issue a fresh cookie. A lost response is safely
+            # recoverable by logging in with the new password, never retrying blindly.
+            return response_for(account, binding, request)
+        return await run_in_threadpool(limiter.run, operation)
 
     @app.post("/api/auth/password-login")
     async def login(request: Request):

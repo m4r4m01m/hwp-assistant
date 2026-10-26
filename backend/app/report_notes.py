@@ -86,17 +86,24 @@ def localize_notes(blocks, sources, settings, *, presentation_policy=None, group
         for identifier in identifiers:
             source = known[identifier]
             marker = citation_marker(f"S{numbers[identifier]}", style)
+            omitted_prefix = None
             # This optional policy applies only to explanation labels. Inline
             # ranges continue to use full 주1), 주2) markers at their source token.
             if settings.get("citation_note_abbreviated") and style == "NOTE" and numbers[identifier] > 1:
                 marker = f"{numbers[identifier]})"
+                omitted_prefix = "주"
             if common_table_source:
                 marker = "자료:"
             value = f"{marker} {source_text(source)}"
-            result.append((value, "source", False, {
+            metadata = {
                 "style_kind": note_role, "note_scope": scope, "note_source_id": identifier,
                 "note_parent_role": parent, "note_marker": marker, "note_visual_kind": visual_kind,
-            }))
+            }
+            if omitted_prefix:
+                # Freeze the new geometry instruction with this plan. Existing
+                # abbreviated plans without it retain their original layout.
+                metadata["note_omitted_prefix"] = omitted_prefix
+            result.append((value, "source", False, metadata))
     # Keep supplied but uncited references without pretending they annotate a
     # nearby claim. No cited source is duplicated into a trailing notes section.
     remaining = list(sources) if settings.get("reference_list") == "ALL" else [source for source in sources if source.id not in used]

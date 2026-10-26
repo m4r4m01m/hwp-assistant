@@ -6,6 +6,7 @@ export type Document = {
   current_version: string;
   created_at: number;
   role: "owner" | "editor" | "reader";
+  can_trash?: boolean;
 };
 export type Version = {
   id: string;
@@ -16,6 +17,7 @@ export type Version = {
   cause: string;
   created_at: number;
   author?: { user_id: string; identity_kind: "local" | "authenticated" } | null;
+  restore_source?: { version_id: string; created_at: number; author?: Version["author"] } | null;
 };
 export class ApiError extends Error {
   constructor(readonly status: number, message: string, readonly retryAfterMs?: number) {

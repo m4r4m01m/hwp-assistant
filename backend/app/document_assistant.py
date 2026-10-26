@@ -20,6 +20,7 @@ from .db import Access, Conversation, ConversationTurn, Document, Message, trans
 from .hwpx import digest
 from .rewrite import TaskInput
 from .rewrite_capacity import ExecutionSlot
+from .document_rewrite import RewriteContext, ParagraphRewrite, validated_rewrites, verify_rewrite_output
 
 MAX_SECONDS = 600
 CONTRACT = "live-document-conversation-v1"
@@ -90,6 +91,7 @@ class TurnInput(Input):
     document_context: DocumentContext
     selection: dict | None = None
     design_context: DesignContext | None = None
+    rewrite_context: RewriteContext | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -134,6 +136,7 @@ class AssistantResponse(BaseModel):
     answer: str = Field(min_length=1, max_length=12000)
     rewrite_instruction: str | None = Field(default=None, min_length=1, max_length=2000)
     design_suggestions: list[DesignSuggestion] = Field(default_factory=list, max_length=3)
+    document_rewrites: list[ParagraphRewrite] = Field(default_factory=list, max_length=120)
 
     @field_validator("answer", "rewrite_instruction")
     @classmethod
@@ -146,6 +149,8 @@ class AssistantResponse(BaseModel):
 def request_payload(value):
     # Omission preserves accepted v1 request fingerprints and retry semantics.
     result = value.model_dump(mode="json")
+    if result["rewrite_context"] is None:
+        result.pop("rewrite_context")
     if result["design_context"] is None:
         result.pop("design_context")
     else:
@@ -283,8 +288,11 @@ def finish_turn(engine, turn_id, response=None, evidence=None, error=""):
             payload = json.loads(row.input)
             if payload["selection"] is None and value.rewrite_instruction is not None:
                 raise ValueError("선택 문단이 없는 답변에 수정 요청이 포함됐습니다.")
+            if payload.get("rewrite_context") and value.rewrite_instruction is not None:
+                raise ValueError("문서 전체 수정은 고정된 본문 수정안으로 반환해야 합니다.")
             proposals = validated_design_proposals(db, row.requested_by, payload, value.design_suggestions)
-            row.response, row.status = canonical({**value.model_dump(), "design_proposals": proposals}), "ready"
+            rewrites = validated_rewrites(payload, value.document_rewrites)
+            row.response, row.status = canonical({**value.model_dump(), "design_proposals": proposals, "document_rewrites": rewrites}), "ready"
             # A completed turn is also visible to the existing shared conversation.
             for role, content in (("user", payload["message"]), ("assistant", value.answer)):
                 db.add(Message(id=str(uuid.uuid5(uuid.UUID(row.id), role)), conversation_id=row.conversation_id,
@@ -326,6 +334,7 @@ def public_turn(row, doc, user, role):
         "base_version": row.base_version, "requested_by": row.requested_by, "message": payload["message"],
         "status": status(row), "answer": result.get("answer"), "rewrite_instruction": result.get("rewrite_instruction"),
         "design_proposals": result.get("design_proposals", []), "design_context": payload.get("design_context"),
+        "rewrite_context": payload.get("rewrite_context"), "document_rewrites": result.get("document_rewrites", []),
         "selection": payload["selection"], "document_context": {k: context[k] for k in ("sha256", "truncated", "revision", "epoch")} | {"characters": len(context["text"])},
         "error": row.error or ("응답 제한 시간이 지났습니다. 같은 질문을 자동으로 다시 실행하지 않습니다." if status(row) == "expired" else ""),
         "execution": {k: v for k, v in json.loads(row.execution).items() if not k.startswith("_")},
@@ -335,6 +344,57 @@ def public_turn(row, doc, user, role):
 
 def install_document_assistant(app, check_lease):
     engine = app.state.engine
+
+    from .block_contract import BlockInput, MAX_BASE64, decoded
+    from .document_blocks import bounded_input
+    from starlette.concurrency import run_in_threadpool
+
+    class RewriteCheck(BlockInput):
+        base_version: str = Field(min_length=1, max_length=36)
+
+    class RewriteVerify(RewriteCheck):
+        source_base64: str = Field(min_length=1, max_length=MAX_BASE64)
+        engine_output_base64: str = Field(min_length=1, max_length=MAX_BASE64)
+
+    def checked_rewrite(doc_id, base_version, user, token, turn_id=None):
+        with transaction(engine) as db:
+            doc = require_access(db, doc_id, user, "editor", lock=True, fresh=True)
+            require_lease_owner(db, doc, user, fresh=True)
+            check_lease(doc, token)
+            if doc.current_version != base_version:
+                raise HTTPException(409, "문서의 저장 기준이 변경됐습니다. 현재 문서로 다시 요청하세요.")
+            if turn_id is None:
+                return None
+            row = db.get(ConversationTurn, turn_id)
+            if not row or row.document_id != doc_id or row.requested_by != user:
+                raise HTTPException(404, "현재 사용자의 수정 요청을 찾을 수 없습니다.")
+            if row.status != "ready" or row.base_version != base_version:
+                raise HTTPException(409, "완료된 현재 문서 수정안만 적용할 수 있습니다.")
+            payload, result = json.loads(row.input), json.loads(row.response)
+            changes = validated_rewrites(payload, result.get("document_rewrites", []))
+            if not changes:
+                raise HTTPException(409, "적용할 전체 문단 수정안이 없습니다.")
+            return payload["rewrite_context"], changes
+
+    @app.post("/api/assistant-turns/{turn_id}/rewrite-check")
+    async def verify_document_rewrite(turn_id: str, request: Request, x_edit_session: str = Header()):
+        value = await bounded_input(request, RewriteVerify)
+        with Session(engine) as db:
+            row = db.get(ConversationTurn, turn_id)
+            if not row:
+                raise HTTPException(404, "수정 요청을 찾을 수 없습니다.")
+            doc_id = row.document_id
+        context, changes = checked_rewrite(doc_id, value.base_version, request.state.user, x_edit_session, turn_id)
+        source, output = decoded(value.source_base64), decoded(value.engine_output_base64)
+        await run_in_threadpool(verify_rewrite_output, source, output, context, changes)
+        checked_rewrite(doc_id, value.base_version, request.state.user, x_edit_session, turn_id)
+        return {"verified": True, "source_sha256": digest(source), "output_sha256": digest(output), "turn_id": turn_id}
+
+    @app.post("/api/documents/{doc_id}/assistant-rewrite-check")
+    async def check_document_rewrite(doc_id: str, request: Request, x_edit_session: str = Header()):
+        value = await bounded_input(request, RewriteCheck)
+        checked_rewrite(doc_id, value.base_version, request.state.user, x_edit_session)
+        return {"ok": True, "base_version": value.base_version}
 
     @app.get("/api/document-assistant-provider")
     def provider_info(request: Request):

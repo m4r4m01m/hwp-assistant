@@ -51,7 +51,7 @@ export const isPinnedBinaryen = value => [
 ].includes(value);
 
 // Never checkout/reset an existing vendor directory: it can contain local work.
-export function ensureSource(repo = resolve(root, '.cache/rhwp')) {
+export function ensureSource(repo = resolve(root, '.cache/rhwp'), { verifyController } = {}) {
   if (!existsSync(resolve(repo, '.git'))) {
     if (existsSync(repo) && readdirSync(repo).length)
       throw Error('Preserving non-empty vendor directory without Git metadata: ' + repo);
@@ -68,8 +68,14 @@ export function ensureSource(repo = resolve(root, '.cache/rhwp')) {
   if (head !== lock.commit) throw Error('Preserving vendor checkout at a different commit: ' + head);
   const changed = execFileSync('git', ['diff', 'HEAD', '--name-only'], { cwd: repo, encoding: 'utf8' })
     .trim().split(/\r?\n/).filter(Boolean);
-  if (changed.some(name => !['rhwp-studio/src/main.ts', 'rhwp-studio/public/fonts'].includes(name)))
+  const controllerPath = 'rhwp-studio/src/document-agent/controller.ts';
+  const allowed = ['rhwp-studio/src/main.ts', 'rhwp-studio/public/fonts', ...(verifyController ? [controllerPath] : [])];
+  if (changed.some(name => !allowed.includes(name)))
     throw Error('Preserving unexpected vendor source changes: ' + changed.join(', '));
+  if (changed.includes(controllerPath)) {
+    const original = execFileSync('git', ['show', `${lock.commit}:${controllerPath}`], { cwd: repo, encoding: 'utf8' });
+    verifyController(readFileSync(resolve(repo, controllerPath), 'utf8'), original);
+  }
   return repo;
 }
 

@@ -3,8 +3,10 @@ import { readFileSync } from 'node:fs';
 import { resolve, relative, isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { lock, hashFile, validateProvenance } from './engine-build-lib.mjs';
+import { validateControllerReceipt } from './studio-controller-patch.mjs';
 
-export function checkBundle(directory, { deployment = true } = {}) {
+export function checkBundle(directory, { deployment = true, allowLegacyController = false } = {}) {
+  if (deployment && allowLegacyController) throw Error('Legacy controller inspection is limited to explicit diagnostic migration');
   const root = resolve(directory);
   const info = JSON.parse(readFileSync(resolve(root, 'build-info.json'), 'utf8'));
   if (info.commit !== lock.commit || info.coreBuild?.patch_sha256 !== lock.patch_sha256 || !info.bundle)
@@ -12,6 +14,9 @@ export function checkBundle(directory, { deployment = true } = {}) {
   if (deployment && (info.diagnostic !== false || info.coreBuild.wasm_opt !== true))
     throw Error('Diagnostic bundle cannot be used as deployment evidence');
   validateProvenance(info.coreBuild, { diagnostic: !deployment });
+  // Only an explicit old-bridge migration may inspect a pre-extension bundle.
+  // An existing receipt is always checked, even in that migration path.
+  if (info.controller || !allowLegacyController) validateControllerReceipt(info.controller);
   for (const [name, hash] of Object.entries(info.bundle)) {
     const file = resolve(root, name), local = relative(root, file);
     if (local.startsWith('..') || isAbsolute(local) || hashFile(file) !== hash)

@@ -1,5 +1,5 @@
 // Serves a built app with the configured nginx response headers. This is not nginx.
-import { preview } from '../frontend/node_modules/vite/dist/node/index.js';
+import { startPreviewService } from './preview-service.mjs';
 import { parseArgs } from 'node:util';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -24,9 +24,10 @@ if (!headers['Content-Security-Policy']) throw Error('Could not read the actual 
 // Revalidate the local app shell after a new diagnostic bundle is installed.
 // Keep all existing CSP/auth headers; a normal refresh must see the new UI.
 headers['Cache-Control'] = 'no-cache';
-const server = await preview({ configFile: false, root: resolve(root, 'frontend'), build: { outDir },
+const server = await startPreviewService({ configFile: false, root: resolve(root, 'frontend'), build: { outDir },
   preview: { host: '127.0.0.1', port, strictPort: true, headers,
     proxy: { '/api': { target: api.origin, changeOrigin: false } } } });
+process.once('exit', code => console.error(JSON.stringify({ event: 'local_preview_exit', pid: process.pid, code })));
 server.printUrls();
 console.log(JSON.stringify({ mode: 'built frontend, nginx headers, Vite preview (not nginx)',
   diagnostic: info.diagnostic, wasm_sha256: info.coreBuild.wasm_sha256 }));

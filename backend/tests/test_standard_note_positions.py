@@ -58,3 +58,65 @@ def test_repeated_note_explanations_have_stable_individual_preview_anchors():
     repeated = [a for a in before if a['texts'] == before[0]['texts']]
     assert len(repeated) > 1
     assert [a['occurrence'] for a in repeated] == list(range(len(repeated)))
+
+
+@pytest.mark.parametrize('ratio,spacing', [(100, 0), (90, -5), (110, 10)])
+def test_abbreviated_explanation_digits_align_with_the_full_label_using_native_indents(ratio, spacing):
+    from test_reference_body_spacing import generated, paragraph_named
+    from test_reference_report import parts
+    from test_report_local_notes import DRAFT
+    settings = {**defaults(), 'citation_style': 'NOTE', 'citation_note_abbreviated': True}
+    for role in ('note', 'table_source'):
+        settings.update({role + '_ratio_percent': ratio, role + '_spacing_percent': spacing})
+    raw, plan = generated(draft=DRAFT, settings=settings)
+    header, section = parts(raw)
+    notes = [item for item in plan if item.get('note_source_id')]
+    assert {item['style_kind'] for item in notes if item.get('note_omitted_prefix')} == {'note', 'table_source'}
+    for note in notes:
+        if not note.get('note_omitted_prefix'):
+            continue
+        first = next(item for item in notes if item['note_scope'] == note['note_scope'])
+        first_margin = paragraph_named(header, section, first['text'])[1]
+        margin = paragraph_named(header, section, note['text'])[1]
+        expected_advance = settings[note['style_kind'] + '_size_pt'] * (ratio + spacing) / 100
+        assert margin['left'] - first_margin['left'] == pytest.approx(expected_advance, abs=.01)
+        assert note['note_marker'] == '2)'
+        assert not note['text'].startswith(' ')  # No padding characters in document content.
+        assert first['note_marker'] == '주1)'
+
+
+@pytest.mark.parametrize('first_indent', [-18, 0, 8])
+def test_abbreviated_labels_keep_custom_note_continuation_columns(first_indent):
+    from test_reference_body_spacing import generated, paragraph_named
+    from test_reference_report import parts
+    settings = {'citation_style': 'NOTE', 'citation_note_abbreviated': True,
+                'note_left_indent_pt': 25, 'note_first_line_indent_pt': first_indent}
+    raw, plan = generated(draft=SAMPLE, settings=settings)
+    header, section = parts(raw)
+    abbreviated = next(item for item in plan if item.get('note_omitted_prefix') and item['style_kind'] == 'note')
+    margin = paragraph_named(header, section, abbreviated['text'])[1]
+    first_line = margin['left'] + max(0, margin['intent'])
+    continuation = margin['left'] + max(0, -margin['intent'])
+    assert first_line == pytest.approx(25 + max(0, first_indent) + defaults()['note_size_pt'])
+    assert continuation == pytest.approx(25 + max(0, -first_indent))
+
+
+def test_frozen_abbreviated_plan_without_new_metadata_retains_its_original_geometry(monkeypatch):
+    from app import report_notes
+    from test_reference_body_spacing import generated, paragraph_named
+    from test_reference_report import parts
+    original = report_notes.localize_notes
+
+    def legacy_plan(*args, **kwargs):
+        result = original(*args, **kwargs)
+        for item in result:
+            item[3].pop('note_omitted_prefix', None)
+        return result
+
+    monkeypatch.setattr(report_notes, 'localize_notes', legacy_plan)
+    raw, plan = generated(draft=SAMPLE, settings={'citation_style': 'NOTE', 'citation_note_abbreviated': True})
+    header, section = parts(raw)
+    second = next(item for item in plan if item.get('note_marker') == '2)')
+    first = next(item for item in plan if item.get('note_scope') == second['note_scope'] and item.get('note_marker') == '주1)')
+    assert paragraph_named(header, section, second['text'])[1]['left'] == paragraph_named(header, section, first['text'])[1]['left']
+    assert all('note_omitted_prefix' not in item for item in plan)

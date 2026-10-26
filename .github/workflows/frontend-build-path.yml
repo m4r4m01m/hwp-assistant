@@ -26,4 +26,4 @@ jobs:
         working-directory: frontend
       # Real Vite/CLI, tiny frontend + diagnostic engine fixtures. No Rust build,
       # real engine execution, credentials, production data or home-server access.
-      - run: node --test scripts/build-frontend.test.mjs
+      - run: node --test scripts/build-frontend.test.mjs scripts/preview-service.test.mjs

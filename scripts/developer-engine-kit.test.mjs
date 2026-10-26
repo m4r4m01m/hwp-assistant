@@ -4,7 +4,8 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from 
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { zipSync } from '../frontend/node_modules/fflate/esm/index.mjs';
-import { root, sha256 } from './engine-build-lib.mjs';
+import { root, lock, hashFile, sha256 } from './engine-build-lib.mjs';
+import { controllerReceipt } from './studio-controller-patch.mjs';
 
 const temporary = resolve(root, '.cache/developer-kit-tests');
 mkdirSync(temporary, { recursive: true });
@@ -48,4 +49,26 @@ test('developer kit rejects import destinations outside the project cache', () =
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /dedicated directory inside .cache/);
   assert.equal(existsSync(out), false);
+});
+
+test('developer kit requires the current controller receipt as well as matching bridge and core', () => {
+  const publicRoot = resolve(directory, 'controller-receipt'), engine = resolve(publicRoot, 'rhwp');
+  mkdirSync(resolve(engine, 'assets'), { recursive: true });
+  mkdirSync(resolve(engine, 'fonts'));
+  const files = { 'index.html': 'synthetic kit', 'assets/rhwp_bg-test.wasm': 'fixture, never executed',
+    'LICENSE': 'synthetic notice', 'THIRD_PARTY_LICENSES.md': 'synthetic notice', 'fonts/FONTS.md': 'synthetic notice' };
+  for (const [name, bytes] of Object.entries(files)) writeFileSync(resolve(engine, name), bytes);
+  const bundle = Object.fromEntries(Object.entries(files).map(([name, bytes]) => [name, sha256(bytes)]));
+  const info = { commit: lock.commit, diagnostic: true, bundle,
+    bridge_sha256: hashFile(resolve(root, 'scripts/assistant-bridge.ts.txt')),
+    coreBuild: { ...lock, profile: 'release', wasm_opt: false, wasm_sha256: bundle['assets/rhwp_bg-test.wasm'] } };
+  const save = () => writeFileSync(resolve(engine, 'build-info.json'), JSON.stringify(info)); save();
+  let result = run(['check', '--public', publicRoot]);
+  assert.notEqual(result.status, 0); assert.match(result.stderr, /controller receipt/);
+  info.controller = controllerReceipt(); save();
+  result = run(['check', '--public', publicRoot]);
+  assert.equal(result.status, 0, result.stderr);
+  info.controller.helper_sha256 = '0'.repeat(64); save();
+  result = run(['check', '--public', publicRoot]);
+  assert.notEqual(result.status, 0); assert.match(result.stderr, /controller receipt/);
 });

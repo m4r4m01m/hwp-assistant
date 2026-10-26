@@ -74,6 +74,9 @@
 .history-actions {
   min-width: 260px;
 }
+.history-structure-detail { padding: 12px 16px; background: #f1f6fb; border-left: 3px solid #2877b5; overflow-wrap: anywhere; }
+.history-structure-detail ul { max-height: 220px; overflow: auto; padding-left: 20px; }
+.history-table .history-restore-source { color: #215c91; font-weight: 600; }
 .history-actions button,
 .history-actions .button {
   padding: 6px 9px;

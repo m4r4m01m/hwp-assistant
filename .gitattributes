@@ -2,4 +2,5 @@
 scripts/patches/*.patch text eol=lf whitespace=-blank-at-eol
 # These files also participate in byte-pinned hashes on Windows clones.
 scripts/assistant-bridge.ts.txt text eol=lf
+scripts/studio-controller-patch.mjs text eol=lf
 backend/app/assets/document-standard/profile.json text eol=lf

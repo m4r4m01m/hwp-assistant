@@ -7,6 +7,7 @@ import { DocumentAssistantPanel, type AssistantActions } from "./document-assist
 import { WorkspaceIcon } from "./workspace-nav";
 import { CapabilityNotice, useFeature } from "./capabilities";
 import { useComparisonDialog } from "./version-comparison";
+import type { CaptureRewritePreview } from "./rewrite-preview";
 
 type Thread = { id: string; title: string; visibility: "document" | "private" };
 type Message = {
@@ -34,12 +35,14 @@ export function CollaborationPanel({
   cancelRewrite,
   onContextDirty,
   getPendingRewrite,
-  captureDocument, sendAssistant, onAssistantActive, onDesignProposal, active = true,
+  captureRewritePreview,
+  captureDocument, sendAssistant, onAssistantActive, onDesignProposal, documentRewrite, active = true,
 }: AssistantActions & {
   document: Document;
   capture?: () => Snapshot;
   approve?: (thread: string, proposal: string) => Promise<void>;
-  requestRewrite?: (thread: string, instruction: string, contextRevision?: number, expectedSelection?: Snapshot) => Promise<void>;
+  requestRewrite?: (thread: string, instruction: string, contextRevision?: number, expectedSelection?: Snapshot) => Promise<string | void>;
+  captureRewritePreview?: CaptureRewritePreview;
   approveRewrite?: (task: string, candidate: string, application: string) => Promise<void>;
   cancelRewrite?: (task: string) => Promise<void>;
   onContextDirty?: (dirty: boolean) => void;
@@ -47,6 +50,7 @@ export function CollaborationPanel({
   active?: boolean;
 }) {
   const chatFeature = useFeature("chat");
+  const [previewTaskId, setPreviewTaskId] = useState<string>();
   const [threads, setThreads] = useState<Thread[]>([]),
     [selected, setSelected] = useState(""),
     [detail, setDetail] = useState<Detail | null>(null),
@@ -239,12 +243,13 @@ export function CollaborationPanel({
       {detail && (
         <div className="conversation-content" inert={createPending}>
           <DocumentAssistantPanel active={active} key={`assistant-${detail.id}`} thread={detail.id} document={doc} captureDocument={captureDocument} sendAssistant={sendAssistant}
-            onDirty={assistantDirtyChanged} onActive={assistantActiveChanged} requestRewrite={requestRewrite} onDesignProposal={onDesignProposal} onShowRewrite={() => setShowRewrite(true)} />
-          <details className="assistant-secondary-tools" open={showRewrite} onToggle={event => setShowRewrite(event.currentTarget.open)}><summary>문단 수정 후보 · 직접 요청</summary>
+            onDirty={assistantDirtyChanged} onActive={assistantActiveChanged} requestRewrite={requestRewrite} onDesignProposal={onDesignProposal} documentRewrite={documentRewrite} onShowRewrite={taskId => { setPreviewTaskId(taskId); setShowRewrite(true); }} />
+          <details className="assistant-secondary-tools" open={showRewrite} onToggle={event => setShowRewrite(event.currentTarget.open)}><summary><span>문단 수정 후보 기록</span><span className="assistant-disclosure-label">{showRewrite ? "접기" : "열기"}</span></summary>
           <RewritePanel key={detail.id} thread={detail.id} document={doc} context={detail.context} contextDirty={contextDirty}
-            active={active && showRewrite} requestRewrite={requestRewrite} approveRewrite={approveRewrite} cancelRewrite={cancelRewrite} getPendingRewrite={getPendingRewrite} />
+            active={active && showRewrite} requestRewrite={requestRewrite} approveRewrite={approveRewrite} cancelRewrite={cancelRewrite} getPendingRewrite={getPendingRewrite}
+            captureRewritePreview={captureRewritePreview} previewTaskId={previewTaskId} />
           </details>
-          <details className="assistant-secondary-tools"><summary>작성 정보·검토 메모</summary>
+          <details className="assistant-secondary-tools"><summary><span>작성 정보·검토 메모</span><span className="assistant-disclosure-label">열기 / 접기</span></summary>
           <details><summary>추가 작성 정보 · 선택 사항</summary>
           <WritingContextEditor key={`context-${detail.id}`} thread={detail.id} context={detail.context}
             baseVersion={doc.current_version} writable={writable} capture={capture} onSaved={() => load(detail.id)} onDirty={dirtyChanged} />

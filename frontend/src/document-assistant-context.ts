@@ -5,7 +5,9 @@ export type AssistantDocumentContext = { text: string; sha256: string; truncated
 export type AssistantDesignTarget = { kind: "paragraph" | "table"; section: 0; paragraph: number; control?: number };
 export type AssistantDesignContext = { source_sha256: string; target: AssistantDesignTarget | null;
   target_text?: string; target_text_truncated?: boolean; target_is_title_frame?: boolean };
-export type AssistantCapture = { base_version: string; document_context: AssistantDocumentContext; selection: Snapshot | null; design_context?: AssistantDesignContext | null };
+export type AssistantRewriteParagraph = { section: 0; paragraph: number; text: string; text_sha256: string; length: number; fixed_prefix: string };
+export type AssistantRewriteContext = { source_sha256: string; paragraphs: AssistantRewriteParagraph[]; preserved: Record<string, number>; unavailable: string };
+export type AssistantCapture = { base_version: string; document_context: AssistantDocumentContext; selection: Snapshot | null; design_context?: AssistantDesignContext | null; rewrite_context?: AssistantRewriteContext | null };
 const MAX_TEXT = 60000;
 const HP = "http://www.hancom.co.kr/hwpml/2011/paragraph", HH = "http://www.hancom.co.kr/hwpml/2011/head";
 const directControls = new Set(["tbl", "pic", "rect", "ellipse", "line", "connectLine", "arc", "polygon", "curve",
@@ -13,6 +15,74 @@ const directControls = new Set(["tbl", "pic", "rect", "ellipse", "line", "connec
 const wrappedControls = new Set(["colPr", "header", "footer", "footNote", "endNote", "autoNum", "hiddenComment", "indexmark",
   "fieldBegin", "pageHiding", "pageNumCtrl", "pageNum", "bookmark", "newNum"]);
 const children = (element: Element, name: string) => Array.from(element.children).filter(child => child.namespaceURI === HP && child.localName === name);
+const digest = async (bytes: Uint8Array) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(bytes)))).map(value => value.toString(16).padStart(2, "0")).join("");
+
+// Read-only scope discovery. Native exact commands currently support complete,
+// single-format body paragraphs; expose every excluded class instead of silently
+// treating a partial plan as an edit to the whole document.
+export async function assistantRewriteContext(source: ExportSnapshot): Promise<AssistantRewriteContext> {
+  if (source.contentLoss.count) throw new Error("내용 손실이 감지된 문서는 현재 문장 범위를 확인할 수 없습니다.");
+  const result: AssistantRewriteContext = { source_sha256: await digest(source.bytes), paragraphs: [], preserved: {}, unavailable: "" };
+  if (source.bytes.length > 10 * 1024 * 1024) {
+    result.unavailable = "10MB를 넘는 문서는 전체 문장 수정이 제한됩니다. 문서 내용에 대한 질문은 가능합니다.";
+    return result;
+  }
+  let expanded = 0, entries = 0;
+  const files = unzipSync(source.bytes, { filter: file => {
+    if (++entries > 3000) throw new Error("문서 구성 항목이 너무 많습니다.");
+    if (!/^Contents\/section\d+\.xml$/.test(file.name) && file.name !== "Contents/header.xml") return false;
+    expanded += file.originalSize;
+    if (expanded > 30 * 1024 * 1024) throw new Error("문서 본문 크기를 초과했습니다.");
+    return true;
+  } });
+  if (Object.keys(files).filter(name => /^Contents\/section\d+\.xml$/.test(name)).length !== 1 || !files["Contents/section0.xml"]) {
+    result.unavailable = "여러 구역으로 구성된 문서는 전체 문장 수정을 지원하지 않습니다. 문서 내용에 대한 질문은 가능합니다.";
+    return result;
+  }
+  const xml = new TextDecoder("utf-8", { fatal: true }).decode(files["Contents/section0.xml"]);
+  if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error("안전하게 읽을 수 없는 문서 XML입니다.");
+  const root = new DOMParser().parseFromString(xml, "application/xml");
+  if (root.querySelector("parsererror")) throw new Error("본문 XML을 읽을 수 없습니다.");
+  const headerXml = files["Contents/header.xml"] ? new TextDecoder("utf-8", { fatal: true }).decode(files["Contents/header.xml"]) : "<header/>";
+  if (/<!DOCTYPE|<!ENTITY/i.test(headerXml)) throw new Error("안전하게 읽을 수 없는 문서 XML입니다.");
+  const header = new DOMParser().parseFromString(headerXml, "application/xml");
+  if (header.querySelector("parsererror")) throw new Error("문서 서식을 읽을 수 없습니다.");
+  const definition = (name: string, id: string | null) => Array.from(header.getElementsByTagNameNS(HH, name)).find(node => node.getAttribute("id") === id);
+  const isTitle = (node: Element) => {
+    if (definition("style", node.getAttribute("styleIDRef"))?.getAttribute("name") === "HWP Assistant editor title") return true;
+    const properties = definition("paraPr", node.getAttribute("paraPrIDRef"));
+    const border = properties && Array.from(properties.children).find(child => child.localName === "border");
+    const fill = border && definition("borderFill", border.getAttribute("borderFillIDRef"));
+    const edge = (name: string) => fill && Array.from(fill.children).find(child => child.localName === name);
+    const blues = new Set(["#437fc1", "#107fb5", "#3f7fc1"]);
+    return ["topBorder", "bottomBorder"].every(name => edge(name)?.getAttribute("type") === "SOLID" && blues.has(edge(name)?.getAttribute("color")?.toLowerCase() || "")) &&
+      ["leftBorder", "rightBorder"].every(name => !edge(name) || edge(name)?.getAttribute("type") === "NONE");
+  };
+  const preserved = (name: string) => { result.preserved[name] = (result.preserved[name] || 0) + 1; };
+  let total = 0;
+  for (const [paragraph, node] of children(root.documentElement, "p").entries()) {
+    const text = paragraphText(node), controls = paragraphControls(node);
+    if (controls === null || controls.length) { preserved("표·개체·주석 포함 문단"); continue; }
+    if (!text.trim()) { preserved("빈 문단"); continue; }
+    if (isTitle(node) || !/^\s*[□ㅇ○\-․]\s+/.test(text)) { preserved("제목·주석·기타 문단"); continue; }
+    const runs = children(node, "run").filter(run => children(run, "t").some(t => t.textContent));
+    let fixed_prefix = "", split = runs.length;
+    while (split > 0 && runs[split - 1].getAttribute("charPrIDRef") === runs.at(-1)?.getAttribute("charPrIDRef")) split--;
+    if (split) fixed_prefix = runs.slice(0, split).flatMap(run => children(run, "t")).map(t => t.textContent || "").join("");
+    if (!runs.length || runs.some(run => children(run, "t").some(t => t.children.length)) || split &&
+        (Array.from(fixed_prefix).length > 120 || !/^\s*[□ㅇ○\-․]\s+\([^()\r\n]{1,40}\)\s*$/.test(fixed_prefix) || !text.slice(fixed_prefix.length).trim())) {
+      preserved("혼합 서식 문단"); continue;
+    }
+    if (Array.from(text).length > 4000 || /[\u0000-\u001f\u007f]/.test(text)) { preserved("긴 문단·특수 문자"); continue; }
+    total += Array.from(text).length;
+    result.paragraphs.push({ section: 0, paragraph, text, text_sha256: await digest(new TextEncoder().encode(text)), length: Array.from(text).length, fixed_prefix });
+  }
+  if (result.paragraphs.length > 120 || total > 24000) {
+    result.unavailable = "전체 문장 수정 범위가 120문단 또는 24,000자를 넘었습니다. 일부를 조용히 생략하지 않고 요청을 보류합니다.";
+    result.paragraphs = [];
+  }
+  return result;
+}
 function paragraphControls(paragraph: Element): Element[] | null {
   const controls: Element[] = [];
   for (const run of children(paragraph, "run")) for (const node of Array.from(run.children)) {

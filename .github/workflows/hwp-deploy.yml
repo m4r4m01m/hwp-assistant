@@ -53,7 +53,7 @@ jobs:
         working-directory: frontend
       - run: npm run test:unit
         working-directory: frontend
-      - run: node --test scripts/public-base.test.mjs scripts/engine-build.test.mjs scripts/comparison-core.test.mjs scripts/precompress-static.test.mjs scripts/developer-engine-kit.test.mjs
+      - run: node --test scripts/public-base.test.mjs scripts/engine-build.test.mjs scripts/studio-controller-patch.test.mjs scripts/comparison-core.test.mjs scripts/precompress-static.test.mjs scripts/developer-engine-kit.test.mjs
       - run: node scripts/audit-public-paths.mjs
       - run: bash -n scripts/deploy/common.sh scripts/deploy/backup.sh scripts/deploy/deploy.sh scripts/deploy/run-browser-checks.sh
       - name: Report dependency advisories (bounded; no automatic lockfile changes)

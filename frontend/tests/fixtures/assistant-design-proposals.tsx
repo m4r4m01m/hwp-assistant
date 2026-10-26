@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { api, jsonRequest, type Document } from "../../src/api";
 import { DocumentAssistantPanel, type AssistantTurn } from "../../src/document-assistant";
 import { CapabilitiesProvider } from "../../src/capabilities";
-import { assistantDesignContext } from "../../src/document-assistant-context";
+import { assistantDesignContext, assistantRewriteContext } from "../../src/document-assistant-context";
 import type { StyleTarget } from "../../src/editor";
 import { zipSync } from "fflate";
 
@@ -11,6 +11,10 @@ Object.assign(window, { testDesignContext: (section: string, header: string, tar
   bytes: zipSync({ "Contents/section0.xml": new TextEncoder().encode(section), "Contents/header.xml": new TextEncoder().encode(header) }),
   contentLoss: { count: 0, losses: [] }, revision: 7, epoch: 2,
 }, target) });
+Object.assign(window, { testRewriteContext: (section: string, header = "<header/>", oversized = false) => assistantRewriteContext({
+  bytes: oversized ? new Uint8Array(10 * 1024 * 1024 + 1) : zipSync({ "Contents/section0.xml": new TextEncoder().encode(section), "Contents/header.xml": new TextEncoder().encode(header) }),
+  contentLoss: { count: 0, losses: [] }, revision: 7, epoch: 2,
+}) });
 
 // Actual conversation panel with a synthetic buffer. No engine or AI runs here.
 const doc: Document = { id: "design-document", name: "합성 문서.hwpx", current_version: "saved-version", created_at: 1, role: "owner" };

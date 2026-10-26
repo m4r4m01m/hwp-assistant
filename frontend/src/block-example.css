@@ -1,0 +1,10 @@
+.block-example { margin: 16px 0; padding: 12px; background: #f2f6fa; border: 1px solid #d4e0ec; border-radius: 8px; }
+.block-example figcaption { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; font-size: 13px; font-weight: 600; }
+.block-example small { color: #637387; font-size: 11px; font-weight: 400; }
+.block-example-paper { background: white; padding: 18px 12px; margin-bottom: 8px; color: #1c3044; overflow-wrap: anywhere; }
+.block-example-title { border-top: 3px solid #2675bd; border-bottom: 1px solid #2675bd; background: #e9f2fb; text-align: center; font-size: 17px; font-weight: 700; padding: 9px 5px; }
+.block-example-summary { display: flex; gap: 7px; margin: 0; font-size: 13px; line-height: 1.7; }
+.block-example table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 11px; }
+.block-example th, .block-example td { border: 1px solid #6f7b89; padding: 6px; }
+.block-example th { background: #e4edf6; text-align: center; }
+.block-example th:first-child { width: 46%; }

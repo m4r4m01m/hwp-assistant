@@ -14,6 +14,7 @@ import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { root, lock, ensureSource, validateCore, assertStudioBridge, validateInstalledDependencies, hashFile } from "./engine-build-lib.mjs";
 import { checkBundle } from "./check-engine-bundle.mjs";
+import { controllerPath, assertControllerSource, controllerReceipt } from "./studio-controller-patch.mjs";
 import { normalizePublicBase, withPublicBase } from "./public-base.mjs";
 const studioBase = withPublicBase(normalizePublicBase(process.env.HWP_PUBLIC_BASE_PATH || "/"), "rhwp/");
 const { values } = parseArgs({ options: {
@@ -37,7 +38,7 @@ const coreBuild = validateCore(coreDir, { diagnostic: values.diagnostic });
 execFileSync(process.execPath, [resolve(root, "scripts/test-engine-fill.mjs"), coreDir], { stdio: "inherit" });
 execFileSync(process.execPath, [resolve(root, "scripts/test-engine-selection.mjs"), coreDir], { stdio: "inherit" });
 execFileSync(process.execPath, [resolve(root, "scripts/test-engine-block-layout.mjs"), coreDir], { stdio: "inherit" });
-const repo = ensureSource();
+const repo = ensureSource(undefined, { verifyController: assertControllerSource });
 const commit = lock.commit;
 const run = (cmd, args, cwd = repo, env = {}) =>
   execFileSync(cmd, args, {
@@ -56,16 +57,20 @@ const bridge = readFileSync(resolve(root, "scripts/assistant-bridge.ts.txt"), "u
 const bridgedMain = originalMain + bridge;
 let previous = null;
 if (values["previous-bridge"]) {
-  const receipt = checkBundle(resolve(root, values["previous-bundle"]), { deployment: false });
+  const receipt = checkBundle(resolve(root, values["previous-bundle"]), { deployment: false, allowLegacyController: true });
   previous = { bytes: readFileSync(resolve(root, values["previous-bridge"])), sha256: receipt.bridge_sha256 };
 }
 assertStudioBridge(readFileSync(mainPath, "utf8"), originalMain, bridge, previous);
+const originalController = execFileSync("git", ["show", `${commit}:${controllerPath}`], { cwd: repo, encoding: "utf8" });
+const controllerFile = resolve(repo, controllerPath);
+const controller = assertControllerSource(readFileSync(controllerFile, "utf8"), originalController);
 const studio = resolve(repo, "rhwp-studio");
 const installed = values["reuse-installed"] ? validateInstalledDependencies(studio) : null;
 writeFileSync(
   mainPath,
   bridgedMain,
 );
+writeFileSync(controllerFile, controller);
 if (coreDir !== resolve(repo, "pkg")) cpSync(
   coreDir,
   resolve(repo, "pkg"),
@@ -101,7 +106,7 @@ writeFileSync(
   resolve(out, "build-info.json"),
   JSON.stringify(
     { version: lock.version, commit, publicBase: studioBase, externalWebFonts: false, diagnostic: values.diagnostic,
-      bridge_sha256: hashFile(resolve(root, "scripts/assistant-bridge.ts.txt")), bundle, coreBuild,
+      bridge_sha256: hashFile(resolve(root, "scripts/assistant-bridge.ts.txt")), controller: controllerReceipt(), bundle, coreBuild,
       ...(installed ? { dependencyReuse: { package_lock_sha256: installed.package_lock_sha256,
         installed_lock_sha256: installed.installed_lock_sha256, installation_performed: false } } : {}) },
     null,

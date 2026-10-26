@@ -139,13 +139,18 @@ test("REAL rhwp + MOCK document assistant: lost acceptance response keeps frozen
   expect(await (await request.get(`/api/threads/${state.thread}/assistant-turns`)).json()).toHaveLength(1);
 });
 
-test("REAL rhwp + MOCK document assistant: moving selection after advice blocks creation against the wrong paragraph", async ({ page, request }) => {
+test("REAL rhwp + MOCK document assistant: moving selection after advice fences the rendered preview against the wrong paragraph", async ({ page, request }) => {
   const state = await setup(page, request);
+  await page.getByLabel("AI 수정 범위", { exact: true }).selectOption("selection");
   await focusEnd(page, state.frame);
   await page.keyboard.press("Enter");
   await page.keyboard.insertText("선택 변경을 확인할 문단입니다.");
   const answer = await ask(page, request, state.thread, "현재 문단을 보고서 문체로 다듬어 주세요.");
   expect(answer.body.selection.evidence.text).toContain("선택 변경을 확인할 문단");
+  const preview = page.getByRole("dialog", { name: "문장 수정 전후 비교", exact: true });
+  await expect(preview).toBeVisible();
+  await expect(preview.getByRole("img", { name: "수정 후 실제 문서", exact: true })).toBeVisible({ timeout: 60000 });
+  await preview.getByRole("button", { name: "비교 닫기", exact: true }).click();
   await focusEnd(page, state.frame);
   await page.keyboard.press("Control+Home");
   // The first paragraph owns native section controls. Move to the next plain
@@ -153,26 +158,37 @@ test("REAL rhwp + MOCK document assistant: moving selection after advice blocks 
   await page.keyboard.press("ArrowDown");
   await expect.poll(() => state.frame.evaluate(() => (window as any).hwpAssistantBridge.snapshot().evidence.text)).toContain("30만원");
   const before = await liveBytes(state.frame);
-  await answer.article.getByRole("button", { name: "이 문단 수정 후보 만들기", exact: true }).click();
-  await expect(page.getByRole("alert").filter({ hasText: /선택|문단|위치/ })).toBeVisible();
-  expect(await (await request.get(`/api/threads/${state.thread}/rewrite-tasks`)).json()).toHaveLength(0);
+  await page.getByRole("button", { name: "후보 1 문서에서 비교", exact: true }).click();
+  await expect(preview.getByRole("alert").filter({ hasText: /선택|문단|위치/ })).toBeVisible();
+  expect(await (await request.get(`/api/threads/${state.thread}/rewrite-tasks`)).json()).toHaveLength(1);
   expect(digest(await liveBytes(state.frame))).toBe(digest(before));
 });
 
 test("REAL rhwp + MOCK document assistant: advice creates approved fenced rewrite and saved document reopens", async ({ page, request }, info) => {
   const state = await setup(page, request);
+  await page.getByLabel("AI 수정 범위", { exact: true }).selectOption("selection");
   await focusEnd(page, state.frame);
-  const answer = await ask(page, request, state.thread, "금액과 부정 표현을 보존해서 문단을 다듬어 주세요.");
+  const frozenBeforeAsk = await liveBytes(state.frame);
   const acceptance = page.waitForResponse(response => response.request().method() === "POST" && /\/rewrite-tasks$/.test(response.url()));
-  await answer.article.getByRole("button", { name: "이 문단 수정 후보 만들기", exact: true }).click();
+  const answer = await ask(page, request, state.thread, "금액과 부정 표현을 보존해서 문단을 다듬어 주세요.");
   const response = await acceptance;
   expect(response.ok(), await response.text()).toBeTruthy();
   const rewrite = await response.json();
   expect(response.request().postDataJSON().selection).toEqual(answer.body.selection);
   await expect.poll(async () => (await (await request.get(`/api/threads/${state.thread}/rewrite-tasks`)).json()).find((value: any) => value.id === rewrite.id)?.status).toBe("ready");
   const article = page.locator(`[data-task-id="${rewrite.id}"]`);
+  const preview = page.getByRole("dialog", { name: "문장 수정 전후 비교", exact: true });
+  await expect(preview.getByRole("img", { name: "수정 전 실제 문서", exact: true })).toBeVisible({ timeout: 60000 });
+  await expect(preview.getByRole("img", { name: "수정 후 실제 문서", exact: true })).toBeVisible();
+  expect(digest(await liveBytes(state.frame))).toBe(digest(frozenBeforeAsk));
   expect(await (await request.get(state.docPath + "/versions")).json()).toHaveLength(1);
-  await article.getByRole("button", { name: "후보 1 승인·적용·저장", exact: true }).click();
+  await preview.getByLabel("비교할 수정안", { exact: true }).selectOption(rewrite.candidates?.[1]?.id ||
+    (await (await request.get(`/api/threads/${state.thread}/rewrite-tasks`)).json()).find((item: any) => item.id === rewrite.id).candidates[1].id);
+  await expect(preview.getByRole("img", { name: "수정 후 실제 문서", exact: true })).toBeVisible({ timeout: 60000 });
+  await preview.getByLabel("비교할 수정안", { exact: true }).selectOption(
+    (await (await request.get(`/api/threads/${state.thread}/rewrite-tasks`)).json()).find((item: any) => item.id === rewrite.id).candidates[0].id);
+  await expect(preview.getByRole("button", { name: "이 수정안 적용·저장", exact: true })).toBeEnabled({ timeout: 60000 });
+  await preview.getByRole("button", { name: "이 수정안 적용·저장", exact: true }).click();
   await expect(article.getByTestId("application-history")).toContainText("선택한 후보를 문서에 적용하고 서버에 저장했습니다.");
   await expect(page.getByRole("status")).toHaveText("저장 완료");
   const savedUrl = (await page.getByRole("link", { name: "저장본 다운로드", exact: true }).getAttribute("href"))!;

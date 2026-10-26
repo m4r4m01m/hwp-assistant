@@ -13,8 +13,8 @@ from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
-from .db import Access, ChangeSet, Document, Version, VersionAuthor, make_engine, transaction
-from .version_compare import author_dict, install_version_compare
+from .db import Access, ChangeSet, Document, Version, VersionAuthor, document_is_trashed, make_engine, transaction
+from .version_compare import author_dict, restore_source_dict, install_version_compare
 from .hwpx import validate, digest, loss_warnings, MAX_FILE
 from .llm import OpenAICompatible, pooled_client
 from .ai_budget import UserAIBudget
@@ -194,7 +194,7 @@ def create_app(database_url=None, storage_dir=None):
                 "created_at",
                 "cause",
             )
-        }, "author": author_dict(v)}
+        }, "author": author_dict(v), "restore_source": restore_source_dict(v)}
 
     def doc_dict(d):
         return {
@@ -354,11 +354,14 @@ def create_app(database_url=None, storage_dir=None):
 
     @app.get("/api/auth/me")
     def me(request: Request):
+        from .accounts import password_change_account
         with Session(engine) as db:
             row = db.get(UserAccount, request.state.user) if account_policy.enabled else None
             return {"user_id": request.state.user, "authentication_required": authentication_required,
                     "name": row.name if row else request.state.user,
                     "kind": row.kind if row else "legacy",
+                    "can_change_password": bool(account_policy.enabled and not request.headers.get("authorization")
+                        and password_change_account(db, request.state.user, request.cookies.get(COOKIE, ""), session_policy)),
                     "library_access_mode": library_mode(),
                     "is_admin": bool(row and row.role == "admin" and row.is_active
                                      and row.approval_status == "approved")}
@@ -371,14 +374,17 @@ def create_app(database_url=None, storage_dir=None):
     def documents(request: Request, q: str = Query("", max_length=200)):
         with Session(engine) as db:
             if shared_library(db, request.state.user):
-                return [{**doc_dict(doc), "role": "owner"} for doc in db.scalars(
-                    select(Document).where(Document.name.contains(q, autoescape=True)).order_by(Document.created_at.desc()))]
+                owned = select(Access.document_id).where(Access.user_id == request.state.user, Access.role == "owner")
+                return [{**doc_dict(doc), "role": "owner", "can_trash": can_trash} for doc, can_trash in db.execute(
+                    select(Document, Document.id.in_(owned)).where(~document_is_trashed(Document.id))
+                    .where(Document.name.contains(q, autoescape=True)).order_by(Document.created_at.desc()))]
             return [
-                {**doc_dict(d), "role": role}
+                {**doc_dict(d), "role": role, "can_trash": role == "owner"}
                 for d, role in db.execute(
                     select(Document, Access.role)
                     .join(Access, Access.document_id == Document.id)
                     .where(Access.user_id == request.state.user)
+                    .where(~document_is_trashed(Document.id))
                     .where(Document.name.contains(q, autoescape=True))
                     .order_by(Document.created_at.desc())
                 )
@@ -571,6 +577,13 @@ def create_app(database_url=None, storage_dir=None):
             old = db.get(Version, version_id)
             if not old or old.document_id != doc_id:
                 raise HTTPException(404, "버전을 찾을 수 없습니다.")
+            from .db import VersionRestore
+            existing = db.scalar(select(Version).where(
+                Version.document_id == doc.id, Version.request_id == idempotency_key))
+            if existing:
+                receipt = db.get(VersionRestore, existing.id)
+                if not receipt or receipt.source_version_id != old.id:
+                    raise HTTPException(409, "같은 요청 ID로 다른 버전을 복원할 수 없습니다.")
             v = publish(
                 db,
                 doc,
@@ -581,6 +594,9 @@ def create_app(database_url=None, storage_dir=None):
                 "restore",
                 author_id=request.state.user,
             )
+            if not existing:
+                db.add(VersionRestore(version_id=v.id, source_version_id=old.id))
+                db.flush()
             result = version_dict(v)
         return result
 
@@ -660,6 +676,8 @@ def create_app(database_url=None, storage_dir=None):
     install_document_assistant(app, check_lease)
     from .document_copy import install_document_copy
     install_document_copy(app, locked, publish, doc_dict)
+    from .document_trash import install_document_trash
+    install_document_trash(app, doc_dict)
     from .document_blocks import install_document_blocks
     install_document_blocks(app, check_lease)
     from .editor_designs import install_editor_designs

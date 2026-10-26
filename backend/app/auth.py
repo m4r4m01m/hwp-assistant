@@ -234,7 +234,7 @@ def authenticate(token, users):
     raise HTTPException(401, LOGIN_REQUIRED)
 
 
-def require_access(db, doc_id, user, role="reader", *, lock=False, fresh=False):
+def require_access(db, doc_id, user, role="reader", *, lock=False, fresh=False, include_trashed=False):
     if os.getenv("HWP_ACCOUNTS_ENABLED", "0") == "1":
         from .accounts import UserAccount
         account = db.get(UserAccount, user, populate_existing=fresh)
@@ -244,6 +244,9 @@ def require_access(db, doc_id, user, role="reader", *, lock=False, fresh=False):
     if fresh:
         query = query.execution_options(populate_existing=True)
     doc = db.scalar(query.with_for_update() if lock else query)
+    from .db import document_is_trashed
+    if not include_trashed and db.scalar(select(document_is_trashed(doc_id))):
+        raise HTTPException(404, "문서를 찾을 수 없습니다.")
     from .library_access import document_role
     access_role = document_role(db, doc_id, user, fresh=fresh)
     if not doc or access_role is None:

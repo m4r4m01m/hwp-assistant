@@ -75,7 +75,7 @@ async function applied(page: Page) {
     await panel(page).getByRole("status").filter({ hasText: "서식을 적용했습니다" }).isVisible()
       || await panel(page).getByRole("alert").isVisible(), { timeout: 90000 }).toBeTruthy();
   if (await panel(page).getByRole("alert").isVisible()) throw new Error(await panel(page).getByRole("alert").innerText());
-  await expect(page.getByRole("button", { name: "방금 적용 취소", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "이전 서식으로 되돌리기", exact: true })).toBeEnabled();
 }
 async function proof(page: Page, data: Buffer) {
   const files = unzipSync(data);
@@ -125,7 +125,7 @@ test("REAL rhwp designs: direct table/title cards preserve content and untouched
   await focus(page, "paragraph");
   await preview(page, titleCard);
   await panel(page).getByRole("button", { name: "취소", exact: true }).click();
-  await page.getByRole("button", { name: "방금 적용 취소", exact: true }).click();
+  await page.getByRole("button", { name: "이전 서식으로 되돌리기", exact: true }).click();
   expect(await bytes(page)).toEqual(original);
   await focus(page, "paragraph");
   await panel(page).getByRole("button", { name: titleCard, exact: true }).click();

@@ -89,6 +89,31 @@ test("MOCK rewrite lifecycle: changed context immediately fences new approval wh
   } finally { revalidation.resolve(); }
 });
 
+test("MOCK rendered preview: a lost save response retries the same application and candidate", async ({ page }) => {
+  const approvals: { id: string; candidate: string }[] = [];
+  await page.route("**/api/preview-test/approve", async route => {
+    approvals.push(route.request().postDataJSON());
+    if (approvals.length === 1) return route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ detail: "저장 응답을 확인하지 못했습니다." }) });
+    return json(route, { saved: true });
+  });
+  await page.route("**/rewrite-preview-test.html", route => route.fulfill({ contentType: "text/html",
+    body: '<!doctype html><html lang="ko"><meta charset="utf-8"><div id="root"></div><script type="module" src="/tests/fixtures/rewrite-preview.tsx"></script></html>' }));
+  await page.goto("/rewrite-preview-test.html");
+  const preview = page.getByRole("dialog", { name: "문장 수정 전후 비교", exact: true });
+  await expect(preview.getByRole("img", { name: "수정 전 실제 문서", exact: true })).toBeVisible();
+  await expect(preview.getByRole("img", { name: "수정 후 실제 문서", exact: true })).toBeVisible();
+  expect(approvals).toHaveLength(0);
+  await preview.getByRole("button", { name: "이 수정안 적용·저장", exact: true }).click();
+  await expect(preview.getByRole("alert")).toContainText("서버에서 요청을 처리하지 못했습니다");
+  await expect(preview.getByLabel("비교할 수정안", { exact: true })).toBeDisabled();
+  const retry = preview.getByRole("button", { name: "같은 수정안 저장 재확인", exact: true });
+  await expect(retry).toBeEnabled();
+  await retry.click();
+  await expect(page.getByText("비교 종료", { exact: true })).toBeVisible();
+  expect(approvals).toHaveLength(2);
+  expect(approvals[1]).toEqual(approvals[0]);
+});
+
 test("MOCK rewrite lifecycle: new document version fences new approvals while preserving application retries during revalidation", async ({ page }) => {
   const revalidation = deferred();
   let reads = 0, delivered = false;

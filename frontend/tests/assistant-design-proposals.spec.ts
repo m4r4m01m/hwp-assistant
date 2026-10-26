@@ -10,6 +10,27 @@ const turn = { id: "design-turn", conversation_id: "design-thread", document_id:
   design_context: { source_sha256: "b".repeat(64), target: proposal.target },
   error: "", execution: { provider: "llm", completed: true }, created_at: 1, stale: false, can_cancel: false };
 
+test("MOCK context extraction: whole-document body scope preserves fixed styled leads and exposes excluded content", async ({ page }) => {
+  await openPanel(page);
+  const result = await page.evaluate(async () => {
+    const p = (value: string, style = "0") => `<hp:run charPrIDRef="${style}"><hp:t>${value}</hp:t></hp:run>`;
+    const section = `<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">
+      <hp:p>${p("1. 제목")}</hp:p><hp:p>${p("□ ")}${p("(현황)", "1")}${p(" 30개 시스템을 점검함.")}</hp:p>
+      <hp:p>${p("ㅇ 단일 서식 본문")}</hp:p><hp:p>${p("□ 중간 ")}${p("강조", "1")}${p(" 내용")}</hp:p>
+      <hp:p>${p("주1) 설명")}</hp:p><hp:p><hp:run charPrIDRef="0"><hp:tbl/></hp:run></hp:p>
+      <hp:p styleIDRef="9">${p("□ 제목 디자인이 적용된 제목")}</hp:p></hs:sec>`;
+    const header = '<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head"><hh:style id="9" name="HWP Assistant editor title"/></hh:head>';
+    return { normal: await (window as any).testRewriteContext(section, header), big: await (window as any).testRewriteContext(section, header, true) };
+  });
+  expect(result.normal.paragraphs).toHaveLength(2);
+  expect(result.normal.paragraphs.map((p: any) => [p.paragraph, p.fixed_prefix])).toEqual([[1, "□ (현황)"], [2, ""]]);
+  expect(result.normal.preserved["혼합 서식 문단"]).toBe(1);
+  expect(result.normal.preserved["제목·주석·기타 문단"]).toBe(3);
+  expect(result.normal.preserved["표·개체·주석 포함 문단"]).toBe(1);
+  expect(result.big.paragraphs).toEqual([]);
+  expect(result.big.unavailable).toContain("질문은 가능합니다");
+});
+
 async function openPanel(page: Page, row: unknown = turn) {
   await page.route("**/api/document-assistant-provider", route => json(route, { provider: "llm", model: "synthetic", configured: true, allowed: true, reason: "" }));
   await page.route("**/api/capabilities", route => json(route, { features: {} }));

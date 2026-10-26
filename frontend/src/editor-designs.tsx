@@ -447,7 +447,7 @@ export function EditorDesignPanel({
       setImages([]);
       setPhase("idle");
       setNotice(
-        "서식을 적용했습니다. 내용은 유지되며, 왼쪽 ‘방금 적용 취소’로 되돌릴 수 있습니다.",
+        "서식을 적용했습니다. 왼쪽 ‘되돌리기’를 누르면 적용 전 서식으로 돌아갑니다. 다른 편집을 시작하기 전까지 사용할 수 있습니다.",
       );
     }
   }
