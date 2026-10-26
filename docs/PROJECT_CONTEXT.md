@@ -24,6 +24,10 @@ CI 후속: `1639748`의 Linux 전체 pytest는 1,555건, PoC 컨테이너 검증
 
 **동시 main 통합:** 위 작업의 검토 중 [PR #46](https://github.com/m4r4m01m/hwp-assistant/pull/46)이 main `2fe71f49bcd09ed9fc0b5dfc718d5ca12a4bc84c`에 병합됐다. 금융결제원 로그인·사이드바 디자인과 계정 메뉴 순서를 유지하면서 비밀번호 변경을 함께 노출하고, 양쪽 검증 기록을 보존했다. 아래 UI 브랜치의 미병합 문구는 당시 기록이다. 이 통합의 CI·운영 배포는 별도로 확인한다.
 
+**추가 main 통합:** 검토 중 이어진 PR #47·#48의 main `066ad47024e277f1188a3d7100ddf40fa5591338`도 merge로 보존했다. 제품명 14px와 기존 운영 검증 기록을 유지한다. 아래 14px 배포는 이번 보고서·문서관리 기능 배포와 별개다.
+
+**14px 운영 반영 완료(2026-10-27):** [PR #47](https://github.com/m4r4m01m/hwp-assistant/pull/47)을 merge commit `54d19f9817adf78e54383a526bccc1207e2e5c11`으로 병합했고, 같은 SHA의 [배포 run40376552141](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40376552141)이 성공했다. 공개 서비스의14px·40px 왼쪽 정렬, health, 자원 및WASM 무결성도 별도 확인했다. 검증 범위와 영수증은 [21절](#21-2026-10-27-제품명-14px와-운영-반영)을 따른다. 아래 미병합·미배포 문구는 각 작업 당시의 기록이며 이번 문서 후속은 운영 이미지를 다시 바꾸지 않는다.
+
 **UI 검수 작업(2026-10-27):** 최신 main `2257e31b78129a5be71c35565d9914f7b2b30904`에서 `codex/kftc-auth-ui`를 분리했다. PoC 표시 제거·관리자 메뉴 배치와 후속 금융결제원 CI 작업은 [20절](#20-2026-10-27-로그인-ci와-관리자-메뉴-ui-검수)을 따른다. 사용자 요청에 따라 별도 커밋으로 남기고 병합·배포하지 않는다.
 
 **최신 후속(2026-10-27):** PR #43의 Mattermost 공유 네트워크 추가 뒤 발생한 배포 테스트 실패와 PoC 통합 CI의 네트워크 준비 누락을 수정했다. 정확한 수정 source·검증 범위는 [19절](#19-2026-10-27-mattermost-공유-네트워크-배포-검사)을 따른다. 아래 운영 기록은 각 시점의 증거로 보존한다.
@@ -622,3 +626,19 @@ GitHub workflow 파일은 변경하지 않았다. 현재 HWP deployment는 main-
 
 
 **원격 공유·PR 생성(2026-10-27):** 사용자 승인으로 `codex/kftc-auth-ui`를 원격에 푸시하고 [PR #46](https://github.com/m4r4m01m/hwp-assistant/pull/46)을 main 대상으로 생성했다. 최종 제품 source는 [`dc048f9701c866f3a8e771b43c17c2c81cf86d41`](https://github.com/m4r4m01m/hwp-assistant/commit/dc048f9701c866f3a8e771b43c17c2c81cf86d41)이며, 푸시 전 최신 main은 기존 기준 `2257e31`과 같았다. 제품 source 그대로 TypeScript·단위35개·모의 UI82개를 macOS/Node22.19.0/Chrome에서 다시 통과했다. 이후 이 문단만 추가했으며 새 PR의 Linux CI 완료 여부는 Actions에서 별도로 확인한다. 이전 절의 미푸시·PR 미생성 문구는 당시 기록이며 이 후속으로 대체한다. 사용자 검수 후 후속 수정까지 기존 커밋 이력을 모두 보존했고 main 병합·배포는 수행하지 않았다.
+
+
+## 21. 2026-10-27 제품명 14px와 운영 반영
+
+사용자가 제품명을14px로 줄이고 '금융결제원'의 '금'과 왼쪽 시작선을 유지한 뒤 main 병합·운영 배포까지 명시 승인했다. 작업 전 [PR #46](https://github.com/m4r4m01m/hwp-assistant/pull/46)이 merge commit [`2fe71f49bcd09ed9fc0b5dfc718d5ca12a4bc84c`](https://github.com/m4r4m01m/hwp-assistant/commit/2fe71f49bcd09ed9fc0b5dfc718d5ca12a4bc84c)으로 이미 병합된 것을 조회했다. 원 PR head `4660910`의 검사4개와 정확한 main의 push 검사3개는 성공했다. [수동 배포 run40370300147](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40370300147)의 build-verify-publish·deploy-home 및 마지막 공개HTTPS smoke도 성공했다. 이 실행은 이번14px 요청 이전의16px 배포 기록이며 이번 작업에서 dispatch한 것이 아니다.
+
+기존 브랜치·커밋 이력을 보존하고 최신 main에서 `codex/kftc-title-14px`를 분리했다. 제품 변경은 `workspace-brand-name`의16px→14px 한 값뿐이며,40px 시작선 보정·굵기700·로고·아이콘/숨김 모드를 유지한다. 로컬 macOS / Node22.19.0 / Chrome에서 TypeScript와 기존 관리자/반응형 UI15개를 통과했다.1440/390px 캡처에서14px·40px 들여쓰기·잘림 없음과 아이콘 모드 표시를 확인했다. 로컬 후속 검수 폴더의 `19-workspace-title-14px.png`, `20-title-detail-14px.png`가 최종 화면이다.
+
+이 커밋 작성 시점에 새14px PR의 최종 Linux 검사·병합·배포는 아직 진행 전이다. 해당 정확한 head의 검사 성공 후 merge commit으로 병합하고, main의 수동 `hwp-deploy.yml`을 `deploy=true`로 실행해 백업·검증·게시·운영 교체·공개HTTPS 검사까지 별도 확인한다. 기존 운영 env·계정·문서·세 외부 볼륨·Codex 인증을 변경/초기화하지 않는다. 단순 병합/이미지 게시와 운영 배포 성공은 구분한다.
+
+
+**병합·배포 검증 완료(2026-10-27):** [PR #47](https://github.com/m4r4m01m/hwp-assistant/pull/47)의 정확한 head [`9f271fb8a7bedd4018d866906dbad338d4412190`](https://github.com/m4r4m01m/hwp-assistant/commit/9f271fb8a7bedd4018d866906dbad338d4412190)에 대해 [HWP 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40375428198), [Vite 경로](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40375428012), [배포 계약](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40375427981), [실제 컨테이너·엔진 통합](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40375427971)4개 성공을 확인한 뒤 사용자 승인 범위에서 merge commit [`54d19f9817adf78e54383a526bccc1207e2e5c11`](https://github.com/m4r4m01m/hwp-assistant/commit/54d19f9817adf78e54383a526bccc1207e2e5c11)으로 병합했다. source 브랜치들을 보존했다. 같은 main의 [HWP](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40376525704), [Vite](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40376526200), [배포 계약](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40376526214) push 검사도 모두 성공했다.
+
+정확한 merge SHA를 확인하고 `hwp-deploy.yml`을 main·deploy=true로 한 번 실행했다. [run40376552141](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40376552141)의 Python/frontend/UI, 검증·이미지 게시, 운영 배포5개 job이 모두 성공했다. [운영 job121772217642](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40376552141/job/121772217642)의 백업·이미지 교체와 마지막 공개HTTPS smoke step 성공을 확인했다. private env/계정/Codex 인증을 수집·변경하지 않았으며 기존 백업·외부볼륨 보존 절차를 사용했다.
+
+배포 후 공개주소를 별도로 읽어 health200/ok=true와 제공된CSS의 `font-size:14px`, `margin-inline-start:40px`를 확인했다. 인증정보 없이 `scripts/deploy/smoke.py`를 재실행해 라우팅·문서API401·앱/편집기/비교 자원·WASM 해시가 통과했다. 운영 로그인/문서 쓰기/실제 모델 호출은 수행하지 않았고, CI의 합성 PostgreSQL/HTTPS/엔진 검증과 구분한다. [검증 영수증](evidence/kftc-title14-deployment-2026-10-27.json)에 정확한SHA와 run을 기록한다. 이후 문서만 병합되어 main SHA가 달라져도 실제 운영 이미지 source는 위54d19f9이며 문서 때문에 새 이미지를 게시·배포하지 않는다.

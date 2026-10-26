@@ -1,0 +1,68 @@
+{
+  "verified_date_kst": "2026-10-27",
+  "source_pr": 47,
+  "reviewed_head": "9f271fb8a7bedd4018d866906dbad338d4412190",
+  "release_sha": "54d19f9817adf78e54383a526bccc1207e2e5c11",
+  "merge_method": "merge",
+  "source_branches_preserved": [
+    "codex/kftc-auth-ui",
+    "codex/kftc-title-14px"
+  ],
+  "pr_workflow_runs": {
+    "40375428198": "success",
+    "40375428012": "success",
+    "40375427981": "success",
+    "40375427971": "success"
+  },
+  "main_push_workflow_runs": {
+    "40376525704": "success",
+    "40376526200": "success",
+    "40376526214": "success"
+  },
+  "deployment": {
+    "run_id": 40376552141,
+    "url": "https://github.com/m4r4m01m/hwp-assistant/actions/runs/40376552141",
+    "head_sha": "54d19f9817adf78e54383a526bccc1207e2e5c11",
+    "event": "workflow_dispatch",
+    "input_deploy": true,
+    "conclusion": "success",
+    "updated_at_utc": "2026-10-26T18:40:29Z",
+    "jobs": {
+      "121761061509": "python-checks",
+      "121761061800": "frontend-checks",
+      "121761062125": "ui-lifecycle",
+      "121765014223": "build-verify-publish",
+      "121772217642": "deploy-home"
+    },
+    "all_jobs_conclusion": "success",
+    "backup_replace_step": "success",
+    "public_https_smoke_step": "success"
+  },
+  "independent_public_verification": {
+    "health_status": 200,
+    "health_ok": true,
+    "title_font_px": 14,
+    "title_indent_px": 40,
+    "routing_protected_api_assets_wasm_integrity": "passed",
+    "authentication_supplied": false,
+    "production_document_writes": false,
+    "real_model_calls": 0
+  },
+  "local_checks": {
+    "environment": "macOS / Node22.19.0 / Chrome",
+    "typescript": "passed",
+    "mock_admin_responsiveness_ui_passed": 15,
+    "viewport_widths": [
+      1440,
+      390
+    ],
+    "no_title_overflow": true,
+    "icon_mode_preserved": true
+  },
+  "limitations": [
+    "No production authenticated document editing was exercised.",
+    "No real AI or Hancom compatibility test was performed.",
+    "Runner-backed deployment evidence is distinct from independent public read-only verification.",
+    "This receipt is documentation only and does not trigger publication or deployment."
+  ]
+}
