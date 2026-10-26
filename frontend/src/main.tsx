@@ -83,12 +83,24 @@ function App({
   const [trashDialog, setTrashDialog] = useState<{ document: Document | null } | null>(null);
   const [managingAccounts, setManagingAccounts] = useState(false);
   const listGeneration = useRef(0), listController = useRef<AbortController | null>(null);
-  const libraryRestore = useRef<{ document: string; version: string; key: string; token: string } | null>(null);
+  const libraryRestore = useRef<{ document: string; version: string; key: string; token: string; expired?: boolean } | null>(null);
   useEffect(() => {
     if (history && !active) return;
     const frozen = libraryRestore.current; libraryRestore.current = null;
     if (frozen) void api(`/documents/${frozen.document}/session`, { method: "DELETE", headers: { "X-Edit-Session": frozen.token } }).catch(() => {});
   }, [history, active]);
+  useEffect(() => {
+    if (!history || active) return;
+    const interval = setInterval(() => {
+      const frozen = libraryRestore.current;
+      if (!frozen || frozen.expired) return;
+      void api(`/documents/${frozen.document}/session`, { method: "PUT", headers: { "X-Edit-Session": frozen.token } })
+        .catch(cause => {
+          if (libraryRestore.current === frozen && cause instanceof ApiError && [401, 403, 409].includes(cause.status)) frozen.expired = true;
+        });
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [history?.id, active]);
   const [searchQuery, flushSearch] = useDebouncedValue(query);
   const uploadBusy = useRef(false), dragDepth = useRef(0);
   const frozenUpload = useRef<{ bytes: Uint8Array; name: string; id: string; key: string } | null>(null);
@@ -421,6 +433,7 @@ function App({
             let release = false;
             try {
               const previous = libraryRestore.current;
+              if (previous?.expired) throw new Error("복원 확인 세션이 만료됐습니다. 버전 기록을 닫았다가 다시 열어 최신 복원 결과를 확인하세요.");
               if (previous && (previous.document !== history.id || previous.version !== v.id || previous.key !== requestId)) {
                 await api(`/documents/${previous.document}/session`, { method: "DELETE", headers: { "X-Edit-Session": previous.token } });
                 libraryRestore.current = null;
@@ -442,6 +455,10 @@ function App({
               release = true;
               return restored;
             } catch (cause) {
+              if (cause instanceof ApiError && [401, 403, 409].includes(cause.status) && libraryRestore.current) {
+                libraryRestore.current.expired = true;
+                throw new Error(`${errorMessage(cause)} 버전 기록을 닫았다가 다시 열어 최신 복원 결과를 확인하세요.`);
+              }
               release = cause instanceof ApiError && cause.status < 500;
               throw cause;
             } finally {

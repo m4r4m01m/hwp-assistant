@@ -65,6 +65,48 @@ async function openEditor(page: Page) {
   await expect(page.locator(".editor-current-document [role=status]")).toHaveText("저장 완료");
 }
 
+for (const expired of [false, true]) test(`MOCK UI: lost library restore ${expired ? "ends expired confirmation without a new lease" : "renews the frozen lease and retries the same request"}`, async ({ page }) => {
+  await page.clock.install();
+  let leases = 0, heartbeats = 0;
+  const keys: string[] = [];
+  const original = { id: "version-list", document_id: documentRow.id, base_version: null, size: 100, sha256: "a".repeat(64), created_at: 1, cause: "upload" };
+  const restored = { ...original, id: "restored-version", base_version: original.id, created_at: 2, cause: "restore", restore_source: { version_id: original.id, created_at: 1 } };
+  await mockApi(page, async (route, path) => {
+    const method = route.request().method();
+    if (path.endsWith("/session")) {
+      if (method === "POST") { leases++; await json(route, { token: "synthetic-restore-lease" }); }
+      else if (method === "PUT") { heartbeats++; await json(route, expired ? { detail: "편집 세션 만료" } : {}, expired ? 409 : 200); }
+      else await json(route, {});
+      return true;
+    }
+    if (path.endsWith("/versions")) { await json(route, keys.length > 1 ? [restored, original] : [original]); return true; }
+    if (path.endsWith("/restore")) {
+      keys.push(route.request().headers()["idempotency-key"]);
+      await json(route, keys.length === 1 ? { detail: "합성 응답 유실" } : restored, keys.length === 1 ? 503 : 200);
+      return true;
+    }
+  });
+  await library(page);
+  await page.getByRole("button", { name: "버전 기록", exact: true }).click();
+  page.on("dialog", dialog => dialog.accept());
+  await page.getByRole("button", { name: "이 버전 복원", exact: true }).click();
+  await expect(page.getByRole("dialog").getByRole("alert")).toBeVisible();
+  const heartbeat = page.waitForResponse(response => response.url().endsWith("/session") && response.request().method() === "PUT");
+  await page.clock.fastForward(31000);
+  await heartbeat;
+  await expect.poll(() => heartbeats).toBe(1);
+  await page.getByRole("button", { name: "이 버전 복원", exact: true }).click();
+  if (expired) {
+    await expect(page.getByRole("dialog").getByRole("alert")).toContainText("버전 기록을 닫았다가 다시 열어");
+    expect(keys).toHaveLength(1);
+  } else {
+    await expect(page.getByText("합성 문서.hwpx의 v1에서 복원한 새 버전을 저장했습니다.")).toBeVisible();
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBe(keys[1]);
+  }
+  expect(leases).toBe(1);
+});
+
 test("MOCK UI: initial 401 is normal and repeated Enter submits one pending login", async ({ page }) => {
   let authenticated = false, logins = 0;
   let finish!: () => void;
