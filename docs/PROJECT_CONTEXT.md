@@ -1,5 +1,15 @@
 # HWP Assistant 프로젝트 컨텍스트
 
+## 2026-10-27 — Windows QA에 최신 main 반영
+
+로컬 QA `codex/local-ui-qa-2026-10-22`의 `1f10a09dda03d48ee6a734e3f009efb3f2dfe894`는 이미 main에 포함되어 있었다. 독자 커밋 0개·main 후속 30개를 확인하고 [main `988217146269f2507120ab0f9247dfc7fb1b7fde`](https://github.com/m4r4m01m/hwp-assistant/commit/988217146269f2507120ab0f9247dfc7fb1b7fde)로 fast-forward했다. 기존 merge 이력·CLI 보존 브랜치를 유지하며 제품 코드를 추가 수정하지 않았다. 아래의 미병합·미푸시 기록은 해당 날짜의 상태다. [이번 확인 범위](evidence/local-main-adoption-2026-10-27.json).
+
+정확한 main SHA의 push 검사 3개 성공을 GitHub에서 확인했다. 로컬에서는 보고서 구성·검색 완료·경고·보안·오류 진단 142건, 모의 UI 30건, Windows CLI 탐색 시험 7건, TypeScript와 별도 진단 빌드를 확인했다. 기존 진단 엔진의 코어·브리지 일치 및 실제 제공 파일 26개의 바이트 일치도 확인했다. Codex 로그인 상태만 조회했으며 실제 모델·Hancom·전체 회귀·운영 배포는 실행하지 않았다.
+
+기존 QA DB와 파일을 함께 백업하고 사본에 마이그레이션을 두 번 적용한 뒤, 기존 데이터로 `http://127.0.0.1:15330/` / API `18330`을 기동했다. 실제 기동 후 기존 26개 표·132행의 모든 이전 열 값과 파일 31개가 보존됐으며 문서 21개·버전 26개·표준 5개·보고서 작업 4개를 유지했다. 추가된 계정 열 4개·표 3개 외에 기존 기록을 재작성하지 않았다. 계정/가입 OFF, 개인 문서함, 기존 토큰 경로·local Codex 허용을 유지하고 알림·공용 문서함을 활성화하지 않았다. 보고서/문단 수정/문서 대화의 configured·allowed는 true였고, 별도 chat/review provider는 기존 llm 기본을 유지했다. 백업·실행 근거는 Git에서 무시되는 `.cache/main-adoption-20261027/`에만 둔다.
+
+main의 새 보고서 정책은 검색 미완료 시에도 유효 완료 초안을 경고와 함께 검토할 수 있게 한다. 출처가 있는 새 보고서에는 출처 검증 상태 안내가 인쇄되며, 과거 정책·동결 초안은 그대로다. 대제목 구성·주석 v2·보고서 문구 개선·저장 후 일반 편집기 전환은 유지된다. 이번에는 이전 문서의 새 정책 재작성이나 바탕화면 실행기 변경을 하지 않았다.
+
 갱신일: **2026-10-26 (한국 시간)**. 이번 통합 기준은 [main `e263091ae28ef73a3e1a087137cc70ddadc277b0`](https://github.com/m4r4m01m/hwp-assistant/commit/e263091ae28ef73a3e1a087137cc70ddadc277b0), [PR #39](https://github.com/m4r4m01m/hwp-assistant/pull/39)의 merge commit이다. 검토 head `ae7d1da77664019b6ab23fcf4b750f336bcc80eb`의 CI 4개와 같은 tree인 main push CI 3개가 성공했다. 이후 기존 [수동 배포 run `40212063392`](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40212063392)의 5개 job 성공을 확인했고, 원 대화 root가 SSH read-only로 last-success·API/web image source `e263091`과 DB/API/web healthy를 확인했다고 인계했다. 이는 아래 새 QA 통합의 배포가 아니다. 현재 `codex/integrate-local-ui-2026-10-26`의 별도 작업 트리에서 동료 `1f10a09dda03d48ee6a734e3f009efb3f2dfe894`를 통합·검증한다. 최신 범위·완료/미완료·롤백 한계는 [16절](#16-2026-10-26-보고서-작성outline저장-전환-통합)을 따른다. 3~15절의 과거 미승인·미병합·운영 상태는 각 작업 당시 기록이며 현재 코드·exact CI·위 배포 근거를 우선한다. `532d1dd` 문서와 기존 작업 트리·미커밋 handoff는 보존한다. 클라우드는 이번 작업의 main 병합·배포 dispatch·실모델·env/ACL/계정·운영 문서 변경을 수행하지 않는다.
 
 **후속 계정관리 작업(2026-10-26):** 최신 main `82d3126b0133895abcab462d38121f6768fc9a81`에서 `codex/account-approval-audit`를 분리했다. 제품 `747ff3faf93b8535a2a82617aa147d1dcca8306b`의 승인·공용 문서함·감사·AI 정책·Mattermost 알림과 검증은 [17절](#17-2026-10-26-계정-승인공용-문서함감사)을 따른다. main 병합·운영 배포·운영 계정 정리는 수행하지 않았다.

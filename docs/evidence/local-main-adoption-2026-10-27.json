@@ -1,0 +1,57 @@
+{
+  "date_kst": "2026-10-27",
+  "branch": "codex/local-ui-qa-2026-10-22",
+  "previous_head": "1f10a09dda03d48ee6a734e3f009efb3f2dfe894",
+  "adopted_main": "988217146269f2507120ab0f9247dfc7fb1b7fde",
+  "integration": "Fast-forward; zero QA-only commits, thirty main-only commits; existing merge history retained",
+  "product_code_changes_beyond_main": false,
+  "exact_main_push_ci": [
+    {"run": 40293033827, "name": "Frontend build path regression", "conclusion": "success"},
+    {"run": 40293032858, "name": "Deployment-only workflow checks", "conclusion": "success"},
+    {"run": 40293032423, "name": "HWP deployment", "conclusion": "success"}
+  ],
+  "local_checks": {
+    "backend_report_structure_research_completion_warning_diagnostics": {"passed": 142, "failed": 0, "skipped": 0},
+    "mock_ui_report_structure_save_research_failure_account_entry_codex_selection": {"passed": 30, "failed": 0},
+    "windows_cli_resolution_unit": {"passed": 7, "failed": 0},
+    "typescript": "passed",
+    "frontend_build": "passed, separate diagnostic output using existing pinned engine",
+    "engine_core_and_bridge_identity": "matched",
+    "served_build_files_matched": 26,
+    "codex_login_status_exit_code": 0,
+    "actual_model_calls": 0
+  },
+  "data_preservation": {
+    "paired_sqlite_and_files_backup": true,
+    "isolated_clone_migration_runs": 2,
+    "old_table_count": 26,
+    "old_row_count": 132,
+    "all_old_column_values_equal_after_real_startup": true,
+    "documents": 21,
+    "versions": 26,
+    "visual_standards": 5,
+    "report_tasks": 4,
+    "blob_count": 31,
+    "blob_changes_missing_or_additions": 0,
+    "new_tables": ["account_settings", "audit_events", "registration_notifications"],
+    "new_account_columns": ["role", "approval_status", "reviewed_by", "reviewed_at"]
+  },
+  "runtime": {
+    "web_url": "http://127.0.0.1:15330/",
+    "api_port": 18330,
+    "web_and_api_http": 200,
+    "existing_runtime_before_adoption": "No listeners at prior local ports; stale PID receipt not used to terminate processes",
+    "accounts_and_registration_enabled": false,
+    "library_mode": "private",
+    "legacy_token_access": true,
+    "codex_account_policy": "allowlist",
+    "rewrite_provider": "codex",
+    "chat_and_review_provider": "llm",
+    "reports_rewrite_document_assistant_configured_and_allowed": true,
+    "network_notification_activated": false
+  },
+  "preserved_product_contracts": ["Selected heading order and frozen input", "Section-scoped note policy v2", "Report writing quality and table columns", "Saved editor transition and late-edit recovery", "Original and historical document blobs"],
+  "upstream_behavior_change": "New UI requests allow a validated unverified draft with warnings when research is incomplete; source-verification notice is included in new reports; legacy missing policy remains strict",
+  "private_artifacts": "Ignored .cache/main-adoption-20261027; no user files, database, credentials or raw records committed",
+  "not_performed": ["Full regression suite rerun", "Actual model generation", "New real-engine document rendering", "Hancom verification", "Production deployment", "Desktop shortcut retarget", "CLI preservation branch modification"]
+}
