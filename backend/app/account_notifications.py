@@ -45,7 +45,12 @@ def webhook_url():
     try:
         url = urlsplit(value)
         allowed = url.scheme == "https" or (url.scheme == "http" and os.getenv("HWP_MATTERMOST_ALLOW_HTTP") == "1")
-        if not allowed or not url.hostname or url.username or url.password or url.query or url.fragment or not url.path.startswith("/hooks/"):
+        # Mattermost's SiteURL may contain a reverse-proxy subpath. Preserve it
+        # exactly; only the terminal /hooks/<id> route identifies this endpoint.
+        _prefix, marker, hook_id = url.path.rpartition("/hooks/")
+        if (not allowed or not url.hostname or url.username is not None or url.password is not None
+                or url.query or url.fragment or not marker or not hook_id
+                or "/" in hook_id or hook_id in {".", ".."}):
             return None
         _ = url.port
     except ValueError:
