@@ -519,3 +519,5 @@ UserAccount role/approval/review 필드의 실제 additive SQLite/PostgreSQL mig
 | 배포 준비 | 수동 preview env 생성·Compose 병합을 합성 값으로 검사해 별도 프로젝트/볼륨3개/loopback24444 확인. Docker daemon 부재로 이미지 빌드·기동 미실행 |
 
 GitHub workflow 파일은 변경하지 않았다. 현재 HWP deployment는 main-only 조건 때문에 작업 branch 선택 시 검사만 실행하고 빌드/게시/운영 배포를 skip한다. [새 절차](account-approval-audit-2026-10-26.md)에 신뢰한 workflow+exact SHA+별도 staging 환경을 위한 후속 변경과 workflow를 유지한 수동 격리 시험을 정리했다. 실제 PostgreSQL/HTTPS/optimized rhwp는 기존 PR CI, 서버 검수는 사용자가 별도로 확인해야 한다. main merge·production deploy·실제 AI·운영 Mattermost 전송은 0회다.
+
+검수용 **[Draft PR #41](https://github.com/m4r4m01m/hwp-assistant/pull/41)**을 생성하고 현재 chat에 연결했다. PR은 main에 병합하지 않았으며 exact head의 Linux 검사와 disposable PostgreSQL/HTTPS/rhwp 통합 CI를 확인한다. 사용자 서버 검수 뒤 같은 검토 head를 승인할 수 있도록 branch와 이력을 유지한다.
