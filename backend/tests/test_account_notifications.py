@@ -158,3 +158,136 @@ def test_dispatcher_recovers_exhausted_lease_then_survives_poll_error(setup, mon
         asyncio.run(notifications.notification_loop(app.state.engine))
     with transaction(app.state.engine) as db:
         assert db.get(notifications.RegistrationNotification, "requester").status == "failed"
+
+
+@pytest.mark.parametrize("path", [
+    "/hooks/synthetic-token",
+    "/mattermost/hooks/synthetic-token",
+    "/company/mattermost/hooks/synthetic-token",
+])
+def test_https_webhook_accepts_root_and_deployment_prefix_without_rewriting(monkeypatch, path):
+    url = "https://mattermost.example.invalid" + path
+    monkeypatch.setenv("HWP_MATTERMOST_WEBHOOK_URL", url)
+    monkeypatch.delenv("HWP_MATTERMOST_ALLOW_HTTP", raising=False)
+    assert notifications.webhook_url() == url
+
+
+@pytest.mark.parametrize("path", ["/mattermost/hooks/synthetic-token", "/company/mattermost/hooks/synthetic-token"])
+def test_http_prefixed_webhook_still_requires_explicit_opt_in(monkeypatch, path):
+    url = "http://mattermost.example.invalid" + path
+    monkeypatch.setenv("HWP_MATTERMOST_WEBHOOK_URL", url)
+    for setting in (None, "0"):
+        if setting is None:
+            monkeypatch.delenv("HWP_MATTERMOST_ALLOW_HTTP", raising=False)
+        else:
+            monkeypatch.setenv("HWP_MATTERMOST_ALLOW_HTTP", setting)
+        assert notifications.webhook_url() is None
+    monkeypatch.setenv("HWP_MATTERMOST_ALLOW_HTTP", "1")
+    assert notifications.webhook_url() == url
+
+
+@pytest.mark.parametrize("url", [
+    "https://name:synthetic-secret@mattermost.example.invalid/company/mattermost/hooks/synthetic-token",
+    "https://mattermost.example.invalid/company/mattermost/hooks/synthetic-token?secret=synthetic",
+    "https://mattermost.example.invalid/company/mattermost/hooks/synthetic-token#synthetic-secret",
+    "https://mattermost.example.invalid/company/mattermost/incoming/synthetic-token",
+    "https://mattermost.example.invalid/company/mattermost/hooks",
+    "https://mattermost.example.invalid/company/mattermost/hooks/",
+    "https://mattermost.example.invalid/hooks/",
+    "https://mattermost.example.invalid/hooks/synthetic-token/extra",
+])
+def test_prefixed_webhook_retains_credential_and_endpoint_fences(monkeypatch, url):
+    monkeypatch.setenv("HWP_MATTERMOST_WEBHOOK_URL", url)
+    monkeypatch.delenv("HWP_MATTERMOST_ALLOW_HTTP", raising=False)
+    assert notifications.webhook_url() is None
+
+
+def capture_synthetic_sender(monkeypatch):
+    """Exercise the real sender through HTTPX's in-memory transport only."""
+    seen = []
+    real_client = httpx.AsyncClient
+    def handle(request):
+        seen.append({"url": str(request.url), "path": request.url.path,
+                     "method": request.method, "payload": json.loads(request.content)})
+        return httpx.Response(200, text="ok")
+    def client(**kwargs):
+        assert kwargs["follow_redirects"] is False and kwargs["trust_env"] is False
+        return real_client(transport=httpx.MockTransport(handle), **kwargs)
+    monkeypatch.setattr(notifications.httpx, "AsyncClient", client)
+    return seen
+
+
+@pytest.mark.parametrize("prefix", ["/mattermost", "/company/mattermost"])
+def test_prefixed_signup_delivers_real_sender_without_cookie_or_secret_exposure(setup, monkeypatch, caplog, prefix):
+    import logging
+    app, client = setup
+    url = "https://mattermost.example.invalid" + prefix + "/hooks/subpath-synthetic-token"
+    monkeypatch.setenv("HWP_MATTERMOST_WEBHOOK_URL", url)
+    caplog.set_level(logging.DEBUG)
+    seen = capture_synthetic_sender(monkeypatch)
+    response = signup(client)
+    assert response.status_code == 202 and "set-cookie" not in response.headers
+    assert client.get("/api/auth/me").status_code == 401
+    assert len(seen) == 1
+    assert seen[0]["url"] == url and seen[0]["path"] == prefix + "/hooks/subpath-synthetic-token"
+    assert seen[0]["method"] == "POST"
+    assert set(seen[0]["payload"]) == {"text"}
+    payload = json.dumps(seen[0]["payload"], ensure_ascii=False)
+    assert "requester" in payload and PASSWORD not in payload and "SYNTHETIC-001" not in payload and "합성 검수자" not in payload
+    with transaction(app.state.engine) as db:
+        row = db.get(notifications.RegistrationNotification, "requester")
+        assert row.status == "delivered" and row.attempts == 1 and row.delivered_at is not None
+        assert db.get(UserAccount, "requester").approval_status == "pending"
+        assert url not in row.outcome and "subpath-synthetic-token" not in row.outcome
+    maintain(app.state.engine, "create", "admin", password=PASSWORD,
+             name="합성 관리자", employee="TEST-ADMIN", role="admin")
+    assert client.post("/api/auth/password-login", json={"username": "admin", "password": PASSWORD}).status_code == 200
+    settings = client.get("/api/admin/settings")
+    assert settings.status_code == 200
+    assert settings.json()["mattermost"] == {"configured": True, "pending": 0, "failed": 0}
+    for secret in (url, "subpath-synthetic-token", PASSWORD, "SYNTHETIC-001"):
+        assert secret not in settings.text + caplog.text
+
+
+def test_dispatcher_delivers_existing_prefixed_pending_without_recreating_signup(setup, monkeypatch):
+    app, client = setup
+    url = "https://mattermost.example.invalid/company/mattermost/hooks/existing-synthetic-token"
+    monkeypatch.setenv("HWP_MATTERMOST_WEBHOOK_URL", url)
+    current_validator = notifications.webhook_url
+    seen = capture_synthetic_sender(monkeypatch)
+    # Reproduce a pending outbox written by the old root-only validator. Neither
+    # the signup nor notification row is recreated after accepting the prefix.
+    monkeypatch.setattr(notifications, "webhook_url", lambda: None)
+    assert signup(client).status_code == 202
+    with transaction(app.state.engine) as db:
+        row = db.get(notifications.RegistrationNotification, "requester")
+        assert row.status == "pending" and row.attempts == 0
+        original_created_at = row.created_at
+        original_password_hash = db.get(UserAccount, "requester").password_hash
+    assert seen == []
+    monkeypatch.setattr(notifications, "webhook_url", current_validator)
+    async def stop(_):
+        raise asyncio.CancelledError()
+    monkeypatch.setattr(notifications.asyncio, "sleep", stop)
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(notifications.notification_loop(app.state.engine))
+    assert len(seen) == 1 and seen[0]["url"] == url
+    assert seen[0]["path"] == "/company/mattermost/hooks/existing-synthetic-token"
+    with transaction(app.state.engine) as db:
+        row = db.get(notifications.RegistrationNotification, "requester")
+        assert row.status == "delivered" and row.attempts == 1 and row.created_at == original_created_at
+        account = db.get(UserAccount, "requester")
+        assert account.password_hash == original_password_hash and account.approval_status == "pending"
+
+
+@pytest.mark.parametrize("url", [
+    "https://@mattermost.example.invalid/hooks/synthetic-token",
+    "https://@mattermost.example.invalid/company/mattermost/hooks/synthetic-token",
+    "https://mattermost.example.invalid/hooks/.",
+    "https://mattermost.example.invalid/hooks/..",
+    "https://mattermost.example.invalid/company/mattermost/hooks/.",
+    "https://mattermost.example.invalid/company/mattermost/hooks/..",
+])
+def test_empty_userinfo_and_normalizing_hook_identifiers_are_rejected(monkeypatch, url):
+    monkeypatch.setenv("HWP_MATTERMOST_WEBHOOK_URL", url)
+    assert notifications.webhook_url() is None
