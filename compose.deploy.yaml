@@ -89,7 +89,7 @@ services:
     volumes:
       - documents:/data/files
       - codex-state:/home/app/.codex
-    networks: [app, data]
+    networks: [app, data, mattermost_hook]
     depends_on:
       db:
         condition: service_healthy
@@ -130,6 +130,9 @@ networks:
   app: {}
   data:
     internal: true
+  mattermost_hook:
+    external: true
+    name: hwp-mattermost-hook
 
 # A routine `down -v` cannot remove external volumes. Do not delete them manually.
 volumes:
