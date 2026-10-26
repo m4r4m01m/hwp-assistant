@@ -4,6 +4,7 @@ from pydantic import ValidationError
 
 
 MESSAGES = {
+    "access_revoked": "계정 또는 AI 이용 권한이 변경되어 보고서 생성을 중단했습니다. 미완료 내용은 저장하지 않았습니다.",
     "research_unavailable": "공개자료 조회 완료를 확인하지 못해 보고서를 완료하지 않았습니다. 서버 Codex의 웹 검색 사용 가능 여부를 확인한 뒤 다시 요청하세요. 자료 조회를 끄면 최신 동향 검증 없이 별도 초안을 요청할 수 있습니다.",
     "timeout": "보고서 생성 제한 시간을 초과했습니다. 미완료 내용은 저장하지 않았습니다. 요청 범위를 줄이거나 잠시 후 새 요청을 시작하세요.",
     "login_required": "서버 Codex의 ChatGPT 로그인을 확인할 수 없습니다. 서버 로그인 상태를 확인한 뒤 다시 요청하세요.",

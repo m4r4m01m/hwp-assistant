@@ -1,4 +1,4 @@
-import { AccountGate, clearAccountWorkspaceState } from "./account-gate";
+import { AccountGate, clearAccountWorkspaceState, type Account } from "./account-gate";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { History } from "./version-history";
@@ -22,6 +22,7 @@ import "./viewport.css";
 import { AccessPanel, CollaborationPanel } from "./collaboration";
 import type { VisualSelection } from "./standard-designer";
 const Reports = React.lazy(() => import("./reports").then(module => ({ default: module.Reports })));
+const AccountManagement = React.lazy(() => import("./account-management").then(module => ({ default: module.AccountManagement })));
 const TemplateMarket = React.lazy(() => import("./template-market").then(module => ({ default: module.TemplateMarket })));
 const StandardDesigner = React.lazy(() => import("./standard-designer").then(module => ({ default: module.StandardDesigner })));
 import { BlockInsert, BlockFenceError, blockJson, verifyBlockLayout, type BlockCapture, type PreparedBlock } from "./block-insert";
@@ -52,7 +53,7 @@ class WorkspaceLoadBoundary extends React.Component<{ children: React.ReactNode;
 function App({
   account,
 }: {
-  account: { user_id: string; authentication_required: boolean };
+  account: Account;
 }) {
   const [docs, setDocs] = useState<Document[]>([]),
     [query, setQuery] = useState(""),
@@ -77,11 +78,12 @@ function App({
     [registerTemplate, setRegisterTemplate] = useState<Document | undefined>(),
     [reports, setReports] = useState(false);
   const [editorDesign, setEditorDesign] = useState<DesignChoice | null>(null);
+  const [managingAccounts, setManagingAccounts] = useState(false);
   const listGeneration = useRef(0), listController = useRef<AbortController | null>(null);
   const [searchQuery, flushSearch] = useDebouncedValue(query);
   const uploadBusy = useRef(false), dragDepth = useRef(0);
   const frozenUpload = useRef<{ bytes: Uint8Array; name: string; id: string; key: string } | null>(null);
-  const inLibrary = !active && !creating && !standardDesigner && !reports && !templates;
+  const inLibrary = !active && !creating && !standardDesigner && !reports && !templates && !managingAccounts;
   useAiSetupLanding(inLibrary && !loading && !copying && !uploading && !history && !sharing);
   useEffect(() => {
     if (!inLibrary) return;
@@ -120,6 +122,7 @@ function App({
   };
   useEffect(() => { refresh(); return () => { listController.current?.abort(); listGeneration.current++; }; }, [searchQuery]);
   function navigate(section: WorkspaceSection) {
+    setManagingAccounts(false);
     setEditorDesign(null);
     setDragOver(false); dragDepth.current = 0;
     setActive(null); setCreating(false); setHistory(null); setSharing(null);
@@ -172,6 +175,8 @@ function App({
   }
   const workspace = (child: React.ReactNode, key: string) => <WorkspaceLoadBoundary key={key} onBack={() => navigate("documents")}><React.Suspense fallback={<main className="drive"><p role="status">화면을 불러오는 중…</p></main>}>{child}</React.Suspense></WorkspaceLoadBoundary>;
 
+  if (managingAccounts && account.is_admin) return workspace(<AccountManagement account={account} onClose={() => { setManagingAccounts(false); refresh(); }} />, "accounts");
+
   if (standardDesigner) return workspace(<StandardDesigner onNavigate={navigate} onClose={() => { setStandardDesigner(false); refresh(); }}
     onReport={standard => { setReportStandard(standard); setStandardDesigner(false); setReports(true); }} />, "standards");
   if (reports) return workspace(<Reports onNavigate={navigate} initialVisualStandard={reportStandard} onClose={() => { setReports(false); setReportStandard(undefined); refresh(); }} onOpen={doc => { setReports(false); setReportStandard(undefined); setActive(doc); }} />, "reports");
@@ -209,7 +214,7 @@ function App({
     );
   return (
     <div className="workspace-shell library-shell">
-      <WorkspaceNav active="documents" onNavigate={navigate} disabled={copying || uploading} footer={<><strong>{account.authentication_required ? account.user_id : "개인 작업 공간"}</strong><details className="library-account-note"><summary>이용 안내</summary><p>{account.authentication_required ? "문서별 열람·편집·소유자 권한과 대화 공개 범위가 적용됩니다." : "현재 이 컴퓨터의 개인 문서함입니다. 사용자 간 공유는 서버 인증 설정 후 사용할 수 있습니다."}</p><p>저장본은 이전 버전을 보존합니다. 한컴 호환성은 실제 파일로 확인하세요.</p></details>{account.authentication_required && <button onClick={async () => { await api("/auth/logout", { method: "POST" }); clearAccountWorkspaceState(); location.reload(); }}>로그아웃</button>}</>}>
+      <WorkspaceNav active="documents" onNavigate={navigate} disabled={copying || uploading} footer={<><strong>{account.authentication_required ? account.user_id : "개인 작업 공간"}</strong><details className="library-account-note"><summary>이용 안내</summary><p>{account.authentication_required ? account.library_access_mode === "shared" ? "공용 문서함입니다. 저장·수정 작업은 로그인한 계정으로 기록됩니다." : "문서별 열람·편집·소유자 권한과 대화 공개 범위가 적용됩니다." : "현재 이 컴퓨터의 개인 문서함입니다. 사용자 간 공유는 서버 인증 설정 후 사용할 수 있습니다."}</p><p>저장본은 이전 버전을 보존합니다. 한컴 호환성은 실제 파일로 확인하세요.</p></details>{account.is_admin && <button onClick={() => setManagingAccounts(true)}>계정 관리</button>}{account.authentication_required && <button onClick={async () => { await api("/auth/logout", { method: "POST" }); clearAccountWorkspaceState(); location.reload(); }}>로그아웃</button>}</>}>
         <button className="primary workspace-nav-action" aria-label="빈 문서 만들기" disabled={uploading} onClick={() => setCreating(true)}><WorkspaceIcon name="plus"/><span>빈 문서 만들기</span></button>
         <label className="button workspace-nav-action" title="HWPX 업로드"><WorkspaceIcon name="upload"/><span>HWPX 업로드</span><input aria-label="HWPX 업로드" type="file" accept=".hwpx" disabled={uploading || !!uploadPending} onChange={event => { if (event.target.files?.[0]) void incoming(event.target.files[0]); event.target.value = ""; }} /></label>
         <p className="workspace-nav-note">문서를 만들거나 기존 HWPX를 가져와 작업하세요.</p>
@@ -372,7 +377,7 @@ function App({
                       }}
                     />
                   </label>
-                  {account.authentication_required && d.role === "owner" && (
+                  {account.authentication_required && account.library_access_mode !== "shared" && d.role === "owner" && (
                     <button aria-label="공유 권한" title="공유 권한" onClick={() => setSharing(d)}><WorkspaceIcon name="share" size={17}/><span>공유 권한</span></button>
                   )}
                   {d.role !== "reader" && (

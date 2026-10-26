@@ -22,3 +22,7 @@
 .engine-warmup { border-top: 1px solid #e5ebf1; padding-top: 12px; margin-top: 22px; font-size: 12px; line-height: 1.6; color: #647c91; }
 .engine-warmup button { font-size: 12px; }
 @media (max-width: 480px) { .account-choices { grid-template-columns: 1fr 1fr; gap: 10px; } .account-card { padding: 18px 10px; } .account-card strong { font-size: 13px; } .account-card small { font-size: 11px; } }
+
+.account-pending { margin-top: 26px; padding: 20px; border: 1px solid #c7dace; border-radius: 12px; background: #f1f8f3; }
+.account-pending h2 { font-size: 20px; margin: 0 0 12px; }
+.account-pending p { line-height: 1.7; overflow-wrap: anywhere; }

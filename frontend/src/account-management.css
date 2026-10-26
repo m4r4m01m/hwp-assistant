@@ -1,0 +1,59 @@
+.account-admin { min-width: 0; overflow: auto; padding: clamp(20px, 3vw, 40px); }
+.account-admin-heading { display: flex; align-items: start; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.account-admin-heading > div:first-child { flex: 1 1 280px; min-width: 0; }
+.account-admin-heading h1 { margin: 8px 0; }
+.account-admin-heading p, .account-admin-help { color: #617487; font-size: 13px; line-height: 1.7; }
+.account-admin-heading > button { flex-shrink: 0; }
+.account-admin-tabs { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid #dbe4ed; }
+.account-admin-tabs [aria-selected="true"] { color: #fff; background: #385c83; border-color: #385c83; }
+.account-admin-panel { padding-top: 20px; max-width: 1100px; }
+.account-admin-panel h2 { font-size: 19px; }
+.account-admin-toolbar { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.account-admin-toolbar label, .account-admin-password > label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; }
+.account-admin-toolbar input, .account-admin-toolbar select, .account-admin-password input { max-width: 100%; min-width: 0; font: inherit; border: 1px solid #bdcddd; border-radius: 7px; padding: 9px 12px; background: #fff; color: inherit; }
+.account-admin-toolbar input { width: 220px; }
+.account-admin-toolbar > span { padding: 9px 0; font-size: 13px; color: #617487; }
+.account-admin-list { list-style: none; padding: 0; display: grid; gap: 12px; }
+.account-admin-card { padding: 18px; border: 1px solid #dbe4ed; border-radius: 10px; background: #fff; min-width: 0; }
+.account-admin-identity { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; overflow-wrap: anywhere; }
+.account-admin-identity > strong { font-size: 16px; }
+.account-admin-identity > span:not(.account-admin-badge) { color: #617487; font-size: 13px; }
+.account-admin-badge { font-size: 11px; border-radius: 20px; padding: 4px 8px; color: #48627b; background: #edf2f7; }
+.account-admin-badge.pending { color: #886215; background: #fff4d8; }
+.account-admin-badge.approved { color: #2d7147; background: #e8f5ec; }
+.account-admin-badge.rejected, .account-admin-badge.disabled { color: #815052; background: #f7eaea; }
+.account-admin-card dl { display: flex; flex-wrap: wrap; gap: 12px 30px; margin: 14px 0; }
+.account-admin-card dl > div { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; }
+.account-admin-card dt { color: #708395; }
+.account-admin-card dd { margin: 0; }
+.account-admin-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.account-admin-actions button { overflow-wrap: anywhere; max-width: 100%; }
+.account-admin-password { display: grid; gap: 12px; padding: 20px; margin: 16px 0; border: 1px solid #afc3d9; border-radius: 10px; background: #f4f8fc; max-width: 540px; }
+.account-admin-password h2, .account-admin-password p { margin: 0; }
+.account-admin-password p { font-size: 13px; line-height: 1.7; }
+.account-admin-settings { display: grid; gap: 16px; max-width: 740px; }
+.account-admin-option { display: flex; gap: 12px; align-items: start; border: 1px solid #dbe4ed; padding: 20px; border-radius: 10px; cursor: pointer; }
+.account-admin-option input { margin-top: 3px; flex-shrink: 0; }
+.account-admin-option span { display: grid; gap: 8px; }
+.account-admin-option small { color: #617487; line-height: 1.7; }
+.account-admin-settings > button { justify-self: start; }
+.account-admin-empty, .account-admin-message { padding: 24px; border: 1px solid #dbe4ed; border-radius: 10px; color: #617487; line-height: 1.7; }
+.account-admin-notice { padding: 12px 16px; border-radius: 8px; background: #eaf5ed; color: #2d6742; line-height: 1.7; overflow-wrap: anywhere; }
+.account-audit-list { list-style: none; padding: 0; }
+.account-audit-list li { border-bottom: 1px solid #e0e7ee; padding: 16px 0; overflow-wrap: anywhere; }
+.account-audit-heading { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.account-audit-heading time, .account-audit-list small { color: #6c8093; font-size: 12px; }
+.account-audit-heading span { font-size: 13px; }
+.account-audit-list p { font-size: 14px; margin: 10px 0; }
+.account-audit-list small { display: block; line-height: 1.7; }
+.account-admin :is(button, input, select):focus-visible { outline: 3px solid #829fc1; outline-offset: 3px; }
+@media (max-width: 600px) {
+  .account-admin-heading { flex-wrap: wrap; }
+  .account-admin-tabs { gap: 6px; }
+  .account-admin-tabs button { font-size: 12px; padding: 8px 10px; }
+  .account-admin-toolbar > label { width: 100%; }
+  .account-admin-toolbar input, .account-admin-toolbar select { width: 100%; }
+  .account-admin-card { padding: 14px; }
+}
+
+.account-admin-notifications { margin-top: 28px; padding-top: 20px; border-top: 1px solid #dbe4ed; font-size: 13px; line-height: 1.7; }

@@ -127,7 +127,8 @@ def issue_session(engine, user, users, policy, previous="", *, account_binding=N
         if account_binding is not None:
             from .accounts import UserAccount, session_binding
             account = db.scalar(select(UserAccount).where(UserAccount.user_id == user).with_for_update())
-            if not account or not account.is_active or not secrets.compare_digest(account_binding, session_binding(account)):
+            if (not account or not account.is_active or account.approval_status != "approved"
+                    or not secrets.compare_digest(account_binding, session_binding(account))):
                 raise HTTPException(401, LOGIN_REQUIRED)
             account.last_login_at = now
         # A revoked hash has no audit payload to retain. Prune it on issuance so
@@ -144,6 +145,9 @@ def issue_session(engine, user, users, policy, previous="", *, account_binding=N
         db.add(AuthSession(token_hash=session_hash(token), user_id=user,
                            credential_hash=account_binding if account_binding is not None else credential_hash(user, users[user]), created_at=now,
                            expires_at=now + policy.absolute_seconds, last_seen_at=now, revoked_at=None))
+        from .audit import record_event
+        record_event(db, user, "account.login", "account", user,
+                     details={"mode": "password" if account_binding is not None else "token"})
     return token
 
 
@@ -159,7 +163,7 @@ def authenticate_session(engine, token, users, policy, accounts_enabled=False):
         if row and accounts_enabled:
             from .accounts import UserAccount, session_binding
             account = db.get(UserAccount, row.user_id)
-            if account and not account.is_active:
+            if account and (not account.is_active or account.approval_status != "approved"):
                 valid = False
             elif account and secrets.compare_digest(row.credential_hash, session_binding(account)):
                 valid = True
@@ -175,6 +179,19 @@ def authenticate_session(engine, token, users, policy, accounts_enabled=False):
                        AuthSession.last_seen_at > now - policy.idle_seconds,
                        AuthSession.last_seen_at <= now - policy.touch_seconds).values(last_seen_at=now))
     return user
+
+
+def require_password_session(engine, token):
+    """When legacy access is retired, old token-derived cookies are retired too."""
+    from .accounts import UserAccount, session_binding
+    if not SESSION_PATTERN.fullmatch(token):
+        raise HTTPException(401, LOGIN_REQUIRED)
+    with Session(engine) as db:
+        row = db.get(AuthSession, session_hash(token))
+        account = db.get(UserAccount, row.user_id) if row else None
+        if (not account or not account.is_active or account.approval_status != "approved"
+                or not secrets.compare_digest(row.credential_hash, session_binding(account))):
+            raise HTTPException(401, LOGIN_REQUIRED)
 
 
 def revoke_session(engine, token):
@@ -218,14 +235,20 @@ def authenticate(token, users):
 
 
 def require_access(db, doc_id, user, role="reader", *, lock=False, fresh=False):
+    if os.getenv("HWP_ACCOUNTS_ENABLED", "0") == "1":
+        from .accounts import UserAccount
+        account = db.get(UserAccount, user, populate_existing=fresh)
+        if account and (not account.is_active or account.approval_status != "approved"):
+            raise HTTPException(401, LOGIN_REQUIRED)
     query = select(Document).where(Document.id == doc_id)
     if fresh:
         query = query.execution_options(populate_existing=True)
     doc = db.scalar(query.with_for_update() if lock else query)
-    access = db.get(Access, (doc_id, user), populate_existing=fresh)
-    if not doc or not access:
+    from .library_access import document_role
+    access_role = document_role(db, doc_id, user, fresh=fresh)
+    if not doc or access_role is None:
         raise HTTPException(404, "문서를 찾을 수 없습니다.")
-    if ROLES[access.role] < ROLES[role]:
+    if ROLES[access_role] < ROLES[role]:
         raise HTTPException(403, "이 작업을 수행할 문서 권한이 없습니다.")
     return doc
 

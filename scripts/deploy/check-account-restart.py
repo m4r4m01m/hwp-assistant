@@ -24,6 +24,7 @@ def main():
     try:
         assert path.stat().st_mode & 0o077 == 0
         receipt = json.loads(path.read_text())
+        assert receipt.get("approval_required") is True and receipt.get("approved") is True
         context = ssl.create_default_context(cafile=os.environ["HWP_CI_CERT_DIR"] + "/cert.pem")
         opener = build_opener(HTTPSHandler(context=context), NoRedirect())
 
@@ -48,6 +49,9 @@ def main():
         def me(cookie, user):
             status, raw, _ = request("api/auth/me", cookie)
             assert status == 200 and json.loads(raw)["user_id"] == user
+            identity = json.loads(raw)
+            assert identity["library_access_mode"] == "private" and identity["is_admin"] is False
+            assert request("api/admin/accounts", cookie)[0] == 403
 
         def file_matches(cookie, document):
             status, raw, _ = request(document["href"], cookie)
@@ -56,7 +60,7 @@ def main():
         def isolated(cookie, forbidden):
             assert request(forbidden["href"], cookie)[0] == 404
 
-        # The pre-restart member session must still work, and its actual saved
+        # The approved member's pre-restart session must still work, and its actual saved
         # bytes (not merely an identifier or a 200 response) must be unchanged.
         me(receipt["cookie"], receipt["user"])
         file_matches(receipt["cookie"], receipt["member"])
@@ -80,7 +84,7 @@ def main():
             assert request("api/auth/me", cookie)[0] == 401
     finally:
         path.unlink(missing_ok=True)
-    print("PASS: restart preserves guest/member password login, member session and both HWPX hashes; bidirectional isolation and logout verified")
+    print("PASS: restart preserves approved member and guest login, member session and HWPX hashes; non-admin boundary, bidirectional isolation and logout verified")
 
 
 if __name__ == "__main__":

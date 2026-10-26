@@ -39,7 +39,12 @@ def require_current(db, task, doc):
         raise HTTPException(409, "후보 생성 작업이 종료되었거나 제한 시간을 초과했습니다.")
     if doc.current_version != task.base_version:
         raise HTTPException(409, "후보 생성 중 기준 버전이 변경되었습니다. 새 원문으로 다시 요청하세요.")
-    lease_hash = json.loads(task.execution).get("_lease_sha256")
+    execution = json.loads(task.execution)
+    if execution.get("provider") == "codex":
+        from .account_settings import registered_codex_allowed
+        if not registered_codex_allowed(task.requested_by, db.get_bind()):
+            raise HTTPException(403, "계정 또는 AI 이용 권한이 변경되어 후보 생성을 중단했습니다.")
+    lease_hash = execution.get("_lease_sha256")
     if lease_hash:
         require_lease_owner(db, doc, task.requested_by, fresh=True)
         if doc.lease_until <= time.time() or not secrets.compare_digest(lease_hash, digest((doc.lease_token or "").encode())):

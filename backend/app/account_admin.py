@@ -1,4 +1,4 @@
-"""Local operator-only account maintenance. No HTTP admin endpoint or password args.
+"""Local operator account maintenance. No plaintext password arguments.
 
 Examples (inside API container):
   python -m app.account_admin create --user yoseob --name NAME --employee TEST-001
@@ -19,15 +19,19 @@ from .db import make_engine, transaction
 from .schema import migrate
 
 
-def maintain(engine, action, user, *, password=None, name=None, employee=None):
+def maintain(engine, action, user, *, password=None, name=None, employee=None, role="member"):
     # Names follow browser normalization; do not silently rename legacy IDs.
     canonical = PasswordLogin(username=user, password="validation-only").username
     if user != canonical or user == "local":
         raise ValueError("Use a canonical lowercase account ID; local is reserved")
+    if role not in ("member", "admin") or role == "admin" and user == "guest":
+        raise ValueError("Invalid account role")
     encoded = hash_password(password) if action in ("create", "password") else None
     if action == "create" and user != "guest":
         value = Register(username=user, password=password, name=name, employee_number=employee)
         name, employee = value.name, value.employee_number
+    from .account_management import protect_last_admin
+    from .audit import record_event
     with transaction(engine) as db:
         if engine.dialect.name == "postgresql":
             db.execute(text("SELECT pg_advisory_xact_lock(706251025)"))
@@ -39,6 +43,7 @@ def maintain(engine, action, user, *, password=None, name=None, employee=None):
                 name="공용 체험" if user == "guest" else name,
                 employee_number=None if user == "guest" else employee,
                 kind="guest" if user == "guest" else "member", is_active=True,
+                role=role, approval_status="approved", reviewed_by="operator", reviewed_at=time.time(),
                 session_revision=secrets.token_hex(32), created_at=time.time()))
         elif not row:
             raise ValueError("Account does not exist")
@@ -46,19 +51,33 @@ def maintain(engine, action, user, *, password=None, name=None, employee=None):
             row.password_hash = encoded
             row.session_revision = secrets.token_hex(32)
         elif action in ("enable", "disable"):
+            if row.approval_status != "approved":
+                raise ValueError("Review pending accounts through administrator approval")
+            if action == "disable":
+                protect_last_admin(db, row)
             row.is_active = action == "enable"
+            row.session_revision = secrets.token_hex(32)
+        elif action == "promote-admin":
+            if user == "guest" or not row.is_active or row.approval_status != "approved":
+                raise ValueError("Only an active approved member can be promoted")
+            row.role = "admin"
             row.session_revision = secrets.token_hex(32)
         else:
             raise ValueError("Unsupported account action")
+        record_event(db, "operator", "account." + action, "account", user,
+                     details={"mode": role} if action == "create" else None)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("create", "password", "enable", "disable"))
+    parser.add_argument("action", choices=("create", "password", "enable", "disable", "promote-admin"))
     parser.add_argument("--user", required=True)
     parser.add_argument("--name")
     parser.add_argument("--employee")
+    parser.add_argument("--role", choices=("member", "admin"), default="member", help="Explicit administrator bootstrap; create only")
     args = parser.parse_args()
+    if args.role != "member" and args.action != "create":
+        parser.error("--role applies only to create; use promote-admin explicitly for existing accounts")
     password = None
     if args.action in ("create", "password"):
         if not os.isatty(0):
@@ -69,7 +88,7 @@ def main():
     engine = make_engine(os.environ["DATABASE_URL"])
     try:
         migrate(engine, credentials())
-        maintain(engine, args.action, args.user, password=password, name=args.name, employee=args.employee)
+        maintain(engine, args.action, args.user, password=password, name=args.name, employee=args.employee, role=args.role)
         print("Account change committed. Document ownership unchanged. Password sessions are invalidated on reset.")
     except Exception:
         # SQL/validation exceptions may contain values. Do not log them.

@@ -1,5 +1,6 @@
 """Per-app/process admission, no queue. Logical task status does not release resources."""
 import os
+from contextvars import Context
 from threading import BoundedSemaphore, Lock
 from fastapi import HTTPException
 
@@ -34,9 +35,16 @@ class ExecutionSlot:
                 self.capacity.release()
 
     def start(self, thread_type, target, args):
+        # Carry only authorization/attribution. The request's pooled HTTP client
+        # belongs to its event loop and must never enter asyncio.run workers.
+        from .account_settings import engine_context
+        from .audit import actor_context
+        context = Context()
+        context.run(engine_context.set, engine_context.get())
+        context.run(actor_context.set, actor_context.get())
         def execute(*arguments):
             try:
-                target(*arguments)
+                context.run(target, *arguments)
             finally:
                 # Includes provider client/CLI cleanup; never released by cancel or ready.
                 self.release()

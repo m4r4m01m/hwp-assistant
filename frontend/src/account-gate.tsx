@@ -3,9 +3,9 @@ import { api, ApiError, errorMessage, jsonRequest } from "./api";
 import { scheduleEngineWarmup, startEngineWarmup, subscribeWarmup, warmState } from "./engine-warmup";
 import "./account-gate.css";
 
-export type Account = { user_id: string; authentication_required: boolean; name?: string; kind?: string };
+export type Account = { user_id: string; authentication_required: boolean; name?: string; kind?: string; is_admin?: boolean; library_access_mode?: "private" | "shared" };
 type SampleAccount = { user_id: string; label: string };
-type Policy = { accounts_enabled: boolean; registration_enabled: boolean; guest_enabled: boolean; sample_accounts?: SampleAccount[] };
+type Policy = { accounts_enabled: boolean; registration_enabled: boolean; guest_enabled: boolean; sample_accounts?: SampleAccount[]; registration_requires_approval?: boolean; token_login_enabled?: boolean; library_access_mode?: "private" | "shared" };
 const rememberedKey = "hwp-remembered-usernames-v1";
 function remembered(): string[] {
   try {
@@ -40,6 +40,7 @@ export function AccountGate({ children }: { children: (account: Account) => Reac
   const [mode, setMode] = useState<"choose" | "guest" | "login" | "register" | "token">("choose");
   const [username, setUsername] = useState(""), [password, setPassword] = useState(""), [confirmation, setConfirmation] = useState("");
   const [name, setName] = useState(""), [employee, setEmployee] = useState(""), [token, setToken] = useState("");
+  const [registered, setRegistered] = useState("");
   const [busy, setBusy] = useState(false), [rememberId, setRememberId] = useState(false), [profiles, setProfiles] = useState(remembered);
   const lock = useRef(false);
   useEffect(scheduleEngineWarmup, []);
@@ -63,7 +64,7 @@ export function AccountGate({ children }: { children: (account: Account) => Reac
   }, [attempt]);
   function select(next: typeof mode, user = "") {
     if (lock.current) return;
-    setMode(next); setUsername(user); setPassword(""); setConfirmation(""); setToken(""); setError("");
+    setRegistered(""); setMode(next); setUsername(user); setPassword(""); setConfirmation(""); setToken(""); setError("");
   }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -76,14 +77,18 @@ export function AccountGate({ children }: { children: (account: Account) => Reac
       const route = legacy ? "/auth/login" : mode === "register" ? "/auth/register" : "/auth/password-login";
       const input = legacy ? { token } : { username: mode === "guest" ? "guest" : username, password,
         ...(mode === "register" ? { name, employee_number: employee } : {}) };
-      await api(route, { ...jsonRequest("POST", input), timeoutMs: 20000 });
+      const result = await api<{ status?: string; user_id?: string }>(route, { ...jsonRequest("POST", input), timeoutMs: 20000 });
       setPassword(""); setConfirmation(""); setToken("");
+      if (mode === "register" && result.status === "pending") {
+        setRegistered(result.user_id || username); setName(""); setEmployee("");
+        return;
+      }
       const value = await api<Account>("/auth/me", { timeoutMs: 12000 });
       if (rememberId && !legacy) remember(value.user_id);
       clearAccountWorkspaceState(); setAccount(value);
     } catch (cause) {
       const unknownRegistration = mode === "register" && (!(cause instanceof ApiError) || cause.status >= 500);
-      setError(errorMessage(cause) + (unknownRegistration ? " · 계정이 만들어졌을 수 있습니다. 같은 아이디로 로그인을 확인하세요." : ""));
+      setError(errorMessage(cause) + (unknownRegistration ? " · 가입 요청이 접수됐을 수 있습니다. 다시 가입하지 말고 관리자에게 확인하거나 승인 후 같은 아이디로 로그인하세요." : ""));
     } finally { lock.current = false; setBusy(false); }
   }
   if (account) return children(account);
@@ -92,27 +97,33 @@ export function AccountGate({ children }: { children: (account: Account) => Reac
   const samples = policy?.sample_accounts || [];
   const personalProfiles = profiles.filter(user => !samples.some(sample => sample.user_id === user));
   const selectedSample = samples.find(sample => sample.user_id === username);
+  const sharedLibrary = policy?.library_access_mode === "shared";
   return <main className="account-page"><section className="account-panel" aria-label="문서함 로그인">
     <header><span className="account-eyebrow">HWP ASSISTANT · PoC</span><h1>HWPX 문서함 로그인</h1><p>한글 문서 작성부터 AI 검토까지, 사용할 작업 공간을 선택하세요.</p></header>
-    {!legacy && mode === "choose" ? <>
+    {registered ? <section className="account-pending" aria-label="가입 요청 접수">
+      <h2>가입 승인을 기다리고 있습니다</h2>
+      <p role="status"><strong>{registered}</strong> 계정의 가입 요청을 접수했습니다. 관리자 승인 후 로그인할 수 있습니다.</p>
+      <p className="account-note">비밀번호를 다시 보내거나 같은 아이디로 재가입할 필요가 없습니다.</p>
+      <button type="button" className="primary" onClick={() => select("login", registered)}>로그인 화면으로</button>
+    </section> : !legacy && mode === "choose" ? <>
       {!!samples.length && <section aria-label="샘플 계정 선택">
         <h2>샘플 계정 선택</h2>
         <div className="account-choices">
           {samples.map(sample => <button className="account-card" key={sample.user_id} onClick={() => select("login", sample.user_id)}><span aria-hidden="true" className="account-avatar">S</span><strong>{sample.label}</strong><small>{sample.user_id} · 비밀번호 필요</small></button>)}
         </div>
-        <p className="account-note">각 샘플 계정은 별도 문서함을 사용하며 같은 계정으로 접속한 체험자끼리는 문서를 공유합니다. AI 이용 권한은 관리자 설정에 따릅니다.</p>
+        <p className="account-note">{sharedLibrary ? "모든 계정이 같은 공용 문서함에서 작업합니다. 작업 이력은 로그인한 계정으로 기록됩니다." : "각 샘플 계정은 별도 문서함을 사용하며 같은 계정으로 접속한 체험자끼리는 문서를 공유합니다."} AI 이용 권한은 관리자 설정에 따릅니다.</p>
       </section>}
       <div className="account-choices">
         <button className="account-card" disabled={!policy?.guest_enabled} onClick={() => select("guest")}><span aria-hidden="true" className="account-avatar">G</span><strong>guest로 체험</strong><small>{policy?.guest_enabled ? "공용 체험 공간 · 비밀번호 필요" : "관리자의 guest 설정이 필요합니다"}</small></button>
         {personalProfiles.map(user => <button className="account-card" key={user} onClick={() => select("login", user)}><span aria-hidden="true" className="account-avatar">{user[0].toUpperCase()}</span><strong>{user}</strong><small>기억한 아이디 · 비밀번호 필요</small></button>)}
-        <button className="account-card" onClick={() => select("login")}><span aria-hidden="true" className="account-avatar">ID</span><strong>내 계정으로 로그인</strong><small>개인 문서와 공유받은 문서</small></button>
-        <button className="account-card" disabled={!policy?.registration_enabled} onClick={() => select("register")}><span aria-hidden="true" className="account-avatar">+</span><strong>계정 만들기</strong><small>{policy?.registration_enabled ? "아이디 · 비밀번호 · 이름 · 사번" : "현재 계정 생성이 닫혀 있습니다"}</small></button>
+        <button className="account-card" onClick={() => select("login")}><span aria-hidden="true" className="account-avatar">ID</span><strong>내 계정으로 로그인</strong><small>{sharedLibrary ? "같은 공용 문서함에서 작업" : "개인 문서와 공유받은 문서"}</small></button>
+        <button className="account-card" disabled={!policy?.registration_enabled} onClick={() => select("register")}><span aria-hidden="true" className="account-avatar">+</span><strong>계정 만들기</strong><small>{policy?.registration_enabled ? "가입 신청 · 관리자 승인 후 이용" : "현재 계정 생성이 닫혀 있습니다"}</small></button>
       </div>
-      <p className="account-note">guest에 저장한 문서는 다른 guest 체험자도 볼 수 있습니다. 실제 회사 자료나 개인정보는 올리지 마세요.</p>
+      <p className="account-note">{sharedLibrary ? "모든 계정이 같은 공용 문서함을 사용합니다. 작업 이력은 계정별로 남습니다." : "guest에 저장한 문서는 다른 guest 체험자도 볼 수 있습니다."} 실제 회사 자료나 개인정보는 올리지 마세요.</p>
       {!!profiles.length && <button className="account-text-button" onClick={() => { try { localStorage.removeItem(rememberedKey); } catch {} setProfiles([]); }}>이 브라우저에 기억한 아이디 지우기</button>}
-      <details className="account-legacy"><summary>기존 인증 토큰으로 로그인</summary><button onClick={() => select("token")}>토큰 입력 화면</button></details>
+      {policy?.token_login_enabled !== false && <details className="account-legacy"><summary>기존 인증 토큰으로 로그인</summary><button onClick={() => select("token")}>토큰 입력 화면</button></details>}
     </> : <>
-      {!legacy && <h2>{mode === "guest" ? "guest 공용 체험" : mode === "register" ? "새 계정 만들기" : "내 계정 로그인"}</h2>}
+      {!legacy && <h2>{mode === "guest" ? "guest 공용 체험" : mode === "register" ? "새 계정 가입 신청" : "내 계정 로그인"}</h2>}
       {!legacy && mode === "login" && selectedSample && <p className="account-note">선택한 샘플: {selectedSample.label} ({selectedSample.user_id}). 공유받은 비밀번호로 로그인하세요.</p>}
       <form onSubmit={event => void submit(event)} aria-label={mode === "register" ? "회원가입" : "로그인"}>
         {legacy ? <label>인증 토큰<input aria-label="인증 토큰" type="password" autoComplete="off" value={token} disabled={busy} onChange={event => setToken(event.target.value)} required /></label> : <>
@@ -122,12 +133,12 @@ export function AccountGate({ children }: { children: (account: Account) => Reac
             <label>비밀번호 확인<input aria-label="비밀번호 확인" type="password" autoComplete="new-password" value={confirmation} minLength={8} maxLength={128} disabled={busy} onChange={event => setConfirmation(event.target.value)} required /></label>
             <label>이름<input aria-label="이름" name="name" autoComplete="name" value={name} maxLength={80} disabled={busy} onChange={event => setName(event.target.value)} required /></label>
             <label>사번<input aria-label="사번" name="employee_number" autoComplete="off" value={employee} maxLength={32} pattern="[A-Za-z0-9-]+" disabled={busy} onChange={event => setEmployee(event.target.value)} required /></label>
-            <p className="account-note">아이디는 영문·숫자·._@-를 사용하세요. 비밀번호는 8~128자입니다. 사번은 계정 구분용이며 재직 여부를 검증하지 않습니다. PoC에서는 가상 이름·사번을 권장합니다.</p>
+            <p className="account-note">아이디는 영문·숫자·._@-를 사용하세요. 비밀번호는 8~128자입니다. 사번은 계정 구분용이며 재직 여부를 검증하지 않습니다. 가입 후 관리자 승인이 필요합니다. PoC에서는 가상 이름·사번을 권장합니다.</p>
           </>}
-          {mode !== "guest" && <label className="account-remember"><input type="checkbox" checked={rememberId} onChange={event => setRememberId(event.target.checked)} />이 브라우저에 아이디 기억 (공용 기기에서는 해제)</label>}
-          {mode === "guest" && <p className="account-note">공유된 체험 비밀번호를 입력하세요. 공용 문서함이므로 민감한 자료는 올리지 마세요.</p>}
+          {mode === "login" && <label className="account-remember"><input type="checkbox" checked={rememberId} onChange={event => setRememberId(event.target.checked)} />이 브라우저에 아이디 기억 (공용 기기에서는 해제)</label>}
+          {mode === "guest" && <p className="account-note">관리자가 부여한 guest 계정의 비밀번호를 입력하세요. 여러 체험자의 작업이 모두 guest로 기록됩니다. 공용 문서함이므로 민감한 자료는 올리지 마세요.</p>}
         </>}
-        <div className="account-actions"><button type="submit" className="primary" disabled={busy || legacy && !token.trim()}>{busy ? "로그인 확인 중…" : mode === "register" ? "계정 만들고 시작" : "로그인"}</button>{policy?.accounts_enabled && <button type="button" disabled={busy} onClick={() => select("choose")}>계정 선택으로</button>}</div>
+        <div className="account-actions"><button type="submit" className="primary" disabled={busy || legacy && !token.trim()}>{busy ? "로그인 확인 중…" : mode === "register" ? "가입 승인 요청" : "로그인"}</button>{policy?.accounts_enabled && <button type="button" disabled={busy} onClick={() => select("choose")}>계정 선택으로</button>}</div>
       </form>
       {mode === "register" && <button type="button" className="account-text-button" disabled={busy} onClick={() => select("login", username)}>이미 만든 계정으로 로그인</button>}
     </>}

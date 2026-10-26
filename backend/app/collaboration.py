@@ -157,7 +157,8 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
     def get_document(doc_id: str, request: Request):
         with Session(engine) as db:
             doc = require_access(db, doc_id, request.state.user)
-            return {**doc_dict(doc), "role": db.get(Access, (doc_id, request.state.user)).role}
+            from .library_access import document_role
+            return {**doc_dict(doc), "role": document_role(db, doc_id, request.state.user)}
 
     @app.get("/api/documents/{doc_id}/access")
     def access_list(doc_id: str, request: Request):
@@ -173,6 +174,9 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
             raise HTTPException(422, "서버에 등록된 사용자에게만 권한을 부여할 수 있습니다.")
         with transaction(engine) as db:
             doc = locked(db, doc_id, request.state.user, "owner")
+            from .library_access import shared_library
+            if shared_library(db, request.state.user):
+                raise HTTPException(409, "공용 문서함은 모든 활성 승인 계정이 함께 사용합니다.")
             row = db.get(Access, (doc_id, value.user_id))
             if row and row.role == "owner":
                 raise HTTPException(409, "소유자 권한은 변경할 수 없습니다.")
@@ -192,6 +196,9 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
     def revoke(doc_id: str, user_id: str, request: Request):
         with transaction(engine) as db:
             doc = locked(db, doc_id, request.state.user, "owner")
+            from .library_access import shared_library
+            if shared_library(db, request.state.user):
+                raise HTTPException(409, "공용 문서함은 모든 활성 승인 계정이 함께 사용합니다.")
             row = db.get(Access, (doc_id, user_id))
             if row and row.role == "owner":
                 raise HTTPException(409, "소유자 권한은 삭제할 수 없습니다.")
@@ -455,8 +462,11 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
     @app.get("/api/templates")
     def recommend(request: Request, q: str = Query("", max_length=200)):
         with Session(engine) as db:
-            rows = db.scalars(select(Template).join(Access, Access.document_id == Template.document_id)
-                             .where(Access.user_id == request.state.user))
+            from .library_access import shared_library
+            query = select(Template)
+            if not shared_library(db, request.state.user):
+                query = query.join(Access, Access.document_id == Template.document_id).where(Access.user_id == request.state.user)
+            rows = db.scalars(query)
             results = []
             for row in rows:
                 tags = json.loads(row.tags)

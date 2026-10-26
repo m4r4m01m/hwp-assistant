@@ -1,14 +1,29 @@
 """Additive tables, including frozen assistant turns; preserve documents, versions and blob keys."""
 import os
-from sqlalchemy import select, update
+from sqlalchemy import inspect, select, text, update
 from .db import Base, Access, Conversation, DesignFragment, Document, VisualStandard, transaction
 from .codex_runtime import CodexUsage  # Durable request admission, no prompts.
 from .accounts import UserAccount  # Additive password accounts; no document migration.
 from .ai_requests import AIRequest  # Register additive reservation table before create_all.
+from .audit import AuditEvent
+from .account_settings import AccountSetting
+from .account_notifications import RegistrationNotification
 
 
 def migrate(engine, users):
     Base.metadata.create_all(engine)
+    # create_all never adds columns to an existing table. This bounded additive
+    # migration preserves all identities and deliberately grants no admin role.
+    with engine.begin() as connection:
+        if engine.dialect.name == "postgresql":
+            connection.execute(text("SELECT pg_advisory_xact_lock(706251025)"))
+        columns = {column["name"] for column in inspect(connection).get_columns("user_accounts")}
+        additions = {"role": "VARCHAR(12) NOT NULL DEFAULT 'member'",
+                     "approval_status": "VARCHAR(12) NOT NULL DEFAULT 'approved'",
+                     "reviewed_by": "VARCHAR(80)", "reviewed_at": "DOUBLE PRECISION"}
+        for name, declaration in additions.items():
+            if name not in columns:
+                connection.execute(text(f"ALTER TABLE user_accounts ADD COLUMN {name} {declaration}"))
     # Existing public documents are never silently assigned to an authenticated user.
     owner = os.getenv("HWP_LEGACY_OWNER") if users else "local"
     if owner and users and owner not in users:

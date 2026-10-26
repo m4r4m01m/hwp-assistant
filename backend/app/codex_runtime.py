@@ -22,6 +22,10 @@ class CodexUsage(Base):
 
 
 def allowed(user):
+    from .account_settings import account_codex_allowed
+    decision = account_codex_allowed(user)
+    if decision is not None:
+        return decision
     raw = os.getenv("HWP_CODEX_ALLOWED_USERS", "").strip()
     users = [part.strip() for part in raw.split(",")] if raw else [os.getenv("HWP_CODEX_USER", "local")]
     if any(not re.fullmatch(r"[A-Za-z0-9_.@-]{1,80}", value) for value in users):
