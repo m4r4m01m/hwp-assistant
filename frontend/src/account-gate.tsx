@@ -101,7 +101,7 @@ export function AccountGate({ children }: { children: (account: Account) => Reac
   const selectedSample = samples.find(sample => sample.user_id === username);
   const sharedLibrary = policy?.library_access_mode === "shared";
   return <main className="account-page">
-    <div className="account-brand-bar"><img src={kftcLogo} alt="금융결제원" className="account-brand-logo" /><span className="account-product-name">HWP Assistant</span></div>
+    <div className="account-brand-bar"><span className="account-brand-logo-baseline"><img src={kftcLogo} alt="금융결제원" className="account-brand-logo" /></span><span className="account-product-name">HWP Assistant</span></div>
     <div className="account-layout">
     <aside className="account-intro" aria-label="서비스 소개">
       <span className="account-intro-kicker">문서 작성 · AI 검토</span>

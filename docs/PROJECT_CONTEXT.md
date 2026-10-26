@@ -564,3 +564,6 @@ GitHub workflow 파일은 변경하지 않았다. 현재 HWP deployment는 main-
 로컬 macOS / Node22.19.0 / Chrome에서 TypeScript, unit **35개**, workflow Node 계약 **52개**, URL source audit, 기존 전체 모의 UI **82개**를 통과했다. 마지막 소개 패널 폭/이름·사번 배치 보완 뒤 계정 UI **12개**를 다시 통과했다. UI 전용 Vite build와 `/hwp-assistant/` preview에서 실제 번들 로고 경로·이미지 로딩, 320/390/768/1024/1440px의 계정 선택·가입 화면 가로 넘침 없음을 확인했다. 이것은 verified rhwp release build 또는 backend/실제 AI/한컴/운영 배포 검증이 아니다. 로컬 Node 버전은 CI24.15.0과 다르며 새 PR CI는 실행하지 않았다.
 
 합성 API·최소 WASM fixture로 실제 React 화면을 캡처했다. 화면의 편집 자원 준비 표시는 해당 fixture의 다운로드·컴파일 결과이며 실제 문서 엔진 검증을 뜻하지 않는다. 로그인·가입·승인 대기·문서함·관리자 메뉴/화면·모바일 캡처를 로컬 `reports/kftc-auth-ui-2026-10-27/`에 보관한다. 사용자 정보/비밀번호가 포함된 이미지는 없으며 캡처는 Git에서 제외한다. 관리자 메뉴 간격16px, 아이콘 모드 접근 유지, 브라우저 pageerror0을 확인했다. 새 브랜치의 두 변경 커밋을 유지한 상태이며 사용자 화면 검토가 다음 단계다. main 병합·push·PR 생성·운영 배포는 수행하지 않았다.
+
+
+**상단 정렬 후속(2026-10-27):** 사용자 검수 source `d77c49094e00467ff9ad9e7585804fbef4449096`에서 금융결제원 글자와 HWP Assistant의 바닥선을 맞췄다. 공식 PNG의 국문 글자 하단은 원본39px 중34px이며 아래5px가 투명하므로, 이미지 원본을 바꾸지 않고 inline baseline을5px(모바일90% 크기는4.5px) 보정한다. Chrome1440/390px에서 국문 이미지 글자 하단과 실제 텍스트 baseline의 차이는0px/0.0063px 미만이다. CSS·마크업 변경과 화면 캡처로 확인했으며 인증/엔진 동작 변경은 없다. 같은 브랜치에서 후속 커밋으로 보존하며 미병합·미배포 상태를 유지한다.

@@ -7,8 +7,10 @@
   background: #f5f8fb;
   color: #203c55;
 }
-.account-brand-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 20px; width: min(1120px, 100%); margin: 0 auto 28px; }
-.account-brand-logo { display: block; width: 140px; height: auto; }
+.account-brand-bar { display: flex; align-items: baseline; flex-wrap: wrap; gap: 20px; width: min(1120px, 100%); margin: 0 auto 28px; }
+/* The official PNG has 5px below its wordmark; align to that ink baseline. */
+.account-brand-logo-baseline { display: inline-block; line-height: 0; }
+.account-brand-logo { display: inline-block; width: 140px; height: auto; vertical-align: -5px; }
 .account-product-name { padding-left: 20px; border-left: 1px solid #cedde9; color: #425c71; font-size: 14px; font-weight: 650; }
 .account-layout { display: grid; grid-template-columns: minmax(280px, .78fr) minmax(0, 1.22fr); width: min(1120px, 100%); margin: 0 auto; border: 1px solid #dce6ee; border-radius: 20px; background: #fff; box-shadow: 0 14px 48px #1c496c08; overflow: hidden; }
 .account-intro { width: auto; min-width: 0; border-left: 0; overflow: visible; display: flex; flex-direction: column; align-items: flex-start; padding: 44px 38px 28px; background: #edf7fc; border-right: 1px solid #deedf5; }
@@ -73,7 +75,7 @@
 @media (max-width: 760px) {
   .account-page { padding: 24px 18px; }
   .account-brand-bar { gap: 16px; margin-bottom: 24px; }
-  .account-brand-logo { width: 126px; }
+  .account-brand-logo { width: 126px; vertical-align: -4.5px; }
   .account-product-name { padding-left: 16px; font-size: 12px; }
   .account-layout { display: block; max-width: 580px; border-radius: 16px; }
   .account-brand-bar { max-width: 580px; }
