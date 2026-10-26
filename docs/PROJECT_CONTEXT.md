@@ -1,5 +1,7 @@
 # HWP Assistant 프로젝트 컨텍스트
 
+**14px·운영 배포 후속(2026-10-27):** 사용자가 제품명14px·왼쪽 정렬 유지와 검사 후 main 병합·운영 배포를 승인했다. 기존 PR #46은 이미 main `2fe71f4`에 병합·배포된 것으로 Actions에서 확인했으며, 새 크기 조정은 최신 main의 별도 `codex/kftc-title-14px`에서 진행한다. 현재 실제 결과와 검증 경계는 [21절](#21-2026-10-27-제품명-14px와-운영-반영)을 따른다. 아래 미병합·미배포 문구는 각 작업 당시의 기록이다.
+
 **UI 검수 작업(2026-10-27):** 최신 main `2257e31b78129a5be71c35565d9914f7b2b30904`에서 `codex/kftc-auth-ui`를 분리했다. PoC 표시 제거·관리자 메뉴 배치와 후속 금융결제원 CI 작업은 [20절](#20-2026-10-27-로그인-ci와-관리자-메뉴-ui-검수)을 따른다. 사용자 요청에 따라 별도 커밋으로 남기고 병합·배포하지 않는다.
 
 **최신 후속(2026-10-27):** PR #43의 Mattermost 공유 네트워크 추가 뒤 발생한 배포 테스트 실패와 PoC 통합 CI의 네트워크 준비 누락을 수정했다. 정확한 수정 source·검증 범위는 [19절](#19-2026-10-27-mattermost-공유-네트워크-배포-검사)을 따른다. 아래 운영 기록은 각 시점의 증거로 보존한다.
@@ -584,3 +586,12 @@ GitHub workflow 파일은 변경하지 않았다. 현재 HWP deployment는 main-
 
 
 **원격 공유·PR 생성(2026-10-27):** 사용자 승인으로 `codex/kftc-auth-ui`를 원격에 푸시하고 [PR #46](https://github.com/m4r4m01m/hwp-assistant/pull/46)을 main 대상으로 생성했다. 최종 제품 source는 [`dc048f9701c866f3a8e771b43c17c2c81cf86d41`](https://github.com/m4r4m01m/hwp-assistant/commit/dc048f9701c866f3a8e771b43c17c2c81cf86d41)이며, 푸시 전 최신 main은 기존 기준 `2257e31`과 같았다. 제품 source 그대로 TypeScript·단위35개·모의 UI82개를 macOS/Node22.19.0/Chrome에서 다시 통과했다. 이후 이 문단만 추가했으며 새 PR의 Linux CI 완료 여부는 Actions에서 별도로 확인한다. 이전 절의 미푸시·PR 미생성 문구는 당시 기록이며 이 후속으로 대체한다. 사용자 검수 후 후속 수정까지 기존 커밋 이력을 모두 보존했고 main 병합·배포는 수행하지 않았다.
+
+
+## 21. 2026-10-27 제품명 14px와 운영 반영
+
+사용자가 제품명을14px로 줄이고 '금융결제원'의 '금'과 왼쪽 시작선을 유지한 뒤 main 병합·운영 배포까지 명시 승인했다. 작업 전 [PR #46](https://github.com/m4r4m01m/hwp-assistant/pull/46)이 merge commit [`2fe71f49bcd09ed9fc0b5dfc718d5ca12a4bc84c`](https://github.com/m4r4m01m/hwp-assistant/commit/2fe71f49bcd09ed9fc0b5dfc718d5ca12a4bc84c)으로 이미 병합된 것을 조회했다. 원 PR head `4660910`의 검사4개와 정확한 main의 push 검사3개는 성공했다. [수동 배포 run40370300147](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40370300147)의 build-verify-publish·deploy-home 및 마지막 공개HTTPS smoke도 성공했다. 이 실행은 이번14px 요청 이전의16px 배포 기록이며 이번 작업에서 dispatch한 것이 아니다.
+
+기존 브랜치·커밋 이력을 보존하고 최신 main에서 `codex/kftc-title-14px`를 분리했다. 제품 변경은 `workspace-brand-name`의16px→14px 한 값뿐이며,40px 시작선 보정·굵기700·로고·아이콘/숨김 모드를 유지한다. 로컬 macOS / Node22.19.0 / Chrome에서 TypeScript와 기존 관리자/반응형 UI15개를 통과했다.1440/390px 캡처에서14px·40px 들여쓰기·잘림 없음과 아이콘 모드 표시를 확인했다. 로컬 후속 검수 폴더의 `19-workspace-title-14px.png`, `20-title-detail-14px.png`가 최종 화면이다.
+
+이 커밋 작성 시점에 새14px PR의 최종 Linux 검사·병합·배포는 아직 진행 전이다. 해당 정확한 head의 검사 성공 후 merge commit으로 병합하고, main의 수동 `hwp-deploy.yml`을 `deploy=true`로 실행해 백업·검증·게시·운영 교체·공개HTTPS 검사까지 별도 확인한다. 기존 운영 env·계정·문서·세 외부 볼륨·Codex 인증을 변경/초기화하지 않는다. 단순 병합/이미지 게시와 운영 배포 성공은 구분한다.
