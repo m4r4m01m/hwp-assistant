@@ -581,3 +581,6 @@ GitHub workflow 파일은 변경하지 않았다. 현재 HWP deployment는 main-
 
 
 **제품명 시작선 정렬(2026-10-27):** 사용자 검수 source `d752c879d0ee9b9764c01733bdd058986908170a`에서 제품명 H를 금융결제원 '금' 시작점 아래로 맞췄다. 원본 국문 글자는 x46에서 시작하고126px 표시 시41.4px이므로 H의 자체 글자 여백을 고려해 제품명에40px 들여쓰기를 적용했다. 16px/700과 로고 원본은 유지한다. Chrome1440/390px에서 잘림 없음·아이콘 모드 정상 표시를 확인했고, `17-workspace-title-wordmark-aligned.png`와 `18-title-wordmark-aligned-detail.png`를 로컬 후속 검수 폴더에 보관했다. CSS 배치 확인·whitespace 검사 범위이며 전체 테스트는 재실행하지 않았다. 미병합·미배포다.
+
+
+**원격 공유·PR 생성(2026-10-27):** 사용자 승인으로 `codex/kftc-auth-ui`를 원격에 푸시하고 [PR #46](https://github.com/m4r4m01m/hwp-assistant/pull/46)을 main 대상으로 생성했다. 최종 제품 source는 [`dc048f9701c866f3a8e771b43c17c2c81cf86d41`](https://github.com/m4r4m01m/hwp-assistant/commit/dc048f9701c866f3a8e771b43c17c2c81cf86d41)이며, 푸시 전 최신 main은 기존 기준 `2257e31`과 같았다. 제품 source 그대로 TypeScript·단위35개·모의 UI82개를 macOS/Node22.19.0/Chrome에서 다시 통과했다. 이후 이 문단만 추가했으며 새 PR의 Linux CI 완료 여부는 Actions에서 별도로 확인한다. 이전 절의 미푸시·PR 미생성 문구는 당시 기록이며 이 후속으로 대체한다. 사용자 검수 후 후속 수정까지 기존 커밋 이력을 모두 보존했고 main 병합·배포는 수행하지 않았다.
