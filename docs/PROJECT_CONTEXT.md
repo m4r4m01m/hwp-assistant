@@ -567,3 +567,8 @@ GitHub workflow 파일은 변경하지 않았다. 현재 HWP deployment는 main-
 
 
 **상단 정렬 후속(2026-10-27):** 사용자 검수 source `d77c49094e00467ff9ad9e7585804fbef4449096`에서 금융결제원 글자와 HWP Assistant의 바닥선을 맞췄다. 공식 PNG의 국문 글자 하단은 원본39px 중34px이며 아래5px가 투명하므로, 이미지 원본을 바꾸지 않고 inline baseline을5px(모바일90% 크기는4.5px) 보정한다. Chrome1440/390px에서 국문 이미지 글자 하단과 실제 텍스트 baseline의 차이는0px/0.0063px 미만이다. CSS·마크업 변경과 화면 캡처로 확인했으며 인증/엔진 동작 변경은 없다. 같은 브랜치에서 후속 커밋으로 보존하며 미병합·미배포 상태를 유지한다.
+
+
+**로그인 후 CI 후속(2026-10-27):** 정렬 수정 source `8bea26c1b40bc7b3145d1255885b9d8937ef6059` 이후 사용자 추가 요청에 따라 공통 `WorkspaceNav` 상단에도 금융결제원 CI를 적용했다. 펼침 모드는 공식 가로 로고126px와 HWP Assistant, 아이콘 모드는 공식 심벌30px를 표시한다. 문서함·문서 편집·보고서·문서 표준·양식·관리자 화면에서 같은 컴포넌트를 사용한다. 숨김 모드와 기존 사용자 사이드바 선택은 유지한다.
+
+최종 로컬 macOS / Node22.19.0 / Chrome에서 TypeScript, 모의 UI82개, Node 계약52개, public path source audit, `/hwp-assistant/` 기준 UI 전용 build가 통과했다. 합성 화면의 전체/아이콘 메뉴·관리자 진입·로그인/가입·모바일 캡처에서 pageerror0과 가로 넘침 없음을 확인했다. 로컬 후속 캡처는 `reports/kftc-ui-followup-2026-10-27/`로 앞선 검수본과 분리했다. 실제 엔진 release build/실제 AI·운영 서버 검증은 아니며 인증·문서 데이터·기능을 변경하지 않았다. 이전 두 커밋은 보존하고 정렬 및 로그인 후 CI를 각각 후속 커밋으로 남겼다. 새 PR CI·push·main 병합·배포는 수행하지 않았다.
