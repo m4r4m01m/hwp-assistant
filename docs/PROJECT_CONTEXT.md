@@ -4,7 +4,9 @@
 
 로컬 QA `codex/local-ui-qa-2026-10-22`의 `1f10a09dda03d48ee6a734e3f009efb3f2dfe894`는 이미 main에 포함되어 있었다. 독자 커밋 0개·main 후속 30개를 확인하고 [main `988217146269f2507120ab0f9247dfc7fb1b7fde`](https://github.com/m4r4m01m/hwp-assistant/commit/988217146269f2507120ab0f9247dfc7fb1b7fde)로 fast-forward했다. 기존 merge 이력·CLI 보존 브랜치를 유지하며 제품 코드를 추가 수정하지 않았다. 아래의 미병합·미푸시 기록은 해당 날짜의 상태다. [이번 확인 범위](evidence/local-main-adoption-2026-10-27.json).
 
-정확한 main SHA의 push 검사 3개 성공을 GitHub에서 확인했다. 로컬에서는 보고서 구성·검색 완료·경고·보안·오류 진단 142건, 모의 UI 30건, Windows CLI 탐색 시험 7건, TypeScript와 별도 진단 빌드를 확인했다. 기존 진단 엔진의 코어·브리지 일치 및 실제 제공 파일 26개의 바이트 일치도 확인했다. Codex 로그인 상태만 조회했으며 실제 모델·Hancom·전체 회귀·운영 배포는 실행하지 않았다.
+최종 확인 중 [PR #43의 main `1262f88ba5674b684e7d537d2e62146eaca75688`](https://github.com/m4r4m01m/hwp-assistant/commit/1262f88ba5674b684e7d537d2e62146eaca75688)이 추가되어 merge commit으로 반영했다. API의 외부 Mattermost 망과 CI의 내부 시험망 생성만 추가된 변경이다. 해당 main의 [push CI](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40347605806)는 볼륨 검사에서 네트워크까지 세어 `4 != 3`으로 실패했다. QA에서는 세 외부 볼륨의 이름·속성을 각각 보존 검사하고 네트워크를 따로 확인하도록 시험만 수정했다. 배포 설정 13건·CI 정적/TLS 계약 9건·스모크 12건·게시 계약 24건이 통과했다. Linux 호스트 점검은 Windows의 파일 권한 차이로 1건 실패·POSIX 1건 제외(2건 통과), Bash 실행 계약 7건은 실행 환경 부재로 제외했다. 이 범위를 전체 Linux 배포 검증으로 표현하지 않는다. 운영에는 `hwp-mattermost-hook` 외부 네트워크가 미리 있어야 하며 이번 작업에서 원격 네트워크나 운영 서버는 변경하지 않았다. 로컬 앱 코드는 `9882171`과 같아 재기동·재빌드하지 않았다.
+
+앱 검증 기준 `9882171`의 push 검사 3개 성공을 GitHub에서 확인했다. 로컬에서는 보고서 구성·검색 완료·경고·보안·오류 진단 142건, 모의 UI 30건, Windows CLI 탐색 시험 7건, TypeScript와 별도 진단 빌드를 확인했다. 기존 진단 엔진의 코어·브리지 일치 및 실제 제공 파일 26개의 바이트 일치도 확인했다. Codex 로그인 상태만 조회했으며 실제 모델·Hancom·전체 회귀·운영 배포는 실행하지 않았다.
 
 기존 QA DB와 파일을 함께 백업하고 사본에 마이그레이션을 두 번 적용한 뒤, 기존 데이터로 `http://127.0.0.1:15330/` / API `18330`을 기동했다. 실제 기동 후 기존 26개 표·132행의 모든 이전 열 값과 파일 31개가 보존됐으며 문서 21개·버전 26개·표준 5개·보고서 작업 4개를 유지했다. 추가된 계정 열 4개·표 3개 외에 기존 기록을 재작성하지 않았다. 계정/가입 OFF, 개인 문서함, 기존 토큰 경로·local Codex 허용을 유지하고 알림·공용 문서함을 활성화하지 않았다. 보고서/문단 수정/문서 대화의 configured·allowed는 true였고, 별도 chat/review provider는 기존 llm 기본을 유지했다. 백업·실행 근거는 Git에서 무시되는 `.cache/main-adoption-20261027/`에만 둔다.
 

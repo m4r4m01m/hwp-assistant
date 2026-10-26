@@ -2,6 +2,7 @@
 import importlib.util
 import json
 from pathlib import Path
+import re
 import stat
 import subprocess
 import sys
@@ -103,7 +104,22 @@ class ProductionSettingsTests(unittest.TestCase):
     def test_compose_boundaries(self):
         text = (ROOT / "compose.deploy.yaml").read_text()
         self.assertIn('"127.0.0.1:23000:80"', text)
-        self.assertEqual(text.count("external: true"), 3)
+        # External networks are not persistent data volumes. Keep the three
+        # named storage boundaries intact when a webhook network is added.
+        volumes = re.search(r"(?ms)^volumes:\n(.*?)(?=^\w[^\n]*:|\Z)", text).group(1)
+        expected_volumes = {
+            "metadata": "hwp-assistant-prod-metadata",
+            "documents": "hwp-assistant-prod-documents",
+            "codex-state": "hwp-assistant-prod-codex-state",
+        }
+        self.assertEqual(set(re.findall(r"(?m)^  ([\w-]+):$", volumes)), set(expected_volumes))
+        for volume, external_name in expected_volumes.items():
+            block = re.search(rf"(?ms)^  {re.escape(volume)}:\n(.*?)(?=^  \S|\Z)", volumes).group(1)
+            self.assertRegex(block, r"(?m)^    external: true$")
+            self.assertRegex(block, rf"(?m)^    name: {re.escape(external_name)}$")
+        networks = re.search(r"(?ms)^networks:\n(.*?)(?=^\w[^\n]*:|\Z)", text).group(1)
+        self.assertIn("  data:\n    internal: true", networks)
+        self.assertIn("  mattermost_hook:\n    external: true\n    name: hwp-mattermost-hook", networks)
         self.assertNotIn('"5432:5432"', text)
         self.assertNotIn('"8000:8000"', text)
         self.assertIn('command: ["python", "-m", "app.production"]', text)
