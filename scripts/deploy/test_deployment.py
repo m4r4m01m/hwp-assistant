@@ -2,6 +2,7 @@
 import importlib.util
 import json
 from pathlib import Path
+import re
 import stat
 import subprocess
 import sys
@@ -16,6 +17,15 @@ from config import DEFAULT_ALLOWED_HOSTS, check_env, read_env
 spec = importlib.util.spec_from_file_location("deploy_init", Path(__file__).with_name("init.py"))
 init = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(init)
+
+
+def mapping_block(text, key, indent=0):
+    """Scope source assertions to one of this Compose file's block mappings."""
+    prefix = " " * indent
+    match = re.search(r"(?m)^" + prefix + re.escape(key) + r":[ \t]*\n", text)
+    if match is None:
+        raise AssertionError(f"Missing Compose mapping: {key}")
+    return re.split(r"(?m)^" + prefix + r"\S", text[match.end():], maxsplit=1)[0]
 
 
 class ProductionSettingsTests(unittest.TestCase):
@@ -103,7 +113,6 @@ class ProductionSettingsTests(unittest.TestCase):
     def test_compose_boundaries(self):
         text = (ROOT / "compose.deploy.yaml").read_text()
         self.assertIn('"127.0.0.1:23000:80"', text)
-        self.assertEqual(text.count("external: true"), 3)
         self.assertNotIn('"5432:5432"', text)
         self.assertNotIn('"8000:8000"', text)
         self.assertIn('command: ["python", "-m", "app.production"]', text)
@@ -122,6 +131,35 @@ class ProductionSettingsTests(unittest.TestCase):
         self.assertIn(postgres, (ROOT / "compose.yaml").read_text())
         self.assertIn('nginx:1.30.6-alpine@sha256:c59d1f8b1e0e42da75be973424cd72e23f7f8adfb54e982f4d1cd0216a5a5576',
                       (ROOT / "compose.ci-gateway.yaml").read_text())
+
+    def test_persistent_volumes_remain_external_with_stable_names(self):
+        volumes = mapping_block((ROOT / "compose.deploy.yaml").read_text(), "volumes")
+        expected = {"metadata", "documents", "codex-state"}
+        self.assertEqual(set(re.findall(r"(?m)^  ([\w-]+):", volumes)), expected)
+        for name in sorted(expected):
+            with self.subTest(volume=name):
+                block = mapping_block(volumes, name, indent=2)
+                self.assertRegex(block, r"(?m)^    external: true$")
+                self.assertRegex(block, r"(?m)^    name: hwp-assistant-prod-" + re.escape(name) + r"$")
+
+    def test_mattermost_network_is_external_and_only_attached_to_api(self):
+        text = (ROOT / "compose.deploy.yaml").read_text()
+        networks = mapping_block(text, "networks")
+        webhook = mapping_block(networks, "mattermost_hook", indent=2)
+        self.assertEqual({line.strip() for line in webhook.splitlines()
+                          if line.strip() and not line.lstrip().startswith("#")},
+                         {"external: true", "name: hwp-mattermost-hook"})
+        self.assertRegex(mapping_block(networks, "data", indent=2), r"(?m)^    internal: true$")
+        services = mapping_block(text, "services")
+        for service, expected in (("api", {"app", "data", "mattermost_hook"}),
+                                  ("db", {"data"}), ("web", {"app"})):
+            with self.subTest(service=service):
+                block = mapping_block(services, service, indent=2)
+                attached = re.search(r"(?m)^    networks: \[([^\]\n]+)\]$", block)
+                self.assertIsNotNone(attached, f"Missing networks for {service}")
+                self.assertEqual({name.strip() for name in attached.group(1).split(",")}, expected)
+                if service in {"api", "db"}:
+                    self.assertNotRegex(block, r"(?m)^    ports:")
 
     def test_cookie_and_proxy_contract(self):
         text = (ROOT / "deploy/nginx.hwp-assistant.conf").read_text()

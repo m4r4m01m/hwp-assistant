@@ -49,6 +49,8 @@ jobs:
             HWP_NGINX_CONF=deploy/nginx.hwp-assistant.conf
             HWP_REVISION=${{ github.sha }}
           cache-from: type=gha,scope=hwp-web
+      - name: Create isolated webhook network for CI
+        run: docker network create --driver bridge --internal hwp-mattermost-hook
       - name: Disposable PostgreSQL, accounts and trusted HTTPS
         run: |
           python3 scripts/deploy/init.py --env-file "$HWP_ENV_FILE" --owner ci
