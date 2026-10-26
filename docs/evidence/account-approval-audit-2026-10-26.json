@@ -89,6 +89,24 @@
     "after_fix_no_cli_path_test_passed": 1,
     "latest_head_ci": "Recheck after test-only fix"
   },
+  "ci_verified_code_head": {
+    "sha": "da34301e1e71f10889ffa90039f5e2621be0f57f",
+    "workflow_successes": 4,
+    "hwp_deployment": "https://github.com/m4r4m01m/hwp-assistant/actions/runs/40274532241",
+    "poc_integration": "https://github.com/m4r4m01m/hwp-assistant/actions/runs/40274532311",
+    "frontend_build_path": "https://github.com/m4r4m01m/hwp-assistant/actions/runs/40274532291",
+    "deployment_contracts": "https://github.com/m4r4m01m/hwp-assistant/actions/runs/40274532244",
+    "linux_python": "3.14.0",
+    "backend_passed": 1485,
+    "backend_warnings": 2,
+    "backend_seconds": 340.23,
+    "real_postgres_https_rhwp_browser_passed": 3,
+    "real_postgres_https_rhwp_browser_seconds": 10.9,
+    "frontend_checks": "success",
+    "ui_lifecycle": "success",
+    "publication_and_production_deploy": "skipped by unchanged main-only gates",
+    "subsequent_source_limit": "Documentation-only receipt commits do not alter this tested product/test tree. Inspect latest PR checks separately."
+  },
   "preserved": {
     "workflow_files_changed": false,
     "dependency_engine_locks_changed": false,
@@ -98,7 +116,7 @@
     "historical_documents_or_owners_rewritten": false
   },
   "remaining": [
-    "Exact PR-head Linux/PostgreSQL/HTTPS/real-engine CI",
+    "Inspect latest PR checks after documentation-only receipt commits",
     "Operator-defined guest/admin passwords and private Mattermost webhook",
     "User isolated server testing",
     "Real model and real webhook delivery not invoked"
