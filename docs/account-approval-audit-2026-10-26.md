@@ -43,6 +43,10 @@ python -m app.account_admin create --user guest
 
 Mattermost incoming webhook 주소는 private 서버의 `HWP_MATTERMOST_WEBHOOK_URL`에만 둔다. 기본은 HTTPS이며 내부 시험에서 HTTP가 필요한 경우에만 `HWP_MATTERMOST_ALLOW_HTTP=1`을 명시한다. 리다이렉트를 따라가지 않고 전송은 4초 제한 시간과 최대 5회 전송 시도를 사용한다. 주소에는 비밀값이 있으므로 PR·브라우저 응답·감사 기록·HTTPX 로그에 출력하지 않는다. 가입 접수는 먼저 DB에 확정하고 알림 결과와 구분한다. Mattermost에 계정 비밀번호·토큰·사번·문서 내용은 전송하지 않는다. 알림이 오지 않아도 admin 화면의 승인 대기 목록에서 접수 여부를 확인한다. 관리자 설정 응답의 알림 구성 여부·대기/실패 수에도 webhook 주소나 응답 본문은 포함하지 않는다. 운영 webhook으로 실제 메시지를 보내는 검수는 운영자가 주소를 설정한 뒤 별도로 수행한다. 전송 후 결과 기록 전에 프로세스가 중단되면 중복 알림은 가능하며 승인 목록이 정본이다. [Mattermost 공식 안내](https://docs.mattermost.com/developers/integrate/webhooks/incoming)의 JSON text 전송 방식을 사용한다.
 
+2026-10-26 후속 수정에서는 하위 경로를 사용하는 Mattermost 주소도 지원한다. 예를 들어 `https://example.invalid/mattermost/hooks/SYNTHETIC` 또는 `/company/mattermost/hooks/SYNTHETIC` 형태의 경로를 그대로 사용하며 `/hooks/` 앞부분을 잘라내지 않는다. 끝에는 비어 있지 않은 단일 webhook ID가 필요하고, HTTPS 기본·사용자 정보/쿼리/fragment 거부·리다이렉트 금지 조건은 유지한다. 실제 webhook ID를 문서나 채팅에 붙이지 않는다.
+
+알림은 **새 회원가입 신청이 승인 대기로 접수될 때** 전송한다. admin의 승인 버튼과 guest/admin 생성 명령은 알림을 만들지 않는다. 주소 형식 때문에 전송하지 못했던 요청이 아직 승인 대기라면 수정 버전 적용 후 기존 대기 알림을 다시 확인한다. 이미 승인·거절된 요청은 보내지 않으므로 검수할 때 새 계정으로 신청하고 승인 대기 상태에서 알림을 확인한다.
+
 ## 관리 API 경계
 
 | 경로 | 동작 |

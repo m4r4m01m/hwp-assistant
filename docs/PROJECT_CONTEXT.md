@@ -4,6 +4,8 @@
 
 **후속 계정관리 작업(2026-10-26):** 최신 main `82d3126b0133895abcab462d38121f6768fc9a81`에서 `codex/account-approval-audit`를 분리했다. 제품 `747ff3faf93b8535a2a82617aa147d1dcca8306b`의 승인·공용 문서함·감사·AI 정책·Mattermost 알림과 검증은 [17절](#17-2026-10-26-계정-승인공용-문서함감사)을 따른다. main 병합·운영 배포·운영 계정 정리는 수행하지 않았다.
 
+**운영 후속(2026-10-26):** [PR #41](https://github.com/m4r4m01m/hwp-assistant/pull/41)은 main `f8e4f510ebf969ee100f9ae3de388e17a6a46e27`에 병합됐고 [배포 run](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40276463902)의 검사·게시·운영 배포 성공을 확인했다. 17절의 미병합/미배포 문구는 당시 기록이다. 이후 사용자가 계정 기능을 활성화하고 Mattermost 하위 경로 주소가 거부되는 문제를 진단했다. 수정 source·검증·남은 실제 전송 확인은 [18절](#18-2026-10-26-mattermost-하위-경로-webhook-수정)을 따른다.
+
 ## 1. 읽는 순서와 증거 기준
 
 1. [루트 AGENTS.md](../AGENTS.md)의 작업·보존 규칙을 읽는다.
@@ -525,3 +527,15 @@ GitHub workflow 파일은 변경하지 않았다. 현재 HWP deployment는 main-
 첫 PR head `100f0535da1d1d93c80ee40eece70f573400652e`에서 [실제 PostgreSQL/HTTPS/rhwp 승인·재시작 통합](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40273617625)은 성공했다(브라우저3 passed/14.7초). [프런트엔드·UI](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40273617608)와 [Vite build path](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40273617605), [배포 계약](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40273617598)도 통과했다. 같은 Linux backend는 1,484 passed/1 failed/기존 warning2·423.40초였으며 새 권한 시험이 개발 PC의 CLI 설치 상태에 의존한 것이 원인이었다. 그 시험의 실행기 metadata만 합성 fixture로 고정해 실제 권한 경로를 유지하고 설치/로그인 상태와 분리했다. 제품 코드는 `747ff3f`와 동일하며 이 시험 수정 후 exact head CI를 다시 확인한다. 로컬 macOS cleanup 오류는 이 Linux 실행에서 재현되지 않았다. PR 검사에서 이미지 게시·운영 배포2개 skip은 main-only 조건에 따른 정상 결과다.
 
 **후속 검증 완료(2026-10-26):** 시험 수정 head **`da34301e1e71f10889ffa90039f5e2621be0f57f`**의 [HWP deployment](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40274532241), [Vite build path](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40274532291), [배포 계약](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40274532244), [PoC 통합](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40274532311) **4개 workflow가 성공**했다. Linux/Python3.14.0 backend **1,485 passed/기존 warning2·340.23초**, 실제 PostgreSQL·HTTPS·rhwp 가입 승인/문서 저장/재열기/재시작 통합 브라우저 **3 passed·10.9초**다. frontend-checks와 ui-lifecycle도 통과했다. 이미지 게시·운영 배포2개는 정상 skip이며 사용자의 홈서버 검수나 모델/webhook 호출 완료를 뜻하지 않는다. 이후 문서만 변경한 head는 이 검증 source와 구분하며 PR의 현재 checks를 확인한다.
+
+## 18. 2026-10-26 Mattermost 하위 경로 webhook 수정
+
+현재 main **[`f8e4f510ebf969ee100f9ae3de388e17a6a46e27`](https://github.com/m4r4m01m/hwp-assistant/commit/f8e4f510ebf969ee100f9ae3de388e17a6a46e27)**은 PR #41의 merge commit이다. 해당 SHA의 push CI와 [수동 배포 run 40276463902](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40276463902)의 5개 job 성공을 조회했다. 이번 수정은 이 main에서 분리한 `codex/mattermost-webhook-subpath`이며 기존 branch·worktree·운영 서비스를 보존한다.
+
+사용자는 계정 화면 확인 뒤 Mattermost 알림이 오지 않고 admin 화면에 “서버 알림 설정이 필요합니다”가 나온다고 보고했다. 컨테이너에서 URL을 출력하지 않는 진단 결과는 주소 존재 true/검증 false/HTTPS/하위 경로 true/앞뒤 공백 false였다. 설정 적용도 완료했다고 정정했다. 실제 URL·webhook ID·private env는 수집하지 않았다. 합성 주소로 기존 `url.path.startswith('/hooks/')`가 정상 하위 경로를 거부하는 문제를 재현했다. 이는 서버 재생성 누락으로 확정할 수 있는 상황이 아니며 주소 검증 코드 결함이다.
+
+수정 제품·시험 source **[`977e33bd922512a699804c448641e5fe9af472ee`](https://github.com/m4r4m01m/hwp-assistant/commit/977e33bd922512a699804c448641e5fe9af472ee)**는 경로 끝의 `/hooks/<ID>`를 검사해 `/mattermost/` 및 여러 단계의 배포 경로를 허용한다. 전체 입력 URL을 그대로 반환하므로 prefix를 자르거나 주소를 다시 쓰지 않는다. 비어 있는 ID·추가 경로·정규화되는 점 ID와 빈 사용자 정보를 포함한 userinfo는 거부한다. HTTPS 기본·HTTP 명시적 허용·쿼리/fragment/포트 검증·redirect 금지·로그 비밀값 보호·전송 제한·outbox 처리는 유지한다. 실제 URL이 HTTPS이므로 HTTP 허용 설정을 켤 필요가 없다. DB/문서/계정/UI/workflow 변경은 없다.
+
+로컬 Python3.14.7에서 수정 전 알림 회귀는 **9 failed/19 passed·기존 warning2·3.67초**, 수정 후 보안 사례를 추가한 알림 회귀는 **34 passed·기존 warning2·4.40초**다. 알림·계정관리·감사 정책의 집중 실행은 **59 passed·기존 warning2·33.11초**다. HTTPX MockTransport로 실제 sender/로그 보호/가입202·세션 미발급/정확한 prefix 경로/관리 상태/기존 대기 outbox 복구를 검사했다. 기존 대기 알림 처리에서 계정·비밀번호 해시·생성시각을 다시 쓰지 않았다. 실제 Mattermost나 모델 호출은 0회이며 최종 PR exact-head CI는 별도로 확인한다. [검증 영수증](evidence/mattermost-webhook-subpath-2026-10-26.json)과 [운영 안내](account-approval-audit-2026-10-26.md)를 함께 읽는다.
+
+사용자는 admin 승인 동작으로도 시험했다. 현재 알림은 새 공개 가입의 승인 대기 접수 시점에만 생성되고 CLI 계정 생성이나 admin 승인 순간에는 생성하지 않는다. 수정 버전 배포 뒤 아직 승인 대기인 기존 요청은 dispatcher가 처리하지만 이미 승인·거절된 요청은 전송하지 않는다. 검수 시 새 계정의 가입 신청을 승인 대기로 유지한 상태에서 관리자 알림 상태와 대상 채널을 확인한다. 이 수정의 main 병합·운영 배포·실제 webhook 전송은 수행하지 않았다.

@@ -1,0 +1,52 @@
+{
+  "date_kst": "2026-10-26",
+  "base_sha": "f8e4f510ebf969ee100f9ae3de388e17a6a46e27",
+  "product_sha": "977e33bd922512a699804c448641e5fe9af472ee",
+  "diagnosis": {
+    "source": "User-reported redacted container diagnostics; reproduced with synthetic URLs",
+    "url_present": true,
+    "url_accepted": false,
+    "scheme": "https",
+    "subpath": true,
+    "edge_whitespace": false,
+    "private_url_collected": false
+  },
+  "change": "Preserve the original Mattermost URL including reverse-proxy prefix, require terminal /hooks/<single nonempty ID>, retain HTTPS/explicit HTTP and other credential/transport fences.",
+  "local": {
+    "python": "3.14.7",
+    "before": {
+      "failed": 9,
+      "passed": 19,
+      "warnings": 2,
+      "seconds": 3.67
+    },
+    "notification_after": {
+      "passed": 34,
+      "warnings": 2,
+      "seconds": 4.4
+    },
+    "focused_accounts_audit_notifications": {
+      "passed": 59,
+      "warnings": 2,
+      "seconds": 33.11
+    },
+    "transport": "HTTPX MockTransport only; real sender and log filter exercised",
+    "existing_pending": "Recovered through actual dispatcher without recreating signup or changing account password hash/created_at"
+  },
+  "preserved": {
+    "database_schema": true,
+    "signup_approval": true,
+    "account_permissions": true,
+    "document_versions": true,
+    "frontend": true,
+    "workflows": true,
+    "dependencies_and_locks": true,
+    "secret_url_logging_disabled": true
+  },
+  "external_calls": {
+    "model": 0,
+    "real_mattermost": 0
+  },
+  "operational_limit": "Merge/deployment and actual Mattermost delivery remain unverified. Admin approval and CLI creation do not enqueue notifications; test using a pending public signup.",
+  "ci": "Inspect the final PR exact-head checks; local focused results do not replace Linux/container integration."
+}
