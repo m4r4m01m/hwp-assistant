@@ -99,7 +99,7 @@ export function AccountGate({ children }: { children: (account: Account) => Reac
   const selectedSample = samples.find(sample => sample.user_id === username);
   const sharedLibrary = policy?.library_access_mode === "shared";
   return <main className="account-page"><section className="account-panel" aria-label="문서함 로그인">
-    <header><span className="account-eyebrow">HWP ASSISTANT · PoC</span><h1>HWPX 문서함 로그인</h1><p>한글 문서 작성부터 AI 검토까지, 사용할 작업 공간을 선택하세요.</p></header>
+    <header><span className="account-eyebrow">HWP ASSISTANT</span><h1>HWPX 문서함 로그인</h1><p>한글 문서 작성부터 AI 검토까지, 사용할 작업 공간을 선택하세요.</p></header>
     {registered ? <section className="account-pending" aria-label="가입 요청 접수">
       <h2>가입 승인을 기다리고 있습니다</h2>
       <p role="status"><strong>{registered}</strong> 계정의 가입 요청을 접수했습니다. 관리자 승인 후 로그인할 수 있습니다.</p>
@@ -133,7 +133,7 @@ export function AccountGate({ children }: { children: (account: Account) => Reac
             <label>비밀번호 확인<input aria-label="비밀번호 확인" type="password" autoComplete="new-password" value={confirmation} minLength={8} maxLength={128} disabled={busy} onChange={event => setConfirmation(event.target.value)} required /></label>
             <label>이름<input aria-label="이름" name="name" autoComplete="name" value={name} maxLength={80} disabled={busy} onChange={event => setName(event.target.value)} required /></label>
             <label>사번<input aria-label="사번" name="employee_number" autoComplete="off" value={employee} maxLength={32} pattern="[A-Za-z0-9-]+" disabled={busy} onChange={event => setEmployee(event.target.value)} required /></label>
-            <p className="account-note">아이디는 영문·숫자·._@-를 사용하세요. 비밀번호는 8~128자입니다. 사번은 계정 구분용이며 재직 여부를 검증하지 않습니다. 가입 후 관리자 승인이 필요합니다. PoC에서는 가상 이름·사번을 권장합니다.</p>
+            <p className="account-note">아이디는 영문·숫자·._@-를 사용하세요. 비밀번호는 8~128자입니다. 사번은 계정 구분용이며 재직 여부를 검증하지 않습니다. 가입 후 관리자 승인이 필요합니다. 체험 시에는 가상 이름·사번을 사용하세요.</p>
           </>}
           {mode === "login" && <label className="account-remember"><input type="checkbox" checked={rememberId} onChange={event => setRememberId(event.target.checked)} />이 브라우저에 아이디 기억 (공용 기기에서는 해제)</label>}
           {mode === "guest" && <p className="account-note">관리자가 부여한 guest 계정의 비밀번호를 입력하세요. 여러 체험자의 작업이 모두 guest로 기록됩니다. 공용 문서함이므로 민감한 자료는 올리지 마세요.</p>}

@@ -36,6 +36,7 @@
 .workspace-nav-footer strong { display: block; color: #3d566e; font-weight: 600; }
 .workspace-nav-footer small { display: block; font-size: 10px; color: #8393a2; }
 .workspace-nav-footer button { padding: 4px 0; border: 0; background: transparent; font-size: 11px; color: #607b95; }
+.workspace-account-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 8px; }
 .workspace-nav-action { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 40px; font-size: 12px; }
 .workspace-nav-tools > .workspace-nav-note { padding: 0 7px; margin: 5px 0 10px; font-size: 10px; color: #8797a7; line-height: 1.7; }
 /* Page-specific commands use the same icon and label alignment as global routes. */
@@ -51,7 +52,7 @@
 .workspace-nav[data-mode="icons"] .workspace-brand { justify-content: center; margin: 0 0 8px; }
 .workspace-nav[data-mode="icons"] .workspace-brand-mark { width: 30px; height: 30px; flex-basis: 30px; font-size: 19px; border-radius: 8px; }
 .workspace-nav[data-mode="icons"] .workspace-brand-name, .workspace-nav[data-mode="icons"] .workspace-nav-caption,
-.workspace-nav[data-mode="icons"] .workspace-nav-note, .workspace-nav[data-mode="icons"] .workspace-nav-footer > :not(button) { display: none; }
+.workspace-nav[data-mode="icons"] .workspace-nav-note, .workspace-nav[data-mode="icons"] .workspace-nav-footer > :not(button, .workspace-account-actions) { display: none; }
 .workspace-nav[data-mode="icons"] .workspace-nav-mode { flex-direction: column; gap: 2px; margin-bottom: 9px; padding: 2px; }
 .workspace-nav[data-mode="icons"] .workspace-nav-mode button { min-height: 32px; padding: 6px; }
 .workspace-nav[data-mode="icons"] .workspace-nav-routes { gap: 8px; padding-bottom: 10px; margin-bottom: 5px; }
@@ -66,6 +67,7 @@
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }
 .workspace-nav[data-mode="icons"] .workspace-nav-footer { padding: 10px 0 0; text-align: center; }
+.workspace-nav[data-mode="icons"] .workspace-account-actions { flex-direction: column; gap: 4px; margin-top: 0; }
 .workspace-nav.workspace-nav[data-mode="hidden"] { width: 0; padding: 0; border: 0; overflow: visible; }
 .workspace-nav[data-mode="hidden"] > * { display: none; }
 /* A narrow edge hit area reveals only the opener; clicking restores the sidebar. */

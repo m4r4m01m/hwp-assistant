@@ -1,5 +1,7 @@
 # HWP Assistant 프로젝트 컨텍스트
 
+**UI 검수 작업(2026-10-27):** 최신 main `2257e31b78129a5be71c35565d9914f7b2b30904`에서 `codex/kftc-auth-ui`를 분리했다. PoC 표시 제거·관리자 메뉴 배치와 후속 금융결제원 CI 작업은 [20절](#20-2026-10-27-로그인-ci와-관리자-메뉴-ui-검수)을 따른다. 사용자 요청에 따라 별도 커밋으로 남기고 병합·배포하지 않는다.
+
 **최신 후속(2026-10-27):** PR #43의 Mattermost 공유 네트워크 추가 뒤 발생한 배포 테스트 실패와 PoC 통합 CI의 네트워크 준비 누락을 수정했다. 정확한 수정 source·검증 범위는 [19절](#19-2026-10-27-mattermost-공유-네트워크-배포-검사)을 따른다. 아래 운영 기록은 각 시점의 증거로 보존한다.
 
 갱신일: **2026-10-26 (한국 시간)**. 이번 통합 기준은 [main `e263091ae28ef73a3e1a087137cc70ddadc277b0`](https://github.com/m4r4m01m/hwp-assistant/commit/e263091ae28ef73a3e1a087137cc70ddadc277b0), [PR #39](https://github.com/m4r4m01m/hwp-assistant/pull/39)의 merge commit이다. 검토 head `ae7d1da77664019b6ab23fcf4b750f336bcc80eb`의 CI 4개와 같은 tree인 main push CI 3개가 성공했다. 이후 기존 [수동 배포 run `40212063392`](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40212063392)의 5개 job 성공을 확인했고, 원 대화 root가 SSH read-only로 last-success·API/web image source `e263091`과 DB/API/web healthy를 확인했다고 인계했다. 이는 아래 새 QA 통합의 배포가 아니다. 현재 `codex/integrate-local-ui-2026-10-26`의 별도 작업 트리에서 동료 `1f10a09dda03d48ee6a734e3f009efb3f2dfe894`를 통합·검증한다. 최신 범위·완료/미완료·롤백 한계는 [16절](#16-2026-10-26-보고서-작성outline저장-전환-통합)을 따른다. 3~15절의 과거 미승인·미병합·운영 상태는 각 작업 당시 기록이며 현재 코드·exact CI·위 배포 근거를 우선한다. `532d1dd` 문서와 기존 작업 트리·미커밋 handoff는 보존한다. 클라우드는 이번 작업의 main 병합·배포 dispatch·실모델·env/ACL/계정·운영 문서 변경을 수행하지 않는다.
@@ -549,3 +551,10 @@ GitHub workflow 파일은 변경하지 않았다. 현재 HWP deployment는 main-
 [실패한 Python job](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40347702252/job/121658953157)은 `test_compose_boundaries`의 파일 전체 `external: true` 개수 비교에서 `4 != 3`으로 종료됐다. 볼륨 3개에 외부 네트워크 1개가 더해졌기 때문이다. 수정 source는 [`4d95c4e41ed2684fb9f5e574e7a79c3b9499ace9`](https://github.com/m4r4m01m/hwp-assistant/commit/4d95c4e41ed2684fb9f5e574e7a79c3b9499ace9)이다. 볼륨 metadata/documents/codex-state 각각의 외부 선언·고정 이름을 검사하고, webhook 네트워크의 외부 선언·이름·API 전용 연결 및 DB 격리를 별도로 검증한다. 같은 Compose를 사용하는 `poc-integration.yml`에도 최초 기동 전 내부 bridge 준비를 추가하고, 두 hosted 워크플로의 준비 순서를 검사한다. PR #43의 Compose와 운영 배포 게이트는 유지한다.
 
 클라우드 Linux/Python 3.12.14에서 기준 SHA의 필요한 파일을 GitHub blob SHA로 대조해 가져와 원래 실패를 재현했다. 수정 후 오프라인 검사 **84 passed/Windows 전용 1 skipped**: deployment 15, host preflight 4, CI 계약 17, smoke 12, published-run 24, developer download 6, Codex login 6 passed/1 skipped. 별도 메모리 변형 검사에서 볼륨 보호/이름 손상, webhook 이름/연결 손상, DB/web의 잘못된 연결, 두 CI의 네트워크 준비 누락/순서 오류 등 **12개 잘못된 구성**을 거부했다. 배포 셸 문법과 whitespace 검사도 통과했다. 이는 전체 backend 실행·Docker 기동·이미지 빌드가 아니며 Python 3.14/실제 PostgreSQL·HTTPS·엔진 검증은 수정 PR의 exact-head CI와 구분한다. 운영 설정·계정·문서·볼륨·실제 알림은 변경하지 않았다.
+
+
+## 20. 2026-10-27 로그인 CI와 관리자 메뉴 UI 검수
+
+기준은 [main `2257e31b78129a5be71c35565d9914f7b2b30904`](https://github.com/m4r4m01m/hwp-assistant/commit/2257e31b78129a5be71c35565d9914f7b2b30904)이다. 정확한 SHA의 [HWP 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40352998365), [Vite 경로 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40352998583), [배포 계약 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40352998427) 성공을 조회했다. 이는 새 UI 브랜치의 CI가 아니다. 기존 작업 폴더와 서비스를 보존하고 별도 작업 트리에서 진행한다.
+
+첫 커밋은 사용자 화면의 PoC 표시를 제거하고, 관리자 메뉴를 `로그아웃 → 계정 관리` 순서와 명시적인 간격으로 배치한다. 아이콘 사이드바에서는 두 동작이 세로로 표시되도록 보존한다. 가입 승인·가상 정보 사용 안내·인증 동작은 유지한다. 로컬 macOS / Node22.19.0 / 설치된 Chrome에서 TypeScript 검사와 기존 로그인·가입·관리자 모의 UI **12개**를 통과했다. 실제 엔진·AI·운영 계정 시험과 구분한다. CI/캐릭터 작업은 이 첫 수정 이후 별도 커밋으로 진행하며 최종 화면을 검수한다.
