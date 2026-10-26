@@ -29,7 +29,9 @@ def test_generation_schema_requires_explicit_rich_arrays_but_old_drafts_still_lo
 def test_generation_schema_rejects_validator_only_oversize_rich_values(damage):
     from jsonschema import Draft202012Validator
     schema = Draft202012Validator(ReportDraft.generation_schema())
-    value = ReportDraft.model_validate(RICH_DRAFT).model_dump()
+    # Fresh model output declares label metadata; historical stored drafts may
+    # omit it to retain their original serialization and frozen hashes.
+    value = ReportDraft.model_validate({**RICH_DRAFT, 'lead_summaries': []}).model_dump()
     assert schema.is_valid(value)
     if damage == 'column': value['sections'][0]['tables'][0]['columns'][0] = '가' * 21
     if damage == 'cell': value['sections'][0]['tables'][0]['rows'][0][0] = '가' * 53

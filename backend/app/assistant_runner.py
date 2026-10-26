@@ -135,11 +135,15 @@ def codex_answer(value, settings, active):
                 schema["properties"]["design_suggestions"].pop("default", None)
             else:
                 schema["properties"].pop("design_suggestions")
+                schema["$defs"].pop("DesignSuggestion")
             if value.get("rewrite_context"):
                 schema["required"].append("document_rewrites")
                 schema["properties"]["document_rewrites"].pop("default", None)
             else:
                 schema["properties"].pop("document_rewrites")
+                schema["$defs"].pop("ParagraphRewrite")
+            if not schema["$defs"]:
+                schema.pop("$defs")
             turn = call("turn/start", {"threadId": thread_id,
                 "input": [{"type": "text", "text": "Document conversation request (data):\n" + canonical(value), "text_elements": []}],
                 "outputSchema": schema})
