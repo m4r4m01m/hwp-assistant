@@ -112,6 +112,12 @@ for (const composition of compositions) {
     const preset = catalog.presets.find((item: any) => item.settings.preset_id === composition.preset);
     const selection = Object.fromEntries(["id", "name", "revision", "settings", "settings_sha256", "base_standard", "preview_sha256"].map(key => [key, preset[key]]));
     expect(selection).toEqual(record.input.visual_standard);
+    await page.route("**/api/report-templates", async route => {
+      const response = await route.fetch();
+      const templates = await response.json();
+      expect(templates.items).toContainEqual(record.input.template);
+      await route.fulfill({ response, json: { ...templates, default_id: record.input.template.id } });
+    });
     await page.goto("/");
     await page.getByRole("button", { name: "보고서 작성", exact: true }).click();
     // Opening an optional settings disclosure is UI navigation, not a bypass of
@@ -130,8 +136,7 @@ for (const composition of compositions) {
     }
     await page.getByLabel("보고서 작성 요청", { exact: true }).fill(record.input.prompt);
     await page.getByLabel("공개 웹 자료를 검색하고 출처 포함").uncheck();
-    const template = page.getByLabel("작성 목적", { exact: true });
-    if (await template.count()) await template.selectOption(record.input.template.id);
+    await expect(page.getByLabel("작성 목적", { exact: true })).toHaveCount(0);
     const posted = page.waitForResponse(value => value.request().method() === "POST" && new URL(value.url()).pathname === "/api/report-tasks");
     await page.getByRole("button", { name: "초안 작성하기", exact: true }).click();
     const response = await posted, job = await response.json();

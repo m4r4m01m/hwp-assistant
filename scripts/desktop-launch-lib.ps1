@@ -30,7 +30,9 @@ function Get-HwpSourceContext([string]$ProjectRoot) {
     }
     foreach ($name in @('frontend/index.html','frontend/compare-renderer.html','frontend/package-lock.json',
         'scripts/assistant-bridge.ts.txt','scripts/engine-lock.json','scripts/build-frontend.mjs','scripts/comparison-core.mjs',
-        'scripts/start-local.ps1','scripts/desktop-launch-lib.ps1','scripts/public-base.mjs')) {
+        'scripts/studio-controller-patch.mjs','scripts/build-engine.mjs','scripts/engine-build-lib.mjs','scripts/check-engine-bundle.mjs',
+        'scripts/start-local.ps1','scripts/desktop-launch-lib.ps1','scripts/public-base.mjs',
+        'scripts/serve-built-preview.mjs','scripts/preview-service.mjs')) {
         $files += Get-Item -LiteralPath (Join-Path $ProjectRoot $name)
     }
     $text = [Text.StringBuilder]::new(); $latest = [DateTime]::MinValue

@@ -78,15 +78,35 @@ def test_original_versions_restore_and_restart(env):
         headers={"X-Edit-Session": t, "Idempotency-Key": str(uuid.uuid4())},
     )
     assert restored.status_code == 200
+    assert restored.json()["restore_source"]["version_id"] == d["current_version"]
+    assert restored.json()["base_version"] == reuploaded.json()["id"]
     assert file(c, d, restored.json()["id"]) == original
     assert file(c, d, v2) == package("수정")
     assert file(c, d, d["current_version"]) == original
     with TestClient(create_app(url, folder)) as restarted:
         assert len(restarted.get(f"/api/documents/{d['id']}/versions").json()) == 4
+        assert restarted.get(f"/api/documents/{d['id']}/versions").json()[0]["restore_source"]["version_id"] == d["current_version"]
         assert (
             restarted.get("/api/documents").json()[0]["current_version"]
             == restored.json()["id"]
         )
+
+
+def test_restore_receipt_fences_distinct_sources_with_identical_bytes(env):
+    c, _, _, _ = env
+    d, token = create(c)
+    second = save(c, d, token, package()).json()
+    key = str(uuid.uuid4())
+    def restore(source):
+        return c.post(f"/api/documents/{d['id']}/versions/{source}/restore",
+                      params={"base_version": second["id"]},
+                      headers={"X-Edit-Session": token, "Idempotency-Key": key})
+    first = restore(d["current_version"])
+    assert first.status_code == 200
+    assert restore(d["current_version"]).json() == first.json()
+    assert restore(second["id"]).status_code == 409
+    assert len(c.get(f"/api/documents/{d['id']}/versions").json()) == 3
+    assert file(c, d, first.json()["id"]) == package()
 
 
 def test_concurrent_writers_and_idempotency(env):

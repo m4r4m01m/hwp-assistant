@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-27",
+  "implementation_source": "86f8023a8d907007b7140d291c9fe5ddfae47e3b",
+  "main_base": "2257e31b78129a5be71c35565d9914f7b2b30904",
+  "environment": "Windows native; isolated SQLite, files and headless Chrome on 15340/18340",
+  "real_engine": {
+    "kind": "pinned rhwp with diagnostic core; not release optimization evidence",
+    "block_insertion": {"passed": 4, "cases": ["original line distortion rejected", "title/summary/table, undo, save/reopen", "prepare/save response loss and subsequent edits", "stale selection and closed preview"]},
+    "restore": {"passed": 1, "case": "lost file download reuses the committed version; original stays open until replacement loads"},
+    "whole_document_rewrite": {"passed": 2, "ai": "synthetic provider", "cases": ["bold leads/title/table/note/numbers preserved, compare/apply/save/reopen", "subsequent unsaved edit rejects stale proposal"]},
+    "standard_notes": {"passed": 1, "case": "left check, inline full superscripts, abbreviated footer digit alignment, cover/TOC page pairing"}
+  },
+  "focused_checks": [
+    {"group": "report writing/contract/template/policy", "passed": 130},
+    {"group": "existing accounts/auth/management", "passed": 62},
+    {"group": "password change", "passed": 9},
+    {"group": "document assistant and whole rewrite", "passed": 48},
+    {"group": "trash and template market", "passed": 26},
+    {"group": "storage and version comparison", "passed": 25},
+    {"group": "account/trash/history mocked UI", "passed": 8},
+    {"group": "assistant/rewrite mocked UI", "passed": 20},
+    {"group": "report mocked UI", "passed": 5},
+    {"group": "controller/engine/developer kit gates", "passed": 26},
+    {"group": "real tiny Vite build cases", "passed": 6},
+    {"group": "real Vite stdin-close service lifetime", "passed": 1},
+    {"group": "Docker build contracts", "passed": 8},
+    {"group": "Windows PowerShell 5.1 desktop launcher fixtures", "passed": 31}
+  ],
+  "typescript": "passed",
+  "actual_codex_report_calls": 2,
+  "actual_codex_evidence": "report-wording-actual-2026-10-27.json",
+  "recorded_codex_native_render_evidence": "report-wording-native-2026-10-27.json",
+  "followup_checks": [
+    {"source": "75c1b2c4c89bae7c6097d3306990e3ff04a35311", "group": "lost restore response lease renewal and explicit expiry UI", "passed": 2},
+    {"source": "1639748c293d07dd4c9e4a36824eb8f0bcbeb43c", "group": "assistant completion schemas and document rewrite", "passed": 93},
+    {"source": "1639748c293d07dd4c9e4a36824eb8f0bcbeb43c", "group": "rich report bounds and real process restart", "passed": 19}
+  ],
+  "ci_python": {
+    "source": "1639748c293d07dd4c9e4a36824eb8f0bcbeb43c",
+    "run_id": 40368691770,
+    "job_id": 121733840998,
+    "passed": 1555,
+    "scope": "full pytest on Linux Python 3.14; separate from later workflow revisions and other CI jobs"
+  },
+  "history_preserved": ["original and historical HWPX blobs", "frozen report inputs and hashes", "shared branch history", "user runtime data and existing service during implementation"],
+  "limits": ["Focused suites are not one latest full regression count", "Model wording checks and synthetic AI/real-engine checks are distinct", "Hancom and human review not performed", "Original web-process termination cause not conclusively identified", "CI, merge and deployment remain separate subsequent evidence"]
+}

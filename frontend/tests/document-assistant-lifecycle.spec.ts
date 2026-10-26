@@ -170,3 +170,50 @@ test("MOCK assistant capability: Codex advice cannot dispatch a denied rewrite, 
   await action.click();
   await expect.poll(() => rewrites).toBe(1);
 });
+
+test("MOCK assistant edit: a fresh completed request prepares one rewrite and identifies its preview task", async ({ page }) => {
+  const selection = { revision: 0, state: { documentEpoch: 1, changeSeq: 0, documentSha256: "a".repeat(64) },
+    selection: { editable: true, target: { kind: "body_paragraph", section: 0, paragraph: 1, charOffset: 0, length: 5 } },
+    evidence: { text: "합성 본문", textSha256: "a".repeat(64), formatSha256: "b".repeat(64), adjacentContextSha256: "c".repeat(64) } };
+  let accepted: any, rewrites = 0;
+  await page.route("**/api/threads/thread-a/assistant-turns", route => {
+    if (route.request().method() === "POST") {
+      const request = route.request().postDataJSON();
+      accepted = { ...turn("thread-a", "ready", "요청에 맞춘 수정안을 비교할 수 있습니다."), id: request.id, selection,
+        rewrite_instruction: "합성 본문의 사실을 유지하며 간결하게 정리하세요." };
+      return json(route, accepted);
+    }
+    return json(route, accepted ? [accepted] : []);
+  });
+  await page.route("**/api/threads/thread-a/rewrite-tasks", route => { rewrites++; return json(route, { id: "automatic-rewrite" }); });
+  await openPanel(page);
+  await page.getByLabel("AI에게 요청", { exact: true }).fill("이 문단을 간결하게 다듬어줘");
+  await page.getByRole("button", { name: "보내기", exact: true }).click();
+  await expect(page.getByTestId("assistant-preview-task")).toHaveText("automatic-rewrite");
+  await expect(page.getByRole("button", { name: "수정 후보 확인", exact: true })).toBeVisible();
+  await page.clock.runFor(6000);
+  await page.getByRole("button", { name: "대화 패널 숨기기" }).click();
+  await page.getByRole("button", { name: "대화 패널 보이기" }).click();
+  await page.clock.runFor(3000);
+  expect(rewrites).toBe(1);
+});
+
+test("MOCK assistant layout: only messages scroll and the opaque composer occupies its own bottom row", async ({ page }) => {
+  await page.route("**/api/threads/thread-a/assistant-turns", route => json(route, [turn("thread-a", "ready", "긴 합성 답변입니다.\n".repeat(100))]));
+  await openPanel(page);
+  await page.addStyleTag({ content: ".conversation-panel { height: 600px; width: 380px; overflow: hidden; }" });
+  const bounds = await page.locator(".document-assistant").evaluate(element => {
+    const scroll = element.querySelector<HTMLElement>(".assistant-scroll")!;
+    const composer = element.querySelector<HTMLElement>(".assistant-composer")!;
+    scroll.scrollTop = scroll.scrollHeight;
+    return { scrollBottom: scroll.getBoundingClientRect().bottom, composerTop: composer.getBoundingClientRect().top,
+      composerBottom: composer.getBoundingClientRect().bottom, panelBottom: element.getBoundingClientRect().bottom,
+      scrollable: scroll.scrollHeight > scroll.clientHeight, background: getComputedStyle(composer).backgroundColor,
+      position: getComputedStyle(composer).position };
+  });
+  expect(bounds.scrollable).toBe(true);
+  expect(bounds.scrollBottom).toBeLessThanOrEqual(bounds.composerTop);
+  expect(bounds.composerBottom).toBeLessThanOrEqual(bounds.panelBottom + 1);
+  expect(bounds.background).toBe("rgb(255, 255, 255)");
+  expect(bounds.position).toBe("static");
+});

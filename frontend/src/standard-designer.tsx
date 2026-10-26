@@ -6,11 +6,15 @@ import type { LayoutHeading } from "./editor";
 import { embedStandardPreviewFonts, standardPreviewFontNames } from "./standard-preview-fonts";
 import { waitForStandardPreview } from "./standard-preview-task";
 import { alignComparisonPages, compareSampleRegions, comparisonColors, measureSampleRegions, pageSettingRegions, settingImpact, type SampleRegion, type SamplePageGeometry } from "./standard-preview-regions";
-import { WorkspaceNav, WorkspaceIcon, type WorkspaceSection } from "./workspace-nav";
+import { WorkspaceNav, WorkspaceIcon, type WorkspaceSection, type WorkspaceIconName } from "./workspace-nav";
 import "./standard-designer.css";
 import { DesignLibrary } from "./design-library";
 
 type Settings = Record<string, number | string | boolean>;
+const categoryIcons: Record<string, WorkspaceIconName> = {
+  "즐겨찾기": "star", "기본 구성·용지": "page", "문단 구분": "heading", "문단 내용": "paragraph",
+  "표·그림": "table", "주석·참고": "note", "표지": "layout", "목차": "toc", "기타 규정": "settings",
+};
 type BaseStandard = { id: string; reference_sha256: string; profile_sha256: string };
 export type VisualSelection = {
   id: string;
@@ -807,7 +811,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
       const baseValue = baseline.settings[field.key] ?? field.default;
       const baselineOption = optionAliases(field, baseline.settings)[String(baseValue)] ?? String(baseValue ?? "");
       return <select aria-label={label} aria-describedby={description} value={aliases[displayValue] ?? displayValue} disabled={disabled} onChange={event => change(field.key, event.target.value)}>
-        {field.options?.filter(option => !aliases[String(option.value)] && (field.key !== "citation_style" || option.value !== "NOTE_SHORT" || displayValue === "NOTE_SHORT")).map(option => <option key={option.value} value={option.value}>{option.value === "NOTE_SHORT" ? "이전 표준 · 본문·설명 모두 축약" : option.label}{String(option.value) === baselineOption ? " ✓ 기준" : ""}</option>)}
+        {field.options?.filter(option => !aliases[String(option.value)] && (field.key !== "citation_style" || option.value !== "NOTE_SHORT" || displayValue === "NOTE_SHORT")).map(option => <option key={option.value} value={option.value}>{String(option.value) === baselineOption ? "✔ " : ""}{option.value === "NOTE_SHORT" ? "이전 표준 · 본문·설명 모두 축약" : option.label}</option>)}
       </select>;
     }
     if (field.type === "color") return <span className="standard-color">
@@ -935,7 +939,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
         <header className="standard-designer-header"><div className="standard-heading-row"><h1>문서 표준 편집{changedSettings ? " *" : ""}</h1><button onClick={() => setSettingsOpen(false)}>설정 접기</button></div><p>같은 예시로 서식을 비교하세요.</p>
           <div className="standard-preview-toolbar">
             {catalog?.reference_preview_url ? <div className="standard-view-tabs" role="tablist" aria-label="기준서와 서식 보기"><button role="tab" aria-selected={view === "settings"} disabled={locked} onClick={() => switchView("settings")}>서식 미리보기</button><button role="tab" aria-selected={view === "reference"} disabled={locked} onClick={() => switchView("reference")}>기준서 전체</button></div> : <strong>서식 미리보기</strong>}
-            {view === "settings" && <button className="primary" disabled={!current || locked || !!saved} onClick={() => { setSaveMode(sourceSelection ? "replace" : "new"); if (sourceSelection) setName(sourceSelection.name); expired ? setRetry(value => value + 1) : setDialogOpen(true); }}>{saved ? "저장 완료" : expired ? "예시 다시 확인" : sourceSelection ? "변경사항 저장" : "새 표준 등록"}</button>}
+            {view === "settings" && <button className="primary" disabled={!current || locked || !!saved} onClick={() => { setSaveMode(sourceSelection ? "replace" : "new"); if (sourceSelection) setName(sourceSelection.name); expired ? setRetry(value => value + 1) : setDialogOpen(true); }}><WorkspaceIcon name={expired ? "refresh" : "save"} size={17}/>{saved ? "저장 완료" : expired ? "예시 다시 확인" : sourceSelection ? "변경사항 저장" : "새 표준 등록"}</button>}
           </div>
           <div className="standard-preview-description"><strong>{view === "reference" ? catalog?.source?.name || "문서작성 기준서" : sourceSelection ? `${sourceSelection.name}${changedSettings ? " · 수정 중" : ""}` : selectedPreset?.name || "서식 예시"}</strong><span className="standard-preview-state" role="status"><i className={`standard-preview-dot${current || view === "reference" && phase === "ready" ? "" : " pending"}`} aria-hidden="true" />{stateText}</span></div>
         </header>
@@ -953,9 +957,9 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
         {settingsRevision >= 3 && <details className="standard-saved-sources"><summary>디자인 보관함 · 표와 제목</summary><DesignLibrary settings={valid ? checked.settings : undefined} disabled={locked || !current} onApply={patch => { generation.current++; setValues(old => ({ ...old, ...inputValues(patch) })); setInputRevision(x => x + 1); setSaved(null); setPhase("waiting"); }} /></details>}
         {catalog && <div className="standard-settings-search"><label htmlFor="standard-settings-filter">설정 찾기</label><div><input id="standard-settings-filter" type="search" value={filter} onChange={event => setFilter(event.target.value)} placeholder="주석, 여백, 정렬, 테두리…" />{filter && <button aria-label="설정 검색 지우기" onClick={() => setFilter("")}>×</button>}</div><p>{searching ? `전체 설정에서 ${filteredFields.length}개를 찾았습니다.` : "문단 구분은 제목의 단계, 문단 내용은 □·ㅇ·-로 작성하는 설명입니다."}</p></div>}
         {catalog && <p className="standard-favorites-note">묶음 왼쪽 ☆를 누르면 위로 모입니다. 사용 체크는 문서에 쓸 항목을 정합니다.</p>}
-        <details className="standard-font-note"><summary>글꼴 안내</summary><p id="standard-font-help">웹 제공 글꼴과 현재 표준의 글꼴을 선택합니다. 기기에서 지원하지 않는 글꼴은 대체될 수 있습니다.</p></details>
+        <details className="standard-font-note"><summary><WorkspaceIcon name="font" size={16}/>글꼴 안내</summary><p id="standard-font-help">웹 제공 글꼴과 현재 표준의 글꼴을 선택합니다. 기기에서 지원하지 않는 글꼴은 대체될 수 있습니다.</p></details>
         {categories.map(category => <details className="standard-setting-category" key={category} data-setting-category={category} open={searching || openCategories.includes(category)} onToggle={event => { const open = event.currentTarget.open; setOpenCategories(previous => previous.includes(category) === open ? previous : open ? [...previous, category] : previous.filter(item => item !== category)); }}>
-          <summary onMouseEnter={event => showHelp(`category:${category}`, event.currentTarget)} onMouseLeave={() => setHoveredField("")} onFocus={event => showHelp(`category:${category}`, event.currentTarget, true)} onBlur={() => setFocusedField("")}><span>{category}</span>{categoryUnavailable(category) && <small>없음</small>}</summary>
+          <summary onMouseEnter={event => showHelp(`category:${category}`, event.currentTarget)} onMouseLeave={() => setHoveredField("")} onFocus={event => showHelp(`category:${category}`, event.currentTarget, true)} onBlur={() => setFocusedField("")}><WorkspaceIcon name={categoryIcons[category] || "settings"} size={18}/><span>{category}</span>{categoryUnavailable(category) && <small>없음</small>}</summary>
           {category === "문단 구분" && <p className="standard-category-help">내용을 나누는 제목 단계입니다. 필요한 단계만 사용하세요. 깊은 단계를 끄면 그 의미를 문단 내용에 합치며 사실·수치·출처는 유지합니다. 큰 논점을 나누는 최상위 구분은 유지합니다.</p>}
           {category === "문단 내용" && <p className="standard-category-help">각 문단에 담을 논점과 설명입니다. □ 주요 내용 → ㅇ 보충 설명 → - 세부 내용 → ․ 추가 설명 순으로 구성합니다.</p>}
         {orderedGroups.filter(group => categoryForGroup(group) === category).map(group => <section className={`standard-setting-section${isFavorite(group) ? " is-favorite" : ""}${unavailable(group) ? " is-unavailable" : ""}`} key={`${searching ? "filtered" : "all"}-${group}`} data-setting-group={group}>

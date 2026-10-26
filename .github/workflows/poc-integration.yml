@@ -71,15 +71,20 @@ jobs:
           node-version: '24.15.0'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Actual browser, immutable HWPX and pre-login cache reuse
-        env:
-          HWP_DEPLOY_ENV_FILE: ${{ env.HWP_ENV_FILE }}
+      - run: npm ci --no-audit --fund=false
+        working-directory: frontend
+      - name: Install headless Chromium and Linux dependencies from official Ubuntu archives
+        timeout-minutes: 6
+        working-directory: frontend
         run: |
-          cd frontend
-          npm ci --no-audit --fund=false
+          sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS python3 ../scripts/deploy/prepare-ci-apt.py
           npx playwright install --with-deps --only-shell chromium
           sudo apt-get install -y --no-install-recommends libnss3-tools
-          bash ../scripts/deploy/run-browser-checks.sh
+      - name: Actual browser, immutable HWPX and pre-login cache reuse
+        working-directory: frontend
+        env:
+          HWP_DEPLOY_ENV_FILE: ${{ env.HWP_ENV_FILE }}
+        run: bash ../scripts/deploy/run-browser-checks.sh
       - name: Restart preserves password sessions, isolated documents and stored bytes
         run: |
           docker compose --env-file "$HWP_ENV_FILE" -f compose.deploy.yaml -f compose.ci-gateway.yaml restart api

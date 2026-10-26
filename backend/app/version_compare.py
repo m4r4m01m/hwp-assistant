@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import HTTPException, Request
 from sqlalchemy.orm import Session, object_session
 from .auth import require_access
-from .db import Version, VersionAuthor
+from .db import Version, VersionAuthor, VersionRestore
 from .hwpx import digest
 from .compare_hwpx import snapshot, align, change_kind, moved_pairs
 
@@ -18,6 +18,15 @@ def author_dict(version):
     db = object_session(version)
     row = db.get(VersionAuthor, version.id) if db is not None else None
     return {"user_id": row.user_id, "identity_kind": row.identity_kind} if row else None
+
+
+def restore_source_dict(version):
+    db = object_session(version)
+    receipt = db.get(VersionRestore, version.id) if db is not None else None
+    source = db.get(Version, receipt.source_version_id) if receipt else None
+    if not source or source.document_id != version.document_id:
+        return None
+    return {"version_id": source.id, "created_at": source.created_at, "author": author_dict(source)}
 
 
 def compare_history(versions, snapshots, complete):

@@ -5,7 +5,7 @@ import kftcLogo from "./assets/kftc-logo.png";
 import { WorkspaceIcon } from "./workspace-nav";
 import "./account-gate.css";
 
-export type Account = { user_id: string; authentication_required: boolean; name?: string; kind?: string; is_admin?: boolean; library_access_mode?: "private" | "shared" };
+export type Account = { user_id: string; authentication_required: boolean; name?: string; kind?: string; is_admin?: boolean; can_change_password?: boolean; library_access_mode?: "private" | "shared" };
 type SampleAccount = { user_id: string; label: string };
 type Policy = { accounts_enabled: boolean; registration_enabled: boolean; guest_enabled: boolean; sample_accounts?: SampleAccount[]; registration_requires_approval?: boolean; token_login_enabled?: boolean; library_access_mode?: "private" | "shared" };
 const rememberedKey = "hwp-remembered-usernames-v1";

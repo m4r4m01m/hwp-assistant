@@ -32,6 +32,7 @@ jobs:
       - run: python scripts/deploy/test_deployment.py
       - run: python -I -S -B scripts/deploy/test_host_preflight.py
       - run: python scripts/deploy/test_ci_contracts.py
+      - run: python scripts/deploy/test_prepare_ci_apt.py
       - run: python scripts/deploy/test_smoke.py
       - run: python scripts/developer-download.test.py
       - run: python scripts/check-codex-login.test.py
@@ -53,7 +54,7 @@ jobs:
         working-directory: frontend
       - run: npm run test:unit
         working-directory: frontend
-      - run: node --test scripts/public-base.test.mjs scripts/engine-build.test.mjs scripts/comparison-core.test.mjs scripts/precompress-static.test.mjs scripts/developer-engine-kit.test.mjs
+      - run: node --test scripts/public-base.test.mjs scripts/engine-build.test.mjs scripts/studio-controller-patch.test.mjs scripts/comparison-core.test.mjs scripts/precompress-static.test.mjs scripts/developer-engine-kit.test.mjs
       - run: node scripts/audit-public-paths.mjs
       - run: bash -n scripts/deploy/common.sh scripts/deploy/backup.sh scripts/deploy/deploy.sh scripts/deploy/run-browser-checks.sh
       - name: Report dependency advisories (bounded; no automatic lockfile changes)
@@ -78,15 +79,19 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --no-audit --fund=false
         working-directory: frontend
-      - run: npx playwright install --with-deps chromium
+      - name: Install Chromium and Linux dependencies from official Ubuntu archives
+        timeout-minutes: 6
         working-directory: frontend
+        run: |
+          sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS python3 ../scripts/deploy/prepare-ci-apt.py
+          npx playwright install --with-deps chromium
+          sudo apt-get install -y --no-install-recommends libnss3-tools
       - name: Mocked login, search, mobile and preview lifecycle checks
         run: npm run test:ui
         working-directory: frontend
       # Real HTTPS/Service Worker test runs on push/PR, before an expensive build.
       - name: Verify strict CI TLS and Service Workers before image builds
         run: |
-          sudo apt-get install -y --no-install-recommends libnss3-tools
           mkdir -p "$HWP_CI_CERT_DIR"
           openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
             -keyout "$HWP_CI_CERT_DIR/key.pem" -out "$HWP_CI_CERT_DIR/cert.pem" \
@@ -168,15 +173,20 @@ jobs:
           node-version: '24.15.0'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --fund=false
+        working-directory: frontend
+      - name: Install headless Chromium and Linux dependencies from official Ubuntu archives
+        timeout-minutes: 6
+        working-directory: frontend
+        run: |
+          sudo --preserve-env=GITHUB_ACTIONS,RUNNER_ENVIRONMENT,RUNNER_OS python3 ../scripts/deploy/prepare-ci-apt.py
+          npx playwright install --with-deps --only-shell chromium
+          sudo apt-get install -y --no-install-recommends libnss3-tools
       - name: Real browser, editor and comparison under the public subpath
         working-directory: frontend
         env:
           HWP_DEPLOY_ENV_FILE: ${{ env.HWP_ENV_FILE }}
-        run: |
-          npm ci --no-audit --fund=false
-          npx playwright install --with-deps --only-shell chromium
-          sudo apt-get install -y --no-install-recommends libnss3-tools
-          bash ../scripts/deploy/run-browser-checks.sh
+        run: bash ../scripts/deploy/run-browser-checks.sh
       - name: Authenticate to GHCR only after verification
         uses: docker/login-action@v3
         with:

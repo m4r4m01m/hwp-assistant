@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { root, lock, sha256, validateCore, ensureSource, isPinnedBinaryen, assertStudioBridge, validateInstalledDependencies } from './engine-build-lib.mjs';
 import { checkBundle } from './check-engine-bundle.mjs';
+import { controllerReceipt } from './studio-controller-patch.mjs';
 
 const parent = resolve(root, '.cache/engine-build-tests');
 mkdirSync(parent, { recursive: true });
@@ -85,7 +86,7 @@ test('served bundle detects stale or changed deployed bytes', () => {
   const files = { 'index.html': 'fixture index', 'assets/rhwp_bg-fixture.wasm': 'fixture wasm' };
   for (const [name, bytes] of Object.entries(files)) writeFileSync(resolve(path, name), bytes);
   const bundle = Object.fromEntries(Object.entries(files).map(([name, bytes]) => [name, sha256(bytes)]));
-  writeFileSync(resolve(path, 'build-info.json'), JSON.stringify({ commit: lock.commit, diagnostic: true,
+  writeFileSync(resolve(path, 'build-info.json'), JSON.stringify({ commit: lock.commit, diagnostic: true, controller: controllerReceipt(),
     coreBuild: { ...lock, profile: 'release', wasm_opt: false, wasm_sha256: bundle['assets/rhwp_bg-fixture.wasm'] }, bundle }));
   assert.throws(() => checkBundle(path), /Diagnostic bundle/);
   assert.equal(checkBundle(path, { deployment: false }).diagnostic, true);
@@ -99,6 +100,24 @@ test('CLI rejects altered core before creating output', () => {
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /provenance mismatch/);
   assert.equal(existsSync(out), false);
+});
+
+test('old controller bundles require explicit migration and never bypass file hashes', () => {
+  const path = directory(); mkdirSync(resolve(path, 'assets'));
+  const files = { 'index.html': 'legacy fixture', 'assets/rhwp_bg-fixture.wasm': 'synthetic wasm' };
+  for (const [name, value] of Object.entries(files)) writeFileSync(resolve(path, name), value);
+  const bundle = Object.fromEntries(Object.entries(files).map(([name, value]) => [name, sha256(value)]));
+  const info = { commit: lock.commit, diagnostic: true, bundle,
+    coreBuild: { ...lock, profile: 'release', wasm_opt: false, wasm_sha256: bundle['assets/rhwp_bg-fixture.wasm'] } };
+  const save = () => writeFileSync(resolve(path, 'build-info.json'), JSON.stringify(info)); save();
+  assert.throws(() => checkBundle(path, { deployment: false }), /controller receipt/);
+  assert.throws(() => checkBundle(path, { allowLegacyController: true }), /explicit diagnostic migration/);
+  assert.equal(checkBundle(path, { deployment: false, allowLegacyController: true }).diagnostic, true);
+  info.controller = { ...controllerReceipt(), patched_sha256: 'a'.repeat(64) }; save();
+  assert.throws(() => checkBundle(path, { deployment: false, allowLegacyController: true }), /controller receipt/);
+  delete info.controller; save();
+  writeFileSync(resolve(path, 'assets/rhwp_bg-fixture.wasm'), 'altered');
+  assert.throws(() => checkBundle(path, { deployment: false, allowLegacyController: true }), /Bundle file\/hash mismatch/);
 });
 test('unrelated checkout and local files are preserved', () => {
   const repo = directory();

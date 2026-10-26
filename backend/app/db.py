@@ -47,6 +47,23 @@ class Document(Base):
     lease_until: Mapped[float] = mapped_column(Float, default=0)
 
 
+class DocumentTrash(Base):
+    """Reversible visibility receipts; versions and immutable files are untouched."""
+    __tablename__ = "document_trash"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    document_id: Mapped[str] = mapped_column(ForeignKey("documents.id"), index=True)
+    deleted_by: Mapped[str] = mapped_column(String(80))
+    deleted_at: Mapped[float] = mapped_column(Float)
+    restored_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+def document_is_trashed(document_id):
+    from sqlalchemy import select
+    return select(DocumentTrash.id).where(
+        DocumentTrash.document_id == document_id, DocumentTrash.restored_at.is_(None)
+    ).exists()
+
+
 class Version(Base):
     __tablename__ = "versions"
     __table_args__ = (UniqueConstraint("document_id", "request_id"),)
@@ -76,6 +93,13 @@ class VersionAuthor(Base):
     version_id: Mapped[str] = mapped_column(ForeignKey("versions.id"), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(80))
     identity_kind: Mapped[str] = mapped_column(String(16))
+
+
+class VersionRestore(Base):
+    """Immutable provenance for new restores; historical sources are not guessed."""
+    __tablename__ = "version_restores"
+    version_id: Mapped[str] = mapped_column(ForeignKey("versions.id"), primary_key=True)
+    source_version_id: Mapped[str] = mapped_column(ForeignKey("versions.id"))
 
 
 class LeaseOwner(Base):

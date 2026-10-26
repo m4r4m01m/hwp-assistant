@@ -53,6 +53,6 @@ export function ReportStructure({ value, onChange, disabled }: {
       <button type="button" className="report-structure-add" disabled={disabled || value.length >= 6} onClick={() => onChange([...value, ""])}>+ 대제목 추가</button>
       {error && <p className="error" role="alert">{error}</p>}
       <p className="hint">이 제목과 순서로 작성합니다. 제목은 바꿀 수 있으며 번호는 자동으로 붙습니다.</p>
-    </> : <p className="hint">AI가 주제와 작성 목적에 맞춰 제목과 순서를 정합니다.</p>}
+    </> : <p className="hint">AI가 작성 요청에 맞춰 제목과 순서를 정합니다.</p>}
   </fieldset>;
 }

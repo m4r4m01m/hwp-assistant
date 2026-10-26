@@ -8,6 +8,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync,
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { root, lock, hashFile, sha256 } from './engine-build-lib.mjs';
+import { controllerReceipt } from './studio-controller-patch.mjs';
 
 function fixture(t) {
   const directory = mkdtempSync(resolve(tmpdir(), 'hwp-frontend-base-'));
@@ -16,7 +17,7 @@ function fixture(t) {
   mkdirSync(scripts, { recursive: true });
   mkdirSync(resolve(frontend, 'src'), { recursive: true });
   for (const name of ['build-frontend.mjs', 'engine-build-lib.mjs', 'engine-lock.json',
-    'check-engine-bundle.mjs', 'comparison-core.mjs', 'public-base.mjs', 'precompress-static.mjs'])
+    'check-engine-bundle.mjs', 'studio-controller-patch.mjs', 'comparison-core.mjs', 'public-base.mjs', 'precompress-static.mjs'])
     cpSync(resolve(root, 'scripts', name), resolve(scripts, name));
   cpSync(resolve(root, 'scripts/patches'), resolve(scripts, 'patches'), { recursive: true });
   symlinkSync(resolve(root, 'frontend/node_modules'), resolve(frontend, 'node_modules'), 'junction');
@@ -36,7 +37,7 @@ function fixture(t) {
     'assets/rhwp_bg-fixture.wasm': 'synthetic diagnostic artifact; never executed' };
   for (const [name, value] of Object.entries(files)) writeFileSync(resolve(engine, name), value);
   writeFileSync(resolve(engine, 'build-info.json'), JSON.stringify({
-    commit: lock.commit, diagnostic: true,
+    commit: lock.commit, diagnostic: true, controller: controllerReceipt(),
     bundle: Object.fromEntries(Object.entries(files).map(([name, value]) => [name, sha256(value)])),
     coreBuild: { ...lock, profile: 'release', wasm_opt: false,
       wasm_sha256: sha256(files['assets/rhwp_bg-fixture.wasm']),

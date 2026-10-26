@@ -218,6 +218,7 @@ test("REAL engine block insert: title, summary and table preserve unsaved conten
     await request.get(source.document + "/versions")
   ).json();
   await choose(page, "title-frame", { 제목: "금융 보안 운영 보고" });
+  await expect(page.getByLabel("블록 모양 예시")).toContainText("금융 보안 운영 보고");
   await ready(page);
   await page.evaluate(() =>
     (window as any).__blockAutosaveTicks.forEach((tick: () => void) => tick()),
@@ -243,7 +244,7 @@ test("REAL engine block insert: title, summary and table preserve unsaved conten
   );
   expect(content(await exported(inserted))).toContain("금융 보안 운영 보고");
   await page
-    .getByRole("button", { name: "방금 삽입 취소", exact: true })
+    .getByRole("button", { name: "삽입한 블록 되돌리기", exact: true })
     .click();
   expect(await liveFrame(page)).toBe(original);
   expect(await exported(original)).toEqual(before);

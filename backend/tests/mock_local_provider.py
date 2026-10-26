@@ -61,7 +61,7 @@ async def generate(request: Request):
         content = json.dumps({
             "answer": "MOCK 문서 대화 응답: " + payload["message"],
             "rewrite_instruction": "사실과 부정 표현을 유지하며 업무 문체로 다듬어 주세요."
-                if payload.get("selection") and "다듬" in payload["message"] else None,
+                if payload.get("selection") and not payload.get("rewrite_context") and "다듬" in payload["message"] else None,
         }, ensure_ascii=False)
         if settings["failure"] == "json":
             content = '{"answer":'

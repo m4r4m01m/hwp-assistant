@@ -68,13 +68,30 @@ foreach ($folder in @('frontend/src','backend/app','scripts')) {
 }
 foreach ($name in @('frontend/index.html','frontend/compare-renderer.html','frontend/package-lock.json',
     'scripts/assistant-bridge.ts.txt','scripts/engine-lock.json','scripts/build-frontend.mjs','scripts/comparison-core.mjs',
-    'scripts/start-local.ps1','scripts/desktop-launch-lib.ps1','scripts/public-base.mjs')) {
+    'scripts/studio-controller-patch.mjs','scripts/build-engine.mjs','scripts/engine-build-lib.mjs','scripts/check-engine-bundle.mjs',
+    'scripts/start-local.ps1','scripts/desktop-launch-lib.ps1','scripts/public-base.mjs',
+    'scripts/serve-built-preview.mjs','scripts/preview-service.mjs')) {
     [IO.File]::WriteAllText((Join-Path $sourceFixture $name), 'fixture version 1')
 }
-$beforeHelperChange = Get-HwpSourceContext $sourceFixture
-[IO.File]::WriteAllText((Join-Path $sourceFixture 'scripts/public-base.mjs'), 'fixture version 2')
-$afterHelperChange = Get-HwpSourceContext $sourceFixture
-Assert-Identity ($beforeHelperChange.fingerprint -ne $afterHelperChange.fingerprint) $true 'public base helper changes invalidate an existing app build'
+$previousContext = $context
+$previousFingerprint = $run.source_fingerprint
+$previousStart = $states[200].started_at
+try {
+    $states[200].started_at = $start
+    foreach ($helper in @('public-base.mjs','serve-built-preview.mjs','preview-service.mjs','studio-controller-patch.mjs')) {
+        $context = Get-HwpSourceContext $sourceFixture
+        $run.source_fingerprint = $context.fingerprint
+        Assert-Identity (Inspect-Run) $true "$helper fixture starts with a matching run identity"
+        [IO.File]::WriteAllText((Join-Path $sourceFixture ('scripts/' + $helper)), 'fixture version 2')
+        $context = Get-HwpSourceContext $sourceFixture
+        Assert-Identity ($run.source_fingerprint -ne $context.fingerprint) $true "$helper changes invalidate the source fingerprint"
+        Assert-Identity (Inspect-Run) $false "$helper update rejects the old running app despite unchanged PID and HTTP checks"
+    }
+} finally {
+    $context = $previousContext
+    $run.source_fingerprint = $previousFingerprint
+    $states[200].started_at = $previousStart
+}
 
 # Exercise the environment inherited by a real child, including failure and an
 # initially absent value. The normal deployment build remains outside this guard.

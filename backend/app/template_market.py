@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .auth import require_access
-from .db import Access, Template, TemplateCatalog, TemplateFavorite, Version, transaction
+from .db import Access, Template, TemplateCatalog, TemplateFavorite, Version, document_is_trashed, transaction
 from .library_access import document_role
 from .hwpx import digest, validate
 
@@ -142,7 +142,7 @@ def install_template_market(app, locked):
                 offset: int = Query(0, ge=0), limit: int = Query(24, ge=1, le=100)):
         with Session(engine) as db:
             from .library_access import shared_library
-            query = select(Template)
+            query = select(Template).where(~document_is_trashed(Template.document_id))
             if not shared_library(db, request.state.user):
                 query = query.join(Access, Access.document_id == Template.document_id).where(Access.user_id == request.state.user)
             rows = db.scalars(query)

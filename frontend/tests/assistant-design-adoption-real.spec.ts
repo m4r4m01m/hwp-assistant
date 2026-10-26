@@ -96,7 +96,7 @@ test("REAL rhwp + MOCK AI: full editor adopts the frozen catalog proposal only a
   expect(await (await request.get(doc.documentUrl + "/versions")).json()).toEqual(versions);
   expect(await (await request.get(doc.originalUrl)).body()).toEqual(doc.original);
   await panel.getByRole("button", { name: "닫기", exact: true }).click();
-  await page.getByRole("button", { name: "방금 적용 취소", exact: true }).click();
+  await page.getByRole("button", { name: "이전 서식으로 되돌리기", exact: true }).click();
   expect(await bytes(page)).toEqual(doc.frozen);
 });
 

@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-27",
+  "kind": "real-rhwp-rendering-of-recorded-Codex-draft",
+  "generation_evidence": "report-wording-actual-2026-10-27.json",
+  "synthetic_only": true,
+  "actual_model_calls_this_verification": 0,
+  "previous_actual_model_calls": 2,
+  "renderer": "pinned diagnostic rhwp 0.8.6",
+  "draft_sha256": "c30b16ced5b69395a28e3f911f43f1c276f7854761d2a016ea085da2cd2e0d76",
+  "exported_hwpx_sha256": "fccc02c3cc3a54e9a78fba3946baa55d69f3dc8810ca94edc3f7688d7039fcba",
+  "pages": 2,
+  "content_loss_count": 0,
+  "body_item_count": 8,
+  "body_item_line_counts_in_order": [1, 1, 2, 2, 1, 2, 1, 1],
+  "section_heading_line_counts_in_order": [1, 1, 1, 1],
+  "labels": ["패치현황", "외부노출", "점검일정"],
+  "labels_visibly_bold": true,
+  "all_frozen_plan_text_present_in_svg": true,
+  "last_table_glyph_visibility": {
+    "text": "록",
+    "fill": "black",
+    "opacity": 1,
+    "baseline_y": 194.25333333333336,
+    "glyph_bbox_bottom_y": 196.2533302307129,
+    "cell_clip_bottom_y": 199.34666666666666,
+    "glyph_bbox_inside_cell_clip": true,
+    "bottom_clearance_px": 3.093336435953802,
+    "original_page_png_dark_pixels_in_glyph_region": 55,
+    "original_page_png_painted_y_range": [181, 194],
+    "four_times_density_screenshot_visually_checked": true,
+    "clipping_or_hidden_text_observed": false
+  },
+  "frozen_draft_and_standard_unchanged": true,
+  "exported_hwpx_reopened_in_native_engine": true,
+  "document_published_to_server": false,
+  "user_application_or_browser_used": false,
+  "verification_environment": "existing isolated synthetic QA on 15340/18340; separate headless Chrome",
+  "native_services_started_or_stopped": false,
+  "observations": [
+    "Every substantive body item occupies one or two native rendered lines in this sample.",
+    "The four displayed section headings each occupy one line; matching includes their displayed numbers to avoid title-word collisions.",
+    "The table and its caption start on page 2 after the preceding response paragraph on page 1.",
+    "Some table-cell words wrap between Hangul characters, including the final characters of patch and record. The final record glyph is black, fully inside its cell clip and painted in the original page PNG; its full shape is visible in the four-times-density screenshot.",
+    "The unchanged server-owned research_not_requested notice remains visible after the report body."
+  ],
+  "limits": [
+    "This is one recorded synthetic sample, not a guarantee of all model outputs or all layouts.",
+    "SVG text presence and content-loss checks are distinct from pixel visibility. The suspected last table glyph received an additional clip-geometry and screenshot check; this is not an exhaustive per-glyph paint audit.",
+    "The artifact was exported and reopened; this verification did not approve or publish it as a server document.",
+    "Hancom interoperability and human review were not performed."
+  ],
+  "private_artifact_directory": ".cache/final-polish-20261027/actual-report/labels-on/native-proof"
+}

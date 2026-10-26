@@ -706,7 +706,7 @@ test("REAL rhwp + MOCK report TOC: saved response loss preserves frozen bytes an
     expect(await readFile(recoveryFile)).toEqual(later);
     await expect(openRecovered).toBeEnabled();
     await expect(
-      page.getByLabel("작성 목적", { exact: true }),
+      page.getByLabel("대제목 구성 방식", { exact: true }),
     ).toBeDisabled();
     page.once("dialog", (dialog) => dialog.dismiss());
     await openRecovered.click();

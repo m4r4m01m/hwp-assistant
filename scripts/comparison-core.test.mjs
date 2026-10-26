@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { comparisonAssets } from './comparison-core.mjs';
 import { root, lock, hashFile, sha256 } from './engine-build-lib.mjs';
+import { controllerReceipt } from './studio-controller-patch.mjs';
 
 function fixture(t) {
   const directory = mkdtempSync(resolve(tmpdir(), 'hwp-comparison-core-'));
@@ -12,7 +13,7 @@ function fixture(t) {
   const engine = resolve(directory, 'rhwp'); mkdirSync(resolve(engine, 'assets'), { recursive: true });
   const files = { 'index.html': '<html/>', 'assets/rhwp_bg-test.wasm': 'synthetic artifact, never executed' };
   for (const [name, value] of Object.entries(files)) writeFileSync(resolve(engine, name), value);
-  const info = { commit: lock.commit, diagnostic: true, bundle: Object.fromEntries(Object.entries(files).map(([name, value]) => [name, sha256(value)])),
+  const info = { commit: lock.commit, diagnostic: true, controller: controllerReceipt(), bundle: Object.fromEntries(Object.entries(files).map(([name, value]) => [name, sha256(value)])),
     coreBuild: { ...lock, profile: 'release', wasm_opt: false, wasm_sha256: sha256(files['assets/rhwp_bg-test.wasm']),
       binding_sha256: hashFile(resolve(root, 'frontend/node_modules/@rhwp/core/rhwp.js')) } };
   const save = () => writeFileSync(resolve(engine, 'build-info.json'), JSON.stringify(info)); save();

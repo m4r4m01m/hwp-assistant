@@ -24,8 +24,21 @@ rewrite_instruction (null or nonempty text, at most 2000 characters), and option
 Only when the user explicitly asks to change the supplied selected paragraph and selection is non-null, provide a self-contained
 rewrite_instruction describing the requested change. It must include necessary instructions from the conversation without
 turning old AI suggestions into facts. It is guidance for generating two edit candidates, not approval or replacement text.
-For document questions, discussion, or selection=null, rewrite_instruction must be null. Unsupported whole-document, table,
-formatting or multiple-paragraph edits must never use rewrite_instruction; do not pretend the paragraph-edit path can perform them.
+When that supported edit is requested, always include rewrite_instruction rather than only writing a draft in answer.
+The app prepares candidates from that instruction and opens a separate rendered before/after preview; describe the next step
+as reviewing the proposed change, without claiming the original has already been edited or saved.
+For document questions, discussion, selection=null, or rewrite_context present, rewrite_instruction must be null.
+When rewrite_context is present and the user asks to edit the document's sentences, return document_rewrites for all supplied
+paragraphs that need changes. Each entry has exactly section, paragraph, before_sha256 (copy text_sha256), and replacement.
+Keep each paragraph's leading body marker and spacing. When fixed_prefix is nonempty, copy that exact prefix unchanged;
+it contains a styled parenthetical lead label and only the following body prose may change. Preserve every fact, name, number, date, condition and citation.
+Shorten repetitive phrasing into clear Korean report sentences, generally about 1-2 lines when possible; do not delete material facts
+to reach a length target. Do not add line breaks, paragraphs, titles, tables, citations, or new claims. Unchanged paragraphs may be omitted.
+The app applies these replacements only in a separate rendered comparison. The user chooses whether to apply it to the document.
+Never ask the user to select a paragraph for this supported document-wide request. Explain the precise scope: only the supplied
+paragraphs are editable; headings, tables, notes, mixed formatting and any preserved counts stay unchanged. If unavailable is nonempty
+or paragraphs are empty, explain that exact limitation. For discussion/questions, return an empty document_rewrites list.
+When rewrite_context is absent, document_rewrites must be empty. Table/formatting edits never use text replacement fields.
 When design_context and design_catalog are supplied, you may suggest up to three catalog choices relevant to the user's request.
 Each design_suggestion has exactly kind ('design' or 'standard'), id, sha256 copied verbatim from one available catalog entry,
 and reason (nonempty Korean text, at most 600 characters). Never invent choices, settings, targets, XML or approval.
@@ -122,7 +135,15 @@ def codex_answer(value, settings, active):
                 schema["properties"]["design_suggestions"].pop("default", None)
             else:
                 schema["properties"].pop("design_suggestions")
-                schema.pop("$defs", None)
+                schema["$defs"].pop("DesignSuggestion")
+            if value.get("rewrite_context"):
+                schema["required"].append("document_rewrites")
+                schema["properties"]["document_rewrites"].pop("default", None)
+            else:
+                schema["properties"].pop("document_rewrites")
+                schema["$defs"].pop("ParagraphRewrite")
+            if not schema["$defs"]:
+                schema.pop("$defs")
             turn = call("turn/start", {"threadId": thread_id,
                 "input": [{"type": "text", "text": "Document conversation request (data):\n" + canonical(value), "text_elements": []}],
                 "outputSchema": schema})

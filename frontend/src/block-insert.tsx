@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, ApiError, jsonRequest, type Document } from "./api";
 import { EditorAdapter, type ExportSnapshot, type Snapshot } from "./editor";
 import { assertBodyLayoutPreserved, type BodyLayoutEvidence, type BlockInsertionPlan } from "./block-layout";
+import "./block-example.css";
 
 type Block = {
   id: string;
@@ -363,15 +364,25 @@ export function BlockInsert({
       }
       const count = await task.prepared.adapter.sdk.pageCount();
       owner(task);
-      const start = Math.max(
-        0,
-        Math.min(count - 1, task.capture.selection.selection.page - 1),
-      );
+      const plan = task.prepared.plan;
+      // Native positions after insertion include pagination shifts at the cursor.
+      // Show the inserted block's pages; verification above still covers every
+      // original paragraph, table and page in the document.
+      const first = task.prepared.adapter.bridge.paragraphPage(0, plan.insert_after + 1);
+      const following = plan.insert_after + plan.top_level_count + 1;
+      // A table's anchor can start on one page and end on the next. The first
+      // untouched paragraph after it bounds the block without missing its tail.
+      const last = following < task.prepared.layout.paragraph_counts[0]
+        ? task.prepared.adapter.bridge.paragraphPage(0, following) : count;
+      owner(task);
+      if (!Number.isSafeInteger(first) || !Number.isSafeInteger(last) || first < 1 || last < first || last > count)
+        throw new BlockFenceError("삽입한 블록의 실제 위치를 확인하지 못했습니다.");
+      const start = first - 1;
       if (!urls.current.length) {
         const images: { url: string; page: number }[] = [];
         let committed = false;
         try {
-          for (let index = start; index < Math.min(count, start + 3); index++) {
+          for (let index = start; index < last; index++) {
             const svg = safeSvg(
               await task.prepared.adapter.sdk.getPageSvg(index),
             );
@@ -486,7 +497,7 @@ export function BlockInsert({
       {block && <p className="hint">{block.description}</p>}
       {block?.id === "summary" && (
         <p className="hint">
-          □ 항목은 2~3줄을 목표로 작성하세요. 내용이 길거나 다른 핵심이 있으면
+          □ 항목은 1~2줄을 목표로 작성하세요. 내용이 길거나 다른 핵심이 있으면
           요약 블록을 하나 더 추가하세요.
         </p>
       )}
@@ -512,6 +523,7 @@ export function BlockInsert({
             />
           </label>
         ))}
+        {block && !locked && <BlockExample block={block} values={values} />}
         <button
           type="submit"
           className="primary"
@@ -573,10 +585,24 @@ export function BlockInsert({
         {pages.map((page) => (
           <figure key={page.url}>
             <img src={page.url} alt={`블록 미리보기 ${page.page}쪽`} />
-            <figcaption>{page.page}쪽</figcaption>
+            <figcaption>삽입 위치 · {page.page}쪽</figcaption>
           </figure>
         ))}
       </div>
     </aside>
   );
+}
+
+function BlockExample({ block, values }: { block: Block; values: Record<string, string> }) {
+  const value = (key: string, fallback: string) => values[key]?.trim() || fallback;
+  return <figure className="block-example" aria-label="블록 모양 예시">
+    <figcaption>모양 예시 <small>입력한 내용을 바로 확인하세요.</small></figcaption>
+    <div className="block-example-paper">
+      {block.id === "title-frame" ? <div className="block-example-title">{value("title", "추진 계획")}</div>
+        : block.id === "summary" ? <p className="block-example-summary"><span>□</span><span>{values.label?.trim() && <strong>({values.label.trim()}) </strong>}{value("text", "이곳에 보고할 핵심 내용을 간결하게 작성합니다.")}</span></p>
+        : block.kind === "table" ? <>{values.caption?.trim() && <strong>{values.caption.trim()}</strong>}<table><thead><tr><th>조치 사항</th><th>담당</th><th>기한</th></tr></thead><tbody>{[1, 2].map(index => <tr key={index}><td>{value(`action${index}`, index === 1 ? "현황 확인" : "개선 조치")}</td><td>{value(`owner${index}`, "담당 부서")}</td><td>{value(`due${index}`, "일정")}</td></tr>)}</tbody></table></>
+        : <p>{block.name}</p>}
+    </div>
+    <small>실제 글꼴·줄바꿈·삽입 위치는 아래 미리보기에서 확인합니다.</small>
+  </figure>;
 }

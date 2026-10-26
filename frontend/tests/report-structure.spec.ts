@@ -18,13 +18,14 @@ async function setup(page: Page, loseFirst = false) {
     }
     if (request.method() !== "GET") return respond({ detail: "Unexpected write" }, 409);
     if (path === "/report-tasks") return respond([]);
-    if (path === "/report-templates") return respond({ items: [template] });
+    if (path === "/report-templates") return respond({ items: [template], default_id: template.id });
     if (path === "/visual-standards") return respond({ items: [] });
     if (path === "/capabilities") return respond({ features: { reports: { configured: true, reachable: true, allowed: true } } });
     return respond({}, 404);
   });
   await page.goto("/report-structure-test.html");
-  await expect(page.getByLabel("작성 목적", { exact: true })).toBeEnabled();
+  await expect(page.getByLabel("대제목 구성 방식")).toBeEnabled();
+  await expect(page.getByLabel("작성 목적", { exact: true })).toHaveCount(0);
   await page.getByLabel("보고서 작성 요청", { exact: true }).fill("합성 서비스의 점검 현황과 후속 대응을 정리해줘");
   return posts;
 }
@@ -43,6 +44,7 @@ test("MOCK report outline: selected headings survive a lost reception and match 
   expect(posts[1]).toEqual(posts[0]);
   expect(posts[0].section_outline).toEqual(headings);
   expect(posts[0].research_policy).toBe("allow_unverified");
+  expect(posts[0].template.id).toBe("standard-business");
   await expect(page.locator(".report-review-section h2")).toHaveText(headings.map((heading, index) => `${index + 1}${heading}`));
   await expect(page.getByLabel("현재 보고서 고정 서식")).toContainText("개요 → 현황 → 대응 → 향후 계획");
   await expect(page.getByLabel("현재 보고서 고정 서식")).toContainText("경고와 함께 초안 검토");
@@ -73,3 +75,22 @@ test("MOCK report outline: edit, reorder, bounds, duplicate validation and autom
   expect(posts).toHaveLength(1);
   expect(posts[0]).not.toHaveProperty("section_outline");
 });
+
+for (const width of [1280, 1024, 760]) {
+  test(`MOCK report request stays inside its drawer at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await setup(page);
+    await page.getByLabel("대제목 구성 방식").selectOption("response");
+    await page.getByRole("textbox", { name: "2번째 대제목", exact: true }).fill("금융 서비스 주요 영향과 우선 대응 현황");
+    const drawer = page.getByLabel("보고서 작성 요청 도구", { exact: true });
+    const bounds = await drawer.boundingBox();
+    expect(bounds).toBeTruthy();
+    for (const control of await drawer.locator('textarea, select, .report-structure-headings, .report-request-submit').all()) {
+      const rect = await control.boundingBox();
+      expect(rect).toBeTruthy();
+      expect(rect!.x).toBeGreaterThanOrEqual(bounds!.x);
+      expect(rect!.x + rect!.width).toBeLessThanOrEqual(bounds!.x + bounds!.width);
+    }
+    expect(await drawer.locator('.report-input').evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  });
+}

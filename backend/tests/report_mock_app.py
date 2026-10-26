@@ -106,7 +106,35 @@ if os.getenv("HWP_E2E_ASSISTANT_DESIGNS") == "1":
 
     assistant_runner.generate_answer = synthetic_design_answer
 
+if os.getenv("HWP_E2E_DOCUMENT_REWRITE") == "1":
+    from app import assistant_runner
+    from app.document_assistant import AssistantResponse
+    from tests.document_rewrite_fixture import REPLACEMENTS
+    os.environ["HWP_DOCUMENT_ASSISTANT_PROVIDER"] = "llm"
+    os.environ["LLM_PROVIDER"] = "openai-compatible"
+    os.environ["LLM_BASE_URL"] = "http://127.0.0.1:9/v1"
+    os.environ["LLM_MODEL"] = "synthetic-document-rewrite-fixture"
+
+    def synthetic_document_rewrite(value, provider, settings, active=lambda: True):
+        if not active():
+            raise RuntimeError("Synthetic assistant request is no longer current")
+        context = value.get("rewrite_context") or {}
+        changes = [dict(section=p["section"], paragraph=p["paragraph"], before_sha256=p["text_sha256"], replacement=REPLACEMENTS[p["text"]])
+            for p in context.get("paragraphs", []) if p["text"] in REPLACEMENTS]
+        return AssistantResponse(answer="합성 본문 두 문단을 간결하게 다듬은 수정안입니다. 제목·표·주석과 수치는 유지합니다.",
+            rewrite_instruction=None, document_rewrites=changes), {"executor": "synthetic-document-rewrite-fixture", "completed": True, "actual_model_calls": 0}
+
+    assistant_runner.generate_answer = synthetic_document_rewrite
+
 app = create_app()
+
+if os.getenv("HWP_E2E_DOCUMENT_REWRITE") == "1":
+    from fastapi.responses import Response
+    from tests.document_rewrite_fixture import document as synthetic_document
+
+    @app.get("/api/test/document-rewrite-fixture")
+    def document_rewrite_fixture():
+        return Response(synthetic_document(), media_type="application/hwp+zip")
 
 
 @app.post('/api/test/report-stream/{task_id}/{step}')

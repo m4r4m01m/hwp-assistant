@@ -215,10 +215,29 @@ class RichLayout:
         role = item["style_kind"]
         settings = self.visual_settings
         updates = {}
+        # A shortened explanation label starts where its digit would start in
+        # the full label (주1), 2)). Use native paragraph geometry, not spaces;
+        # inline citation runs and frozen plans without this metadata stay intact.
+        omitted = item.get("note_omitted_prefix")
+        prefix_offset = 0
+        if omitted:
+            if omitted != "주" or not re.fullmatch(r"[2-9]\d*\)|1\d+\)", item["note_marker"]):
+                raise ValueError("Invalid frozen abbreviated note prefix")
+            prefix_offset = settings[role + "_size_pt"] * (
+                width(omitted) * settings.get(role + "_ratio_percent", 100)
+                + len(omitted) * settings.get(role + "_spacing_percent", 0)
+            ) / 100
         if self.compact_notes and role + "_horizontal_align" not in settings:
             updates[role + "_horizontal_align"] = "LEFT"
         # Explicit registered note indents own their geometry.
         if any(settings.get(role + suffix) for suffix in ("_left_indent_pt", "_right_indent_pt", "_first_line_indent_pt")):
+            if prefix_offset:
+                left = settings.get(role + "_left_indent_pt", 0)
+                first = settings.get(role + "_first_line_indent_pt", 0)
+                # Keep the user's continuation column; move only the label's
+                # first line by the omitted Korean glyph's advance.
+                updates[role + "_left_indent_pt"] = left + min(max(0, first) + prefix_offset, max(0, -first))
+                updates[role + "_first_line_indent_pt"] = first + prefix_offset
             if updates:
                 from .reference_source import apply_paragraph
                 para = copy.deepcopy(self.para_map[p.get("paraPrIDRef")])
@@ -240,7 +259,7 @@ class RichLayout:
         from .reference_source import apply_paragraph
         para = copy.deepcopy(self.para_map[p.get("paraPrIDRef")])
         hanging = width(item["note_marker"] + " ") * settings[role + "_size_pt"]
-        apply_paragraph(para, role, {**updates, role + "_left_indent_pt": left, role + "_right_indent_pt": right,
+        apply_paragraph(para, role, {**updates, role + "_left_indent_pt": left + prefix_offset, role + "_right_indent_pt": right,
                                     role + "_first_line_indent_pt": -hanging})
         p.set("paraPrIDRef", self.append(self.paras, para))
 

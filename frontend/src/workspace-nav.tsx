@@ -5,7 +5,7 @@ import kftcSymbol from "./assets/kftc-symbol.png";
 import "./workspace-nav.css";
 
 export type WorkspaceSection = "documents" | "reports" | "templates" | "standards";
-export type WorkspaceIconName = WorkspaceSection | "back" | "plus" | "upload" | "search" | "refresh" | "download" | "history" | "copy" | "rename" | "share" | "settings" | "close" | "save" | "document" | "file" | "block" | "toc" | "conversation" | "review" | "help" | "undo" | "more" | "sidebar-expanded" | "sidebar-icons" | "sidebar-hidden";
+export type WorkspaceIconName = WorkspaceSection | "back" | "plus" | "upload" | "search" | "refresh" | "download" | "history" | "copy" | "rename" | "share" | "settings" | "close" | "save" | "document" | "file" | "block" | "toc" | "conversation" | "review" | "help" | "undo" | "more" | "trash" | "page" | "font" | "heading" | "paragraph" | "table" | "note" | "layout" | "star" | "sidebar-expanded" | "sidebar-icons" | "sidebar-hidden";
 
 const paths: Record<WorkspaceIconName, ReactNode> = {
   documents: <><path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5M8 12h8M8 16h6"/></>,
@@ -33,6 +33,15 @@ const paths: Record<WorkspaceIconName, ReactNode> = {
   review: <path d="M4 3h12v8M4 3v18h8M8 7h4M8 11h3M15 15l2 2 4-5"/>,
   help: <path d="M9.1 8a3 3 0 0 1 5.8 1c0 2-3 2-3 4M12 17h.01M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20"/>,
   undo: <path d="M9 4 4 9l5 5M4 9h10a6 6 0 0 1 0 12h-3"/>,
+  trash: <><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></>,
+  page: <><rect x="5" y="2" width="14" height="20" rx="1"/><path d="M8 6h8v12H8z" strokeDasharray="2 2"/></>,
+  font: <path d="m3 20 6-16 6 16M5 15h8M16 11h6m-3 0v9"/>,
+  heading: <path d="M4 4v16M14 4v16M4 12h10M18 12h2v8m-2 0h4"/>,
+  paragraph: <path d="M12 4v16M18 4v16M21 4H8a5 5 0 0 0 0 10h4"/>,
+  table: <><rect x="3" y="4" width="18" height="16" rx="1"/><path d="M3 9h18M3 14h18M9 4v16M15 4v16"/></>,
+  note: <><path d="M5 3h14v18H5zM8 16h8M8 19h5M8 11h3"/><path d="M15 6v6m-3-4.5 6 3m-6 0 6-3"/></>,
+  layout: <><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 8h18M9 8v13M12 12h6M12 16h6"/></>,
+  star: <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z"/>,
   more: <><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></>,
   "sidebar-expanded": <><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M10 4v16M6 8h1M6 12h1M6 16h1M13 8h5M13 12h5"/></>,
   "sidebar-icons": <><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v16M5.5 8h.01M5.5 12h.01M5.5 16h.01"/></>,

@@ -72,12 +72,14 @@ def test_real_server_process_restart(tmp_path):
         )
         assert response.status_code == 200, response.text
         doc = response.json()
+        listed = client.get("/api/documents").json()[0]
+        assert listed == {**doc, "can_trash": True}
         tid = str(uuid.uuid4())
         assert client.post(f"/api/documents/{doc['id']}/threads", json={"id": tid, "title": "재시작 기록", "visibility": "private"}).is_success
         assert client.put(f"/api/threads/{tid}/context", json={"expected_revision": 0, "base_version": doc['current_version'], "facts": "영속 사실"}).is_success
         assert client.post(f"/api/threads/{tid}/messages", json={"request_id": "restart", "content": "보존할 대화"}).is_success
     with running() as client:
-        assert client.get("/api/documents").json()[0] == doc
+        assert client.get("/api/documents").json()[0] == listed
         persisted = client.get(f"/api/threads/{tid}").json()
         assert persisted["context"]["facts"] == "영속 사실"
         assert persisted["messages"][0]["content"] == "보존할 대화"

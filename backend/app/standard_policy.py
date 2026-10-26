@@ -35,7 +35,7 @@ def table_geometry(settings, page_width):
     return max(0, anchor), (page_width - max(0, anchor) - right) * settings["table_width_percent"] / 100
 
 
-def organize_paragraphs(paragraphs, settings):
+def organize_paragraphs(paragraphs, settings, *, lead_summaries=None):
     """Opt-in new-plan structure: retain disabled headings as body context, not duplicate headings."""
     if settings.get("heading_structure_policy") != "CONTENT_V1":
         return list(paragraphs)
@@ -60,7 +60,9 @@ def organize_paragraphs(paragraphs, settings):
             else:
                 # Keep an eligible lead-summary at the start so its existing ON/OFF contract still applies.
                 from .report_contract import PARENTHETICAL_LABELS
-                lead = re.match(r"^([□ㅇ○\-․]\s+)(\((?:" + PARENTHETICAL_LABELS + r")\)\s*)?", paragraph)
+                label = (lead_summaries or {}).get(paragraph)
+                eligible = re.escape(label) if label is not None else PARENTHETICAL_LABELS
+                lead = re.match(r"^([□ㅇ○\-․]\s+)(\((?:" + eligible + r")\)\s*)?", paragraph)
                 paragraph = (lead[0] + prefix + ": " + paragraph[lead.end():]) if lead else "□ " + prefix + ": " + paragraph
             context = []
         result.append(paragraph)

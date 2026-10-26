@@ -121,7 +121,7 @@
 .standard-preview-toolbar { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding: 10px 0; background: #fff; font-size: 12px; color: #597086; }
 .standard-preview-toolbar strong { font-size: 13px; color: #2b465f; }
 .standard-preview-toolbar > button { padding: 8px 12px; font-size: 12px; white-space: nowrap; }
-.standard-preview-toolbar > .primary { width: 100%; }
+.standard-preview-toolbar > .primary { width: 100%; display: inline-flex; justify-content: center; align-items: center; gap: 7px; }
 .standard-preview-toolbar .standard-view-tabs { width: 100%; }
 .standard-preview-toolbar .standard-view-tabs button { flex: 1; }
 .standard-preview-toolbar > .standard-open-settings { display: inline-flex; align-items: center; gap: 5px; }
@@ -238,6 +238,7 @@
 .standard-favorites-note { padding: 0 18px 10px; margin: 0; font-size: 11px; line-height: 1.6; color: #6c8092; }
 .standard-font-note { padding: 0 18px 14px; font-size: 11px; color: #6c8092; }
 .standard-font-note summary { cursor: pointer; }
+.standard-font-note summary svg { vertical-align: -3px; margin-right: 6px; }
 .standard-font-note p { line-height: 1.6; }
 .standard-setting-tooltip { position: fixed; z-index: 90; width: 280px; max-height: 164px; overflow: hidden; pointer-events: none; padding: 12px 14px; background: #20374bf5; border: 1px solid #ffffff26; color: #f2f6fa; border-radius: 9px; box-shadow: 0 6px 24px #20374b26; font-size: 12px; }
 .standard-setting-tooltip strong { font-weight: 650; }
@@ -245,6 +246,7 @@
 .standard-setting-tooltip small { color: #bdcddd; }
 .standard-setting-category { border-top: 1px solid #dbe4ec; }
 .standard-setting-category > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 17px 18px; color: #244561; background: #f4f7fa; font-size: 14px; font-weight: 700; list-style: none; }
+.standard-setting-category > summary svg { flex-shrink: 0; color: #507393; }
 .standard-setting-category > summary::before { content: "›"; width: 12px; transform-origin: center; }
 .standard-setting-category[open] > summary::before { transform: rotate(90deg); }
 .standard-setting-category > summary small, .standard-absence { margin-left: auto; font-size: 11px; font-weight: 400; white-space: nowrap; color: #7b8997; }

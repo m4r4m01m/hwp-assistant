@@ -175,6 +175,16 @@ class ReportResearchNotice(ReportValue):
     warnings: list[ReportResearchWarning] = Field(max_length=4)
 
 
+class ReportLeadSummary(ReportValue):
+    """An explicitly declared display label, never inferred from arbitrary parentheses."""
+    target: str = Field(pattern=r"^(summary|sections\.[0-5]\.paragraphs\.[0-8])$")
+    label: str = Field(min_length=1, max_length=24, pattern=r"^[^()\r\n\t]+$")
+
+
+def lead_summary_match(value, label):
+    return re.match(r"^(\s*(?:[□ㅇ○․-]\s*)?)\(" + re.escape(label) + r"\)\s+(?=\S)", value)
+
+
 class ReportDraft(ReportValue):
     title: str = Field(min_length=1, max_length=120)
     summary: str = Field(min_length=1, max_length=700)
@@ -184,6 +194,8 @@ class ReportDraft(ReportValue):
     emphasis: list[ReportEmphasis] = Field(default_factory=list, max_length=12)
     # Do not add even a null field to historical drafts or their hashes/plans.
     research_notice: ReportResearchNotice | None = Field(default=None, exclude_if=lambda value: value is None)
+    # Missing metadata retains the old label grammar and the original hash.
+    lead_summaries: list[ReportLeadSummary] | None = Field(default=None, max_length=55, exclude_if=lambda value: value is None)
 
     _text = field_validator("title", "summary")(paragraph)
 
@@ -221,6 +233,11 @@ class ReportDraft(ReportValue):
             "Do not include update-history prose, an inferred day or a truncated date."
         )
         schema["properties"]["limitations"]["items"].update(minLength=1, maxLength=400)
+        schema["properties"]["lead_summaries"]["description"] = (
+            "Declare only optional parenthesized lead labels, with zero-based targets such as "
+            "sections.0.paragraphs.0 or summary. label excludes parentheses and must match that exact "
+            "paragraph prefix. Use [] when none; never declare substantive facts or conditions as labels."
+        )
         return schema
 
     @model_validator(mode="after")
@@ -264,6 +281,21 @@ class ReportDraft(ReportValue):
             paragraph(value)
             if len(value) > 400:
                 raise ValueError("확인 사항은 각각 400자 이내여야 합니다.")
+        declared = set()
+        for label in self.lead_summaries or []:
+            if label.target in declared:
+                raise ValueError("같은 문단의 괄호 요약어를 중복 지정할 수 없습니다.")
+            declared.add(label.target)
+            if label.target == "summary":
+                value = self.summary
+            else:
+                _, section, _, index = label.target.split(".")
+                try:
+                    value = self.sections[int(section)].paragraphs[int(index)]
+                except IndexError as exc:
+                    raise ValueError("괄호 요약어의 본문 위치가 없습니다.") from exc
+            if label.label != label.label.strip() or parenthetical_role(value) is None or not lead_summary_match(value, label.label):
+                raise ValueError("괄호 요약어가 지정한 본문 첫 표제와 일치하지 않습니다.")
         return self
 
 
@@ -307,14 +339,14 @@ def limitation_source_ranges(value, source_ids):
     return re.sub(r"(?<![A-Za-z0-9_\[/])S([1-9]\d?)\s*[~～–]\s*S([1-9]\d?)(?![A-Za-z0-9_\]/])", expand, value)
 
 
-def presentation_text(value, settings, source_ids, *, body=False, marks=None, marker_numbers=None, scope=None):
+def presentation_text(value, settings, source_ids, *, body=False, marks=None, marker_numbers=None, scope=None, lead_label=None, declared_labels=False):
     scoped = "body_parenthetical_scope" in settings
     target_role = scope or parenthetical_role(value)
     hide_label = body and (not parenthetical_enabled(settings, target_role) if scoped and target_role else settings.get("body_parenthetical_labels") is False)
-    if hide_label:
+    if hide_label and (not declared_labels or lead_label is not None):
         # Only the bounded lead-label grammar used by the existing emphasis
         # contract is eligible. Conditions and parentheses later in prose stay.
-        label = PARENTHETICAL_LABELS if scoped or settings.get("preset_id") else "[^()]{1,24}"
+        label = re.escape(lead_label) if lead_label is not None else PARENTHETICAL_LABELS if scoped or settings.get("preset_id") else "[^()]{1,24}"
         value = re.sub(r"^(\s*(?:[□ㅇ○․-]\s*)?)\((" + label + r")\)(\s*)",
                        lambda match: match[1] if match[3] else match[0], value, count=1)
     style = settings.get("citation_style", "BRACKET_S")
@@ -349,13 +381,16 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
     settings = visual_settings or {}
     reference = settings.get("preset_id") in ("appendix-1", "appendix-2", "appendix-3")
     source_ids = {source.id for source in draft.sources}
+    lead_summaries = {item.target: item.label for item in draft.lead_summaries or []}
+    declared_labels = draft.lead_summaries is not None
     rendered_marks = {}
-    def present(value, *, body=False, scope=None):
+    def present(value, *, body=False, scope=None, lead_label=None):
         marks = []
         # New reference notes are numbered per prose section/visual below,
         # before the plan is frozen or any HWPX command is applied.
         display = {**settings, "citation_style": "BRACKET_S"} if reference else settings
-        result = presentation_text(value, display, source_ids, body=body, marks=marks, scope=scope)
+        result = presentation_text(value, display, source_ids, body=body, marks=marks, scope=scope,
+                                   lead_label=lead_label, declared_labels=declared_labels)
         if not reference and settings.get("citation_superscript") and marks:
             rendered_marks[result] = marks
         return result
@@ -393,8 +428,13 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
         if reference and settings.get("enabled_heading_roles"):
             from .standard_policy import enabled_role
             summary_heading = {"style_kind": enabled_role("heading", settings)}
+        summary_label = lead_summaries.get("summary")
+        summary_text = present(draft.summary, body=True, scope="summary", lead_label=summary_label)
+        summary_meta = {"parenthetical_role": "summary"}
+        if summary_label and lead_summary_match(summary_text, summary_label):
+            summary_meta["lead_summary_label"] = summary_label
         blocks.extend([("핵심 요약", "heading", False, summary_heading),
-                       (present(draft.summary, body=True, scope="summary"), "body", False, {"parenthetical_role": "summary"})])
+                       (summary_text, "body", False, summary_meta)])
     table_number = diagram_number = 0
     for i, section in enumerate(draft.sections, 1):
         if reference:
@@ -405,15 +445,33 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
             blocks.append((f"{marker} {section.heading}", "heading", True, {"style_kind": heading_role} if heading_role != "heading" else {}))
             counters = [0, 0, 0, 0]
             from .standard_policy import organize_paragraphs
-            for prose in organize_paragraphs(section.paragraphs, settings):
+            # Resolve declarations by their exact source location before heading
+            # grouping can move context. Unmarked factual parentheses stay intact.
+            prepared, visible_labels = [], {}
+            for position, original in enumerate(section.paragraphs):
+                label = lead_summaries.get(f"sections.{i - 1}.paragraphs.{position}")
+                label_role = parenthetical_role(original)
+                if label_role:
+                    label_role = enabled_role(label_role, settings)
+                prose = (presentation_text(original, {**settings, "citation_style": "BRACKET_S"}, source_ids,
+                                           body=True, scope=label_role, lead_label=label, declared_labels=True)
+                         if label is not None else original)
+                prepared.append(prose)
+                if label and lead_summary_match(prose, label):
+                    visible_labels[prose] = label
+            for prose in organize_paragraphs(prepared, settings, lead_summaries=visible_labels):
                 label_role = parenthetical_role(prose)
                 if label_role:
                     label_role = enabled_role(label_role, settings)
                 # Strip only eligible lead labels before replacing the canonical
                 # bullet with a numbered marker; (1)/(가) are structural text.
-                prose = presentation_text(prose, {**settings, "citation_style": "BRACKET_S"}, source_ids, body=True, scope=label_role)
+                prose = presentation_text(prose, {**settings, "citation_style": "BRACKET_S"}, source_ids,
+                                          body=True, scope=label_role, declared_labels=declared_labels)
                 text, reference_role = body_item(prose, settings, counters, apply_numbered_markers=True)
                 item_meta = {"style_kind": reference_role, **({"parenthetical_role": label_role} if label_role else {})}
+                label = next((label for label in visible_labels.values() if lead_summary_match(prose, label)), None)
+                if label:
+                    item_meta["lead_summary_label"] = label
                 if label_role in ("square", "circle", "dash", "dot"):
                     item_meta["note_body_role"] = label_role
                 # A numbered display of a square body item is still prose.
@@ -423,8 +481,13 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
                 blocks.append((present(text), "body", False, item_meta))
         else:
             blocks.append((f"{i}. {section.heading}", "heading", True, {}))
-            blocks.extend((present(p, body=True), "body", False,
-                           {"parenthetical_role": label_role} if (label_role := parenthetical_role(p)) else {}) for p in section.paragraphs)
+            for position, prose in enumerate(section.paragraphs):
+                label = lead_summaries.get(f"sections.{i - 1}.paragraphs.{position}")
+                text = present(prose, body=True, lead_label=label)
+                metadata = {"parenthetical_role": label_role} if (label_role := parenthetical_role(prose)) else {}
+                if label and lead_summary_match(text, label):
+                    metadata["lead_summary_label"] = label
+                blocks.append((text, "body", False, metadata))
         for visual in [*section.tables, *section.diagrams]:
             is_table = isinstance(visual, ReportTable)
             if is_table: table_number += 1
@@ -534,6 +597,9 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
                         local_emphasis = [{**item, "text": presentation_text(item["text"], settings, source_ids, marker_numbers=numbers)}
                                          for item in local_emphasis if all(ref in numbers for ref in re.findall(r"\[(S\d+)\]", item["text"]))]
                 result[-1]["emphasis"] = [item for item in local_emphasis if item["text"] and item["text"] in chunk]
+                declared_label = meta.get("lead_summary_label")
+                if declared_label and f"({declared_label})" in chunk:
+                    result[-1]["emphasis"].append({"text": f"({declared_label})", "style": "bold"})
             if style_kind in ("square", "circle", "dash", "dot"):
                 result[-1]["style_kind"] = style_kind + ("_continuation" if index else "")
     return result

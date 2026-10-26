@@ -16,6 +16,10 @@ test("REAL rhwp comparison: align inserted cover TOC and word anchored note labe
   await openDesigner(page);
   const catalog = await (await request.get('/api/visual-standards')).json();
   expect(catalog.fields.find((f: any) => f.key === 'line_space_policy').options[0].label).toContain('0%');
+  await openGroup(page, catalog.fields.find((f: any) => f.key === 'citation_style').group);
+  const noteStyle = page.getByLabel(fieldLabel(catalog, 'citation_style'), { exact: true });
+  await expect(noteStyle.locator('option[value="AUTO"]')).toHaveText(/^✔ /);
+  await expect(noteStyle.locator('option[value="AUTO"]')).not.toHaveText(/✓ 기준/);
   await changeSharedSample(page, () => setCatalogField(page, catalog, 'citation_style', 'NOTE'), s => s.citation_style === 'NOTE');
   await expect(page.getByLabel(fieldLabel(catalog, 'citation_style'), { exact: true }).locator('option[value="NOTE_SHORT"]')).toHaveCount(0);
   await changeSharedSample(page, () => setCatalogField(page, catalog, 'citation_note_abbreviated', true), s => s.citation_note_abbreviated === true);
@@ -29,6 +33,13 @@ test("REAL rhwp comparison: align inserted cover TOC and word anchored note labe
   const mark = sampleRange(geometry, '주1)', whole.start + 2);
   const word = sampleRange(geometry, '부서', whole.start);
   expect(Math.max(...mark.glyphs.map(g => g.baseline))).toBeLessThan(Math.min(...word.glyphs.map(g => g.baseline)) - 2);
+  const notesPage = snapshot.content.rendered.findIndex(text => text.includes('주1)합성문서점검기준') && text.includes('2)합성검토기록기준'));
+  expect(notesPage).toBeGreaterThanOrEqual(0);
+  const noteGeometry = await measureSampleSvg(page, snapshot.svgs[notesPage], info.outputPath('abbreviated-note-digit-columns.png'));
+  const firstNote = sampleRange(noteGeometry, '주1) 합성 문서 점검 기준');
+  const firstDigit = sampleRange(noteGeometry, '1)', firstNote.start + 1);
+  const secondNote = sampleRange(noteGeometry, '2) 합성 검토 기록 기준', firstNote.end);
+  expect(Math.abs(firstDigit.left - secondNote.left)).toBeLessThan(1);
   await page.getByRole('button', { name: '변경 전·후 비교', exact: true }).click();
   await changeSharedSample(page, () => page.getByLabel('기본 양식', { exact: true }).selectOption('appendix-2'));
   const picker = page.getByLabel('미리보기 쪽', { exact: true });

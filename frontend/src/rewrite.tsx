@@ -5,6 +5,7 @@ import { ContextSnapshot, type FrozenWritingContext, type WritingContext } from 
 import { CandidateText } from "./candidate-text";
 import { CapabilityNotice, useFeature } from "./capabilities";
 import { usePageVisible } from "./ui-state";
+import { RewritePreview, type CaptureRewritePreview } from "./rewrite-preview";
 
 export type RewriteTask = {
   id: string; document_id: string; base_version: string; requested_by: string;
@@ -22,12 +23,14 @@ const providerLabel = (provider?: string) => provider === "llm" ? "로컬·사�
 const taskStatusLabel = (status: string) => ({ running: "작성 중", ready: "검토 가능", failed: "작성 실패", cancelled: "중단됨", expired: "유효 시간 만료" }[status] || status);
 const applicationStatusLabel = (status: string) => ({ approved: "승인됨", applied: "적용됨", saved: "저장됨" }[status] || status);
 
-export function RewritePanel({ thread, document: doc, context, contextDirty, requestRewrite, approveRewrite, cancelRewrite, getPendingRewrite, active = true }: {
+export function RewritePanel({ thread, document: doc, context, contextDirty, requestRewrite, approveRewrite, cancelRewrite, getPendingRewrite, captureRewritePreview, previewTaskId, active = true }: {
   thread: string; document: Document; context?: WritingContext; contextDirty?: boolean;
-  requestRewrite?: (thread: string, instruction: string, contextRevision?: number) => Promise<void>;
+  requestRewrite?: (thread: string, instruction: string, contextRevision?: number) => Promise<string | void>;
   approveRewrite?: (task: string, candidate: string, application: string) => Promise<void>;
   cancelRewrite?: (task: string) => Promise<void>;
   getPendingRewrite?: () => PendingRewrite | null;
+  captureRewritePreview?: CaptureRewritePreview;
+  previewTaskId?: string;
   active?: boolean;
 }) {
   const feature = useFeature("rewrite"), visible = usePageVisible();
@@ -40,6 +43,8 @@ export function RewritePanel({ thread, document: doc, context, contextDirty, req
     [highlight, setHighlight] = useState(true), [copied, setCopied] = useState(""),
     [inputs, setInputs] = useState<Record<string, FrozenWritingContext>>({}),
     [busy, setBusy] = useState(false);
+  const [previewCandidate, setPreviewCandidate] = useState<{ task: RewriteTask; candidate: RewriteTask["candidates"][number] } | null>(null);
+  const openedPreviewTask = useRef("");
   const contextReady = !!context?.confirmation && !context.stale && context.base_version === doc.current_version;
   const pendingRequest = getPendingRewrite?.();
   const refresh = async (signal?: AbortSignal) => {
@@ -77,7 +82,7 @@ export function RewritePanel({ thread, document: doc, context, contextDirty, req
     timer = setTimeout(() => void poll(), delay);
     return () => { controller.abort(); clearTimeout(timer); };
   }, [thread, active, visible, running, doc.current_version, context?.revision, context?.base_version]);
-  async function run(fn: () => Promise<void>, refreshAfter = true) {
+  async function run(fn: () => Promise<unknown>, refreshAfter = true) {
     if (actionLock.current) return;
     actionLock.current = true;
     setBusy(true); setError("");
@@ -95,6 +100,14 @@ export function RewritePanel({ thread, document: doc, context, contextDirty, req
     (task.execution.context_revision !== context.revision || context.base_version !== task.base_version);
   const staleTask = (task: RewriteTask) => task.stale || !task.application &&
     (task.base_version !== doc.current_version || changedContext(task));
+  useEffect(() => {
+    if (!active || !captureRewritePreview || !previewTaskId || openedPreviewTask.current === previewTaskId) return;
+    const task = tasks.find(item => item.id === previewTaskId);
+    if (task?.status === "ready" && task.candidates.length && !staleTask(task) && !task.application) {
+      openedPreviewTask.current = previewTaskId;
+      setPreviewCandidate({ task, candidate: task.candidates[0] });
+    }
+  }, [active, tasks, previewTaskId, captureRewritePreview, doc.current_version, context?.revision]);
   // The API returns newest-first. Keep every unfinished action directly available,
   // including expired work that the server still permits the user to cancel.
   const keepVisible = (task: RewriteTask, index: number) => index === 0 || task.status === "running" || task.can_cancel ||
@@ -125,6 +138,8 @@ export function RewritePanel({ thread, document: doc, context, contextDirty, req
       {task.candidates.map(candidate => <div key={candidate.id} data-candidate-id={candidate.id}>
         <h3>수정 후보 {candidate.ordinal}</h3><CandidateText original={task.snapshot.evidence.text} replacement={candidate.replacement} ordinal={candidate.ordinal} highlight={highlight} />
         <p>{candidate.reason}</p>
+        {captureRewritePreview && <button disabled={busy || task.status !== "ready" || staleTask(task) || !!task.application}
+          onClick={() => setPreviewCandidate({ task, candidate })}>후보 {candidate.ordinal} 문서에서 비교</button>}
         <button onClick={() => void navigator.clipboard.writeText(candidate.replacement).then(() => setCopied(candidate.id)).catch(() => setError("클립보드에 복사하지 못했습니다. 후보 문장을 직접 선택해 복사하세요."))}>{copied === candidate.id ? "복사 완료" : `후보 ${candidate.ordinal} 복사`}</button>
         {approveRewrite && <button disabled={busy || task.status !== "ready" || (staleTask(task) && !task.application?.saved_version) || !!task.application && task.application.candidate_id !== candidate.id}
           onClick={() => void run(() => approveRewrite(task.id, candidate.id, task.application?.id || crypto.randomUUID()))}>
@@ -175,5 +190,13 @@ export function RewritePanel({ thread, document: doc, context, contextDirty, req
       <summary>이전 수정 기록 ({previousTasks.length})</summary>
       {previousTasks.map(renderTask)}
     </details>}
+    {previewCandidate && captureRewritePreview && <RewritePreview key={`${previewCandidate.task.id}:${previewCandidate.candidate.id}`}
+      task={previewCandidate.task} candidate={previewCandidate.candidate} capture={captureRewritePreview}
+      onCandidateChange={candidate => setPreviewCandidate(current => current ? { ...current, candidate } : null)}
+      onClose={() => setPreviewCandidate(null)} approve={approveRewrite && !staleTask(previewCandidate.task) ? async applicationId => {
+        try { await approveRewrite(previewCandidate.task.id, previewCandidate.candidate.id, applicationId); }
+        catch (cause) { await refresh().catch(() => {}); throw cause; }
+        await refresh().catch(() => {});
+      } : undefined} />}
   </section>;
 }

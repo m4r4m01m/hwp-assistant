@@ -175,22 +175,37 @@ def test_final_active_check_rejects_cancellation_after_terminal_was_received(tmp
 
 
 @pytest.mark.parametrize("with_design", [False, True])
-def test_strict_output_schema_and_request_preserve_optional_design_contract(tmp_path, monkeypatch, with_design):
+@pytest.mark.parametrize("with_rewrite", [False, True])
+def test_strict_output_schema_and_request_preserve_optional_design_contract(tmp_path, monkeypatch, with_design, with_rewrite):
     value = value_with_design() if with_design else {"message": "합성 질문"}
+    if with_rewrite:
+        value["rewrite_context"] = {"source_sha256": "a" * 64, "paragraphs": [], "preserved": {}, "unavailable": ""}
     original = copy.deepcopy(value)
-    raw = RAW if with_design else json.dumps({"answer": "합성 답변", "rewrite_instruction": None})
+    response = json.loads(RAW) if with_design else {"answer": "합성 답변", "rewrite_instruction": None}
+    if with_rewrite:
+        response["document_rewrites"] = []
+    raw = json.dumps(response)
     settings, sent, _ = install_stdio(tmp_path, monkeypatch, [terminal([{**FINAL, "text": raw}])])
     result, _ = assistant_runner.codex_answer(value, settings, lambda: True)
     request = next(item["params"] for item in sent if item["method"] == "turn/start")
     schema = request["outputSchema"]
-    assert set(schema["properties"]) == set(schema["required"]) == ({"answer", "rewrite_instruction", "design_suggestions"} if with_design else {"answer", "rewrite_instruction"})
+    expected = {"answer", "rewrite_instruction"} | ({"design_suggestions"} if with_design else set()) | ({"document_rewrites"} if with_rewrite else set())
+    assert set(schema["properties"]) == set(schema["required"]) == expected
     assert all("default" not in prop for prop in schema["properties"].values())
     if with_design:
         assert schema["properties"]["design_suggestions"]["maxItems"] == 3
         assert schema["$defs"]["DesignSuggestion"]["additionalProperties"] is False
         assert len(result.design_suggestions) == 1
     else:
-        assert "$defs" not in schema and result.design_suggestions == []
+        assert result.design_suggestions == []
+    if with_rewrite:
+        assert schema["properties"]["document_rewrites"]["maxItems"] == 120
+        assert schema["$defs"]["ParagraphRewrite"]["additionalProperties"] is False
+        assert result.document_rewrites == []
+    if with_design or with_rewrite:
+        assert set(schema["$defs"]) == ({"DesignSuggestion"} if with_design else set()) | ({"ParagraphRewrite"} if with_rewrite else set())
+    else:
+        assert "$defs" not in schema
     assert json.loads(request["input"][0]["text"].split("\n", 1)[1]) == original == value
 
 

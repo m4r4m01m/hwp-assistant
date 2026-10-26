@@ -109,7 +109,12 @@
 .report-editor-workspace .report-request-drawer:has(> .capability-notice) {
   grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
-.report-request-drawer > .report-input { min-height: 0; overflow: auto; padding-right: 4px; overscroll-behavior: contain; }
+.report-request-drawer > .report-input { min-width: 0; min-height: 0; width: 100%; overflow: auto; padding-right: 4px; overscroll-behavior: contain; }
+.report-request-drawer .report-form-options,
+.report-request-drawer .report-cover-fields,
+.report-request-drawer details { min-width: 0; max-width: 100%; }
+.report-request-drawer button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.report-request-drawer .report-structure-headings li { min-width: 0; }
 .report-request-submit { padding-top: 12px; border-top: 1px solid #e1e8ef; background: #fff; }
 .report-request-submit > button { width: 100%; min-height: 42px; }
 .report-request-submit > .hint { margin: 7px 0 0; font-size: 11px; line-height: 1.5; }
