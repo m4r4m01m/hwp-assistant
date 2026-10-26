@@ -149,6 +149,8 @@ jobs:
           labels: org.opencontainers.image.source=https://github.com/m4r4m01m/hwp-assistant
           cache-from: type=gha,scope=hwp-web
           cache-to: type=gha,mode=max,scope=hwp-web
+      - name: Create isolated webhook network for CI
+        run: docker network create --driver bridge --internal hwp-mattermost-hook
       - name: Start the real PostgreSQL/API/web and HTTPS gateway
         run: |
           docker compose --env-file "$HWP_ENV_FILE" -f compose.deploy.yaml -f compose.ci-gateway.yaml config --quiet
