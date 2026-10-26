@@ -1,0 +1,91 @@
+{
+  "date_kst": "2026-10-26",
+  "base_sha": "82d3126b0133895abcab462d38121f6768fc9a81",
+  "product_sha": "747ff3faf93b8535a2a82617aa147d1dcca8306b",
+  "environment": {
+    "python": "3.14.7",
+    "node": "22.19.0",
+    "browser": "installed Chrome on macOS",
+    "database": "isolated synthetic SQLite"
+  },
+  "backend_full": {
+    "passed": 1480,
+    "failed": 1,
+    "warnings": 2,
+    "seconds": 263.5,
+    "failure": "backend/tests/test_report_failures.py::test_stdio_split_utf8_and_unterminated_final_event_are_decoded",
+    "baseline_reproduced": true,
+    "reason": "macOS os.killpg PermissionError during child cleanup",
+    "source_limit": "Only account_notifications.py changed during the full run: HTTP transport URL log redaction, subsequently covered by 28 focused passing notification/worker tests."
+  },
+  "initial_backend": {
+    "passed": 1462,
+    "failed": 3,
+    "seconds": 274.12,
+    "resolution": "Two HTTP model regressions fixed by carrying only authorization/audit ContextVars into background workers, preserving independent HTTP event-loop clients."
+  },
+  "final_notification_worker": {
+    "passed": 28,
+    "warnings": 2,
+    "seconds": 4.61,
+    "external_calls": 0
+  },
+  "frontend": {
+    "typescript": "pass",
+    "unit_passed": 35,
+    "mocked_ui_passed": 82,
+    "final_css_followup_admin_passed": 3
+  },
+  "real_browser": {
+    "checks": 13,
+    "api": true,
+    "sqlite": true,
+    "chrome": true,
+    "https": false,
+    "real_rhwp": false,
+    "model_calls": 0,
+    "real_webhook_calls": 0,
+    "source_limit": "Audit source changed during the run; account/UI/main sources stable. Separate API tests cover final audit code.",
+    "scenarios": [
+      "guest password login",
+      "synthetic upload",
+      "pending signup without cookie",
+      "pending login denied",
+      "admin approval",
+      "AI policy roundtrip",
+      "shared documents/nonadmin403",
+      "shared rename",
+      "password reset session revocation",
+      "disable preserves docs and revokes sessions",
+      "actor/file audit",
+      "mobile layout",
+      "no browser-storage credentials"
+    ]
+  },
+  "contracts": {
+    "deployment": 13,
+    "host_preflight": 4,
+    "ci_contracts": 16,
+    "smoke": 12,
+    "developer_download": 6,
+    "cli_login_passed": 6,
+    "cli_login_windows_skip": 1,
+    "node": 46,
+    "public_path": "pass",
+    "compose": "isolated config validated; Docker daemon unavailable"
+  },
+  "preserved": {
+    "workflow_files_changed": false,
+    "dependency_engine_locks_changed": false,
+    "merged_main": false,
+    "production_deployed": false,
+    "production_env_or_accounts_changed": false,
+    "historical_documents_or_owners_rewritten": false
+  },
+  "remaining": [
+    "Exact PR-head Linux/PostgreSQL/HTTPS/real-engine CI",
+    "Operator-defined guest/admin passwords and private Mattermost webhook",
+    "User isolated server testing",
+    "Real model and real webhook delivery not invoked"
+  ]
+}

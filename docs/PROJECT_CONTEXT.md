@@ -2,6 +2,8 @@
 
 갱신일: **2026-10-26 (한국 시간)**. 이번 통합 기준은 [main `e263091ae28ef73a3e1a087137cc70ddadc277b0`](https://github.com/m4r4m01m/hwp-assistant/commit/e263091ae28ef73a3e1a087137cc70ddadc277b0), [PR #39](https://github.com/m4r4m01m/hwp-assistant/pull/39)의 merge commit이다. 검토 head `ae7d1da77664019b6ab23fcf4b750f336bcc80eb`의 CI 4개와 같은 tree인 main push CI 3개가 성공했다. 이후 기존 [수동 배포 run `40212063392`](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40212063392)의 5개 job 성공을 확인했고, 원 대화 root가 SSH read-only로 last-success·API/web image source `e263091`과 DB/API/web healthy를 확인했다고 인계했다. 이는 아래 새 QA 통합의 배포가 아니다. 현재 `codex/integrate-local-ui-2026-10-26`의 별도 작업 트리에서 동료 `1f10a09dda03d48ee6a734e3f009efb3f2dfe894`를 통합·검증한다. 최신 범위·완료/미완료·롤백 한계는 [16절](#16-2026-10-26-보고서-작성outline저장-전환-통합)을 따른다. 3~15절의 과거 미승인·미병합·운영 상태는 각 작업 당시 기록이며 현재 코드·exact CI·위 배포 근거를 우선한다. `532d1dd` 문서와 기존 작업 트리·미커밋 handoff는 보존한다. 클라우드는 이번 작업의 main 병합·배포 dispatch·실모델·env/ACL/계정·운영 문서 변경을 수행하지 않는다.
 
+**후속 계정관리 작업(2026-10-26):** 최신 main `82d3126b0133895abcab462d38121f6768fc9a81`에서 `codex/account-approval-audit`를 분리했다. 제품 `747ff3faf93b8535a2a82617aa147d1dcca8306b`의 승인·공용 문서함·감사·AI 정책·Mattermost 알림과 검증은 [17절](#17-2026-10-26-계정-승인공용-문서함감사)을 따른다. main 병합·운영 배포·운영 계정 정리는 수행하지 않았다.
+
 ## 1. 읽는 순서와 증거 기준
 
 1. [루트 AGENTS.md](../AGENTS.md)의 작업·보존 규칙을 읽는다.
@@ -488,3 +490,32 @@ main-only 연구 경고 저장 시험은 새 title-only 인쇄에서 URL을 없�
 DB migration이 없다는 사실이 구버전 코드로 모든 새 작업을 이어갈 수 있다는 뜻은 아니다. `section_outline`가 고정된 새 입력을 구버전의 extra=forbid 모델로 재접수/보완하면 거부될 수 있고, 구버전은 outline 제목·순서 검증과 새 note/table layout marker 의미를 알지 못한다. 새 작업/동결 계획이 생성된 뒤 되돌릴 경우 신규 접수를 멈추고 원 입력·draft·SHA·preview·수동 HWPX를 보존한 상태에서 호환 코드로 이어갈 경로를 검토한다. 키·해시 재작성·marker 삭제·자동 schema downgrade·볼륨/인증 초기화로 우회하지 않는다. 과거 marker 없는 계획은 기존 재현 경로를 유지한다.
 
 이번 새 통합의 클라우드 실제 모델 호출·운영 배포·env/ACL/계정·운영 문서 변경은 0회다. 사용자 전체 승인에 따른 최종 병합·배포 진행은 원 대화의 exact SHA/run·직접 검증 인계 후 별도 증거로 추가한다. 기존 e263091 배포 run과 새 통합 배포를 혼동하지 않는다. 클라우드에 운영 credential이 없으며 이를 복제하거나 추정하지 않는다.
+
+
+## 17. 2026-10-26 계정 승인·공용 문서함·감사
+
+사용자가 로그인·계정관리 전용 개발과 PR을 요청했다. 시작 시 최신 main **[`82d3126b0133895abcab462d38121f6768fc9a81`](https://github.com/m4r4m01m/hwp-assistant/commit/82d3126b0133895abcab462d38121f6768fc9a81)**의 push 검사 3개 및 수동 배포 run 성공을 조회했다. 기존 checkout·다른 worktree를 보존하고 새 `codex/account-approval-audit`를 만들었다. 제품 commit은 **[`747ff3faf93b8535a2a82617aa147d1dcca8306b`](https://github.com/m4r4m01m/hwp-assistant/commit/747ff3faf93b8535a2a82617aa147d1dcca8306b)**다. main 병합·운영 env/계정/문서/볼륨/서비스/Codex 인증 변경은 수행하지 않았다. 최신 PR CI는 PR exact head로 별도 확인한다.
+
+- guest는 운영자가 지정한 비밀번호를 쓰는 공용 주체이고 admin은 운영자 CLI가 명시적으로 부여한 역할이다. 공개 가입은 승인 대기이며 세션을 발급하지 않는다. admin 승인/거절/비활성/재활성/비밀번호 변경과 마지막 활성 관리자 보호를 제공한다. 기존 admin 이름의 계정 자동 승격이나 비밀번호 초기화는 하지 않는다. 사용자는 계정 정리를 **문서·이력 보존 후 관리 화면에서 비활성화**하는 방식으로 확인했다.
+- 사용자는 **모든 승인 회원·guest·admin이 같은 공용 문서함과 같은 편집/관리 기능을 사용**하도록 확인했다. `HWP_LIBRARY_ACCESS_MODE=shared`는 접근 정책만 바꾸며 원래 Access/소유자/버전/저장자 ID는 보존한다. shared에서 개별 ACL 변경은 거부한다. `library_access.py`에 정책 경계를 모아 추후 개인별 문서함·명시적 공유·공용 공간 분화를 가능하게 했다. 미래 계획은 제품 화면에 노출하지 않는다. 기존 private/fresh ACL fence는 유지한다.
+- `HWP_CODEX_ACCOUNT_ACCESS=approved_accounts` 또는 admin DB 설정으로 활성 승인 계정과 guest에게 Codex 이용을 명시 허용한다. DB 설정이 초기 env보다 우선하며 나중에 allowlist로 전환할 수 있다. 진행 중 등록 계정 Codex 작업도 현재 권한을 재검사하며 HTTP 모델·기존 비계정 worker 계약·공유 일일 한도는 유지한다. 이전 절의 “가입만으로 AI를 자동 부여하지 않음”에 **명시 설정과 관리자 승인**을 거친 체험 정책이 추가된 것이다. 사용자별 Codex 인증을 새로 구현한 것은 아니다.
+- `HWP_LEGACY_TOKEN_ACCESS_ENABLED=0`은 정적 Bearer/토큰 로그인과 과거 토큰 기반 쿠키도 차단한다. 비밀번호 세션과 작업별 제한 토큰은 유지한다. 현재 production entrypoint의 기존 HWP_AUTH_TOKENS 설정은 보존한다. Compose 기본값은 기존 설치 보호를 위해 accounts/registration 꺼짐·private·allowlist·legacy 허용이며 체험 환경은 [활성화 값](account-approval-audit-2026-10-26.md)을 명시해야 한다.
+
+UserAccount role/approval/review 필드의 실제 additive SQLite/PostgreSQL migration과 audit/settings/notification table을 추가했다. 기존 계정은 approved/member로 보존한다. app.schema가 migration을 수행하고 SQL은 참고 DDL이다. 원본·과거 HWPX·문서 표준·동결 draft 계약은 보존한다. 구버전 공개 가입은 승인 대기 계약을 모르므로 rollback 전에 가입을 닫고 pending/disabled/세션 호환성을 확인한다. 자동 schema downgrade·ID/이력 재작성으로 해결하지 않는다.
+
+파일 업로드·새 버전·복원·이름 변경은 작업과 같은 거래에서 감사 receipt를 남기며 저장 재시도를 중복 기록하지 않는다. 계정 로그인/로그아웃/관리, AI 접수, 표준·디자인 숨김 삭제, 파일 다운로드 요청도 본문/비밀번호 없이 기록한다. admin만 조회하며 원장 수정/삭제 API는 없다. 문서 영구 삭제 기능은 새로 추가하지 않았다. 실제 guest 개인 신원·DB 운영자의 변조 방지·배포 이전 감사 소급은 보장하지 않는다.
+
+가입과 notification outbox를 먼저 확정한 뒤 Mattermost text webhook을 전송한다. HTTPS 기본·redirect 금지·4초·최대 5회 전송·실패 재접수·재시작 후 재시도·이미 검토한 요청 supersede를 제공한다. 비밀번호/사번/본문/secret URL은 알림·원장·브라우저·HTTPX 로그에 남기지 않는다. 전송 후 결과 기록 전에 중단되면 중복 알림은 가능하며 승인 목록이 정본이다. 실제 webhook 값과 guest/admin 비밀번호는 private 운영 설정으로 이번에 수집하지 않았다.
+
+[검증 영수증](evidence/account-approval-audit-2026-10-26.json)의 로컬 환경은 Python3.14.7/macOS·Node22.19.0·설치된 Chrome·합성 SQLite다. CI Python3.14.0/Node24.15.0/Linux·Chromium과 구분한다.
+
+| 검사 | 실제 확인과 한계 |
+|---|---|
+| backend 전체 | **1,480 passed/1 failed/기존 warning2·263.50초**. macOS os.killpg PermissionError 1개를 baseline main의 동일 transport source로도 재현. 초기 전체 1,462 passed/3 failed 중 HTTP transport2개는 선택적 worker context 전달로 수정했고 집중 회귀 통과 |
+| 최종 notification/worker | **28 passed/기존 warning2·4.61초**. 전체 실행 중 변경된 source는 notification 로그 보호 한 파일이며 이후 집중 검사로 검증 |
+| frontend | tsc·unit35·mock UI82 통과. 마지막 모바일 CSS 보완 뒤 admin3개 재통과. 실제 rhwp 시험과 구분 |
+| 실제 브라우저/API | FastAPI·SQLite·Chrome에서 가입/승인/공용 파일/세션 회수/감사/모바일 등13개 확인. 최종 확대 sidebar 제목 높이148→37px. HTTP localhost·엔진/모델/실제 webhook0회. 실행 중 audit source 일부 변경은 최종 원장 전체 검증으로 확대하지 않음 |
+| 배포·도구 | 배포13/host4/CI계약16/smoke12/download6/CLI6 통과·Windows resolver1skip. mac temp canonical 경로로 CI계약 재통과. Node계약46·public-path 통과 |
+| 배포 준비 | 수동 preview env 생성·Compose 병합을 합성 값으로 검사해 별도 프로젝트/볼륨3개/loopback24444 확인. Docker daemon 부재로 이미지 빌드·기동 미실행 |
+
+GitHub workflow 파일은 변경하지 않았다. 현재 HWP deployment는 main-only 조건 때문에 작업 branch 선택 시 검사만 실행하고 빌드/게시/운영 배포를 skip한다. [새 절차](account-approval-audit-2026-10-26.md)에 신뢰한 workflow+exact SHA+별도 staging 환경을 위한 후속 변경과 workflow를 유지한 수동 격리 시험을 정리했다. 실제 PostgreSQL/HTTPS/optimized rhwp는 기존 PR CI, 서버 검수는 사용자가 별도로 확인해야 한다. main merge·production deploy·실제 AI·운영 Mattermost 전송은 0회다.
