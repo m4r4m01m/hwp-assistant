@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { api, ApiError, errorMessage, jsonRequest } from "./api";
 import { scheduleEngineWarmup, startEngineWarmup, subscribeWarmup, warmState } from "./engine-warmup";
+import kftcLogo from "./assets/kftc-logo.png";
+import { WorkspaceIcon } from "./workspace-nav";
 import "./account-gate.css";
 
 export type Account = { user_id: string; authentication_required: boolean; name?: string; kind?: string; is_admin?: boolean; can_change_password?: boolean; library_access_mode?: "private" | "shared" };
@@ -98,8 +100,22 @@ export function AccountGate({ children }: { children: (account: Account) => Reac
   const personalProfiles = profiles.filter(user => !samples.some(sample => sample.user_id === user));
   const selectedSample = samples.find(sample => sample.user_id === username);
   const sharedLibrary = policy?.library_access_mode === "shared";
-  return <main className="account-page"><section className="account-panel" aria-label="문서함 로그인">
-    <header><span className="account-eyebrow">HWP ASSISTANT · PoC</span><h1>HWPX 문서함 로그인</h1><p>한글 문서 작성부터 AI 검토까지, 사용할 작업 공간을 선택하세요.</p></header>
+  return <main className="account-page">
+    <div className="account-brand-bar"><span className="account-brand-logo-baseline"><img src={kftcLogo} alt="금융결제원" className="account-brand-logo" /></span><span className="account-product-name">HWP Assistant</span></div>
+    <div className="account-layout">
+    <aside className="account-intro" aria-label="서비스 소개">
+      <span className="account-intro-kicker">문서 작성 · AI 검토</span>
+      <h2>문서에 집중하는<br />새로운 작업 공간.</h2>
+      <p>한글 문서 작성부터 검토까지,<br />하나의 문서함에서 이어가세요.</p>
+      <div className="account-document-art" aria-hidden="true">
+        <div className="account-paper"><span className="account-paper-label">HWPX</span><div className="account-paper-title" /><div className="account-paper-line" /><div className="account-paper-line short" /><div className="account-paper-table"><i /><i /><i /><i /><i /><i /></div><div className="account-paper-line" /><div className="account-paper-line short" /></div>
+        <span className="account-paper-badge"><WorkspaceIcon name="review" size={25} /></span>
+      </div>
+      <ul className="account-highlights"><li><WorkspaceIcon name="document" size={18} />익숙한 HWPX 문서 편집</li><li><WorkspaceIcon name="conversation" size={18} />AI와 함께하는 작성·검토</li><li><WorkspaceIcon name="history" size={18} />이전 버전과 작업 이력 보존</li></ul>
+      <small className="account-challenge">바이브코딩챌린지 출품작</small>
+    </aside>
+    <section className="account-panel" aria-label="문서함 로그인">
+    <header className="account-panel-heading"><span className="account-eyebrow">HWP ASSISTANT</span><h1>HWPX 문서함 로그인</h1><p>{registered ? "가입 요청이 접수되었습니다. 승인 후 작업을 시작하세요." : mode === "register" ? "새 계정을 신청하고 나만의 아이디로 시작하세요." : !legacy && mode === "choose" ? "사용할 계정을 선택해 문서 작업을 시작하세요." : "계정 정보를 입력해 문서함으로 이동하세요."}</p></header>
     {registered ? <section className="account-pending" aria-label="가입 요청 접수">
       <h2>가입 승인을 기다리고 있습니다</h2>
       <p role="status"><strong>{registered}</strong> 계정의 가입 요청을 접수했습니다. 관리자 승인 후 로그인할 수 있습니다.</p>
@@ -114,10 +130,10 @@ export function AccountGate({ children }: { children: (account: Account) => Reac
         <p className="account-note">{sharedLibrary ? "모든 계정이 같은 공용 문서함에서 작업합니다. 작업 이력은 로그인한 계정으로 기록됩니다." : "각 샘플 계정은 별도 문서함을 사용하며 같은 계정으로 접속한 체험자끼리는 문서를 공유합니다."} AI 이용 권한은 관리자 설정에 따릅니다.</p>
       </section>}
       <div className="account-choices">
-        <button className="account-card" disabled={!policy?.guest_enabled} onClick={() => select("guest")}><span aria-hidden="true" className="account-avatar">G</span><strong>guest로 체험</strong><small>{policy?.guest_enabled ? "공용 체험 공간 · 비밀번호 필요" : "관리자의 guest 설정이 필요합니다"}</small></button>
+        <button className="account-card" disabled={!policy?.guest_enabled} onClick={() => select("guest")}><span className="account-avatar"><WorkspaceIcon name="documents" size={23} /></span><strong>guest로 체험</strong><small>{policy?.guest_enabled ? "공용 체험 공간 · 비밀번호 필요" : "관리자의 guest 설정이 필요합니다"}</small></button>
         {personalProfiles.map(user => <button className="account-card" key={user} onClick={() => select("login", user)}><span aria-hidden="true" className="account-avatar">{user[0].toUpperCase()}</span><strong>{user}</strong><small>기억한 아이디 · 비밀번호 필요</small></button>)}
-        <button className="account-card" onClick={() => select("login")}><span aria-hidden="true" className="account-avatar">ID</span><strong>내 계정으로 로그인</strong><small>{sharedLibrary ? "같은 공용 문서함에서 작업" : "개인 문서와 공유받은 문서"}</small></button>
-        <button className="account-card" disabled={!policy?.registration_enabled} onClick={() => select("register")}><span aria-hidden="true" className="account-avatar">+</span><strong>계정 만들기</strong><small>{policy?.registration_enabled ? "가입 신청 · 관리자 승인 후 이용" : "현재 계정 생성이 닫혀 있습니다"}</small></button>
+        <button className="account-card" onClick={() => select("login")}><span className="account-avatar"><WorkspaceIcon name="file" size={23} /></span><strong>내 계정으로 로그인</strong><small>{sharedLibrary ? "같은 공용 문서함에서 작업" : "개인 문서와 공유받은 문서"}</small></button>
+        <button className="account-card" disabled={!policy?.registration_enabled} onClick={() => select("register")}><span className="account-avatar"><WorkspaceIcon name="plus" size={23} /></span><strong>계정 만들기</strong><small>{policy?.registration_enabled ? "가입 신청 · 관리자 승인 후 이용" : "현재 계정 생성이 닫혀 있습니다"}</small></button>
       </div>
       <p className="account-note">{sharedLibrary ? "모든 계정이 같은 공용 문서함을 사용합니다. 작업 이력은 계정별로 남습니다." : "guest에 저장한 문서는 다른 guest 체험자도 볼 수 있습니다."} 실제 회사 자료나 개인정보는 올리지 마세요.</p>
       {!!profiles.length && <button className="account-text-button" onClick={() => { try { localStorage.removeItem(rememberedKey); } catch {} setProfiles([]); }}>이 브라우저에 기억한 아이디 지우기</button>}
@@ -131,9 +147,9 @@ export function AccountGate({ children }: { children: (account: Account) => Reac
           <label>비밀번호<input aria-label="비밀번호" name="password" type="password" autoComplete={mode === "register" ? "new-password" : "current-password"} value={password} minLength={8} maxLength={128} disabled={busy} onChange={event => setPassword(event.target.value)} required /></label>
           {mode === "register" && <>
             <label>비밀번호 확인<input aria-label="비밀번호 확인" type="password" autoComplete="new-password" value={confirmation} minLength={8} maxLength={128} disabled={busy} onChange={event => setConfirmation(event.target.value)} required /></label>
-            <label>이름<input aria-label="이름" name="name" autoComplete="name" value={name} maxLength={80} disabled={busy} onChange={event => setName(event.target.value)} required /></label>
-            <label>사번<input aria-label="사번" name="employee_number" autoComplete="off" value={employee} maxLength={32} pattern="[A-Za-z0-9-]+" disabled={busy} onChange={event => setEmployee(event.target.value)} required /></label>
-            <p className="account-note">아이디는 영문·숫자·._@-를 사용하세요. 비밀번호는 8~128자입니다. 사번은 계정 구분용이며 재직 여부를 검증하지 않습니다. 가입 후 관리자 승인이 필요합니다. PoC에서는 가상 이름·사번을 권장합니다.</p>
+            <div className="account-identity-fields"><label>이름<input aria-label="이름" name="name" autoComplete="name" value={name} maxLength={80} disabled={busy} onChange={event => setName(event.target.value)} required /></label>
+            <label>사번<input aria-label="사번" name="employee_number" autoComplete="off" value={employee} maxLength={32} pattern="[A-Za-z0-9-]+" disabled={busy} onChange={event => setEmployee(event.target.value)} required /></label></div>
+            <p className="account-note">아이디는 영문·숫자·._@-를 사용하세요. 비밀번호는 8~128자입니다. 사번은 계정 구분용이며 재직 여부를 검증하지 않습니다. 가입 후 관리자 승인이 필요합니다. 체험 시에는 가상 이름·사번을 사용하세요.</p>
           </>}
           {mode === "login" && <label className="account-remember"><input type="checkbox" checked={rememberId} onChange={event => setRememberId(event.target.checked)} />이 브라우저에 아이디 기억 (공용 기기에서는 해제)</label>}
           {mode === "guest" && <p className="account-note">관리자가 부여한 guest 계정의 비밀번호를 입력하세요. 여러 체험자의 작업이 모두 guest로 기록됩니다. 공용 문서함이므로 민감한 자료는 올리지 마세요.</p>}
@@ -144,5 +160,7 @@ export function AccountGate({ children }: { children: (account: Account) => Reac
     </>}
     {error && <div className="error" role="alert"><p>{error}</p><button disabled={busy} onClick={() => setAttempt(value => value + 1)}>연결 다시 확인</button></div>}
     <WarmupNotice />
-  </section></main>;
+  </section>
+    </div>
+  </main>;
 }

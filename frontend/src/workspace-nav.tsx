@@ -1,5 +1,7 @@
 import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { useAiConnection } from "./ai-connection";
+import kftcLogo from "./assets/kftc-logo.png";
+import kftcSymbol from "./assets/kftc-symbol.png";
 import "./workspace-nav.css";
 
 export type WorkspaceSection = "documents" | "reports" | "templates" | "standards";
@@ -104,7 +106,7 @@ export function WorkspaceNav({ active, onNavigate, onBack, backLabel = "← 문�
       <button className="workspace-nav-edge" style={{ top: edgeY }} aria-label="사이드바 열기" aria-expanded={false} title="클릭하여 사이드바 펼치기" onClick={() => chooseMode("expanded")}><WorkspaceIcon name="sidebar-expanded"/></button>
     </div>}
     <nav className={`workspace-nav ${className}`} data-mode={mode} data-hidden={hidden || undefined} aria-label={label}>
-    <div className="workspace-brand" title="HWP Assistant"><span className="workspace-brand-mark" aria-hidden="true">H</span><span className="workspace-brand-name">HWP Assistant<small>문서 작업 공간</small></span></div>
+    <div className="workspace-brand" title="금융결제원 · HWP Assistant"><img className="workspace-brand-logo" src={kftcLogo} alt="금융결제원" /><img className="workspace-brand-symbol" src={kftcSymbol} alt="금융결제원" /><span className="workspace-brand-name">HWP Assistant</span></div>
     <div className="workspace-nav-mode" role="group" aria-label="사이드바 표시">
       <button aria-label="사이드바 펼침" title="아이콘과 메뉴 이름 표시" aria-pressed={mode === "expanded"} onClick={() => chooseMode("expanded")}><WorkspaceIcon name="sidebar-expanded" size={18}/><span>펼침</span></button>
       <button aria-label="사이드바 아이콘만" title="아이콘만 표시" aria-pressed={mode === "icons"} onClick={() => chooseMode("icons")}><WorkspaceIcon name="sidebar-icons" size={18}/><span>아이콘</span></button>
