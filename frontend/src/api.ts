@@ -1,4 +1,6 @@
 import { publicPath } from "./public-path";
+let authContext: string | undefined;
+export function pinAuthContext(value?: string) { authContext = value; }
 
 export type Document = {
   id: string;
@@ -58,7 +60,9 @@ async function readRequest<T>(url: string, init: ApiRequestInit, read: (response
   else caller?.addEventListener("abort", cancel, { once: true });
   const timer = timeout > 0 ? setTimeout(() => { timedOut = true; controller.abort(); }, timeout) : undefined;
   try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
+    const headers = new Headers(options.headers);
+    if (authContext && !url.includes("/auth/")) headers.set("X-Auth-Context", authContext);
+    const response = await fetch(url, { ...options, headers, signal: controller.signal });
     if (!response.ok) {
       const value = await response.json().catch(cause => { if (controller.signal.aborted) throw cause; return null; });
       const retryAfter = response.headers.get("Retry-After");

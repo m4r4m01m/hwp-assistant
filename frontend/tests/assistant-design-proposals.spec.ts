@@ -22,9 +22,10 @@ test("MOCK context extraction: whole-document body scope preserves fixed styled 
     const header = '<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head"><hh:style id="9" name="HWP Assistant editor title"/></hh:head>';
     return { normal: await (window as any).testRewriteContext(section, header), big: await (window as any).testRewriteContext(section, header, true) };
   });
-  expect(result.normal.paragraphs).toHaveLength(2);
-  expect(result.normal.paragraphs.map((p: any) => [p.paragraph, p.fixed_prefix])).toEqual([[1, "□ (현황)"], [2, ""]]);
-  expect(result.normal.preserved["혼합 서식 문단"]).toBe(1);
+  expect(result.normal.paragraphs).toHaveLength(3);
+  expect(result.normal.paragraphs.map((p: any) => [p.paragraph, p.fixed_prefix])).toEqual([[1, "□ (현황)"], [2, ""], [3, ""]]);
+  expect(result.normal.paragraphs[2].protected_text).toEqual(["강조"]);
+  expect(result.normal.preserved["혼합 서식 문단"]).toBeUndefined();
   expect(result.normal.preserved["제목·주석·기타 문단"]).toBe(3);
   expect(result.normal.preserved["표·개체·주석 포함 문단"]).toBe(1);
   expect(result.big.paragraphs).toEqual([]);

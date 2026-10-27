@@ -1,0 +1,7 @@
+.session-viewer { height: 100dvh; display: flex; flex-direction: column; gap: 12px; padding: 16px; box-sizing: border-box; background: #f3f5f8; }
+.session-viewer header, .session-viewer nav, .session-viewer [role="status"] { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.session-viewer header strong { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.session-viewer-page { flex: 1; overflow: auto; text-align: center; }
+.session-viewer-page svg { max-width: 100%; height: auto; background: white; }
+.session-viewer-engine { position: fixed; left: -20000px; width: 1000px; height: 1000px; }
+.editor-session-pause { background: #fff4d6; padding: 10px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }

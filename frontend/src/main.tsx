@@ -1,5 +1,7 @@
 import { AccountGate, clearAccountWorkspaceState, type Account } from "./account-gate";
+import { SessionViewer } from "./session-viewer";
 import React, { useEffect, useRef, useState } from "react";
+const Coedit = React.lazy(() => import("./coedit").then(module => ({default: module.Coedit})));
 import { createRoot } from "react-dom/client";
 import { History } from "./version-history";
 import { EditorAdapter, type Snapshot, type ExportSnapshot } from "./editor";
@@ -80,6 +82,7 @@ function App({
     [registerTemplate, setRegisterTemplate] = useState<Document | undefined>(),
     [reports, setReports] = useState(false);
   const [editorDesign, setEditorDesign] = useState<DesignChoice | null>(null);
+  const [coeditDocument, setCoeditDocument] = useState<Document | null>(null);
   const [trashDialog, setTrashDialog] = useState<{ document: Document | null } | null>(null);
   const [managingAccounts, setManagingAccounts] = useState(false);
   const listGeneration = useRef(0), listController = useRef<AbortController | null>(null);
@@ -218,10 +221,12 @@ function App({
         <CollaborationPanel document={active} />
       </main></div>
     );
+  if (coeditDocument) return <React.Suspense fallback={<p role="status">공동편집 준비 중…</p>}><Coedit document={coeditDocument} onClose={() => { setCoeditDocument(null); refresh(); }} /></React.Suspense>;
   if (active || creating)
     return (
       <Editor
         initial={active}
+        onCoedit={document => { setActive(null); setCoeditDocument(document); }}
         initialDesign={editorDesign}
         onClose={() => {
           setEditorDesign(null);
@@ -327,6 +332,7 @@ function App({
                 <td>{new Date(d.created_at * 1000).toLocaleString("ko-KR")}</td>
                 <td className="library-document-actions">
                   <SavedDownload document={d} />
+                  {d.role !== "reader" && <button onClick={() => setCoeditDocument(d)}><WorkspaceIcon name="conversation" size={17}/><span>공동편집</span></button>}
                   <button aria-label="버전 기록" title="버전 기록" onClick={() => setHistory(d)}><WorkspaceIcon name="history" size={17}/><span>버전 기록</span></button>
                   <span className="library-delete-action" title={d.can_trash ? "휴지통으로 이동하며 나중에 복구할 수 있습니다." : account.library_access_mode === "shared" ? "이 문서를 삭제할 권한이 없습니다." : "개인 문서함에서는 문서 소유자만 삭제할 수 있습니다."}>
                     <button className="library-delete-button" aria-label={`${d.name} 삭제`}
@@ -497,6 +503,7 @@ function EditorDiscardDialog({ target, onCancel, onDiscard }: {
 
 function Editor({
   initial,
+  onCoedit,
   initialDesign,
   onClose,
   onHistory,
@@ -504,6 +511,7 @@ function Editor({
   closeHistory,
 }: {
   initial: Document | null;
+  onCoedit: (document: Document) => void;
   initialDesign?: DesignChoice | null;
   onClose: () => void;
   onHistory: (d: Document) => void;
@@ -511,6 +519,9 @@ function Editor({
   closeHistory: () => void;
 }) {
   const workspaceRoot = useRef<HTMLDivElement>(null);
+  const [leaseAttempt, setLeaseAttempt] = useState(0), [leaseBlocked, setLeaseBlocked] = useState(initial?.role === "reader");
+  const [leasePaused, setLeasePaused] = useState(false);
+  const leaseUsable = useRef(true), reconnect = useRef<() => Promise<void>>(async () => {});
   useMobileDrawerCanvas(workspaceRoot, ".editor-row > .editor", ".editor-row > aside:not([hidden])");
   const reviewFeature = useFeature("review");
   const mount = useRef<HTMLDivElement>(null),
@@ -669,6 +680,7 @@ function Editor({
     });
   }
   function captureBlock(): BlockCapture {
+    if (!leaseUsable.current) throw new BlockFenceError("편집권을 다시 연결한 뒤 작업하세요.");
     const instance = adapter.current, document = doc.current;
     if (!ready || !instance || !document) throw new BlockFenceError("먼저 문서를 서버에 저장한 뒤 블록을 준비하세요.");
     if (document.role === "reader" || !token.current) throw new BlockFenceError("현재 문서의 편집 세션이 없습니다.");
@@ -694,6 +706,7 @@ function Editor({
     return captured;
   }
   function captureToc(purpose = "목차", preserveUndo = false): TocCapture {
+    if (!leaseUsable.current) throw new BlockFenceError("편집권을 다시 연결한 뒤 작업하세요.");
     const instance = adapter.current, document = doc.current;
     if (!ready || !instance || !document) throw new BlockFenceError(`먼저 문서를 서버에 저장한 뒤 ${purpose}를 확인하세요.`);
     if (document.role === "reader" || !token.current) throw new BlockFenceError("현재 문서의 편집 세션이 없습니다.");
@@ -826,12 +839,14 @@ function Editor({
           setStatus("편집 권한을 확인하는 중…");
           // Do not abort this write: a late lease response contains the token
           // needed to release exactly the lease acquired by this mount.
+          if (initial.role === "reader") { setLeaseBlocked(true); return; }
           const lease = await api<{ token: string; document: Document }>(
             `/documents/${initial.id}/session`, { method: "POST" },
           );
           openingLease = { id: lease.document.id, token: lease.token };
           if (disposed) { releaseOpeningLease(); return; }
           token.current = lease.token; doc.current = lease.document; setName(lease.document.name);
+          leaseUsable.current = true; setLeasePaused(false); setLeaseBlocked(false);
         }
         if (disposed) return;
         const pinned = doc.current ? { ...doc.current } : null;
@@ -866,21 +881,34 @@ function Editor({
         if (adapter.current === instance.current) adapter.current = null;
         releaseOpeningLease();
         if (!disposed && !isAbortError(cause)) {
+          if (cause instanceof ApiError && cause.status === 409 && !instance.current) { setLeaseBlocked(true); return; }
           setError(`열기 실패: ${errorMessage(cause)}`); setStatus("열기 실패");
         }
       }
     })();
-    const heartbeat = setInterval(() => {
-      if (doc.current && token.current)
-        api(`/documents/${doc.current.id}/session`, {
-          method: "PUT",
-          headers: { "X-Edit-Session": token.current },
-        }).catch((e) =>
-          setError(
-            `세션 갱신 실패: ${e.message} 변경사항을 복구용 다운로드하세요.`,
-          ),
-        );
-    }, 30000);
+    let renewing = false;
+    const renew = async (resumeExpired = false) => {
+      if (disposed || renewing || !doc.current || !token.current) return;
+      renewing = true; const held = token.current;
+      try {
+        await api(`/documents/${doc.current.id}/session${resumeExpired ? "?reconnect=true" : ""}`, { method: "PUT", headers: { "X-Edit-Session": held }, timeoutMs: 10000 });
+        if (!disposed && token.current === held) { leaseUsable.current = true; setLeasePaused(false); }
+      } catch (cause) {
+        if (!disposed && token.current === held) { leaseUsable.current = false; setLeasePaused(true); setError(`편집권 확인 실패: ${errorMessage(cause)} 미저장 내용은 이 화면에 보존됩니다.`); }
+      } finally { renewing = false; }
+    };
+    reconnect.current = () => renew(true);
+    const heartbeat = setInterval(() => void renew(), 30000);
+    const resume = () => { if (document.visibilityState === "visible") void renew(); };
+    const offline = () => { if (token.current) { leaseUsable.current = false; setLeasePaused(true); } };
+    const leave = (event: PageTransitionEvent) => {
+      // bfcache restores the existing buffer; keep its token for fenced renewal.
+      if (event.persisted) { offline(); return; }
+      if (doc.current && token.current) void api(`/documents/${doc.current.id}/session`, { method: "DELETE", headers: {"X-Edit-Session": token.current}, keepalive: true }).catch(() => {});
+    };
+    window.addEventListener("online", resume); window.addEventListener("offline", offline);
+    window.addEventListener("pageshow", resume); window.addEventListener("pagehide", leave);
+    document.addEventListener("visibilitychange", resume);
     const guard = (e: BeforeUnloadEvent) => {
       if (dirtyRef.current || busy.current || contextDraftDirty.current || blockHold.current || assistantHold.current) {
         e.preventDefault();
@@ -894,6 +922,9 @@ function Editor({
       editorAlive.current = false;
       adapterOff.current();
       clearInterval(heartbeat);
+      window.removeEventListener("online", resume); window.removeEventListener("offline", offline);
+      window.removeEventListener("pageshow", resume); window.removeEventListener("pagehide", leave);
+      document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("beforeunload", guard);
       adapter.current?.destroy();
       dropBlockUndo(); blockHold.current = null;
@@ -905,8 +936,9 @@ function Editor({
         }).catch(() => {});
       }
     };
-  }, []);
+  }, [leaseAttempt]);
   async function save(force = false) {
+    if (!leaseUsable.current) { setError("편집권을 다시 확인한 뒤 저장하세요. 미저장 내용은 복구용 다운로드로 보관할 수 있습니다."); return false; }
     if (restoring.current) { setError("복원 결과를 먼저 확인하세요. 버전 기록에서 같은 버전을 다시 복원하면 보관한 요청을 확인합니다."); return false; }
     const a = adapter.current;
     if (!a || busy.current || blockHold.current || (!dirtyRef.current && !force)) return false;
@@ -1054,6 +1086,7 @@ function Editor({
       setAiBusy(false);
     }
   }
+  if (leaseBlocked && initial) return <SessionViewer document={initial} onClose={onClose} onCoedit={() => onCoedit(initial)} onRetry={() => { setLeaseBlocked(false); setLeaseAttempt(value => value + 1); }} />;
   return (
     <div ref={workspaceRoot} className="workspace editor-workspace">
       {discardTarget && <EditorDiscardDialog target={discardTarget} onCancel={() => setDiscardTarget(null)} onDiscard={() => {
@@ -1093,7 +1126,7 @@ function Editor({
           className="primary editor-rail-action editor-save"
           title="서버 저장"
           aria-label="저장"
-          disabled={!ready || status === "저장 중" || blockHolding}
+          disabled={!ready || leasePaused || status === "저장 중" || blockHolding}
           onClick={() => void save(true)}
         >
           <WorkspaceIcon name="save" /><span>저장</span>
@@ -1181,6 +1214,10 @@ function Editor({
         <strong title={name}>{name}</strong><span role="status" className={status.includes("실패") ? "bad" : dirty ? "unsaved" : ""}>{status}</span>
       </header>
       <div className="editor-notifications" aria-label="편집 알림">
+      {leasePaused && <div className="editor-session-pause" role="status">편집권 확인 전까지 편집·저장을 멈췄습니다. 미저장 내용은 보존됩니다.
+        <button onClick={() => void reconnect.current()}>편집권 다시 연결</button>
+        <button onClick={() => { const value = adapter.current?.exportHwpx(); if (value) downloadBytes(value.bytes, "복구-" + name); }}>미저장 내용 다운로드</button>
+      </div>}
       {error && (
         <div role="alert" className="error">
           {error}
@@ -1191,7 +1228,7 @@ function Editor({
       </div>}
       {blockHolding && <div className="notice">서식·블록·목차를 준비하는 동안 자동 저장을 보류합니다. 기존 문서에서 계속 편집할 수 있으며, 변경 후에는 다시 준비해야 합니다.</div>}
       </div>
-      <div className="editor-row">
+      <div className="editor-row" inert={leasePaused}>
         <div className="editor block-editor-wrapper" ref={mount}>
           {[0, 1, 2].map(index => <div key={index} ref={node => { blockHosts.current[index] = node; }}
             className={`block-editor-slot${activeBlockHost === index ? " active" : ""}`}
