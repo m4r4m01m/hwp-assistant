@@ -10,7 +10,13 @@
 - 동료 변경 검토 중 보고서 요약어 강조가 같은 문자열의 미선언 문단까지 전파되는 서식 회귀를 재현했다. 선언의 원문 위치를 문단 정리 후에도 유지해 지정한 항목에만 강조를 연결한다. 사실·인용·기존 동결 입력과 저장된 HWPX를 다시 쓰지 않는다.
 - 새 제품 범위는 AI 본문 전체 수정과 실제 문서 전후 비교, 소유자 전용 휴지통·복구, 버전 복원 출처, 개인 비밀번호 변경, 보고서 문구·주석·편집 UI 개선, Windows preview 서비스 종료 보완이다. 전체 문장 수정의 지원 범위·사용자 적용 승인·원문/버전/임대 검사는 유지된다. DB는 `document_trash`와 `version_restores` 테이블 추가이며 기존 blobs/버전 변환이 아니다.
 
-사용자는 이번 수정의 검증 후 **merge commit 병합과 운영 재배포까지 승인**했다. 원래 checkout과 source 브랜치는 보존하고 최신 main에서 `codex/deploy-recovery-2026-10-27`을 분리했다. 이 절 작성 시점에는 새 수정의 CI·병합·배포가 아직 진행 전이며, 완료 근거를 후속 영수증으로 기록한다. 실제 운영 AI 호출과 Hancom 호환성은 이번 자동 검증과 구분한다.
+사용자는 이번 수정의 검증 후 **merge commit 병합과 운영 재배포까지 승인**했다. 원래 checkout과 source 브랜치를 보존했다. [PR #49](https://github.com/m4r4m01m/hwp-assistant/pull/49)의 검토 head `75786a678baedd24fd79a87e7067e1b29f8b817a`는 필수 검사 성공 후 main [`b88085e825622240783ef9d99e4952908a267c92`](https://github.com/m4r4m01m/hwp-assistant/commit/b88085e825622240783ef9d99e4952908a267c92)에 merge commit으로 병합했다.
+
+정확한 PR head의 [HWP 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40432777652)는 Linux pytest **1,559 passed**, APT 13개(실제 요청 URL 계획 포함·제외 0개), frontend unit 37개·Node 계약 53개·모의 UI 99개·엄격 TLS 1개를 통과했다. [PoC 통합](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40432777610)은 실제 PostgreSQL·브라우저/편집기 3개와 재시작 후 계정·세션·문서 바이트 보존을 확인했다. [빌드 경로 7개](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40432777566), [게시 계약 24개](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40432777562)도 성공했다. 실제 설치 로그에서 Microsoft 저장소 요청은 없었다. PR의 게시·운영 배포 job은 정상 skip이며 배포 증거로 합산하지 않는다.
+
+macOS에서는 화면 99개·타입/Node 검사와 수정 후 보고서 관련 71개를 통과했다. 수정 전 시작한 전체 pytest는 1,554개 통과·1개 실패이며, 실패는 기존 `ReportRpc`의 시험 프로세스 그룹 정리 `PermissionError`로 개별 재실행에서도 같았다. 해당 코드·시험은 직전 운영 이후 변경되지 않았고 정확한 PR Linux 전체 검사는 통과했다. macOS 전체 통과로 기록하지 않는다. [검증·배포 영수증](evidence/deployment-recovery-2026-10-27.json)에 환경과 범위를 구분한다. 실제 운영 AI 호출과 Hancom 호환성은 이번 자동 검증과 구분한다.
+
+**운영 재배포 완료:** 같은 main `b88085e`의 push 검사 3개([HWP](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40433649501)·[빌드 경로](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40433649595)·[게시 계약](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40433649566))가 성공했다. `deploy=true`로 한 번 실행한 [수동 배포 run 40433671246](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40433671246)의 전체 5개 job도 성공했다. [운영 job](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40433671246/job/121961057281)에서 **2026-10-27 10:50:26 KST 백업 완료**, 이어 같은 SHA 교체와 내부·공개 HTTPS 무결성 검사를 확인했고 job은 **10:50:48 KST**에 종료했다. 별도 외부 실행에서도 공개 경로·보호 API·앱/편집기/비교 자원·WASM 무결성 검사에 통과했다. 운영 인증정보를 전달하거나 문서를 작성하지 않았으며 실제 운영 모델 호출은 0회다. 이 후속 영수증은 문서만 추가하며 운영 이미지를 다시 게시·교체하지 않는다.
 
 ## 2026-10-27 — 보고서·AI 편집·문서 관리 마무리
 
