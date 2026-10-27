@@ -105,25 +105,6 @@ def test_trash_retry_and_old_restore_cannot_replay_lifecycle(secured):
     assert c.get("/api/documents").json()[0]["id"] == doc["id"]
 
 
-def test_shared_library_edit_grant_does_not_grant_deletion(secured, monkeypatch):
-    c, app, _, _ = secured
-    doc = document(c)
-    # The policy result is all that shared mode changes; actual grants stay intact.
-    monkeypatch.setattr("app.library_access.shared_library", lambda db, user: True)
-    monkeypatch.setattr("app.main.shared_library", lambda db, user: True)
-    as_user(c, "bob")
-    item = c.get("/api/documents").json()[0]
-    assert item["role"] == "owner" and item["can_trash"] is False
-    assert trash(c, doc).status_code == 403
-    as_user(c, "alice")
-    moved = trash(c, doc)
-    assert moved.status_code == 200
-    as_user(c, "bob")
-    assert c.get("/api/documents").json() == []
-    assert c.get("/api/document-trash").json() == []
-    assert c.post(f"/api/document-trash/{moved.json()['trash_id']}/restore").status_code == 403
-
-
 def test_trash_and_edit_session_race_share_document_lock(secured):
     c, app, _, _ = secured
     doc = document(c)

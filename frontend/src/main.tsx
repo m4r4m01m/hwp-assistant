@@ -328,6 +328,13 @@ function App({
                 <td className="library-document-actions">
                   <SavedDownload document={d} />
                   <button aria-label="버전 기록" title="버전 기록" onClick={() => setHistory(d)}><WorkspaceIcon name="history" size={17}/><span>버전 기록</span></button>
+                  <span className="library-delete-action" title={d.can_trash ? "휴지통으로 이동하며 나중에 복구할 수 있습니다." : account.library_access_mode === "shared" ? "이 문서를 삭제할 권한이 없습니다." : "개인 문서함에서는 문서 소유자만 삭제할 수 있습니다."}>
+                    <button className="library-delete-button" aria-label={`${d.name} 삭제`}
+                      aria-description={!d.can_trash ? account.library_access_mode === "shared" ? "이 문서를 삭제할 권한이 없습니다." : "개인 문서함에서는 문서 소유자만 삭제할 수 있습니다." : undefined}
+                      disabled={!d.can_trash || copying || uploading} onClick={() => setTrashDialog({ document: d })}>
+                      <WorkspaceIcon name="trash" size={17}/><span>삭제</span>
+                    </button>
+                  </span>
                   <button id={`document-more-${d.id}`} aria-label={`${d.name} 더보기`} title="더보기" aria-expanded={expandedDocument === d.id} aria-controls={`document-actions-${d.id}`}
                     onClick={() => setExpandedDocument(expandedDocument === d.id ? null : d.id)}><WorkspaceIcon name="more" size={17}/><span>더보기</span></button>
                 </td>
@@ -410,9 +417,6 @@ function App({
                       <WorkspaceIcon name="templates" size={17}/><span>양식으로 등록</span>
                     </button>
                   )}
-                  {d.can_trash && <button disabled={copying || uploading} onClick={() => setTrashDialog({ document: d })}>
-                    <WorkspaceIcon name="trash" size={17}/><span>휴지통으로 이동</span>
-                  </button>}
                 </div>
               </td></tr>}
               </React.Fragment>
@@ -420,7 +424,7 @@ function App({
           </tbody>
         </table></div>
       )}
-      {trashDialog && <DocumentTrashDialog document={trashDialog.document} onClose={() => setTrashDialog(null)} onChanged={() => { setExpandedDocument(null); refresh(); }} />}
+      {trashDialog && <DocumentTrashDialog document={trashDialog.document} shared={account.library_access_mode === "shared"} onClose={() => setTrashDialog(null)} onChanged={() => { setExpandedDocument(null); refresh(); }} />}
       {sharing && (
         <AccessPanel document={sharing} onClose={() => setSharing(null)} />
       )}

@@ -6,8 +6,8 @@ import "./document-trash.css";
 
 type TrashDocument = Document & { trash_id: string; deleted_at: number };
 
-export function DocumentTrashDialog({ document: target, onClose, onChanged }: {
-  document: Document | null; onClose: () => void; onChanged: () => void;
+export function DocumentTrashDialog({ document: target, shared = false, onClose, onChanged }: {
+  document: Document | null; shared?: boolean; onClose: () => void; onChanged: () => void;
 }) {
   const dialog = useRef<HTMLElement>(null);
   const requestId = useRef(crypto.randomUUID());
@@ -53,9 +53,9 @@ export function DocumentTrashDialog({ document: target, onClose, onChanged }: {
         <button disabled={busy} onClick={onClose} aria-label="휴지통 닫기"><WorkspaceIcon name="close"/></button></header>
       {target ? <>
         <p><strong>{target.name}</strong> 문서를 휴지통으로 이동할까요?</p>
-        <p>문서함에서 숨겨지고 공유 중인 사용자도 열 수 없습니다. 원본과 버전 기록은 보존되며 휴지통에서 복구할 수 있습니다.</p>
+        <p>{shared ? "공용 문서함에서 숨겨지고 모든 공유 사용자가 열 수 없습니다." : "문서함에서 숨겨지고 공유 중인 사용자도 열 수 없습니다."} 원본과 버전 기록은 보존되며 휴지통에서 복구할 수 있습니다.</p>
       </> : <>
-        <p>내가 소유한 문서만 표시됩니다. 복구하면 기존 내용·버전 기록·공유 권한을 그대로 사용할 수 있습니다.</p>
+        <p>{shared ? "공용 문서함에서 삭제한 문서가 표시됩니다. 복구하면 공유 사용자 모두에게 문서가 다시 표시됩니다." : "내가 소유한 문서만 표시됩니다."} 복구하면 기존 내용·버전 기록·공유 권한을 그대로 사용할 수 있습니다.</p>
         <button disabled={busy || loading} onClick={() => setReload(value => value + 1)}><WorkspaceIcon name="refresh" size={17}/>새로고침</button>
         {loading ? <p role="status">휴지통을 불러오는 중…</p> : rows.length === 0 ? <p className="empty">휴지통이 비어 있습니다.</p> :
           <ul className="document-trash-list">{rows.map(row => <li key={row.trash_id}>

@@ -10,3 +10,10 @@
 .document-trash-list small { display: block; margin-top: 5px; color: #586575; }
 .document-trash-list button { flex-shrink: 0; }
 .library-toolbar > .library-trash-button { display: inline-flex; align-items: center; gap: 6px; }
+.library-delete-action { display: inline-flex; vertical-align: middle; }
+.library-delete-action > .library-delete-button:disabled { pointer-events: none; }
+.library-document-actions .library-delete-button:not(:disabled):hover { color: #a72828; background: #fff1f1; border-color: #efcaca; }
+@media (min-width: 721px) and (max-width: 1050px) {
+  .library-table-wrap .library-table { min-width: 0; }
+  .library-table .library-document-actions { white-space: normal; }
+}
