@@ -1,4 +1,4 @@
-"""Owner-only, reversible document removal; never delete versions or stored bytes."""
+"""Policy-scoped reversible removal; never delete ownership, versions or bytes."""
 import time
 import uuid
 
@@ -8,15 +8,14 @@ from sqlalchemy.orm import Session
 
 from .audit import record_event
 from .auth import require_access
-from .db import Access, Document, DocumentTrash, document_is_trashed, transaction
+from .db import Document, DocumentTrash, document_is_trashed, transaction
+from .library_access import document_management_scope
 
 
-def trash_owner(db, document_id, user):
-    # Shared-library editing grants are deliberately not deletion ownership.
+def require_trash_access(db, document_id, user):
     doc = require_access(db, document_id, user, lock=True, fresh=True, include_trashed=True)
-    grant = db.get(Access, (document_id, user), populate_existing=True)
-    if not grant or grant.role != "owner":
-        raise HTTPException(403, "문서 소유자만 휴지통으로 이동하거나 복구할 수 있습니다.")
+    if not db.scalar(select(Document.id).where(Document.id == document_id, document_management_scope(db, user))):
+        raise HTTPException(403, "문서를 휴지통으로 이동하거나 복구할 권한이 없습니다.")
     return doc
 
 
@@ -27,8 +26,7 @@ def install_document_trash(app, doc_dict):
     def trash_list(request: Request):
         with Session(engine) as db:
             rows = db.execute(select(Document, DocumentTrash).join(DocumentTrash, DocumentTrash.document_id == Document.id)
-                              .join(Access, Access.document_id == Document.id)
-                              .where(Access.user_id == request.state.user, Access.role == "owner", DocumentTrash.restored_at.is_(None))
+                              .where(document_management_scope(db, request.state.user), DocumentTrash.restored_at.is_(None))
                               .order_by(DocumentTrash.deleted_at.desc()))
             return [{**doc_dict(doc), "role": "owner", "can_trash": True, "trash_id": row.id,
                      "deleted_at": row.deleted_at} for doc, row in rows]
@@ -37,7 +35,7 @@ def install_document_trash(app, doc_dict):
     def move_to_trash(document_id: str, request: Request, idempotency_key: uuid.UUID = Header()):
         receipt_id = str(idempotency_key)
         with transaction(engine) as db:
-            doc = trash_owner(db, document_id, request.state.user)
+            doc = require_trash_access(db, document_id, request.state.user)
             receipt = db.get(DocumentTrash, receipt_id)
             if receipt:
                 if receipt.document_id != document_id or receipt.deleted_by != request.state.user:
@@ -63,7 +61,7 @@ def install_document_trash(app, doc_dict):
             receipt = db.get(DocumentTrash, trash_id)
             if not receipt:
                 raise HTTPException(404, "휴지통 항목을 찾을 수 없습니다.")
-            doc = trash_owner(db, receipt.document_id, request.state.user)
+            doc = require_trash_access(db, receipt.document_id, request.state.user)
             # Refresh after the document lock, including a concurrent restore.
             db.refresh(receipt)
             if receipt.restored_at is not None:

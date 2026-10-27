@@ -32,7 +32,7 @@ from .changes import apply_delta, describe_changes
 from .rewrite_jobs import invalidate_running
 from .audit import actor_context, record_event
 from .account_settings import engine_context
-from .library_access import library_mode, shared_library, document_role
+from .library_access import library_mode, shared_library, document_role, document_management_scope
 
 
 class Name(BaseModel):
@@ -373,15 +373,15 @@ def create_app(database_url=None, storage_dir=None):
     @app.get("/api/documents")
     def documents(request: Request, q: str = Query("", max_length=200)):
         with Session(engine) as db:
+            management = document_management_scope(db, request.state.user)
             if shared_library(db, request.state.user):
-                owned = select(Access.document_id).where(Access.user_id == request.state.user, Access.role == "owner")
                 return [{**doc_dict(doc), "role": "owner", "can_trash": can_trash} for doc, can_trash in db.execute(
-                    select(Document, Document.id.in_(owned)).where(~document_is_trashed(Document.id))
+                    select(Document, management).where(~document_is_trashed(Document.id))
                     .where(Document.name.contains(q, autoescape=True)).order_by(Document.created_at.desc()))]
             return [
-                {**doc_dict(d), "role": role, "can_trash": role == "owner"}
-                for d, role in db.execute(
-                    select(Document, Access.role)
+                {**doc_dict(d), "role": role, "can_trash": can_trash}
+                for d, role, can_trash in db.execute(
+                    select(Document, Access.role, management)
                     .join(Access, Access.document_id == Document.id)
                     .where(Access.user_id == request.state.user)
                     .where(~document_is_trashed(Document.id))
