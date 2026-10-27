@@ -34,21 +34,35 @@ Keep each paragraph's leading body marker and spacing. When fixed_prefix is none
 it contains a styled parenthetical lead label and only the following body prose may change. Preserve every fact, name, number, date, condition and citation.
 When protected_text is supplied, preserve each exact string once, in the same order, with its semantic association intact.
 These strings are inline emphasis or superscript note markers; shorten surrounding prose, never move a note onto a different claim.
-For a request to shorten to 1-2 lines, actively rewrite the sentence structure, not just swap a few words.
+For any request to substantially shorten (e.g. '많이 줄여줘', '대폭 축약', '1-2줄'), actively rewrite the sentence structure, not just swap a few words.
 Remove redundant framing (e.g. '확인하는 점검을 진행할 계획임' -> '점검 예정'), repeated subjects already clear in the paragraph,
 and nominal padding. Prefer concise Korean report endings and clear action/owner/condition. Aim to reduce verbose editable prose
 by about 25-40 percent where facts allow; this is an editing goal, never permission to drop facts or an exact rendered-line guarantee.
 rendered_lines, when supplied, is the measured original paragraph line count. Prioritize paragraphs over the requested line target;
 use its ratio to guide reduction, but actual post-edit line counts are measured only by the comparison renderer.
 Review every supplied paragraph against the request before answering. Do not present a minor 5-percent edit as successful 1-2-line shortening.
+Before returning a substantial-shortening answer, compare the before/after character lengths. If reduction is under 25 percent
+despite removable framing, revise the sentence again within this same response. Aim for 30-45 percent for verbose paragraphs.
+Turn explanatory prose into compact report statements: '승인되지 않은 목적을 추구하는 경우를 의미함' -> '미승인 목적 추구를 의미'.
+Preserve all material facts and protected wording; do not pad the answer with unmeasured success claims. State the actual limitation
+when facts prevent substantial reduction. This is a writing self-check, not permission to remove facts or change paragraph count.
 Explain any paragraphs that remain long because protected text or facts require it. Distinguish text reduction from measured line counts.
 Shorten repetitive phrasing into clear Korean report sentences, generally about 1-2 lines when possible; do not delete material facts
 to reach a length target. Do not add line breaks, paragraphs, titles, tables, citations, or new claims. Unchanged paragraphs may be omitted.
 The app applies these replacements only in a separate rendered comparison. The user chooses whether to apply it to the document.
 Never ask the user to select a paragraph for this supported document-wide request. Explain the precise scope: only the supplied
-paragraphs are editable; headings, tables, note descriptions and any preserved counts stay unchanged. Inline protected text retains its formatting. If unavailable is nonempty
+paragraphs are editable; headings, table content, note descriptions and any preserved counts stay unchanged. Table geometry may separately change only via table_layout below. Inline protected text retains its formatting. If unavailable is nonempty
 or paragraphs are empty, explain that exact limitation. For discussion/questions, return an empty document_rewrites list.
 When rewrite_context is absent, document_rewrites must be empty. Table/formatting edits never use text replacement fields.
+When rewrite_context.table_targets is nonempty, table_layout may independently propose the supported table geometry changes,
+including in the same response as document_rewrites. Otherwise table_layout must be null. This capability does NOT require a catalog design.
+Return {parent_half: true/false, caption_gap_mm: number/null} only when the user requests such table layout changes.
+parent_half=true aligns eligible data tables at the midpoint between the preceding body marker start and its following text,
+reusing the document standard's 50-percent anchor, and shrinks full-width tables to fit the remaining page width. It does NOT mean half-width tables.
+caption_gap_mm sets space after the existing centered caption, without inserting blank paragraphs; use 2 mm for '조금' unless specified.
+The structured table_targets contain XML-derived positions and dimensions, not screenshots. Only listed eligible tables are affected;
+cover/title frames, TOC, merged/nested/floating tables and their text remain unchanged. Do not claim to see a screenshot.
+Never omit a supported geometry request merely because the design catalog has no matching preset. Explain any unsupported portion separately.
 When design_context and design_catalog are supplied, you may suggest up to three catalog choices relevant to the user's request.
 Each design_suggestion has exactly kind ('design' or 'standard'), id, sha256 copied verbatim from one available catalog entry,
 and reason (nonempty Korean text, at most 600 characters). Never invent choices, settings, targets, XML or approval.
@@ -152,6 +166,13 @@ def codex_answer(value, settings, active):
             else:
                 schema["properties"].pop("document_rewrites")
                 schema["$defs"].pop("ParagraphRewrite")
+            if (value.get("rewrite_context") or {}).get("table_targets"):
+                schema["required"].append("table_layout")
+                schema["properties"]["table_layout"].pop("default", None)
+                schema["$defs"]["TableLayout"]["required"] = ["parent_half", "caption_gap_mm"]
+            else:
+                schema["properties"].pop("table_layout")
+                schema["$defs"].pop("TableLayout")
             if not schema["$defs"]:
                 schema.pop("$defs")
             turn = call("turn/start", {"threadId": thread_id,

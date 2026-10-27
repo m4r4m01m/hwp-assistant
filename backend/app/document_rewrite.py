@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .block_hwpx import HP, Semantic, serialize_block_xml, verify_engine_output
 from .editor_design_hwpx import paragraph_controls, _role
 from .hwpx import digest
+from .assistant_table_layout import TableTarget, apply_layout
 
 
 class Strict(BaseModel):
@@ -57,6 +58,7 @@ class RewriteContext(Strict):
     paragraphs: list[RewriteParagraph] = Field(max_length=120)
     preserved: dict[str, int] = Field(max_length=8)
     unavailable: str = Field(default="", max_length=300)
+    table_targets: list[TableTarget] | None = Field(default=None, max_length=20, exclude_if=lambda value: value is None)
 
     @model_validator(mode="after")
     def bounded(self):
@@ -158,10 +160,11 @@ def inline_runs(semantic, paragraph):
     return (groups[0], protected) if protected else None
 
 
-def verify_rewrite_output(source, actual, context, changes):
+def verify_rewrite_output(source, actual, context, changes, table_layout=None):
     """Compare native output with approved text and every unchanged object/style."""
     if digest(source) != context["source_sha256"]:
         raise HTTPException(409, "질문을 보낸 원본 문서와 다릅니다.")
+    source = apply_layout(source, context, table_layout)
     original = Semantic(source)
     expected = copy.deepcopy(original.section)
     paragraphs = list(expected)

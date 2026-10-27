@@ -18,6 +18,7 @@ export type AssistantTurn = {
   document_context: { sha256: string; truncated: boolean; revision: number; epoch: number; characters: number };
   design_context?: AssistantDesignContext | null; design_proposals?: AssistantDesignProposal[];
   rewrite_context?: AssistantRewriteContext | null; document_rewrites?: ParagraphRewrite[];
+  table_layout?: { parent_half: boolean; caption_gap_mm: number | null } | null;
   error: string; execution: { provider?: string; model?: string; completed?: boolean }; created_at: number; stale: boolean; can_cancel: boolean;
 };
 type Provider = { provider: string; model: string | null; configured: boolean; allowed: boolean; reason: string };
@@ -172,7 +173,7 @@ export function DocumentAssistantPanel({ thread, document: doc, captureDocument,
   useEffect(() => {
     if (!panelActive || busy || permissionLost || running || wholePreview || !documentRewrite || !writable) return;
     const turn = turns.find(item => requestedHere.current.has(item.id) && !preparedTurns.current.has(item.id) &&
-      item.status === "ready" && !!item.document_rewrites?.length && !!item.rewrite_context && !item.stale && item.base_version === doc.current_version);
+      item.status === "ready" && (!!item.document_rewrites?.length || !!item.table_layout) && !!item.rewrite_context && !item.stale && item.base_version === doc.current_version);
     if (turn) { preparedTurns.current.add(turn.id); setWholePreview(turn); }
   }, [turns, panelActive, busy, permissionLost, running, wholePreview, documentRewrite, writable, doc.current_version]);
   async function prepareRewrite(turn: AssistantTurn) {
@@ -231,7 +232,7 @@ export function DocumentAssistantPanel({ thread, document: doc, captureDocument,
         <p className="hint">{pending ? "재확인은 보관한 질문과 이 문서 내용을 사용합니다." : "새 질문을 보낼 때 문서를 다시 읽습니다. 이전 응답은 요청 당시 내용을 기준으로 합니다."}</p>
         {preview.document_context.truncated && <p className="notice">문서가 길어 앞부분만 포함됩니다. 포함되지 않은 부분은 AI가 확인할 수 없습니다.</p>}
         <pre className="assistant-context-text" data-testid="assistant-context-preview">{preview.document_context.text}</pre>
-        <p className="hint">{preview.rewrite_context ? `문서 전체: 본문 ${preview.rewrite_context.paragraphs.length}개 문단 수정 가능. ${preview.rewrite_context.unavailable}` : preview.selection ? `수정 대상 문단: ${preview.selection.evidence.text}` : "현재 위치는 문단 수정 대상이 아닙니다. ‘문서 전체 문장’ 범위로 요청하거나 문서에 대해 질문할 수 있습니다."}</p>
+        <p className="hint">{preview.rewrite_context ? `본문 ${preview.rewrite_context.paragraphs.length}개 문단 · 표 ${preview.rewrite_context.table_targets?.length || 0}개 배치 수정 가능. ${preview.rewrite_context.unavailable}` : preview.selection ? `수정 대상 문단: ${preview.selection.evidence.text}` : "현재 위치는 문단 수정 대상이 아닙니다. ‘문서 전체’ 범위로 요청하거나 문서에 대해 질문할 수 있습니다."}</p>
         {preview.design_context && <p className="hint">디자인 대상: {preview.design_context.target?.kind === "table" ? "현재 표" : preview.design_context.target?.kind === "paragraph" ? "현재 문단" : "문서 전체 표준"}. 제안은 미리보기를 확인한 뒤 적용합니다.</p>}
         {preview.design_context?.target_text && <details><summary>선택한 부분의 내용{preview.design_context.target_text_truncated ? " · 일부 발췌" : ""}</summary><pre className="assistant-context-text">{preview.design_context.target_text}</pre></details>}
       </details>}
@@ -245,8 +246,8 @@ export function DocumentAssistantPanel({ thread, document: doc, captureDocument,
           {turn.stale && <p className="hint">이 답변 이후 문서 저장본이 바뀌었습니다. 새 요청은 현재 문서를 다시 읽습니다.</p>}
           {turn.document_context.truncated && <p className="hint">긴 문서의 앞부분을 읽고 작성한 답변입니다.</p>}
           {turn.rewrite_context && <p className="hint">전체 문장 수정 대상 {turn.rewrite_context.paragraphs.length}개 문단. {turn.rewrite_context.unavailable || Object.entries(turn.rewrite_context.preserved).filter(([, count]) => count > 0).map(([name, count]) => `${name} ${count}개 유지`).join(" · ")}</p>}
-          {!!turn.document_rewrites?.length && turn.rewrite_context && <div className="assistant-rewrite-action">
-            <strong>본문 {turn.document_rewrites.length}개 문단 수정안</strong>
+          {(!!turn.document_rewrites?.length || !!turn.table_layout) && turn.rewrite_context && <div className="assistant-rewrite-action">
+            <strong>본문 {turn.document_rewrites?.length || 0}개 문단 수정안{turn.table_layout ? ` · 표 ${turn.rewrite_context.table_targets?.length || 0}개 배치` : ""}</strong>
             <button disabled={!writable || !documentRewrite || permissionLost || active || turn.status !== "ready" || turn.stale || turn.base_version !== doc.current_version}
               onClick={() => setWholePreview(turn)}>문서 전체 전후 비교</button>
             <small>별도 문서에 반영한 결과를 확인하고, 원문에 적용할지 선택합니다.</small>
@@ -288,7 +289,7 @@ export function DocumentAssistantPanel({ thread, document: doc, captureDocument,
     </div>
     {writable && <div className="assistant-composer">
       {documentRewrite && <label className="assistant-scope">수정 범위 <select aria-label="AI 수정 범위" value={scope} disabled={active || !!pending} onChange={event => setScope(event.target.value as typeof scope)}>
-        <option value="document">본문 전체 문장</option><option value="selection">현재 문단</option>
+        <option value="document">문서 전체 · 문장과 표 배치</option><option value="selection">현재 문단</option>
       </select></label>}
       <label htmlFor={`assistant-message-${thread}`}>AI에게 요청</label>
       <textarea id={`assistant-message-${thread}`} aria-label="AI에게 요청" rows={3} maxLength={12000} value={message} placeholder="전체 문장을 짧고 간결한 보고서 문체로 다듬어줘."

@@ -1,4 +1,5 @@
 import { unzipSync } from "fflate";
+import { api, jsonRequest } from "./api";
 import type { ExportSnapshot, Snapshot, StyleTarget } from "./editor";
 import type { BodyLayoutEvidence } from "./block-layout";
 
@@ -7,7 +8,18 @@ export type AssistantDesignTarget = { kind: "paragraph" | "table"; section: 0; p
 export type AssistantDesignContext = { source_sha256: string; target: AssistantDesignTarget | null;
   target_text?: string; target_text_truncated?: boolean; target_is_title_frame?: boolean };
 export type AssistantRewriteParagraph = { section: 0; paragraph: number; text: string; text_sha256: string; length: number; fixed_prefix: string; protected_text?: string[]; rendered_lines?: number };
-export type AssistantRewriteContext = { source_sha256: string; paragraphs: AssistantRewriteParagraph[]; preserved: Record<string, number>; unavailable: string };
+export type AssistantTableTarget = { paragraph: number; control: number; parent_paragraph: number; caption_paragraph: number | null; caption: string; left_mm: number; width_mm: number; parent_half_mm: number; caption_gap_mm: number | null };
+export type AssistantRewriteContext = { source_sha256: string; paragraphs: AssistantRewriteParagraph[]; preserved: Record<string, number>; unavailable: string; table_targets?: AssistantTableTarget[] };
+export async function assistantTableContext(documentId: string, baseVersion: string, token: string, source: ExportSnapshot) {
+  const chunks: string[] = [];
+  for (let i = 0; i < source.bytes.length; i += 8192) chunks.push(String.fromCharCode(...source.bytes.subarray(i, i + 8192)));
+  const result = await api<{ source_sha256: string; table_targets: AssistantTableTarget[] }>(`/documents/${documentId}/assistant-layout-context`, {
+    ...jsonRequest("POST", { base_version: baseVersion, source_base64: btoa(chunks.join("")) }),
+    headers: { "Content-Type": "application/json", "X-Edit-Session": token },
+  });
+  if (result.source_sha256 !== await digest(source.bytes)) throw new Error("표 배치 정보와 현재 문서가 다릅니다.");
+  return result.table_targets;
+}
 export type AssistantCapture = { base_version: string; document_context: AssistantDocumentContext; selection: Snapshot | null; design_context?: AssistantDesignContext | null; rewrite_context?: AssistantRewriteContext | null };
 const MAX_TEXT = 60000;
 const HP = "http://www.hancom.co.kr/hwpml/2011/paragraph", HH = "http://www.hancom.co.kr/hwpml/2011/head";

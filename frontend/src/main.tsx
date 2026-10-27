@@ -31,7 +31,7 @@ import { TocPanel, type TocCapture, type PreparedToc } from "./toc";
 import "./editor-workspace.css";
 import { WorkspaceNav, WorkspaceIcon, type WorkspaceSection } from "./workspace-nav";
 import "./workspace-shell.css";
-import { assistantDocumentContext, assistantDesignContext, assistantRewriteContext, type AssistantDesignTarget } from "./document-assistant-context";
+import { assistantDocumentContext, assistantDesignContext, assistantRewriteContext, assistantTableContext, type AssistantDesignTarget } from "./document-assistant-context";
 import type { AssistantTurn } from "./document-assistant";
 import { EditorDesignPanel, type DesignCapture, type PreparedDesign, type DesignIntent, type DesignChoice } from "./editor-designs";
 import { blockHash } from "./block-insert";
@@ -1244,6 +1244,8 @@ function Editor({
                 const document_context = await assistantDocumentContext(source);
                 const design_context = await assistantDesignContext(source, target);
                 const rewrite_context = scope === "document" ? await assistantRewriteContext(source, instance.bodyLayout()) : null;
+                if (rewrite_context && !rewrite_context.unavailable)
+                  rewrite_context.table_targets = await assistantTableContext(document.id, document.current_version!, token.current, source);
                 if (adapter.current !== instance || doc.current?.current_version !== document.current_version || instance.bridge.revision() !== source.revision || epoch.current !== source.epoch)
                   throw new Error("읽는 동안 문서가 바뀌었습니다. 현재 내용으로 다시 요청하세요.");
                 if (blockJson(currentStyleTarget(instance)) !== blockJson(target)) throw new Error("읽는 동안 문단이나 표 선택이 바뀌었습니다. 현재 위치에서 다시 요청하세요.");
@@ -1251,10 +1253,10 @@ function Editor({
               }}
               documentRewrite={{
                 capture: async turn => {
-                  if (!turn.rewrite_context || !turn.document_rewrites?.length || turn.status !== "ready" || turn.stale ||
+                  if (!turn.rewrite_context || (!turn.document_rewrites?.length && !turn.table_layout) || turn.status !== "ready" || turn.stale ||
                       turn.document_id !== doc.current?.id || turn.base_version !== doc.current?.current_version)
                     throw new BlockFenceError("수정안을 작성한 문서나 저장 버전이 바뀌었습니다. 현재 문서로 다시 요청하세요.");
-                  const captured = captureToc("AI 문장 수정", true);
+                  const captured = captureToc("AI 문서 수정", true);
                   // Whole-document requests do not depend on a cursor location.
                   captured.selection = null;
                   try {

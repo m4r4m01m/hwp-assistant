@@ -126,7 +126,34 @@ if os.getenv("HWP_E2E_DOCUMENT_REWRITE") == "1":
 
     assistant_runner.generate_answer = synthetic_document_rewrite
 
+if os.getenv("HWP_E2E_ASSISTANT_TABLE_LAYOUT") == "1":
+    from app import assistant_runner
+    from app.document_assistant import AssistantResponse
+    from tests.assistant_table_fixture import REPLACEMENTS
+    os.environ["HWP_DOCUMENT_ASSISTANT_PROVIDER"] = "llm"
+    os.environ["LLM_PROVIDER"] = "openai-compatible"
+    os.environ["LLM_BASE_URL"] = "http://127.0.0.1:9/v1"
+    os.environ["LLM_MODEL"] = "synthetic-table-layout-fixture"
+
+    def synthetic_table_layout(value, provider, settings, active=lambda: True):
+        context = value.get("rewrite_context") or {}
+        changes = [] if "표만" in value["message"] else [dict(section=p["section"], paragraph=p["paragraph"],
+            before_sha256=p["text_sha256"], replacement=REPLACEMENTS[p["text"]])
+            for p in context.get("paragraphs", []) if p["text"] in REPLACEMENTS]
+        return AssistantResponse(answer="합성 표 배치와 본문 수정안을 비교하세요.", rewrite_instruction=None,
+            document_rewrites=changes, table_layout=dict(parent_half=True, caption_gap_mm=2.0)), {
+                "executor": "synthetic-table-layout-fixture", "completed": True, "actual_model_calls": 0}
+    assistant_runner.generate_answer = synthetic_table_layout
+
 app = create_app()
+
+if os.getenv("HWP_E2E_ASSISTANT_TABLE_LAYOUT") == "1":
+    from fastapi.responses import Response
+    from tests.assistant_table_fixture import document as layout_document
+
+    @app.get("/api/test/assistant-table-fixture")
+    def assistant_table_fixture():
+        return Response(layout_document(), media_type="application/hwp+zip")
 
 if os.getenv("HWP_E2E_DOCUMENT_REWRITE") == "1":
     from fastapi.responses import Response
