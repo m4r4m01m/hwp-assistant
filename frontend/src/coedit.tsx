@@ -18,7 +18,7 @@ export function Coedit({ document: doc, onClose }: {document: Document; onClose:
   function fail(cause: unknown) { paused.current = true; freeze(true); setError(errorMessage(cause)); setStatus("동기화 중단 · 내 편집 보존"); }
   useEffect(() => {
     alive.current = true; const controller = new AbortController(); let off = () => {}; let lastPoll = 0;
-    let composing = false, loadingBuffer = false;
+    let composing = false, loadingBuffer = false, expectedEpoch: number | null = null;
     const compositionStart = () => { composing = true; }, compositionEnd = () => { composing = false; lastEdit.current = Date.now(); };
     const headers = () => ({"X-Coedit-Session": token.current});
     async function load(next: string) {
@@ -33,6 +33,7 @@ export function Coedit({ document: doc, onClose }: {document: Document; onClose:
       if (Array.isArray(position) && position.length === 3) {
         try { await current.sdk.hwpctrl.call("SetPos", position); } catch { /* Document structure may have changed. */ }
       }
+      expectedEpoch = current.exportHwpx().epoch;
       version.current = next; dirty.current = false;
     }
     cycle.current = async (force = false) => {
@@ -43,6 +44,8 @@ export function Coedit({ document: doc, onClose }: {document: Document; onClose:
       if (!force && !dirty.current && !pending.current && Date.now() - lastPoll < 2000) return;
       locked.current = true;
       try {
+        if (adapter.current!.bridge.documentState().documentEpoch !== expectedEpoch)
+          throw new Error("편집기에서 다른 문서가 열렸습니다. 원래 공동문서에 덮어쓰지 않습니다. 현재 내용을 다운로드하고 문서함에서 다시 여세요.");
         if ((dirty.current && (!typing || force)) || pending.current) {
           // Freeze only the short publish/rebase transaction. Never reload over
           // typing that occurred after the captured snapshot, including IME.
@@ -66,7 +69,10 @@ export function Coedit({ document: doc, onClose }: {document: Document; onClose:
         setParticipants(result.participants); lastPoll = Date.now();
         // The GET-equivalent poll may complete after new typing. Defer loading;
         // the next publish merges this buffer against its exact old version.
-        if (result.current_version !== version.current && !dirty.current && !composing) { freeze(true); await load(result.current_version); }
+        if (result.current_version !== version.current && !dirty.current && !composing) {
+          if (adapter.current!.bridge.documentState().documentEpoch !== expectedEpoch) throw new Error("동기화 중 다른 문서가 열렸습니다. 현재 내용을 다운로드하세요.");
+          freeze(true); await load(result.current_version);
+        }
         if (alive.current) setStatus(dirty.current ? "내 변경 동기화 대기" : "공동 변경 저장 완료");
       } catch (cause) { if (alive.current) fail(cause); }
       finally { locked.current = false; if (alive.current && !paused.current) freeze(false); }

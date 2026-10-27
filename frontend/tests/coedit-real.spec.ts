@@ -79,3 +79,15 @@ test("REAL rhwp: an exclusive editor leaves the second tab a readable saved snap
   await expect(peer.getByLabel("현재 문서와 저장 상태").getByRole("status")).toHaveText("저장 완료", {timeout:90000});
   await peer.close();
 });
+
+test("REAL rhwp: opening a different native document never replaces the shared file", async ({page, request}) => {
+  const original = await readFile(new URL("../../samples/paragraph-and-table.hwpx", import.meta.url));
+  const name = `합성 문서 식별 보호 ${Date.now()}.hwpx`;
+  const response = await request.post(`/api/documents?name=${encodeURIComponent(name)}&document_id=${crypto.randomUUID()}`, {data:original,headers:{"Idempotency-Key":crypto.randomUUID()}});
+  expect(response.ok()).toBeTruthy(); const doc = await response.json();
+  await open(page, name);
+  await (await frame(page)).evaluate(async () => { await (window as any).hwpAssistantBridge.newDocument(); });
+  await expect(page.getByRole("alert")).toContainText("다른 문서",{timeout:15000});
+  expect(await (await request.get(`/api/documents/${doc.id}/versions`)).json()).toHaveLength(1);
+  expect(await (await request.get(`/api/documents/${doc.id}/versions/${doc.current_version}/file`)).body()).toEqual(original);
+});
