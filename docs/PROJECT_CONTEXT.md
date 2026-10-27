@@ -1,5 +1,17 @@
 # HWP Assistant 프로젝트 컨텍스트
 
+## 2026-10-27 — 배포 실패 복구와 직전 운영 이후 변경 검토
+
+이번 검토의 마지막 성공 운영 배포는 [`54d19f9817adf78e54383a526bccc1207e2e5c11`](https://github.com/m4r4m01m/hwp-assistant/commit/54d19f9817adf78e54383a526bccc1207e2e5c11)의 [run 40376552141](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40376552141)이다. 배포 job의 백업·교체·공개 HTTPS 검사가 모두 성공했음을 Actions에서 다시 확인했다. 이후 [PR #48](https://github.com/m4r4m01m/hwp-assistant/pull/48)은 운영 영수증 문서이며, 제품 변경은 [PR #45](https://github.com/m4r4m01m/hwp-assistant/pull/45)의 main [`42cdc0fbd3de19d65f0b3dcdc11ed281ff4dae87`](https://github.com/m4r4m01m/hwp-assistant/commit/42cdc0fbd3de19d65f0b3dcdc11ed281ff4dae87)에 포함됐다. 아래의 PR #45 미병합 문구는 당시 기록으로 보존한다.
+
+같은 `42cdc0f`의 [실패 run 40429891728](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40429891728/job/121947063317)은 API·웹 이미지 빌드와 실제 PostgreSQL/API/web HTTPS 저장·재시작 검사가 성공한 뒤, Chromium 의존성 설치에서 중단됐다. 원인은 `packages.microsoft.com/ubuntu/24.04/prod`의 InRelease 요청 **403 Forbidden**이다. 이미지 게시와 운영 배포는 실행되지 않았다. 기존 Ubuntu 미러 URL 보완만으로는 별도 vendor 저장소 장애를 격리하지 못했다.
+
+- CI 전용 APT 준비는 기존 source 파일을 보존하고, 공식 Ubuntu 항목만 별도 복사해 APT source 경로로 사용한다. 서명 키·suite·component·TLS 검증과 재시도/시간 상한은 유지한다. GitHub-hosted Ubuntu 24.04 x64에서만 실행하며 운영 runner·Debian 빌드 이미지에는 적용하지 않는다. Linux에서는 실제 `apt-get --print-uris`로 vendor URL이 요청 계획에 들어가지 않는지도 검사한다.
+- 동료 변경 검토 중 보고서 요약어 강조가 같은 문자열의 미선언 문단까지 전파되는 서식 회귀를 재현했다. 선언의 원문 위치를 문단 정리 후에도 유지해 지정한 항목에만 강조를 연결한다. 사실·인용·기존 동결 입력과 저장된 HWPX를 다시 쓰지 않는다.
+- 새 제품 범위는 AI 본문 전체 수정과 실제 문서 전후 비교, 소유자 전용 휴지통·복구, 버전 복원 출처, 개인 비밀번호 변경, 보고서 문구·주석·편집 UI 개선, Windows preview 서비스 종료 보완이다. 전체 문장 수정의 지원 범위·사용자 적용 승인·원문/버전/임대 검사는 유지된다. DB는 `document_trash`와 `version_restores` 테이블 추가이며 기존 blobs/버전 변환이 아니다.
+
+사용자는 이번 수정의 검증 후 **merge commit 병합과 운영 재배포까지 승인**했다. 원래 checkout과 source 브랜치는 보존하고 최신 main에서 `codex/deploy-recovery-2026-10-27`을 분리했다. 이 절 작성 시점에는 새 수정의 CI·병합·배포가 아직 진행 전이며, 완료 근거를 후속 영수증으로 기록한다. 실제 운영 AI 호출과 Hancom 호환성은 이번 자동 검증과 구분한다.
+
 ## 2026-10-27 — 보고서·AI 편집·문서 관리 마무리
 
 구현 source는 [`86f8023a8d907007b7140d291c9fe5ddfae47e3b`](https://github.com/m4r4m01m/hwp-assistant/commit/86f8023a8d907007b7140d291c9fe5ddfae47e3b)이다. `origin/main`의 `2257e31`에서 `codex/editor-report-final-2026-10-27`을 만들고 QA 이력을 merge로 보존했다. 사용자가 main 반영·수동 운영 배포를 승인했지만, 이 절을 작성한 시점에는 아직 병합·배포 전이다. 아래 날짜별 이전 운영 상태와 구분한다. [집중 검증](evidence/editor-report-final-2026-10-27.json), [실제 Codex 문구 확인](evidence/report-wording-actual-2026-10-27.json).

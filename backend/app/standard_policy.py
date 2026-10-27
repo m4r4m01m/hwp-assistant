@@ -35,10 +35,10 @@ def table_geometry(settings, page_width):
     return max(0, anchor), (page_width - max(0, anchor) - right) * settings["table_width_percent"] / 100
 
 
-def organize_paragraphs(paragraphs, settings, *, lead_summaries=None):
+def organize_paragraphs(paragraphs, settings, *, lead_summaries=None, with_source_indices=False):
     """Opt-in new-plan structure: retain disabled headings as body context, not duplicate headings."""
     if settings.get("heading_structure_policy") != "CONTENT_V1":
-        return list(paragraphs)
+        return list(enumerate(paragraphs)) if with_source_indices else list(paragraphs)
     import re
     # A Unicode syllable range also matches weekdays such as '(금)'. Only the
     # fourteen Korean ordinal glyphs are structural labels safe to remove.
@@ -48,7 +48,7 @@ def organize_paragraphs(paragraphs, settings, *, lead_summaries=None):
                 (r"^[㉮-㉻]\s+", "numbered_6"))
     enabled = settings.get("enabled_heading_roles", ",".join(HEADING_ROLES)).split(",")
     result, context = [], []
-    for paragraph in paragraphs:
+    for index, paragraph in enumerate(paragraphs):
         found = next(((re.match(pattern, paragraph), role) for pattern, role in patterns if re.match(pattern, paragraph)), None)
         if found and found[1] not in enabled:
             context.append(paragraph[found[0].end():])
@@ -56,19 +56,21 @@ def organize_paragraphs(paragraphs, settings, *, lead_summaries=None):
         if context:
             prefix = " · ".join(context)
             if found:
-                result.append("□ " + prefix)
+                result.append((None, "□ " + prefix))
             else:
                 # Keep an eligible lead-summary at the start so its existing ON/OFF contract still applies.
                 from .report_contract import PARENTHETICAL_LABELS
-                label = (lead_summaries or {}).get(paragraph)
+                label = (lead_summaries or {}).get(index)
                 eligible = re.escape(label) if label is not None else PARENTHETICAL_LABELS
                 lead = re.match(r"^([□ㅇ○\-․]\s+)(\((?:" + eligible + r")\)\s*)?", paragraph)
                 paragraph = (lead[0] + prefix + ": " + paragraph[lead.end():]) if lead else "□ " + prefix + ": " + paragraph
             context = []
-        result.append(paragraph)
+        result.append((index, paragraph))
     if context:
-        result.append("□ " + " · ".join(context))
-    return result
+        result.append((None, "□ " + " · ".join(context)))
+    # Keep declarations attached to their exact source even when a disabled
+    # heading joins a paragraph or two source paragraphs have identical text.
+    return result if with_source_indices else [paragraph for _, paragraph in result]
 
 
 def validate_roles(value, roles):
