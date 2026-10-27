@@ -458,8 +458,8 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
                          if label is not None else original)
                 prepared.append(prose)
                 if label and lead_summary_match(prose, label):
-                    visible_labels[prose] = label
-            for prose in organize_paragraphs(prepared, settings, lead_summaries=visible_labels):
+                    visible_labels[position] = label
+            for position, prose in organize_paragraphs(prepared, settings, lead_summaries=visible_labels, with_source_indices=True):
                 label_role = parenthetical_role(prose)
                 if label_role:
                     label_role = enabled_role(label_role, settings)
@@ -469,8 +469,8 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
                                           body=True, scope=label_role, declared_labels=declared_labels)
                 text, reference_role = body_item(prose, settings, counters, apply_numbered_markers=True)
                 item_meta = {"style_kind": reference_role, **({"parenthetical_role": label_role} if label_role else {})}
-                label = next((label for label in visible_labels.values() if lead_summary_match(prose, label)), None)
-                if label:
+                label = visible_labels.get(position)
+                if label and lead_summary_match(prose, label):
                     item_meta["lead_summary_label"] = label
                 if label_role in ("square", "circle", "dash", "dot"):
                     item_meta["note_body_role"] = label_role

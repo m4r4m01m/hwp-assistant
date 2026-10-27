@@ -68,6 +68,29 @@ def test_declared_label_stays_before_disabled_heading_context():
     assert any(text.startswith("□ 외부 서비스: 서비스 12개 중") for text in off)
 
 
+@pytest.mark.parametrize("same_text", [False, True])
+@pytest.mark.parametrize("heading_context", [False, True])
+def test_repeated_lead_text_is_emphasized_only_at_its_declared_source(same_text, heading_context):
+    value = draft()
+    first = "□ (패치현황) 서비스 점검을 준비함."
+    second = first if same_text else "□ (패치현황) 서비스 점검을 완료함."
+    value["sections"][0]["paragraphs"] = [first, *(["가. 외부 서비스"] if heading_context else []), second]
+    value["lead_summaries"] = [{"target": f"sections.0.paragraphs.{2 if heading_context else 1}", "label": "패치현황"}]
+    original = copy.deepcopy(value)
+    settings = {**defaults(), "enabled_heading_roles": "heading", "heading_structure_policy": "CONTENT_V1",
+                "body_parenthetical_labels": True, "body_parenthetical_scope": "square"}
+    blocks = report_blocks(value, rich=True, visual_settings=settings)
+    repeated = [item for item in blocks if "(패치현황)" in item["text"]]
+    assert len(repeated) == 2
+    assert "lead_summary_label" not in repeated[0]
+    assert repeated[0].get("emphasis", []) == []
+    assert repeated[1]["lead_summary_label"] == "패치현황"
+    assert {"text": "(패치현황)", "style": "bold"} in repeated[1]["emphasis"]
+    if heading_context:
+        assert repeated[1]["text"].startswith("□ (패치현황) 외부 서비스: ")
+    assert value == original and report_hash(value) == report_hash(original)
+
+
 @pytest.mark.parametrize("change", ["location", "label", "duplicate", "heading", "empty_body"])
 def test_invalid_or_ambiguous_declarations_are_rejected(change):
     value = draft()
