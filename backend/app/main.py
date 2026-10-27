@@ -24,7 +24,7 @@ from .rewrite_capacity import ExecutionSlot
 from .auth import (
     COOKIE, LOGIN_REQUIRED, LoginRateLimiter, SessionPolicy, allowed_hosts, authenticate, authenticate_session,
     credentials, issue_session, request_origin, require_access, bind_lease, require_lease_owner,
-    revoke_session, require_password_session,
+    revoke_session, require_password_session, lease_login_context, login_scope,
 )
 from .schema import migrate
 from .accounts import AccountPolicy, UserAccount, initialize_accounts, install_accounts, require_active_if_registered, public_sample_accounts
@@ -136,21 +136,30 @@ def create_app(database_url=None, storage_dir=None):
                         await run_in_threadpool(require_password_session, engine, request.cookies.get(COOKIE, ""))
                 if account_policy.enabled:
                     await run_in_threadpool(require_active_if_registered, engine, request.state.user)
+                # A task-scoped executor can only read its frozen input/submit
+                # candidates (run_identity checks route + task). It is not a
+                # second browser login and can never acquire/publish a document.
+                request.state.login_scope = None if hasattr(request.state, "run_task") else login_scope(request.state.user, request.cookies.get(COOKIE, "") if cookie_auth else authorization)
+                expected_login = request.headers.get("x-auth-context")
+                if expected_login and not secrets.compare_digest(expected_login, request.state.login_scope or ""):
+                    raise HTTPException(409, "다른 탭에서 로그인이 변경되었습니다. 미저장 내용을 다운로드한 뒤 새로고침하세요.")
         except HTTPException as exc:
             response = JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers)
             if api_path:
                 response.headers["Cache-Control"] = "no-store"
-            if cookie_auth and request.cookies.get(COOKIE):
+            if exc.status_code == 401 and cookie_auth and request.cookies.get(COOKIE):
                 response.delete_cookie(COOKIE, path="/api", httponly=True, samesite="strict",
                                        secure=request.scope.get("scheme") == "https")
             return response
         actor_token = actor_context.set(getattr(request.state, "user", None))
         engine_token = engine_context.set(engine if account_policy.enabled else None)
+        login_token = lease_login_context.set(getattr(request.state, "login_scope", None))
         try:
             response = await call_next(request)
         finally:
             actor_context.reset(actor_token)
             engine_context.reset(engine_token)
+            lease_login_context.reset(login_token)
         if api_path:
             response.headers["Cache-Control"] = "no-store"
         return response
@@ -358,6 +367,7 @@ def create_app(database_url=None, storage_dir=None):
         with Session(engine) as db:
             row = db.get(UserAccount, request.state.user) if account_policy.enabled else None
             return {"user_id": request.state.user, "authentication_required": authentication_required,
+                    "auth_context": request.state.login_scope,
                     "name": row.name if row else request.state.user,
                     "kind": row.kind if row else "legacy",
                     "can_change_password": bool(account_policy.enabled and not request.headers.get("authorization")
@@ -447,6 +457,17 @@ def create_app(database_url=None, storage_dir=None):
             )
             return doc_dict(doc)
 
+    @app.get("/api/documents/{doc_id}/session")
+    def session_status(doc_id: str, request: Request):
+        from .db import LeaseOwner
+        with Session(engine) as db:
+            doc = require_access(db, doc_id, request.state.user)
+            active = bool(doc.lease_token and doc.lease_until > time.time())
+            owner = db.get(LeaseOwner, doc.id) if active else None
+            return {"active": active, "expires_at": doc.lease_until if active else None,
+                    "mode": "collaborative" if active and doc.lease_token.startswith("coedit:") else "exclusive",
+                    "editor": owner.user_id if owner else None, "current_version": doc.current_version}
+
     @app.post("/api/documents/{doc_id}/session")
     def acquire(doc_id: str, request: Request):
         with transaction(engine) as db:
@@ -454,7 +475,7 @@ def create_app(database_url=None, storage_dir=None):
             if doc.lease_token and doc.lease_until > time.time():
                 raise HTTPException(
                     409,
-                    "다른 편집 세션이 사용 중입니다. 탭을 닫거나 최대 120초 후 다시 시도하세요.",
+                    "다른 탭 또는 사용자가 편집 중입니다. 편집자가 저장 후 문서를 닫으면 편집할 수 있습니다.",
                 )
             invalidate_running(db, doc.id, "기존 편집 임대가 끝났습니다. 새 스냅샷으로 요청하세요.")
             doc.lease_token = secrets.token_urlsafe(32)
@@ -467,11 +488,16 @@ def create_app(database_url=None, storage_dir=None):
             }
 
     @app.put("/api/documents/{doc_id}/session")
-    def renew(doc_id: str, request: Request, x_edit_session: str = Header()):
+    def renew(doc_id: str, request: Request, x_edit_session: str = Header(), reconnect: bool = False):
         with transaction(engine) as db:
             doc = locked(db, doc_id, request.state.user)
             require_lease_owner(db, doc, request.state.user)
-            check_lease(doc, x_edit_session)
+            if not reconnect:
+                check_lease(doc, x_edit_session)
+            # An expired holder may reconnect only while its exact token remains.
+            # A new acquisition rotates the token under this same document lock.
+            if not x_edit_session or not secrets.compare_digest(doc.lease_token or "", x_edit_session):
+                raise HTTPException(409, "편집권이 다른 세션으로 넘어갔습니다. 미저장 내용을 다운로드하세요.")
             doc.lease_until = time.time() + lease_seconds
             return {"expires_at": doc.lease_until}
 
@@ -696,6 +722,8 @@ def create_app(database_url=None, storage_dir=None):
     install_account_settings(app)
     from .ai_connection import install_ai_connection
     install_ai_connection(app)
+    from .coedit import install_coedit
+    install_coedit(app, publish, doc_dict)
     app.add_middleware(RequestTelemetry, runtime=app)
     return app
 

@@ -2,6 +2,7 @@ from .library_access import document_role
 """Document conversations with frozen live-editor context and explicit edit proposals."""
 from .codex_runtime import allowed as codex_allowed, require_ready as require_codex_ready, reserve_usage as reserve_codex_usage
 import json
+import base64
 import os
 import secrets
 import time
@@ -21,6 +22,7 @@ from .hwpx import digest
 from .rewrite import TaskInput
 from .rewrite_capacity import ExecutionSlot
 from .document_rewrite import RewriteContext, ParagraphRewrite, validated_rewrites, verify_rewrite_output
+from .assistant_table_layout import TableLayout, targets as table_targets, validated_layout, apply_layout
 
 MAX_SECONDS = 600
 CONTRACT = "live-document-conversation-v1"
@@ -137,6 +139,7 @@ class AssistantResponse(BaseModel):
     rewrite_instruction: str | None = Field(default=None, min_length=1, max_length=2000)
     design_suggestions: list[DesignSuggestion] = Field(default_factory=list, max_length=3)
     document_rewrites: list[ParagraphRewrite] = Field(default_factory=list, max_length=120)
+    table_layout: TableLayout | None = None
 
     @field_validator("answer", "rewrite_instruction")
     @classmethod
@@ -151,6 +154,11 @@ def request_payload(value):
     result = value.model_dump(mode="json")
     if result["rewrite_context"] is None:
         result.pop("rewrite_context")
+    else:
+        for paragraph, incoming in zip(result["rewrite_context"]["paragraphs"], value.rewrite_context.paragraphs):
+            for optional in ("protected_text", "rendered_lines"):
+                if optional not in incoming.model_fields_set:
+                    paragraph.pop(optional, None)
     if result["design_context"] is None:
         result.pop("design_context")
     else:
@@ -292,7 +300,8 @@ def finish_turn(engine, turn_id, response=None, evidence=None, error=""):
                 raise ValueError("문서 전체 수정은 고정된 본문 수정안으로 반환해야 합니다.")
             proposals = validated_design_proposals(db, row.requested_by, payload, value.design_suggestions)
             rewrites = validated_rewrites(payload, value.document_rewrites)
-            row.response, row.status = canonical({**value.model_dump(), "design_proposals": proposals, "document_rewrites": rewrites}), "ready"
+            layout = validated_layout(payload, value.table_layout.model_dump() if value.table_layout else None)
+            row.response, row.status = canonical({**value.model_dump(), "design_proposals": proposals, "document_rewrites": rewrites, "table_layout": layout}), "ready"
             # A completed turn is also visible to the existing shared conversation.
             for role, content in (("user", payload["message"]), ("assistant", value.answer)):
                 db.add(Message(id=str(uuid.uuid5(uuid.UUID(row.id), role)), conversation_id=row.conversation_id,
@@ -335,6 +344,7 @@ def public_turn(row, doc, user, role):
         "status": status(row), "answer": result.get("answer"), "rewrite_instruction": result.get("rewrite_instruction"),
         "design_proposals": result.get("design_proposals", []), "design_context": payload.get("design_context"),
         "rewrite_context": payload.get("rewrite_context"), "document_rewrites": result.get("document_rewrites", []),
+        "table_layout": result.get("table_layout"),
         "selection": payload["selection"], "document_context": {k: context[k] for k in ("sha256", "truncated", "revision", "epoch")} | {"characters": len(context["text"])},
         "error": row.error or ("응답 제한 시간이 지났습니다. 같은 질문을 자동으로 다시 실행하지 않습니다." if status(row) == "expired" else ""),
         "execution": {k: v for k, v in json.loads(row.execution).items() if not k.startswith("_")},
@@ -352,8 +362,10 @@ def install_document_assistant(app, check_lease):
     class RewriteCheck(BlockInput):
         base_version: str = Field(min_length=1, max_length=36)
 
-    class RewriteVerify(RewriteCheck):
+    class LayoutSource(RewriteCheck):
         source_base64: str = Field(min_length=1, max_length=MAX_BASE64)
+
+    class RewriteVerify(LayoutSource):
         engine_output_base64: str = Field(min_length=1, max_length=MAX_BASE64)
 
     def checked_rewrite(doc_id, base_version, user, token, turn_id=None):
@@ -372,9 +384,32 @@ def install_document_assistant(app, check_lease):
                 raise HTTPException(409, "완료된 현재 문서 수정안만 적용할 수 있습니다.")
             payload, result = json.loads(row.input), json.loads(row.response)
             changes = validated_rewrites(payload, result.get("document_rewrites", []))
-            if not changes:
+            layout = validated_layout(payload, result.get("table_layout"))
+            if not changes and not layout:
                 raise HTTPException(409, "적용할 전체 문단 수정안이 없습니다.")
-            return payload["rewrite_context"], changes
+            return payload["rewrite_context"], changes, layout
+
+    @app.post("/api/documents/{doc_id}/assistant-layout-context")
+    async def layout_context(doc_id: str, request: Request, x_edit_session: str = Header()):
+        value = await bounded_input(request, LayoutSource)
+        checked_rewrite(doc_id, value.base_version, request.state.user, x_edit_session)
+        source = decoded(value.source_base64)
+        result = await run_in_threadpool(table_targets, source)
+        checked_rewrite(doc_id, value.base_version, request.state.user, x_edit_session)
+        return {"source_sha256": digest(source), "table_targets": result}
+
+    @app.post("/api/assistant-turns/{turn_id}/layout-preview")
+    async def layout_preview(turn_id: str, request: Request, x_edit_session: str = Header()):
+        value = await bounded_input(request, LayoutSource)
+        with Session(engine) as db:
+            row = db.get(ConversationTurn, turn_id)
+            if not row:
+                raise HTTPException(404, "질문을 찾을 수 없습니다.")
+            doc_id = row.document_id
+        context, _, layout = checked_rewrite(doc_id, value.base_version, request.state.user, x_edit_session, turn_id)
+        output = await run_in_threadpool(apply_layout, decoded(value.source_base64), context, layout)
+        checked_rewrite(doc_id, value.base_version, request.state.user, x_edit_session, turn_id)
+        return {"source_sha256": context["source_sha256"], "output_base64": base64.b64encode(output).decode(), "output_sha256": digest(output)}
 
     @app.post("/api/assistant-turns/{turn_id}/rewrite-check")
     async def verify_document_rewrite(turn_id: str, request: Request, x_edit_session: str = Header()):
@@ -384,9 +419,9 @@ def install_document_assistant(app, check_lease):
             if not row:
                 raise HTTPException(404, "수정 요청을 찾을 수 없습니다.")
             doc_id = row.document_id
-        context, changes = checked_rewrite(doc_id, value.base_version, request.state.user, x_edit_session, turn_id)
+        context, changes, layout = checked_rewrite(doc_id, value.base_version, request.state.user, x_edit_session, turn_id)
         source, output = decoded(value.source_base64), decoded(value.engine_output_base64)
-        await run_in_threadpool(verify_rewrite_output, source, output, context, changes)
+        await run_in_threadpool(verify_rewrite_output, source, output, context, changes, layout)
         checked_rewrite(doc_id, value.base_version, request.state.user, x_edit_session, turn_id)
         return {"verified": True, "source_sha256": digest(source), "output_sha256": digest(output), "turn_id": turn_id}
 

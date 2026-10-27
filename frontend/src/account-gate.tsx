@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { api, ApiError, errorMessage, jsonRequest } from "./api";
+import { api, ApiError, errorMessage, jsonRequest, pinAuthContext } from "./api";
 import { scheduleEngineWarmup, startEngineWarmup, subscribeWarmup, warmState } from "./engine-warmup";
 import kftcLogo from "./assets/kftc-logo.png";
 import { WorkspaceIcon } from "./workspace-nav";
@@ -52,7 +52,7 @@ export function AccountGate({ children }: { children: (account: Account) => Reac
     void (async () => {
       try {
         const value = await api<Account>("/auth/me", { signal: controller.signal, timeoutMs: 12000 });
-        if (!controller.signal.aborted) setAccount(value);
+        if (!controller.signal.aborted) { pinAuthContext((value as Account & {auth_context?: string}).auth_context); setAccount(value); }
       } catch (cause) {
         if (controller.signal.aborted) return;
         if (!(cause instanceof ApiError && cause.status === 401)) { setError(errorMessage(cause)); return; }
@@ -87,7 +87,7 @@ export function AccountGate({ children }: { children: (account: Account) => Reac
       }
       const value = await api<Account>("/auth/me", { timeoutMs: 12000 });
       if (rememberId && !legacy) remember(value.user_id);
-      clearAccountWorkspaceState(); setAccount(value);
+      clearAccountWorkspaceState(); pinAuthContext((value as Account & {auth_context?: string}).auth_context); setAccount(value);
     } catch (cause) {
       const unknownRegistration = mode === "register" && (!(cause instanceof ApiError) || cause.status >= 500);
       setError(errorMessage(cause) + (unknownRegistration ? " · 가입 요청이 접수됐을 수 있습니다. 다시 가입하지 말고 관리자에게 확인하거나 승인 후 같은 아이디로 로그인하세요." : ""));

@@ -1,0 +1,145 @@
+{
+  "date": "2026-10-27",
+  "implementation_source": "ca45dd86854eb17615117a07eabee310d2d57bcc",
+  "main_base": "0eddf4bd14bf85cffb31ac28c39b57b43c9e71ed",
+  "pull_request": "https://github.com/m4r4m01m/hwp-assistant/pull/51",
+  "problem": "Shared-library editing and management granted to approved accounts conflicted with a later original-owner-only trash policy, hiding deletion on another account's document.",
+  "policy": {
+    "shared": "Active approved members, guest and administrators can move documents to the common trash and restore them.",
+    "private": "Only the original owner can trash or restore; editor and administrator roles do not bypass ownership.",
+    "preserved": [
+      "original Access and ownership",
+      "immutable original and version bytes",
+      "current version",
+      "fresh account and policy checks",
+      "document lock",
+      "active edit lease exclusion",
+      "actor-bound delete receipts",
+      "old restore receipt rejection",
+      "audit actors"
+    ]
+  },
+  "focused_checks": {
+    "backend": {
+      "passed": 36,
+      "files": [
+        "test_document_trash.py",
+        "test_document_trash_accounts.py",
+        "test_account_audit_policy.py",
+        "test_collaboration.py"
+      ]
+    },
+    "typescript": "passed",
+    "mocked_ui": {
+      "passed": 5,
+      "viewport_widths": [
+        1024,
+        760,
+        400
+      ]
+    },
+    "independent_code_review": "No blocking defect found in changed permission, lock, receipt and preservation paths."
+  },
+  "actual_api_and_browser": {
+    "environment": "Windows; isolated SQLite and files; headless Chrome; synthetic accounts and documents only",
+    "source_product_files_verified": 156,
+    "served_assets_verified_per_environment": 26,
+    "shared": [
+      "A creates a document with two versions",
+      "B sees direct Delete and confirms trash",
+      "Common trash lists the document and B restores it",
+      "Guest and admin each delete; B restores",
+      "Active edit lease rejects deletion with 409",
+      "760px viewport retains direct Delete without horizontal overflow"
+    ],
+    "private": [
+      "Shared editor sees disabled Delete with explanation",
+      "Editor delete and restore return 403",
+      "Editor cannot list owner's trash",
+      "Owner restores the document"
+    ],
+    "data_preservation": [
+      "all original and version hashes identical",
+      "all Version and VersionAuthor columns identical",
+      "all Access columns identical",
+      "current_version identical"
+    ],
+    "fixtures_left_restored": true,
+    "evidence_path": ".cache/deletion-shared-20261027/proof.json"
+  },
+  "pre_deployment_public_check": "Passed public HTTPS routing, protected API, app/editor/comparison assets and comparison WASM integrity; no login or document write.",
+  "deployment": {
+    "status": "success",
+    "source": "76fbec8461e5441237198de7504baddcc64e0304",
+    "run_id": 40448414141,
+    "dispatch_count": 1,
+    "authorization": "User explicitly requested production deployment without further questions.",
+    "pre_build_checks": "python/frontend/UI passed",
+    "build_job_id": 122006782540,
+    "build_publish": "success",
+    "deploy_job_id": 122007808345,
+    "all_five_jobs_succeeded": true,
+    "backup_completed_at": "2026-10-27T13:21:33+09:00",
+    "production_job_completed_at": "2026-10-27T13:21:55+09:00",
+    "internal_smoke": "passed",
+    "workflow_public_smoke": "passed",
+    "independent_public_smoke": "passed",
+    "new_public_delete_ui": "verified",
+    "config_and_accounts_changed": false
+  },
+  "limits": [
+    "No real user document used in destructive tests",
+    "No production account or environment setting changed",
+    "No AI calls",
+    "No native user browser automation",
+    "This is document management verification, not new HWPX rendering or Hancom verification",
+    "Focused suites are not aggregated into a latest full regression"
+  ],
+  "ci": {
+    "source": "ca45dd86854eb17615117a07eabee310d2d57bcc",
+    "workflows": [
+      40447664084,
+      40447664120,
+      40447664225,
+      40447664088
+    ],
+    "all_succeeded": true,
+    "full_linux_pytest_passed": 1569,
+    "mocked_ui_passed": 101,
+    "strict_tls_passed": 1,
+    "main_source": "76fbec8461e5441237198de7504baddcc64e0304",
+    "main_push_runs": [
+      40448387664,
+      40448387600,
+      40448387602
+    ],
+    "main_push_all_succeeded": true
+  },
+  "local_runtime": {
+    "kept_running_source": "0eddf4bd14bf85cffb31ac28c39b57b43c9e71ed",
+    "restarted_for_this_production_task": false,
+    "note": "Current checkout has newer code. Existing local URL remains on the previous run; desktop launcher requires a later coordinated restart because source fingerprints differ."
+  },
+  "public_ui_evidence": {
+    "verified_at": "2026-10-27T04:22:30.754573+00:00",
+    "url": "https://pseudowasabi-svr.taile7b6c4.ts.net/hwp-assistant/",
+    "new_direct_delete_ui": true,
+    "shared_trash_explanation": true,
+    "assets": [
+      {
+        "url": "https://pseudowasabi-svr.taile7b6c4.ts.net/hwp-assistant/assets/app-mVafINQO.js",
+        "sha256": "734cf89b4f6a43e38cf9a83664fc5f329461f49a321d18c333ab4ad72285935b"
+      },
+      {
+        "url": "https://pseudowasabi-svr.taile7b6c4.ts.net/hwp-assistant/assets/public-path-DHJLotP-.js",
+        "sha256": "6274331ad9d99814c4ee585eb6d60e6c7d37e5ce6b8943eb160e4305f0543503"
+      },
+      {
+        "url": "https://pseudowasabi-svr.taile7b6c4.ts.net/hwp-assistant/assets/app-H2WQiOf7.css",
+        "sha256": "366a7781396c8d670cdb5074b0b7fd157ac659996f25c00359bdb652733c3a8e"
+      }
+    ],
+    "login_performed": false,
+    "document_writes": false
+  }
+}

@@ -1,6 +1,6 @@
 .document-assistant { display: flex; flex-direction: column; gap: 0; min-height: 0; height: 100%; background: #fff; }
 .assistant-scroll { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; display: flex; flex-direction: column; gap: 16px; padding: 0 6px 16px 0; }
-.conversation-switcher { display: flex; align-items: center; gap: 6px; margin: 14px 0; }
+.conversation-switcher { display: flex; align-items: center; gap: 6px; margin: 6px 0; }
 .conversation-switcher select { flex: 1; min-width: 0; width: 0; font-size: 12px; }
 .conversation-switcher button { display: inline-flex; align-items: center; justify-content: center; margin: 0; padding: 8px; white-space: nowrap; font-size: 12px; }
 .assistant-context-card { display: grid; gap: 7px; padding: 12px; background: #f2f6fa; border: 1px solid #dce6ef; border-radius: 9px; }
@@ -21,7 +21,7 @@
 .assistant-rewrite-action summary { font-size: 12px; }
 .assistant-composer { position: static; flex: 0 0 auto; display: grid; gap: 8px; padding: 12px 0; background: #fff; border-top: 1px solid #dce4ed; }
 .assistant-composer label { font-size: 13px; font-weight: 600; }
-.assistant-composer textarea { width: 100%; min-height: 86px; resize: vertical; line-height: 1.6; }
+.assistant-composer textarea { width: 100%; min-height: 64px; resize: vertical; line-height: 1.6; }
 .collaboration .assistant-composer label, .collaboration .assistant-composer textarea { margin: 0; }
 .collaboration .assistant-composer textarea { max-height: 180px; }
 .assistant-composer > button { margin: 0; min-height: 40px; }
@@ -47,3 +47,10 @@
 .assistant-secondary-tools > summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; list-style: none; }
 .assistant-secondary-tools > summary::-webkit-details-marker { display: none; }
 .assistant-disclosure-label { font-size: 11px; border: 1px solid #d5dde7; border-radius: 4px; padding: 2px 6px; color: #44556b; flex-shrink: 0; }
+.assistant-tools-nav { display: flex; gap: 4px; margin: 0 0 8px; border-bottom: 1px solid #dce4ed; }
+.assistant-tools-nav button { margin: 0; padding: 7px 10px; border: 0; border-radius: 4px 4px 0 0; background: transparent; color: #536b7e; font-size: 12px; }
+.assistant-tools-nav button[aria-pressed="true"] { background: #edf4fb; color: #174c7b; box-shadow: inset 0 -2px #296bac; font-weight: 700; }
+.assistant-main-view { display: flex; flex: 1; min-height: 0; }
+.assistant-main-view > .document-assistant { flex: 1; }
+.assistant-tools-view { flex: 1; min-height: 0; overflow-y: auto; }
+.assistant-main-view[hidden], .assistant-tools-view[hidden] { display: none; }

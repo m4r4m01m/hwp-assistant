@@ -44,18 +44,27 @@ function displayBlocks(blocks: ReportBlock[]) {
   return result;
 }
 
-export function ReportContent({ blocks, testId }: { blocks: ReportBlock[]; testId?: string }) {
+export function ReportContent({ blocks, testId, notes }: { blocks: ReportBlock[]; testId?: string; notes?: { id: string; text: string }[] }) {
   return <>{displayBlocks(blocks).map((block, i) => {
-    const text = (value: string) => <ReportText text={value} emphasis={block.emphasis} />;
-    if (block.kind === "table") return <figure className="report-visual" key={i} data-testid="report-content-table">
+    const values = [block.text, ...block.columns || [], ...block.rows?.flat() || [], ...block.steps || []];
+    const ids = [...new Set(values.flatMap(value => [...value.matchAll(/\[(N\d+)\]/g)].map(match => match[1])))];
+    const local = ids.map(id => notes?.find(note => note.id === id)).filter((note): note is { id: string; text: string } => !!note);
+    const display = (value: string) => notes ? value.replace(/\[S\d+\]/g, "").replace(/\[(N\d+)\]/g, (token, id) => {
+      const index = local.findIndex(note => note.id === id); return index < 0 ? token : local.length === 1 ? "*" : `주${index + 1})`;
+    }) : value;
+    const text = (value: string) => <ReportText text={display(value)} emphasis={block.emphasis} />;
+    const wrap = (content: React.ReactNode) => <React.Fragment key={i}>{content}{local.map((note, index) => <p className="live-note" key={note.id}>
+      {local.length === 1 ? "*" : `주${index + 1})`} {note.text.replace(/\[S\d+\]/g, "")}
+    </p>)}</React.Fragment>;
+    if (block.kind === "table") return wrap(<figure className="report-visual" data-testid="report-content-table">
       <figcaption>{text(block.text)}</figcaption><div className="report-table-scroll"><table>
         <thead><tr>{block.columns?.map((c, x) => <th scope="col" key={x}>{text(c)}</th>)}</tr></thead>
         <tbody>{block.rows?.map((row, y) => <tr key={y}>{row.map((c, x) => <td key={x}>{text(c)}</td>)}</tr>)}</tbody>
-      </table></div></figure>;
-    if (block.kind === "diagram") return <figure className="report-visual" key={i} data-testid="report-content-diagram">
+      </table></div></figure>);
+    if (block.kind === "diagram") return wrap(<figure className="report-visual" data-testid="report-content-diagram">
       <figcaption>{text(block.text)}</figcaption><ol className="report-flow" aria-label="단계별 흐름도">
         {block.steps?.map((s, x) => <li key={x}>{x > 0 && <span className="report-flow-arrow" aria-hidden="true">→</span>}<div>{text(s)}</div></li>)}
-      </ol></figure>;
-    return <p key={i} className={`live-${block.style_kind || block.kind}`} data-testid={testId}>{text(block.text)}</p>;
+      </ol></figure>);
+    return wrap(<p className={`live-${block.style_kind || block.kind}`} data-testid={testId}>{text(block.text)}</p>);
   })}</>;
 }

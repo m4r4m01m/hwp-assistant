@@ -38,7 +38,18 @@ test("unknown write outcome retains request body and idempotency key without aut
   const calls = [], body = new Blob(["frozen output"]), headers = { "Idempotency-Key": "frozen-request" };
   fetchWith(t, (_url, init) => { calls.push(init); return abortable(init.signal); });
   await assert.rejects(api("/write", { method: "POST", headers, body, timeoutMs: 25 }), error => error instanceof RequestTimeoutError && error.write && !(error instanceof ApiError));
-  assert.equal(calls.length, 1); assert.equal(calls[0].body, body); assert.equal(calls[0].headers["Idempotency-Key"], "frozen-request");
+  assert.equal(calls.length, 1); assert.equal(calls[0].body, body); assert.equal(new Headers(calls[0].headers).get("Idempotency-Key"), "frozen-request");
+});
+
+test("workspace requests retain pinned login identity without blocking fresh login", async t => {
+  const { api, pinAuthContext } = source(); const calls = [];
+  fetchWith(t, async (_url, init) => { calls.push(new Headers(init.headers)); return new Response("{}"); });
+  pinAuthContext("original-login");
+  await api("/documents", {headers:{"X-Edit-Session":"tab-token"}});
+  await api("/auth/me");
+  assert.equal(calls[0].get("X-Auth-Context"), "original-login");
+  assert.equal(calls[0].get("X-Edit-Session"), "tab-token");
+  assert.equal(calls[1].get("X-Auth-Context"), null);
 });
 
 test("HTTP errors retain status, parse Retry-After, and redact server details", async t => {

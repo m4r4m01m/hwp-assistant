@@ -44,6 +44,18 @@ async function open(page: Page) {
   const assistant = page.getByRole("region", { name: "문서와 AI 대화", exact: true });
   await expect(assistant.getByLabel("AI 수정 범위", { exact: true })).toHaveValue("document");
   await assistant.getByLabel("AI에게 요청", { exact: true }).fill("전체 문단 문장을 짧고 간결한 보고서 문체로 다듬어줘.");
+  await expect(page.getByRole("region", { name: "문단 수정 후보 기록", exact: true })).toBeHidden();
+  await page.getByRole("button", { name: "메모", exact: true }).click();
+  await page.getByLabel("대화 메시지", { exact: true }).fill("미저장 합성 메모");
+  await page.getByRole("button", { name: "AI 대화", exact: true }).click();
+  await expect(assistant.getByLabel("AI에게 요청", { exact: true })).toHaveValue("전체 문단 문장을 짧고 간결한 보고서 문체로 다듬어줘.");
+  await expect(page.getByRole("region", { name: "작성 정보·검토 메모", exact: true })).toBeHidden();
+  await page.screenshot({ path: test.info().outputPath("compact-assistant.png"), fullPage: true });
+  // Clear the intentionally unsaved memo before the later navigation check.
+  await page.getByRole("button", { name: /^메모/ }).click();
+  await expect(page.getByLabel("대화 메시지", { exact: true })).toHaveValue("미저장 합성 메모");
+  await page.getByLabel("대화 메시지", { exact: true }).fill("");
+  await page.getByRole("button", { name: "AI 대화", exact: true }).click();
   return { name, original, originalUrl, frozen, documentUrl: originalUrl.split("/versions/")[0], assistant };
 }
 
@@ -54,8 +66,10 @@ test("REAL rhwp + MOCK AI: whole-document exact changes preserve bold leads, tit
   const response = await accepted;
   expect(response.ok(), await response.text()).toBeTruthy();
   const input = response.request().postDataJSON(), turnId = (await response.json()).id;
-  expect(input.rewrite_context.paragraphs).toHaveLength(2);
-  expect(input.rewrite_context.paragraphs.every((p: any) => p.fixed_prefix && p.text.startsWith(p.fixed_prefix))).toBe(true);
+  expect(input.rewrite_context.paragraphs).toHaveLength(4);
+  expect(input.rewrite_context.paragraphs.slice(0, 2).every((p: any) => p.fixed_prefix && p.text.startsWith(p.fixed_prefix))).toBe(true);
+  expect(input.rewrite_context.paragraphs.slice(2).every((p: any) => p.protected_text.length === 2)).toBe(true);
+  expect(input.rewrite_context.paragraphs.every((p: any) => p.rendered_lines > 0)).toBe(true);
   expect(input.rewrite_context.source_sha256).toBe(digest(source.frozen));
   const preview = page.getByRole("dialog", { name: "문서 전체 수정 전후 비교", exact: true });
   await expect(preview.getByRole("img", { name: "수정 전 실제 문서", exact: true })).toBeVisible({ timeout: 90000 });
@@ -65,7 +79,11 @@ test("REAL rhwp + MOCK AI: whole-document exact changes preserve bold leads, tit
   expect(await (await request.get(source.documentUrl + "/versions")).json()).toHaveLength(1);
   const turn = await (await request.get(`/api/assistant-turns/${turnId}`)).json();
   expect(turn.execution.actual_model_calls).toBe(0);
-  expect(turn.document_rewrites).toHaveLength(2);
+  expect(turn.document_rewrites).toHaveLength(4);
+  await preview.getByLabel("수정한 문단", { exact: true }).selectOption("2");
+  await expect(preview.getByText("AS-IS · 수정 전 2쪽", { exact: true })).toBeVisible();
+  await expect(preview.locator(".rewrite-preview-text")).toContainText("실제");
+  await expect(preview.locator(".rewrite-text-pair")).toContainText("취약 버전주1)");
   await page.screenshot({ path: info.outputPath("whole-document-before-after.png"), fullPage: true });
   await preview.getByRole("button", { name: "문서에 적용 · 저장 전", exact: true }).click();
   await expect(preview).toHaveCount(0);
@@ -84,7 +102,7 @@ test("REAL rhwp + MOCK AI: whole-document exact changes preserve bold leads, tit
   expect(await texts(page, await bytes(page))).toEqual(after);
   expect(await (await request.get(source.originalUrl)).body()).toEqual(source.original);
   await writeFile(info.outputPath("whole-document-proof.json"), JSON.stringify({ engine: "real rhwp", actual_model_calls: 0,
-    changed_paragraphs: 2, bold_leads_preserved: true, title_table_note_preserved: true, original_blob_preserved: true,
+    changed_paragraphs: 4, bold_leads_preserved: true, inline_emphasis_superscript_preserved: true, title_table_note_preserved: true, original_blob_preserved: true,
     explicit_preview_apply_and_save: true, reopened: true, source_sha256: digest(source.frozen), output_sha256: digest(applied) }, null, 2));
 });
 

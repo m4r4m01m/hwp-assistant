@@ -425,7 +425,7 @@ def layout_rich_report(data, plan, *, visual_settings=None):
         layout = RichLayout(header, original[3], visual_settings=visual_settings, page_width=page_width, page_budget=page_budget,
                             body_spacing=has_body_spacing(plan), native_wrap=bool(plan and plan[0].get("native_wrap") == "reference-native-wrap-v1"),
                             content_columns=bool(plan and plan[0].get("table_layout") == TABLE_LAYOUT_POLICY),
-                            compact_notes=bool(plan and plan[0].get("note_presentation") == "reference-note-titles-v1"))
+                            compact_notes=bool(plan and plan[0].get("note_presentation") in ("reference-note-titles-v1", "explanatory-paragraph-notes-v1")))
         prepared, index = [], 0
         while index < len(plan):
             item = plan[index]

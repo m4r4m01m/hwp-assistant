@@ -1,12 +1,25 @@
 import { unzipSync } from "fflate";
+import { api, jsonRequest } from "./api";
 import type { ExportSnapshot, Snapshot, StyleTarget } from "./editor";
+import type { BodyLayoutEvidence } from "./block-layout";
 
 export type AssistantDocumentContext = { text: string; sha256: string; truncated: boolean; revision: number; epoch: number };
 export type AssistantDesignTarget = { kind: "paragraph" | "table"; section: 0; paragraph: number; control?: number };
 export type AssistantDesignContext = { source_sha256: string; target: AssistantDesignTarget | null;
   target_text?: string; target_text_truncated?: boolean; target_is_title_frame?: boolean };
-export type AssistantRewriteParagraph = { section: 0; paragraph: number; text: string; text_sha256: string; length: number; fixed_prefix: string };
-export type AssistantRewriteContext = { source_sha256: string; paragraphs: AssistantRewriteParagraph[]; preserved: Record<string, number>; unavailable: string };
+export type AssistantRewriteParagraph = { section: 0; paragraph: number; text: string; text_sha256: string; length: number; fixed_prefix: string; protected_text?: string[]; rendered_lines?: number };
+export type AssistantTableTarget = { paragraph: number; control: number; parent_paragraph: number; caption_paragraph: number | null; caption: string; left_mm: number; width_mm: number; parent_half_mm: number; caption_gap_mm: number | null };
+export type AssistantRewriteContext = { source_sha256: string; paragraphs: AssistantRewriteParagraph[]; preserved: Record<string, number>; unavailable: string; table_targets?: AssistantTableTarget[] };
+export async function assistantTableContext(documentId: string, baseVersion: string, token: string, source: ExportSnapshot) {
+  const chunks: string[] = [];
+  for (let i = 0; i < source.bytes.length; i += 8192) chunks.push(String.fromCharCode(...source.bytes.subarray(i, i + 8192)));
+  const result = await api<{ source_sha256: string; table_targets: AssistantTableTarget[] }>(`/documents/${documentId}/assistant-layout-context`, {
+    ...jsonRequest("POST", { base_version: baseVersion, source_base64: btoa(chunks.join("")) }),
+    headers: { "Content-Type": "application/json", "X-Edit-Session": token },
+  });
+  if (result.source_sha256 !== await digest(source.bytes)) throw new Error("표 배치 정보와 현재 문서가 다릅니다.");
+  return result.table_targets;
+}
 export type AssistantCapture = { base_version: string; document_context: AssistantDocumentContext; selection: Snapshot | null; design_context?: AssistantDesignContext | null; rewrite_context?: AssistantRewriteContext | null };
 const MAX_TEXT = 60000;
 const HP = "http://www.hancom.co.kr/hwpml/2011/paragraph", HH = "http://www.hancom.co.kr/hwpml/2011/head";
@@ -20,9 +33,11 @@ const digest = async (bytes: Uint8Array) => Array.from(new Uint8Array(await cryp
 // Read-only scope discovery. Native exact commands currently support complete,
 // single-format body paragraphs; expose every excluded class instead of silently
 // treating a partial plan as an edit to the whole document.
-export async function assistantRewriteContext(source: ExportSnapshot): Promise<AssistantRewriteContext> {
+export async function assistantRewriteContext(source: ExportSnapshot, layout?: BodyLayoutEvidence): Promise<AssistantRewriteContext> {
   if (source.contentLoss.count) throw new Error("내용 손실이 감지된 문서는 현재 문장 범위를 확인할 수 없습니다.");
   const result: AssistantRewriteContext = { source_sha256: await digest(source.bytes), paragraphs: [], preserved: {}, unavailable: "" };
+  if (layout && (layout.revision !== source.revision || layout.epoch !== source.epoch || layout.export_sha256 !== result.source_sha256))
+    throw new Error("문장과 실제 배치의 확인 시점이 다릅니다. 다시 요청하세요.");
   if (source.bytes.length > 10 * 1024 * 1024) {
     result.unavailable = "10MB를 넘는 문서는 전체 문장 수정이 제한됩니다. 문서 내용에 대한 질문은 가능합니다.";
     return result;
@@ -69,13 +84,32 @@ export async function assistantRewriteContext(source: ExportSnapshot): Promise<A
     let fixed_prefix = "", split = runs.length;
     while (split > 0 && runs[split - 1].getAttribute("charPrIDRef") === runs.at(-1)?.getAttribute("charPrIDRef")) split--;
     if (split) fixed_prefix = runs.slice(0, split).flatMap(run => children(run, "t")).map(t => t.textContent || "").join("");
-    if (!runs.length || runs.some(run => children(run, "t").some(t => t.children.length)) || split &&
-        (Array.from(fixed_prefix).length > 120 || !/^\s*[□ㅇ○\-․]\s+\([^()\r\n]{1,40}\)\s*$/.test(fixed_prefix) || !text.slice(fixed_prefix.length).trim())) {
+    if (!runs.length || runs.some(run => children(run, "t").some(t => t.children.length))) {
       preserved("혼합 서식 문단"); continue;
+    }
+    let protected_text: string[] = [];
+    if (split && (Array.from(fixed_prefix).length > 120 || !/^\s*[□ㅇ○\-․]\s+\([^()\r\n]{1,40}\)\s*$/.test(fixed_prefix) || !text.slice(fixed_prefix.length).trim())) {
+      fixed_prefix = "";
+      const grouped: { style: string | null; text: string }[] = [];
+      for (const run of runs) {
+        const style = run.getAttribute("charPrIDRef"), value = children(run, "t").map(t => t.textContent || "").join("");
+        if (grouped.at(-1)?.style === style) grouped.at(-1)!.text += value;
+        else grouped.push({ style, text: value });
+      }
+      protected_text = grouped.filter(run => run.style !== grouped[0].style).map(run => run.text);
+      let end = 0;
+      const valid = protected_text.length > 0 && protected_text.length <= 24 && protected_text.join("").length <= 1000 && protected_text.every(value => {
+        const start = text.indexOf(value), ok = !!value.trim() && start >= end && start === text.lastIndexOf(value);
+        end = start + value.length; return ok;
+      });
+      if (!valid) { preserved("혼합 서식 문단"); continue; }
     }
     if (Array.from(text).length > 4000 || /[\u0000-\u001f\u007f]/.test(text)) { preserved("긴 문단·특수 문자"); continue; }
     total += Array.from(text).length;
-    result.paragraphs.push({ section: 0, paragraph, text, text_sha256: await digest(new TextEncoder().encode(text)), length: Array.from(text).length, fixed_prefix });
+    result.paragraphs.push({ section: 0, paragraph, text, text_sha256: await digest(new TextEncoder().encode(text)), length: Array.from(text).length, fixed_prefix,
+      ...(protected_text.length ? { protected_text } : {}) });
+    const placed = layout?.paragraphs.find(p => p.section === 0 && p.paragraph === paragraph && p.text_sha256 === result.paragraphs.at(-1)!.text_sha256);
+    if (placed?.lines.length) result.paragraphs.at(-1)!.rendered_lines = placed.lines.length;
   }
   if (result.paragraphs.length > 120 || total > 24000) {
     result.unavailable = "전체 문장 수정 범위가 120문단 또는 24,000자를 넘었습니다. 일부를 조용히 생략하지 않고 요청을 보류합니다.";

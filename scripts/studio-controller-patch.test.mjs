@@ -34,18 +34,29 @@ test('only a bounded formatted lead label plus uniform body receives a fixed pre
     assert.throws(() => assertFixedPrefixReplacement(prefix, replacement), { code: 'TARGET_FORMAT_MISMATCH' });
 });
 
-test('arbitrary mixed text, inline emphasis, empty body and overlong prefixes stay rejected', () => {
+test('non-body and ambiguous repeated inline markers stay rejected', () => {
   for (const parts of [
     [['임의 ', 1], ['강조', 2], [' 본문', 1]],
-    [['□ ', 1], ['(범위)', 2], [' 본문 ', 1], ['중간 강조', 2], [' 꼬리', 1]],
-    [['□ ', 1], ['(범위)', 2], [' ', 1]],
-    [['□ ', 1], ['(' + '가'.repeat(41) + ')', 2], [' 본문', 1]],
-    [[' '.repeat(120) + '□ ', 1], ['(범위)', 2], [' 본문', 1]],
-    [['□ ', 1], ['(범\n위)', 2], [' 본문', 1]],
+    [['□ 동일 주1) ', 1], ['주1)', 2], [' 꼬리', 1]],
+    [['□ 본문 ', 1], [' ', 2], [' 꼬리', 1]],
   ]) {
     const value = fixture(parts);
     assert.throws(() => collectFixedPrefix(value.text, value.ids), { code: 'TARGET_FORMAT_MISMATCH' });
   }
+});
+
+test('inline emphasis and superscript markers retain exact text, order and styles on apply and inverse', () => {
+  const original = fixture([['□ ', 1], ['(범위)', 2], [' 긴 설명 ', 1], ['주1)', 3], ['과 ', 1], ['강조', 2], [' 문구', 1]]);
+  const prefix = collectFixedPrefix(original.text, original.ids);
+  assert.equal(prefix.inline, true);
+  for (const text of ['□ (범위) 설명주1)과 강조', original.text]) {
+    const ids = Array.from(text).map(() => 99);
+    applyTargetCharShapes({ getTextRange: () => text, setCharShapeId(_s, _p, start, end, id) { ids.fill(id, start, end); } },
+      { section: 0, paragraph: 4, length: ids.length }, { charShapeId: 1, fixedPrefix: prefix });
+    assert.deepEqual(collectFixedPrefix(text, ids), prefix);
+  }
+  for (const text of ['□ (범위) 설명과 강조', '□ (범위) 주1) 설명주1)과 강조', '□ 강조 (범위) 설명주1)'])
+    assert.throws(() => assertFixedPrefixReplacement(prefix, text), { code: 'TARGET_FORMAT_MISMATCH' });
 });
 
 test('apply and inverse restore every fixed prefix range with Unicode codepoint offsets', () => {
@@ -65,6 +76,16 @@ test('apply and inverse restore every fixed prefix range with Unicode codepoint 
     assert.equal(calls.length, 3);
     assert.deepEqual(collectFixedPrefix(text, ids), prefix);
   }
+});
+
+test('a fully bold bullet and lead retain the independent regular body style', () => {
+  const original = fixture([['□ (점검)', 8], [' 긴 본문', 3]]);
+  const prefix = collectFixedPrefix(original.text, original.ids);
+  const text = '□ (점검) 본문', ids = Array.from(text).map(() => 99);
+  applyTargetCharShapes({ setCharShapeId(_s, _p, start, end, id) { ids.fill(id, start, end); } },
+    { section: 0, paragraph: 1, length: ids.length }, { charShapeId: 3, fixedPrefix: prefix });
+  assert.deepEqual(collectFixedPrefix(text, ids), prefix);
+  assert.equal(ids.at(-1), 3);
 });
 
 test('source and receipt gates reject edits, missing and tampered proof', () => {

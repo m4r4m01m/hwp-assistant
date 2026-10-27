@@ -136,7 +136,7 @@ for (const provider of ["codex", "llm"]) {
     }
     await review.getByRole("button", { name: "검토 패널 닫기", exact: true }).click();
     await page.getByRole("button", { name: "문서 AI 대화 열기", exact: true }).click();
-    await page.getByText("작성 정보·검토 메모", { exact: true }).click();
+    await page.getByRole("button", { name: "메모", exact: true }).click();
     await page.getByText("별도 AI 연결", { exact: true }).click();
     await page.getByRole("textbox", { name: "대화 메시지", exact: true }).fill("합성 메모를 바탕으로 답해주세요.");
     const ask = page.getByRole("button", { name: "메모 내용으로 별도 AI에 질문", exact: true });

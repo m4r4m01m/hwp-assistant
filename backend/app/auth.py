@@ -5,6 +5,7 @@ import os
 import re
 import secrets
 import time
+from contextvars import ContextVar
 from collections import OrderedDict, deque
 from dataclasses import dataclass
 from math import ceil
@@ -13,7 +14,7 @@ from time import monotonic
 from fastapi import HTTPException
 from sqlalchemy import delete, or_, select, text, update
 from sqlalchemy.orm import Session
-from .db import Access, AuthSession, Document, LeaseOwner, transaction
+from .db import Access, AuthSession, Document, LeaseOwner, LeaseLogin, transaction
 from .host_validation import allowed_hosts, host_name
 
 ROLES = {"reader": 1, "editor": 2, "owner": 3}
@@ -21,6 +22,11 @@ COOKIE = "hwp_session"
 SESSION_PREFIX = "hwp-session-"
 SESSION_PATTERN = re.compile(r"hwp-session-[A-Za-z0-9_-]{43}\Z")
 LOGIN_REQUIRED = "로그인이 필요하거나 인증 토큰이 만료되었습니다."
+lease_login_context = ContextVar("lease_login", default=None)
+
+
+def login_scope(user, credential):
+    return hashlib.sha256(f"editor-login-v1\0{user}\0{credential}".encode()).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -197,6 +203,27 @@ def require_password_session(engine, token):
 def revoke_session(engine, token):
     if SESSION_PATTERN.fullmatch(token):
         with transaction(engine) as db:
+            row = db.get(AuthSession, session_hash(token))
+            if row:
+                principal = login_scope(row.user_id, token)
+                from .coedit import Member, Room
+                from .rewrite_jobs import invalidate_running
+                ids = set(db.scalars(select(LeaseLogin.document_id).where(LeaseLogin.login_hash == principal)))
+                ids.update(db.scalars(select(Member.document_id).where(Member.login_hash == principal)))
+                for doc_id in sorted(ids):
+                    doc = db.scalar(select(Document).where(Document.id == doc_id).with_for_update())
+                    if not doc: continue
+                    db.execute(update(Member).where(Member.document_id == doc_id, Member.login_hash == principal).values(expires_at=0))
+                    binding = db.get(LeaseLogin, doc_id)
+                    if (doc.lease_token or "").startswith("coedit:"):
+                        room = db.get(Room, doc_id)
+                        active = db.scalar(select(Member.id).where(Member.document_id == doc_id, Member.generation == room.generation, Member.expires_at > time.time()).limit(1)) if room else None
+                        release = not active
+                    else:
+                        release = binding and binding.login_hash == principal
+                    if release:
+                        doc.lease_token = None; doc.lease_until = 0
+                        invalidate_running(db, doc_id, "로그아웃하여 편집 세션을 종료했습니다.")
             db.execute(update(AuthSession).where(AuthSession.token_hash == session_hash(token),
                        AuthSession.revoked_at.is_(None)).values(revoked_at=time.time()))
 
@@ -262,9 +289,22 @@ def bind_lease(db, doc, user):
         owner.user_id = user
     else:
         db.add(LeaseOwner(document_id=doc.id, user_id=user))
+    binding = db.get(LeaseLogin, doc.id)
+    principal = lease_login_context.get()
+    if principal is not None:
+        if binding:
+            binding.login_hash = principal
+        else:
+            db.add(LeaseLogin(document_id=doc.id, login_hash=principal))
+    elif binding:
+        db.delete(binding)
 
 
 def require_lease_owner(db, doc, user, *, fresh=False):
     owner = db.get(LeaseOwner, doc.id, populate_existing=fresh)
     if not owner or owner.user_id != user:
         raise HTTPException(409, "다른 사용자의 편집 세션입니다.")
+    binding = db.get(LeaseLogin, doc.id, populate_existing=fresh)
+    principal = lease_login_context.get()
+    if binding and principal is not None and not secrets.compare_digest(binding.login_hash, principal):
+        raise HTTPException(409, "로그인 세션이 변경되었습니다. 미저장 내용을 다운로드한 뒤 문서를 다시 여세요.")

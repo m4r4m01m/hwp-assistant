@@ -1,0 +1,9 @@
+.coedit-workspace { height: 100dvh; display: flex; flex-direction: column; background: #f6f8fb; overflow: hidden; }
+.coedit-workspace > header, .coedit-status { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 10px 16px; }
+.coedit-workspace > header strong { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.coedit-status { padding-top: 0; color: #285844; justify-content: space-between; }
+.coedit-help { margin: 0 16px 8px; font-size: 13px; }
+.coedit-help p { max-width: 1000px; }
+.coedit-error { padding: 10px 16px; background: #fff0da; display: flex; flex-wrap: wrap; gap: 10px; }
+.coedit-canvas { min-height: 0; flex: 1; position: relative; }
+.coedit-canvas iframe { width: 100%; height: 100%; border: 0; }

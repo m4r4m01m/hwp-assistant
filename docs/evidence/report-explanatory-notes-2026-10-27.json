@@ -1,0 +1,52 @@
+{
+  "date": "2026-10-27",
+  "source_commit": "fcb415cf0aae1591d14e0dc698091ff9bb5c85cc",
+  "base_main": "76fbec8461e5441237198de7504baddcc64e0304",
+  "branch": "codex/report-explanatory-notes-2026-10-27",
+  "contract": "korean-report-v6-explanatory-notes",
+  "scope": "New drafts: explanatory notes separate from retained research evidence; concise executive prose and meaningful comparison/schedule tables",
+  "tests": {
+    "backend_focused": {"passed": 104, "scope": "explanatory notes, legacy note groups/presentation, rich reports, template prompt and research policy"},
+    "final_prompt_examples": {"passed": 14, "note": "Rerun of the template subset after changing style-only example figures; not additive to 104"},
+    "typescript": "passed",
+    "mock_research_review_ui": {"passed": 10, "browser": "installed Chrome", "scope": "explanation placement, evidence and uncertainty retention, legacy review/retry"},
+    "full_regression": "not run; focused changes only"
+  },
+  "actual_model": {
+    "model": "gpt-6.1-sol",
+    "calls": 1,
+    "completed": true,
+    "elapsed_seconds": 20.8,
+    "input": "Synthetic three-company status and schedule; user did not explicitly request a table; no private document submitted",
+    "web_research": false,
+    "tables": 2,
+    "diagrams": 0,
+    "explanatory_notes": 0,
+    "retained_sources": 3,
+    "limitations": 0,
+    "draft_sha256": "589eaa9e2617a7e007fddfb435f38fd37b11a8b237e9b5d8f62854cd1636c4b7",
+    "limits": "One synthetic sample, not a claim of consistent quality for all prompts or verified real-world facts. Final style-only prompt example figures were adjusted after this call."
+  },
+  "real_engine": {
+    "environment": "Isolated local API 18342 and web 15342; existing diagnostic rhwp bundle, no core/controller changes",
+    "model_calls_during_browser_tests": 0,
+    "actual_model_result_replay": {"tables": 2, "pages": 2, "content_loss": 0, "stored_blob_equal": true, "web_reopened": true},
+    "deterministic_explanation_fixture": {"tables": 1, "diagrams": 1, "note_definitions": 3, "rendered_local_note_entries": 4, "pages": 2, "content_loss": 0, "stored_blob_equal": true, "web_reopened": true},
+    "visual_checks": "Real page PNGs inspected: company table and schedule, paragraph-local explanation placement, table explanation directly below table, local numbering and superscripts",
+    "test_harness_corrections": "Save now opens the editor automatically; harness corrected its obsolete button expectation. Browser reload returns to library. Early reopen encountered the previous test lease; passed after normal expiry, without bypassing lease fences."
+  },
+  "local_application": {
+    "url": "http://127.0.0.1:15330/",
+    "api_port": 18330,
+    "verified": true,
+    "paired_offline_backup": true,
+    "preserved_tables": 31,
+    "preserved_rows": 182,
+    "unchanged_blob_files": 35,
+    "only_observed_row_change": "An already-open editor renewed documents.lease_until; all other values and stored file hashes were unchanged",
+    "desktop_launcher_reuse": "verified with the shortcut's native Windows PowerShell environment"
+  },
+  "preservation": "Original documents, history, frozen drafts/plans and absent-notes serialization retained. Existing reports were not rewritten.",
+  "not_verified": ["Hancom rendering", "human acceptance", "production deployment", "new GitHub CI run"],
+  "deployment": "No remote push, merge or production deployment performed for this task"
+}

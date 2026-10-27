@@ -76,6 +76,7 @@ export function CollaborationPanel({
   connectionProvider.current = chatProvider;
   useEffect(() => { setSeparateAi(null); }, [chatProvider]);
   const [assistantDirty, setAssistantDirty] = useState(false), [assistantActive, setAssistantActive] = useState(false), [showRewrite, setShowRewrite] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
   const assistantDirtyChanged = useCallback((dirty: boolean) => setAssistantDirty(dirty), []);
   const assistantActiveChanged = useCallback((active: boolean) => { setAssistantActive(active); onAssistantActive?.(active); }, [onAssistantActive]);
   const pendingCreate = useRef<{ id: string; title: string; visibility: "document" } | null>(null);
@@ -193,7 +194,6 @@ export function CollaborationPanel({
   return (
     <section className="collaboration">
       <h2>문서 AI 대화</h2>
-      <p className="hint">이 문서의 수정 후보와 검토 내용을 함께 보관합니다. 대화는 문서 접근 권한이 있는 사용자와 공유됩니다.</p>
       <div className="conversation-switcher"><select
         aria-label="대화 선택"
         value={selected}
@@ -210,6 +210,11 @@ export function CollaborationPanel({
       {writable && !creating && <button disabled={busy || assistantActive} onClick={() => { setCreating(true); setSwitchRequest(null); }}>새 대화</button>}
       <button aria-label="대화 새로고침" title="대화 새로고침" disabled={busy} onClick={() => void run(async () => { await list(); await load(); })}><WorkspaceIcon name="refresh" size={17}/></button>
       </div>
+      {detail && <div className="assistant-tools-nav" role="group" aria-label="대화 보기">
+        <button aria-pressed={!showRewrite && !showNotes} onClick={() => { setShowRewrite(false); setShowNotes(false); }}>AI 대화</button>
+        <button aria-pressed={showRewrite} onClick={() => { setShowRewrite(true); setShowNotes(false); }}>수정 기록</button>
+        <button aria-pressed={showNotes} onClick={() => { setShowRewrite(false); setShowNotes(true); }}>메모{contextDirty || message ? " · 작성 중" : ""}</button>
+      </div>}
       {writable && creating && <form aria-label="새 대화 만들기" onSubmit={event => { event.preventDefault(); beginCreate(); }}>
         <label>대화 이름<input aria-label="대화 이름" value={newTitle} maxLength={120} disabled={busy || createPending}
           onChange={event => { setNewTitle(event.target.value); setTitleDirty(true); }} autoFocus /></label>
@@ -242,14 +247,14 @@ export function CollaborationPanel({
       )}
       {detail && (
         <div className="conversation-content" inert={createPending}>
-          <DocumentAssistantPanel active={active} key={`assistant-${detail.id}`} thread={detail.id} document={doc} captureDocument={captureDocument} sendAssistant={sendAssistant}
-            onDirty={assistantDirtyChanged} onActive={assistantActiveChanged} requestRewrite={requestRewrite} onDesignProposal={onDesignProposal} documentRewrite={documentRewrite} onShowRewrite={taskId => { setPreviewTaskId(taskId); setShowRewrite(true); }} />
-          <details className="assistant-secondary-tools" open={showRewrite} onToggle={event => setShowRewrite(event.currentTarget.open)}><summary><span>문단 수정 후보 기록</span><span className="assistant-disclosure-label">{showRewrite ? "접기" : "열기"}</span></summary>
+          <div className="assistant-main-view" hidden={showRewrite || showNotes}><DocumentAssistantPanel active={active && !showRewrite && !showNotes} key={`assistant-${detail.id}`} thread={detail.id} document={doc} captureDocument={captureDocument} sendAssistant={sendAssistant}
+            onDirty={assistantDirtyChanged} onActive={assistantActiveChanged} requestRewrite={requestRewrite} onDesignProposal={onDesignProposal} documentRewrite={documentRewrite} onShowRewrite={taskId => { setPreviewTaskId(taskId); setShowRewrite(true); setShowNotes(false); }} /></div>
+          <section className="assistant-tools-view" hidden={!showRewrite} aria-label="문단 수정 후보 기록">
           <RewritePanel key={detail.id} thread={detail.id} document={doc} context={detail.context} contextDirty={contextDirty}
             active={active && showRewrite} requestRewrite={requestRewrite} approveRewrite={approveRewrite} cancelRewrite={cancelRewrite} getPendingRewrite={getPendingRewrite}
             captureRewritePreview={captureRewritePreview} previewTaskId={previewTaskId} />
-          </details>
-          <details className="assistant-secondary-tools"><summary><span>작성 정보·검토 메모</span><span className="assistant-disclosure-label">열기 / 접기</span></summary>
+          </section>
+          <section className="assistant-tools-view" hidden={!showNotes} aria-label="작성 정보·검토 메모">
           <details><summary>추가 작성 정보 · 선택 사항</summary>
           <WritingContextEditor key={`context-${detail.id}`} thread={detail.id} context={detail.context}
             baseVersion={doc.current_version} writable={writable} capture={capture} onSaved={() => load(detail.id)} onDirty={dirtyChanged} />
@@ -359,7 +364,7 @@ export function CollaborationPanel({
             </article>
           ))}
           <details><summary>연결 정보</summary><p>대화 ID: <code>{detail.id}</code></p></details>
-          </details>
+          </section>
         </div>
       )}
     </section>

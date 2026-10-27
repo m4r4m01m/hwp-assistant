@@ -4,6 +4,7 @@ import { randomUUID, randomBytes, createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { checkCoedit } from "./coedit-check";
 
 const base = "https://localhost:24443/hwp-assistant/";
 
@@ -161,6 +162,7 @@ test("ACCOUNTS: real PostgreSQL approval, isolated documents, save/reopen and wa
   const member = await savedFile(page);
   expect(member.href).not.toBe(guest.href);
   await reopen(page, member);
+  await checkCoedit(page, context, base);
   const cookie = (await context.cookies()).find(cookie => cookie.name === "hwp_session")!;
   expect(cookie.httpOnly && cookie.secure).toBe(true);
   expect(cookie.path).toBe("/hwp-assistant/api");

@@ -5,6 +5,7 @@ POLICY = "reference-local-notes-v1"
 TITLE_PRESENTATION_POLICY = "reference-note-titles-v1"
 GROUPING_POLICY = "reference-note-groups-v1"
 SECTION_GROUPING_POLICY = "reference-note-section-groups-v2"
+EXPLANATORY_POLICY = "explanatory-paragraph-notes-v1"
 
 
 def without_source_tokens(value, source_ids):
@@ -12,7 +13,7 @@ def without_source_tokens(value, source_ids):
     return re.sub(r"\[(S\d+)\]", lambda match: "" if match[1] in source_ids else match[0], value)
 
 
-def localize_notes(blocks, sources, settings, *, presentation_policy=None, grouping_policy=None):
+def localize_notes(blocks, sources, settings, *, presentation_policy=None, grouping_policy=None, explanatory=False):
     from .report_contract import citation_marker, citation_style_for_scope, presentation_text
     from .standard_policy import BODY_ROLES
 
@@ -21,6 +22,8 @@ def localize_notes(blocks, sources, settings, *, presentation_policy=None, group
     grouped = grouping_policy in (GROUPING_POLICY, SECTION_GROUPING_POLICY)
     section_grouped = grouping_policy == SECTION_GROUPING_POLICY
     def source_text(source):
+        if explanatory:
+            return re.sub(r"\[S\d+\]", "", source.text)
         # Only a new plan opts in. The canonical draft retains the complete
         # title, URL and supplied date, including dates that need confirmation.
         return source.title if titles_only else f"{source.title} ({source.published or '발행일 미확인'}) · {source.url}"
@@ -51,7 +54,7 @@ def localize_notes(blocks, sources, settings, *, presentation_policy=None, group
                     break
                 group.append(blocks[cursor]); cursor += 1
         identifiers = list(dict.fromkeys(identifier for value, role, _, _ in group if role not in ("title", "heading")
-                                        for identifier in re.findall(r"\[(S\d+)\]", value) if identifier in known))
+                                        for identifier in re.findall(r"\[([SN]\d+)\]", value) if identifier in known))
         if not identifiers:
             result.extend(group)
             continue
@@ -106,13 +109,16 @@ def localize_notes(blocks, sources, settings, *, presentation_policy=None, group
             result.append((value, "source", False, metadata))
     # Keep supplied but uncited references without pretending they annotate a
     # nearby claim. No cited source is duplicated into a trailing notes section.
-    remaining = list(sources) if settings.get("reference_list") == "ALL" else [source for source in sources if source.id not in used]
+    remaining = [] if explanatory else list(sources) if settings.get("reference_list") == "ALL" else [source for source in sources if source.id not in used]
     if remaining:
         result.append(("참고자료", "heading", True, {}))
         for source in remaining:
             value = source_text(source)
             result.append((value, "source", False, {"unreferenced_source_id": source.id}))
     result[0][3]["local_notes"] = POLICY
+    if explanatory:
+        result[0][3]["note_presentation"] = EXPLANATORY_POLICY
+        result[0][3]["note_grouping"] = EXPLANATORY_POLICY
     if titles_only:
         result[0][3]["note_presentation"] = TITLE_PRESENTATION_POLICY
     if grouped:

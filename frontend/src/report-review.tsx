@@ -10,6 +10,7 @@ export type ReportDraft = {
     diagrams?: { caption: string; steps: string[] }[] }[];
   sources: { id: string; title: string; url: string; published: string }[]; limitations: string[];
   research_notice?: ResearchNoticeData;
+  notes?: { id: string; text: string }[];
 };
 
 export function ReportReview({ draft, formatName, includesSummary = true, feedback, onFeedback, onRevise, onFormat, busy, retry, revisionAvailable = true, sourcesUnverified = false }: {
@@ -27,17 +28,17 @@ export function ReportReview({ draft, formatName, includesSummary = true, feedba
     </header>
     <div className="report-review-body">
       <article className="report-review-content">
-        <section className="report-review-summary"><h2>내용 요약</h2>{!includesSummary && <p className="hint">검토용 요약입니다. 선택한 양식에서는 별도 요약 절을 넣지 않습니다.</p>}<p><ReportText text={draft.summary} emphasis={draft.emphasis} /></p></section>
+        <section className="report-review-summary"><h2>내용 요약</h2>{!includesSummary && <p className="hint">검토용 요약입니다. 선택한 양식에서는 별도 요약 절을 넣지 않습니다.</p>}<ReportContent notes={draft.notes} blocks={[{ text: draft.summary, kind: "body", emphasis: draft.emphasis }]} /></section>
         {draft.sections.map((section, index) => <section className="report-review-section" key={index}>
           <h2><span>{index + 1}</span>{section.heading}</h2>
-          <ReportContent blocks={[
+          <ReportContent notes={draft.notes} blocks={[
             ...section.paragraphs.map(text => ({ text, kind: "body", emphasis: draft.emphasis })),
             ...(section.tables || []).map(table => ({ ...table, text: table.caption, kind: "table", emphasis: draft.emphasis })),
             ...(section.diagrams || []).map(diagram => ({ ...diagram, text: diagram.caption, kind: "diagram", emphasis: draft.emphasis })),
           ]} />
         </section>)}
         {draft.limitations.length > 0 && <section className="report-review-section">
-          <h2>확인할 사항</h2>
+          <h2>{draft.notes ? "작성자 검토 메모 · 문서에 포함되지 않음" : "확인할 사항"}</h2>
           {draft.limitations.map((text, index) => <p key={index}>{text}</p>)}
         </section>}
         {draft.sources.length > 0 && <details className="report-review-sources">

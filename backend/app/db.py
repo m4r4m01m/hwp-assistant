@@ -108,6 +108,13 @@ class LeaseOwner(Base):
     user_id: Mapped[str] = mapped_column(String(80))
 
 
+class LeaseLogin(Base):
+    """Login scope for new leases; additive so historical leases remain readable."""
+    __tablename__ = "lease_logins"
+    document_id: Mapped[str] = mapped_column(ForeignKey("documents.id"), primary_key=True)
+    login_hash: Mapped[str] = mapped_column(String(64))
+
+
 class Conversation(Base):
     __tablename__ = "conversations"
     id: Mapped[str] = mapped_column(String(36), primary_key=True)

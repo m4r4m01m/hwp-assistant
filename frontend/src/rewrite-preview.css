@@ -14,4 +14,8 @@
 .rewrite-preview-text { flex: 0 0 auto; max-height: 20vh; overflow: auto; background: white; padding: 8px 12px; font-size: 13px; }
 .rewrite-preview-engine { position: fixed; left: -100000px; top: 0; width: 900px; height: 1200px; pointer-events: none; }
 .rewrite-preview-engine iframe { width: 100%; height: 100%; }
+.rewrite-text-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+.rewrite-text-pair .text { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+.rewrite-preview-actions label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.rewrite-preview-actions select { width: auto; margin: 0; }
 @media (max-width: 700px) { .rewrite-preview-dialog { padding: 12px; width: calc(100vw - 12px); height: calc(100dvh - 12px); } .rewrite-preview-pages { gap: 8px; } .rewrite-preview-actions .primary { margin-left: 0; } }

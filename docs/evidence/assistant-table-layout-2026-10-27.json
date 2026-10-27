@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-27",
+  "source_commit": "af5871c7bb776e7af5a86f8ab5442970443bf4a4",
+  "branch": "codex/assistant-table-layout-2026-10-27",
+  "base_main": "76fbec8461e5441237198de7504baddcc64e0304",
+  "diagnosis": {
+    "scope": "Read-only comparison of the requested local document, frozen conversation and saved versions",
+    "proposed_paragraphs": 18,
+    "saved_paragraph_matches": 18,
+    "before_characters": 1804,
+    "after_characters": 1592,
+    "reduction_percent": 11.8,
+    "table_changes_proposed": 0,
+    "reason": "Only catalog designs were available for formatting; the requested geometry was omitted. Prose was applied but insufficiently shortened."
+  },
+  "changes": [
+    "Freeze eligible table addresses and XML-derived geometry from the same live HWPX snapshot as the conversation",
+    "Optional bounded table_layout proposal: reuse standard 50-percent parent anchor and explicit caption after-spacing, without blank paragraphs",
+    "Render geometry and exact text replacements together in a separate comparison; explicit adoption and server save remain separate",
+    "Recompute targets and expected output from original bytes; retain owner, lease, version, snapshot and preservation fences",
+    "Strengthen substantial-shortening instructions beyond the literal 1-2-line wording, with an in-response length self-check"
+  ],
+  "verification": {
+    "focused_backend": {"passed": 132, "scope": "conversation/completion/design, rewrite/inline preservation, new geometry and authenticated API fences"},
+    "typescript": "passed",
+    "frontend_build": "passed using existing diagnostic rhwp bundle; core and controller unchanged",
+    "real_engine_mock_ai": {"passed": 2, "cases": ["table and prose", "table only"], "actual_model_calls": 0,
+      "assertions": ["real before/after pages", "source unchanged before approval", "50-percent parent anchor", "2 mm caption gap", "reduced table width", "unchanged table text", "explicit adoption", "two saved versions", "original blob retained", "web reopen"]},
+    "actual_model": {"model": "gpt-6.1-sol", "calls": 1, "input": "Three synthetic verbose paragraphs and one table; no private user document sent",
+      "changes": [{"before": 59, "after": 34}, {"before": 55, "after": 35}, {"before": 56, "after": 29}],
+      "table_layout": {"parent_half": true, "caption_gap_mm": 2},
+      "scope": "Validated response quality; distinct from deterministic real-engine replay. Not a guarantee for every document."}
+  },
+  "local": {
+    "url": "http://127.0.0.1:15330/",
+    "api_port": 18330,
+    "paired_offline_backup": true,
+    "preserved_tables": 31,
+    "preserved_rows": 202,
+    "unchanged_files": 37,
+    "only_observed_row_change": "Existing editor lease_until renewal; all other row values and document hashes preserved",
+    "desktop_launcher_reuse": "verified in native Windows PowerShell"
+  },
+  "limits": [
+    "Existing responses and user documents are not rewritten; a fresh conversation request captures the new supported layout context",
+    "Eligible inline regular data tables only, up to 20; title frames, TOC, diagram tables, merged/nested/floating and ambiguous mixed-control tables are excluded",
+    "Caption spacing requires an identifiable immediately preceding centered caption",
+    "No paragraph splitting, typography compression, exact line-count promise, Hancom test, full regression, remote push or production deployment"
+  ],
+  "test_setup_notes": "Initial synthetic package used a unit-test-only seed and then a nonblank seed. Corrected the fixture to a valid blank HWPX package before final real-engine verification; no production parser or validation limits were weakened."
+}

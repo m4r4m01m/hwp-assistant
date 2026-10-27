@@ -8,6 +8,7 @@ from .ai_requests import AIRequest  # Register additive reservation table before
 from .audit import AuditEvent
 from .account_settings import AccountSetting
 from .account_notifications import RegistrationNotification
+from .coedit import Room, Member, Receipt
 
 
 def migrate(engine, users):

@@ -11,10 +11,24 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .block_hwpx import HP, Semantic, serialize_block_xml, verify_engine_output
 from .editor_design_hwpx import paragraph_controls, _role
 from .hwpx import digest
+from .assistant_table_layout import TableTarget, apply_layout
 
 
 class Strict(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
+
+
+def protected_positions(text, protected):
+    end, positions = 0, []
+    if len(protected) > 24 or sum(map(len, protected)) > 1000:
+        raise ValueError("고정할 강조·주석 범위를 초과했습니다.")
+    for value in protected:
+        start = text.find(value)
+        if not value.strip() or start < end or start != text.rfind(value):
+            raise ValueError("강조·주석 문구를 같은 순서로 한 번씩 유지하세요.")
+        end = start + len(value)
+        positions.append((start, end))
+    return positions
 
 
 class RewriteParagraph(Strict):
@@ -24,6 +38,8 @@ class RewriteParagraph(Strict):
     text_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     length: int = Field(ge=1, le=4000)
     fixed_prefix: str = Field(default="", max_length=120)
+    protected_text: list[str] = Field(default_factory=list, max_length=24)
+    rendered_lines: int | None = Field(default=None, ge=1, le=1000)
 
     @model_validator(mode="after")
     def integrity(self):
@@ -31,6 +47,9 @@ class RewriteParagraph(Strict):
             raise ValueError("수정할 문단의 원문 확인값이 다릅니다.")
         if self.fixed_prefix and (not self.text.startswith(self.fixed_prefix) or not re.fullmatch(r"\s*[□ㅇ○\-․]\s+\([^()\r\n]{1,40}\)\s*", self.fixed_prefix)):
             raise ValueError("보존할 요약 말머리가 올바르지 않습니다.")
+        if self.fixed_prefix and self.protected_text:
+            raise ValueError("고정 말머리와 본문 강조 범위가 중복됩니다.")
+        protected_positions(self.text, self.protected_text)
         return self
 
 
@@ -39,6 +58,7 @@ class RewriteContext(Strict):
     paragraphs: list[RewriteParagraph] = Field(max_length=120)
     preserved: dict[str, int] = Field(max_length=8)
     unavailable: str = Field(default="", max_length=300)
+    table_targets: list[TableTarget] | None = Field(default=None, max_length=20, exclude_if=lambda value: value is None)
 
     @model_validator(mode="after")
     def bounded(self):
@@ -74,6 +94,7 @@ def validated_rewrites(payload, proposed):
             raise ValueError("수정안의 문단 위치·원문 확인값이 다릅니다.")
         seen.add(address)
         text = item["replacement"]
+        protected_positions(text, before.get("protected_text", []))
         prefix = re.match(r"^\s*[□ㅇ○\-․]\s+", before["text"])
         if not prefix or not text.startswith(before.get("fixed_prefix") or prefix[0]) or any(ord(c) < 32 or ord(c) == 127 or 0xD800 <= ord(c) <= 0xDFFF for c in text):
             raise ValueError("본문 기호·문단 구조를 유지한 수정안이 필요합니다.")
@@ -109,10 +130,41 @@ def paragraph_prefix(semantic, paragraph):
     return None
 
 
-def verify_rewrite_output(source, actual, context, changes):
+def inline_runs(semantic, paragraph):
+    """Plain runs only; preserve every non-body style and its exact text."""
+    if paragraph_controls(paragraph) or _role(semantic.header, paragraph) not in ("square", "circle", "dash", "dot"):
+        return None
+    runs = paragraph.findall(f"{{{HP}}}run")
+    if not runs or not all(child.tag == f"{{{HP}}}t" and not len(child) for run in runs for child in run):
+        return None
+    groups = []
+    for run in runs:
+        text = "".join(t.text or "" for t in run)
+        if not text:
+            continue
+        if groups and groups[-1].get("charPrIDRef") == run.get("charPrIDRef"):
+            groups[-1][0].text += text
+        else:
+            item = copy.deepcopy(run)
+            for child in list(item): item.remove(child)
+            from xml.etree.ElementTree import SubElement
+            SubElement(item, f"{{{HP}}}t").text = text
+            groups.append(item)
+    if not groups:
+        return None
+    protected = [run for run in groups if run.get("charPrIDRef") != groups[0].get("charPrIDRef")]
+    try:
+        protected_positions("".join(run[0].text for run in groups), [run[0].text for run in protected])
+    except ValueError:
+        return None
+    return (groups[0], protected) if protected else None
+
+
+def verify_rewrite_output(source, actual, context, changes, table_layout=None):
     """Compare native output with approved text and every unchanged object/style."""
     if digest(source) != context["source_sha256"]:
         raise HTTPException(409, "질문을 보낸 원본 문서와 다릅니다.")
+    source = apply_layout(source, context, table_layout)
     original = Semantic(source)
     expected = copy.deepcopy(original.section)
     paragraphs = list(expected)
@@ -120,7 +172,8 @@ def verify_rewrite_output(source, actual, context, changes):
     for change in changes:
         index = change["paragraph"]
         prefix = paragraph_prefix(original, original.section[index]) if index < len(paragraphs) else None
-        if prefix is None:
+        inline = inline_runs(original, original.section[index]) if prefix is None and index < len(paragraphs) else None
+        if prefix is None and inline is None:
             raise HTTPException(422, "제목·표·주석 또는 혼합 서식은 전체 문장 수정 대상이 아닙니다.")
         paragraph = paragraphs[index]
         texts = list(paragraph.iter(f"{{{HP}}}t"))
@@ -128,6 +181,27 @@ def verify_rewrite_output(source, actual, context, changes):
         before = inputs.get((0, index))
         if not before or text != before["text"] or digest(text.encode()) != change["before_sha256"]:
             raise HTTPException(409, "원본 문단과 승인할 수정안이 다릅니다.")
+        if inline:
+            body_run, protected = inline
+            values = [run[0].text for run in protected]
+            if before.get("fixed_prefix") or before.get("protected_text") != values:
+                raise HTTPException(409, "고정된 강조·주석 범위가 바뀌었습니다.")
+            try:
+                positions = protected_positions(change["replacement"], values)
+            except ValueError as error:
+                raise HTTPException(422, str(error)) from error
+            for run in paragraph.findall(f"{{{HP}}}run"): paragraph.remove(run)
+            offset, runs = 0, []
+            for run, (start, end) in zip(protected, positions):
+                if start > offset:
+                    body = copy.deepcopy(body_run); body[0].text = change["replacement"][offset:start]; runs.append(body)
+                runs.append(copy.deepcopy(run)); offset = end
+            if offset < len(change["replacement"]):
+                body = copy.deepcopy(body_run); body[0].text = change["replacement"][offset:]; runs.append(body)
+            for order, run in enumerate(runs): paragraph.insert(order, run)
+            continue
+        if before.get("protected_text"):
+            raise HTTPException(409, "원문과 다른 강조·주석 범위입니다.")
         if prefix != before.get("fixed_prefix", "") or not change["replacement"].startswith(prefix):
             raise HTTPException(409, "고정된 요약 말머리가 바뀌었습니다.")
         offset, first = 0, 0

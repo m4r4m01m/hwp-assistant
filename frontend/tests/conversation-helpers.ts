@@ -1,11 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 
-export async function openConversationTools(page: Page) {
-  for (const title of ["문단 수정 후보 기록", "작성 정보·검토 메모"]) {
-    const summary = page.getByText(title, { exact: true });
-    await expect(summary).toBeVisible();
-    if (await summary.locator("xpath=ancestor::details[1]").getAttribute("open") === null) await summary.click();
-  }
+export async function openConversationTools(page: Page, view: "메모" | "수정 기록" = "메모") {
+  await page.getByRole("button", { name: view === "메모" ? /^메모/ : "수정 기록" }).click();
 }
 
 export async function startConversation(page: Page, title: string, options: { openTools?: boolean } = {}) {
