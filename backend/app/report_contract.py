@@ -181,6 +181,14 @@ class ReportLeadSummary(ReportValue):
     label: str = Field(min_length=1, max_length=24, pattern=r"^[^()\r\n\t]+$")
 
 
+class ReportNote(ReportValue):
+    """Printed explanatory note, separate from retained research evidence."""
+    id: str = Field(pattern=r"^N(?:[1-9]|1[0-2])$")
+    text: str = Field(min_length=1, max_length=400)
+
+    _text = field_validator("text")(paragraph)
+
+
 def lead_summary_match(value, label):
     return re.match(r"^(\s*(?:[□ㅇ○․-]\s*)?)\(" + re.escape(label) + r"\)\s+(?=\S)", value)
 
@@ -196,6 +204,9 @@ class ReportDraft(ReportValue):
     research_notice: ReportResearchNotice | None = Field(default=None, exclude_if=lambda value: value is None)
     # Missing metadata retains the old label grammar and the original hash.
     lead_summaries: list[ReportLeadSummary] | None = Field(default=None, max_length=55, exclude_if=lambda value: value is None)
+    # Missing means legacy source-as-note rendering. [] explicitly opts a new
+    # draft into explanation-only printing without rewriting historical hashes.
+    notes: list[ReportNote] | None = Field(default=None, max_length=12, exclude_if=lambda value: value is None)
 
     _text = field_validator("title", "summary")(paragraph)
 
@@ -204,6 +215,7 @@ class ReportDraft(ReportValue):
         # Stored drafts may omit rich fields. Fresh Codex structured output must
         # explicitly return empty arrays: strict schemas require every property.
         schema = cls.model_json_schema()
+        schema["properties"]["notes"] = next(branch for branch in schema["properties"]["notes"]["anyOf"] if branch.get("type") == "array")
         # Provenance is assigned from observed execution, never by the model.
         schema["properties"].pop("research_notice", None)
         for definition in ("ReportResearchNotice", "ReportResearchWarning"):
@@ -233,6 +245,10 @@ class ReportDraft(ReportValue):
             "Do not include update-history prose, an inferred day or a truncated date."
         )
         schema["properties"]["limitations"]["items"].update(minLength=1, maxLength=400)
+        schema["properties"]["notes"]["description"] = (
+            "Only necessary explanatory notes, never source titles or bibliography. Use [] by default. "
+            "Place [N1] immediately after the term/claim needing explanation; the note prints below that paragraph or table."
+        )
         schema["properties"]["lead_summaries"]["description"] = (
             "Declare only optional parenthesized lead labels, with zero-based targets such as "
             "sections.0.paragraphs.0 or summary. label excludes parentheses and must match that exact "
@@ -252,6 +268,16 @@ class ReportDraft(ReportValue):
             for t in s.tables: values.extend([t.caption] + t.columns + [c for row in t.rows for c in row])
             for d in s.diagrams: values.extend([d.caption] + d.steps)
         text = " ".join(values)
+        if self.notes is not None:
+            note_ids = [note.id for note in self.notes]
+            anchors = set(re.findall(r"\[(N\d+)\]", text))
+            if len(note_ids) != len(set(note_ids)) or anchors != set(note_ids):
+                raise ValueError("부연설명 주석 ID와 본문의 연결이 일치해야 합니다.")
+            for note in self.notes:
+                if re.search(r"https?://|\[(N\d+)\]", note.text) or note.text.strip() in {s.title.strip() for s in self.sources}:
+                    raise ValueError("주석에는 출처 제목·주소 대신 필요한 부연설명을 작성하세요.")
+            values.extend(note.text for note in self.notes)
+            text = " ".join(values)
         if set(re.findall(r"\[(S\d+)\]", text)) - set(ids):
             raise ValueError("본문에 없는 출처 ID를 참조했습니다.")
         # Keep citations readable in plain HWPX paragraphs; full links remain in sources.
@@ -351,7 +377,7 @@ def presentation_text(value, settings, source_ids, *, body=False, marks=None, ma
                        lambda match: match[1] if match[3] else match[0], value, count=1)
     style = settings.get("citation_style", "BRACKET_S")
     if style == "AUTO":
-        count = len(marker_numbers) if marker_numbers is not None else len({identifier for identifier in re.findall(r"\[(S\d+)\]", value) if identifier in source_ids})
+        count = len(marker_numbers) if marker_numbers is not None else len({identifier for identifier in re.findall(r"\[([SN]\d+)\]", value) if identifier in source_ids})
         style = citation_style_for_scope(style, count)
     if style == "NOTE_SHORT":
         # Consecutive canonical citations become one displayed list. Their
@@ -372,7 +398,7 @@ def presentation_text(value, settings, source_ids, *, body=False, marks=None, ma
         previous_end = match.end()
         offset += len(separator) + len(result) - len(match[0])
         return separator + result
-    return re.sub(r"\[(S\d+)\]", replace, value)
+    return re.sub(r"\[([SN]\d+)\]", replace, value)
 
 
 def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cover=None):
@@ -380,12 +406,16 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
     draft = ReportDraft.model_validate(draft)
     settings = visual_settings or {}
     reference = settings.get("preset_id") in ("appendix-1", "appendix-2", "appendix-3")
+    explanatory = draft.notes is not None
     source_ids = {source.id for source in draft.sources}
     lead_summaries = {item.target: item.label for item in draft.lead_summaries or []}
     declared_labels = draft.lead_summaries is not None
     rendered_marks = {}
     def present(value, *, body=False, scope=None, lead_label=None):
         marks = []
+        if explanatory:
+            from .report_notes import without_source_tokens
+            value = without_source_tokens(value, source_ids)
         # New reference notes are numbered per prose section/visual below,
         # before the plan is frozen or any HWPX command is applied.
         display = {**settings, "citation_style": "BRACKET_S"} if reference else settings
@@ -498,16 +528,16 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
             # The reference example uses the supplied caption itself. Keep
             # legacy numbering, but do not add an unrequested prefix in V3.
             caption = present(visual.caption) if reference else f"{'표' if is_table else '그림'} {number}. {present(visual.caption)}"
-            note_visual = {"note_visual_group": f"{kind}-{number}", "note_visual_kind": kind} if reference else {}
+            note_visual = {"note_visual_group": f"{kind}-{number}", "note_visual_kind": kind} if reference or explanatory else {}
             blocks.append((caption, "source", False,
                            {**({"visual_caption": kind} if rich else {}), **note_visual,
-                            **({"note_visual_caption": True} if reference else {})}))
+                            **({"note_visual_caption": True} if reference or explanatory else {})}))
             rows = [visual.columns, *visual.rows] if is_table else [[part for j, step in enumerate(visual.steps) for part in (["→", step] if j else [step])]]
             for y, row in enumerate(rows):
                 for x, cell in enumerate(row):
                     blocks.append((present(cell), "source", False, {**note_visual, **({"visual_id": f"{kind}-{number}", "visual_kind": kind,
                         "visual_row": y, "visual_column": x, "visual_columns": len(row)} if rich else {})}))
-    if (draft.sources and not reference) or draft.limitations:
+    if not explanatory and ((draft.sources and not reference) or draft.limitations):
         limitation_heading = {"style_kind": enabled_role("heading", settings)} if reference else {}
         blocks.append(("확인 사항" if reference else "출처 및 확인 사항", "heading", True, limitation_heading))
         page_chars = 0
@@ -534,13 +564,21 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
             new_page = page_chars + len(value) > 1100
             page_chars = len(value) if new_page else page_chars + len(value)
             blocks.append((value, "body", new_page, metadata))
-    if draft.research_notice is not None:
+    if draft.research_notice is not None and not explanatory:
         # Explicit frozen messages only: no inference from today's execution or
         # global defaults. Preserve all six original limitations and their text.
         # Plain body notices add no extra heading to an already frozen TOC.
         for warning in draft.research_notice.warnings:
             blocks.append(("확인 사항: " + warning.message, "body", False, {}))
-    if reference:
+    if explanatory:
+        from .report_notes import localize_notes
+        blocks = localize_notes(blocks, draft.notes, settings, explanatory=True)
+        # Only an explicit bibliography choice prints research titles. The
+        # canonical draft and review UI retain all evidence regardless.
+        if settings.get("reference_list") == "ALL" and draft.sources:
+            blocks.append(("참고자료", "heading", True, {}))
+            blocks.extend((source.title, "source", False, {"unreferenced_source_id": source.id}) for source in draft.sources)
+    elif reference:
         from .report_notes import localize_notes, TITLE_PRESENTATION_POLICY, SECTION_GROUPING_POLICY
         blocks = localize_notes(blocks, draft.sources, settings, presentation_policy=TITLE_PRESENTATION_POLICY,
                                 grouping_policy=SECTION_GROUPING_POLICY)
@@ -594,8 +632,8 @@ def report_blocks(draft, *, concise=False, rich=False, visual_settings=None, cov
                         local_emphasis = [{**item, "text": without_source_tokens(item["text"], {meta["table_common_source_id"]})}
                                           for item in local_emphasis if all(ref in numbers for ref in re.findall(r"\[(S\d+)\]", item["text"]))]
                     else:
-                        local_emphasis = [{**item, "text": presentation_text(item["text"], settings, source_ids, marker_numbers=numbers)}
-                                         for item in local_emphasis if all(ref in numbers for ref in re.findall(r"\[(S\d+)\]", item["text"]))]
+                        local_emphasis = [{**item, "text": presentation_text(item["text"], settings, set(local_ids), marker_numbers=numbers)}
+                                         for item in local_emphasis if all(ref in numbers for ref in re.findall(r"\[([SN]\d+)\]", item["text"]))]
                 result[-1]["emphasis"] = [item for item in local_emphasis if item["text"] and item["text"] in chunk]
                 declared_label = meta.get("lead_summary_label")
                 if declared_label and f"({declared_label})" in chunk:

@@ -14,6 +14,24 @@ const draft = (status = "unverified") => ({ title: "합성 자료 확인 보고�
 const ready = (status = "unverified") => ({ id: "00000000-0000-4000-8000-000000000011", status: "ready", input: { prompt: "합성 보고서 작성 요청", research: status !== "not_requested", research_policy: "allow_unverified" },
   draft: draft(status), draft_sha256: "a".repeat(64), preview_id: null, error: "", approval: null, execution: { web_search_calls: status === "completed" ? 1 : 0 } });
 
+test("MOCK explanatory notes: explanation stays beside its paragraph while evidence and review warnings remain available", async ({ page }) => {
+  const value = ready();
+  const current = { ...value, draft: { ...value.draft, notes: [{ id: "N1", text: "추가 확인은 신규 사고를 의미하지 않음 [S1]" }],
+    sections: [{ heading: "합성 확인 현황", paragraphs: ["□ 추가 확인[N1]은 기존 사고의 재점검 결과 [S1]", "□ 조치 진행 중 [S1]"], tables: [], diagrams: [] }] } };
+  const state = await workspace(page, { initial: current });
+  const review = page.getByLabel("초안 내용 검토", { exact: true });
+  const note = review.locator(".live-note");
+  await expect(note).toHaveText("* 추가 확인은 신규 사고를 의미하지 않음");
+  await expect(note.locator("xpath=preceding-sibling::*[1]")).toHaveText("□ 추가 확인*은 기존 사고의 재점검 결과 ");
+  await expect(note.locator("xpath=following-sibling::*[1]")).toHaveText("□ 조치 진행 중 ");
+  await expect(review.getByText("작성자 검토 메모 · 문서에 포함되지 않음", { exact: true })).toBeVisible();
+  await expect(review.getByLabel("자료 확인 상태")).toContainText("최신 정보 미검증");
+  await review.getByText("미검증 참고 출처 1개", { exact: true }).click();
+  await expect(review.getByText("https://example.invalid/synthetic-source", { exact: true })).toBeVisible();
+  expect(state.current().draft).toEqual(current.draft);
+  expect(state.posts).toEqual([]);
+});
+
 async function workspace(page: Page, options: { initial?: any; loseFirstPost?: boolean } = {}) {
   let current = options.initial || null;
   const posts: { path: string; body: any }[] = [];

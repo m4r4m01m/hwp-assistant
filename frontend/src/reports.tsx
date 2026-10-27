@@ -446,12 +446,13 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
           try { const value = await api<Approved>(`/report-tasks/${job.id}/approved`); onOpen(value.document); } catch (e) { setError(String(e)); }
         }}>저장된 보고서 편집하기</button>}
         <details className="report-text-details"><summary>AI 생성 원문·출처</summary><p className="hint">처음 생성한 내용입니다. 문서 편집기에서 수정한 내용은 여기에 반영되지 않습니다.</p><h2>내용 요약</h2><p><ReportText text={job.draft.summary} emphasis={job.draft.emphasis} /></p>
-        {job.draft.sections.map((section, i) => <section key={i}><h2>{i + 1}. {section.heading}</h2><ReportContent blocks={[
+        {job.draft.sections.map((section, i) => <section key={i}><h2>{i + 1}. {section.heading}</h2><ReportContent notes={job.draft!.notes} blocks={[
           ...section.paragraphs.map(text => ({ text, kind: "body", emphasis: job.draft!.emphasis })),
           ...(section.tables || []).map(t => ({ text: t.caption, kind: "table", ...t, emphasis: job.draft!.emphasis })),
           ...(section.diagrams || []).map(d => ({ text: d.caption, kind: "diagram", ...d, emphasis: job.draft!.emphasis })),
         ]} /></section>)}
-        <h2>출처 및 확인 사항</h2><ReportSources sources={job.draft.sources} unverified={sourcesUnverified} />
+        {job.draft.notes && <p className="hint">조사 출처와 작성자 검토 메모는 보관용입니다. 문서에는 필요한 부연설명만 넣습니다.</p>}
+        <h2>조사 출처·검토 메모</h2><ReportSources sources={job.draft.sources} unverified={sourcesUnverified} />
         {job.draft.limitations.map((p, i) => <p key={i} className="hint">{p}</p>)}
         </details>
         {job.approval && !job.approval.saved_version && !saved && <button className="primary" disabled={busy || saving} onClick={() => void makeDocument()}>{saving ? "HWPX 만드는 중…" : output.current ? "같은 보고서 저장 재확인" : "기존 승인 저장 계속하기"}</button>}
