@@ -32,11 +32,21 @@ When rewrite_context is present and the user asks to edit the document's sentenc
 paragraphs that need changes. Each entry has exactly section, paragraph, before_sha256 (copy text_sha256), and replacement.
 Keep each paragraph's leading body marker and spacing. When fixed_prefix is nonempty, copy that exact prefix unchanged;
 it contains a styled parenthetical lead label and only the following body prose may change. Preserve every fact, name, number, date, condition and citation.
+When protected_text is supplied, preserve each exact string once, in the same order, with its semantic association intact.
+These strings are inline emphasis or superscript note markers; shorten surrounding prose, never move a note onto a different claim.
+For a request to shorten to 1-2 lines, actively rewrite the sentence structure, not just swap a few words.
+Remove redundant framing (e.g. '확인하는 점검을 진행할 계획임' -> '점검 예정'), repeated subjects already clear in the paragraph,
+and nominal padding. Prefer concise Korean report endings and clear action/owner/condition. Aim to reduce verbose editable prose
+by about 25-40 percent where facts allow; this is an editing goal, never permission to drop facts or an exact rendered-line guarantee.
+rendered_lines, when supplied, is the measured original paragraph line count. Prioritize paragraphs over the requested line target;
+use its ratio to guide reduction, but actual post-edit line counts are measured only by the comparison renderer.
+Review every supplied paragraph against the request before answering. Do not present a minor 5-percent edit as successful 1-2-line shortening.
+Explain any paragraphs that remain long because protected text or facts require it. Distinguish text reduction from measured line counts.
 Shorten repetitive phrasing into clear Korean report sentences, generally about 1-2 lines when possible; do not delete material facts
 to reach a length target. Do not add line breaks, paragraphs, titles, tables, citations, or new claims. Unchanged paragraphs may be omitted.
 The app applies these replacements only in a separate rendered comparison. The user chooses whether to apply it to the document.
 Never ask the user to select a paragraph for this supported document-wide request. Explain the precise scope: only the supplied
-paragraphs are editable; headings, tables, notes, mixed formatting and any preserved counts stay unchanged. If unavailable is nonempty
+paragraphs are editable; headings, tables, note descriptions and any preserved counts stay unchanged. Inline protected text retains its formatting. If unavailable is nonempty
 or paragraphs are empty, explain that exact limitation. For discussion/questions, return an empty document_rewrites list.
 When rewrite_context is absent, document_rewrites must be empty. Table/formatting edits never use text replacement fields.
 When design_context and design_catalog are supplied, you may suggest up to three catalog choices relevant to the user's request.

@@ -1243,7 +1243,7 @@ function Editor({
                 const target = currentStyleTarget(instance);
                 const document_context = await assistantDocumentContext(source);
                 const design_context = await assistantDesignContext(source, target);
-                const rewrite_context = scope === "document" ? await assistantRewriteContext(source) : null;
+                const rewrite_context = scope === "document" ? await assistantRewriteContext(source, instance.bodyLayout()) : null;
                 if (adapter.current !== instance || doc.current?.current_version !== document.current_version || instance.bridge.revision() !== source.revision || epoch.current !== source.epoch)
                   throw new Error("읽는 동안 문서가 바뀌었습니다. 현재 내용으로 다시 요청하세요.");
                 if (blockJson(currentStyleTarget(instance)) !== blockJson(target)) throw new Error("읽는 동안 문단이나 표 선택이 바뀌었습니다. 현재 위치에서 다시 요청하세요.");

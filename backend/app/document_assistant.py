@@ -151,6 +151,11 @@ def request_payload(value):
     result = value.model_dump(mode="json")
     if result["rewrite_context"] is None:
         result.pop("rewrite_context")
+    else:
+        for paragraph, incoming in zip(result["rewrite_context"]["paragraphs"], value.rewrite_context.paragraphs):
+            for optional in ("protected_text", "rendered_lines"):
+                if optional not in incoming.model_fields_set:
+                    paragraph.pop(optional, None)
     if result["design_context"] is None:
         result.pop("design_context")
     else:

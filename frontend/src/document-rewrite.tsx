@@ -27,18 +27,27 @@ export function DocumentRewritePreview({ turn, actions, onClose }: {
   const dialog = useRef<HTMLDialogElement>(null), capture = useRef<TocCapture | null>(null), engine = useRef<EditorAdapter | null>(null);
   const prepared = useRef<PreparedToc | null>(null), alive = useRef(false), adopted = useRef(false), urls = useRef<string[]>([]);
   const [busy, setBusy] = useState(true), [applying, setApplying] = useState(false), [error, setError] = useState("");
-  const [progress, setProgress] = useState("원문 확인 중"), [pair, setPair] = useState<{ before: string; after: string; page: number; pages: number } | null>(null);
+  const [progress, setProgress] = useState("원문 확인 중"), [pair, setPair] = useState<{ before: string; after: string; page: number; afterPage: number; pages: number } | null>(null);
+  const [selected, setSelected] = useState(0), [lines, setLines] = useState<{ before: number; after: number }[]>([]);
   const context = turn.rewrite_context!, changes = turn.document_rewrites || [];
-  async function render(page: number) {
+  const originals = changes.map(change => context.paragraphs.find(p => p.paragraph === change.paragraph)!);
+  const beforeLength = originals.reduce((sum, p) => sum + p.length, 0), afterLength = changes.reduce((sum, p) => sum + Array.from(p.replacement).length, 0);
+  const reduction = beforeLength ? Math.round((1 - afterLength / beforeLength) * 100) : 0;
+  async function render(page: number, afterPage = page) {
     const source = capture.current, preview = engine.current;
     if (!source || !preview || !actions.isOwner(source)) throw new Error("비교 중 문서가 바뀌었습니다. 현재 문서로 다시 요청하세요.");
     const counts = await Promise.all([source.adapter.sdk.pageCount(), preview.sdk.pageCount()]);
-    const svgs = await Promise.all([page < counts[0] ? source.adapter.sdk.getPageSvg(page) : "", page < counts[1] ? preview.sdk.getPageSvg(page) : ""]);
+    const svgs = await Promise.all([page >= 0 && page < counts[0] ? source.adapter.sdk.getPageSvg(page) : "", afterPage >= 0 && afterPage < counts[1] ? preview.sdk.getPageSvg(afterPage) : ""]);
     if (!alive.current) return;
     if (!actions.isOwner(source)) throw new Error("미리보기 준비 중 원문이 바뀌었습니다.");
     const images = svgs.map(svg => svg ? URL.createObjectURL(new Blob([safeSvg(svg)], { type: "image/svg+xml" })) : "");
     urls.current.forEach(url => URL.revokeObjectURL(url)); urls.current = images.filter(Boolean);
-    setPair({ before: images[0], after: images[1], page, pages: Math.max(...counts) });
+    setPair({ before: images[0], after: images[1], page, afterPage, pages: Math.max(...counts) });
+  }
+  async function showChange(index: number) {
+    const change = changes[index];
+    setSelected(index);
+    await render(capture.current!.adapter.bridge.paragraphPage(0, change.paragraph) - 1, engine.current!.bridge.paragraphPage(0, change.paragraph) - 1);
   }
   useEffect(() => {
     const controller = new AbortController(), element = dialog.current!;
@@ -79,7 +88,12 @@ export function DocumentRewritePreview({ turn, actions, onClose }: {
         if (!verified.verified || verified.turn_id !== turn.id || verified.source_sha256 !== context.source_sha256 || verified.output_sha256 !== outputSha256 || !actions.isOwner(source))
           throw new Error("검증한 수정안과 현재 문서가 일치하지 않습니다.");
         prepared.current = { capture: source, adapter: preview, output, outputSha256, requestId: turn.id };
-        await render(0);
+        const beforeLayout = source.adapter.bodyLayout(), afterLayout = preview.bodyLayout();
+        setLines(changes.map(change => ({
+          before: beforeLayout.paragraphs.find(p => p.section === 0 && p.paragraph === change.paragraph)!.lines.length,
+          after: afterLayout.paragraphs.find(p => p.section === 0 && p.paragraph === change.paragraph)!.lines.length,
+        })));
+        await showChange(0);
       } catch (cause) { if (alive.current) setError(errorMessage(cause)); }
       finally { if (alive.current) setBusy(false); }
     })();
@@ -91,11 +105,14 @@ export function DocumentRewritePreview({ turn, actions, onClose }: {
     };
   }, []);
   return <dialog ref={dialog} className="rewrite-preview-dialog" aria-label="문서 전체 수정 전후 비교" onCancel={event => { event.preventDefault(); if (!applying) onClose(); }}>
-    <header><div><h2>문서 전체 수정 전후 비교</h2><p>{changes.length}개 본문 문단 수정 · 제목·표·주석은 보존합니다.</p></div><button disabled={applying} autoFocus onClick={onClose}>비교 닫기</button></header>
+    <header><div><h2>문서 전체 수정 전후 비교</h2><p>수정 가능 {context.paragraphs.length}개 중 {changes.length}개 변경 · {beforeLength} → {afterLength}자{reduction >= 0 ? ` · ${reduction}% 축약` : ` · ${-reduction}% 증가`}</p></div><button disabled={applying} autoFocus onClick={onClose}>비교 닫기</button></header>
     <div className="rewrite-preview-actions">
-      <button disabled={busy || !pair || pair.page === 0} onClick={() => { setBusy(true); void render(pair!.page - 1).catch(cause => setError(errorMessage(cause))).finally(() => setBusy(false)); }}>이전 쪽</button>
+      <label>변경 위치 <select aria-label="수정한 문단" value={selected} disabled={busy || applying || !pair} onChange={event => { setBusy(true); void showChange(Number(event.target.value)).catch(cause => setError(errorMessage(cause))).finally(() => setBusy(false)); }}>
+        {changes.map((change, index) => <option key={change.paragraph} value={index}>본문 {change.paragraph + 1} · {lines[index] ? `${lines[index].before} → ${lines[index].after}줄` : "배치 확인 중"}</option>)}
+      </select></label>
+      <button disabled={busy || !pair || pair.page <= 0 || pair.afterPage <= 0} onClick={() => { setBusy(true); void render(pair!.page - 1, pair!.afterPage - 1).catch(cause => setError(errorMessage(cause))).finally(() => setBusy(false)); }}>이전 쪽</button>
       <span>{pair ? `${pair.page + 1} / ${pair.pages}쪽` : progress}</span>
-      <button disabled={busy || !pair || pair.page + 1 >= pair.pages} onClick={() => { setBusy(true); void render(pair!.page + 1).catch(cause => setError(errorMessage(cause))).finally(() => setBusy(false)); }}>다음 쪽</button>
+      <button disabled={busy || !pair || pair.page + 1 >= pair.pages} onClick={() => { setBusy(true); void render(pair!.page + 1, pair!.afterPage + 1).catch(cause => setError(errorMessage(cause))).finally(() => setBusy(false)); }}>다음 쪽</button>
       <button className="primary" disabled={busy || applying || !prepared.current || !pair} onClick={async () => {
         if (!prepared.current) return;
         setApplying(true); setError("");
@@ -107,9 +124,11 @@ export function DocumentRewritePreview({ turn, actions, onClose }: {
     {busy && <p role="status">{progress}</p>}{error && <p className="error" role="alert">{error}</p>}
     <p className="hint">원문은 승인 전까지 유지됩니다. 적용 후 서버 저장으로 변경사항을 보관하세요. {Object.entries(context.preserved).filter(([, count]) => count > 0).map(([name, count]) => `${name} ${count}개 유지`).join(" · ")}</p>
     <div className="rewrite-preview-pages">{pair && <>
-      <figure><figcaption>AS-IS · 수정 전</figcaption>{pair.before ? <img src={pair.before} alt="수정 전 실제 문서" /> : <p>해당 쪽 없음</p>}</figure>
-      <figure><figcaption>TO-BE · 수정 후</figcaption>{pair.after ? <img src={pair.after} alt="수정 후 실제 문서" /> : <p>해당 쪽 없음</p>}</figure>
+      <figure><figcaption>AS-IS · 수정 전 {pair.page + 1}쪽</figcaption>{pair.before ? <img src={pair.before} alt="수정 전 실제 문서" /> : <p>해당 쪽 없음</p>}</figure>
+      <figure><figcaption>TO-BE · 수정 후 {pair.afterPage + 1}쪽</figcaption>{pair.after ? <img src={pair.after} alt="수정 후 실제 문서" /> : <p>해당 쪽 없음</p>}</figure>
     </>}</div>
-    <details className="rewrite-preview-text"><summary>수정한 {changes.length}개 문단 확인</summary>{changes.map((change, index) => <CandidateText key={`${change.section}:${change.paragraph}`} original={context.paragraphs.find(p => p.paragraph === change.paragraph)?.text || ""} replacement={change.replacement} ordinal={index + 1} highlight />)}</details>
+    <details className="rewrite-preview-text" open><summary>선택한 문단의 문장 비교{lines[selected] ? ` · 실제 ${lines[selected].before} → ${lines[selected].after}줄` : ""}</summary>
+      <div className="rewrite-text-pair"><div><strong>수정 전</strong><p className="text">{originals[selected]?.text}</p></div><div><strong>수정 후</strong><CandidateText original={originals[selected]?.text || ""} replacement={changes[selected]?.replacement || ""} ordinal={selected + 1} highlight /></div></div>
+    </details>
   </dialog>;
 }

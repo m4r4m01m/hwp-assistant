@@ -27,6 +27,7 @@ async function setup(page: Page) {
   const original = await (await page.request.get(originalUrl)).body();
   await page.getByRole("button", { name: "문서 AI 대화 열기" }).click();
   await startConversation(page, "MOCK 로컬 후보 시험");
+  await openConversationTools(page, "수정 기록");
   await expect(page.getByRole("button", { name: "수정 후보 2개 만들기" })).toBeEnabled();
   await expect(page.getByTestId("rewrite-provider")).toContainText("hwp-synthetic-fixture");
   await frame.locator("#scroll-container canvas").first().click({ position: { x: 160, y: 150 }, force: true });
@@ -42,6 +43,7 @@ async function setup(page: Page) {
 }
 
 async function requestCandidates(page: Page) {
+  await openConversationTools(page, "수정 기록");
   const pending = page.waitForResponse(r => r.request().method() === "POST" && /\/rewrite-tasks$/.test(r.url()));
   await page.getByRole("button", { name: "수정 후보 2개 만들기" }).click();
   const response = await pending;
@@ -105,12 +107,15 @@ test("REAL rhwp + MOCK provider: confirmed writing context reaches the model and
   await openWritingContext(page);
   await expect(page.getByLabel("작성 목적", { exact: true })).toHaveValue("운영팀에 지출 현황을 보고");
   await expect(page.getByLabel("확인 사실 1", { exact: true })).toHaveValue("지출 승인은 하지 않았다.");
+  await openConversationTools(page, "수정 기록");
   await article.getByText("이 후보에 전달한 작성 정보", { exact: true }).click();
   await expect(article.getByTestId("frozen-writing-context")).toContainText("AI 문장을 사용자가 확인");
+  await openConversationTools(page);
   await page.getByLabel("작성 목적", { exact: true }).fill("임원에게 보고하는 새 목적");
   await page.getByLabel("목적·사실·기준을 확인했으며 후보 생성에 사용할 수 있습니다", { exact: true }).check();
   await page.getByRole("button", { name: "작성 정보 저장", exact: true }).click();
   await expectContextRevision(page, 2);
+  await openConversationTools(page, "수정 기록");
   await expect(article.getByRole("button", { name: "후보 1 승인·적용·저장" })).toBeDisabled();
   await expect(article.getByTestId("frozen-writing-context")).toContainText("운영팀에 지출 현황을 보고");
   await expect(article.getByTestId("frozen-writing-context")).not.toContainText("임원에게 보고하는 새 목적");
@@ -222,6 +227,7 @@ test("REAL rhwp + MOCK provider: explicit pending request recovery keeps origina
   await request.post(process.env.HWP_E2E_MOCK_URL + "/controls", { data: {} });
   const state = await setup(page);
   await saveWritingContext(page);
+  await openConversationTools(page, "수정 기록");
   await page.getByLabel("저장한 작성 정보 사용", { exact: true }).check();
   const tid = await page.getByLabel("대화 선택").inputValue();
   const sends: any[] = [];
@@ -234,14 +240,18 @@ test("REAL rhwp + MOCK provider: explicit pending request recovery keeps origina
   try {
     await page.getByRole("button", { name: "수정 후보 2개 만들기" }).click();
     await expect(page.getByRole("button", { name: "보관한 생성 요청 재확인", exact: true })).toBeEnabled();
+    await openConversationTools(page);
     await page.getByLabel("작성 목적", { exact: true }).fill("나중에 작성한 미저장 목적");
+    await openConversationTools(page, "수정 기록");
     await page.getByLabel("문체 개선 요청").fill("다른 개선 지시를 나중에 작성");
     await expect(page.getByRole("button", { name: "수정 후보 2개 만들기" })).toBeDisabled();
     await page.getByRole("button", { name: "보관한 생성 요청 재확인", exact: true }).click();
     await expect(page.getByTestId("pending-rewrite")).toHaveCount(0);
     expect(sends).toHaveLength(2); expect(sends[1]).toEqual(sends[0]);
     expect(sends[1].context_revision).toBe(1);
+    await openConversationTools(page);
     await expect(page.getByLabel("작성 목적", { exact: true })).toHaveValue("나중에 작성한 미저장 목적");
+    await openConversationTools(page, "수정 기록");
     await expect(page.getByLabel("문체 개선 요청")).toHaveValue("다른 개선 지시를 나중에 작성");
     const tasks = await (await request.get(`/api/threads/${tid}/rewrite-tasks`)).json();
     expect(tasks).toHaveLength(1);

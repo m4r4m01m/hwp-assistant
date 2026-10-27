@@ -226,9 +226,7 @@ export function DocumentAssistantPanel({ thread, document: doc, captureDocument,
     <div className="assistant-scroll">
     <div className="assistant-context-card">
       <strong title={doc.name}>{doc.name}</strong>
-      <span>요청할 때마다 현재 본문과 표의 텍스트를 읽습니다. 미저장 내용도 포함됩니다.</span>
-      <button disabled={!captureDocument || busy || !!pending || permissionLost} onClick={() => void inspect()}>AI가 읽을 내용 확인</button>
-      <small>문단 수정 요청은 수정안을 준비해 실제 문서에서 전후 비교합니다. 적용·저장은 직접 선택합니다.</small>
+      <button title="미저장 내용을 포함한 현재 문서를 읽습니다. 수정안은 비교 후 직접 적용합니다." disabled={!captureDocument || busy || !!pending || permissionLost} onClick={() => void inspect()}>AI가 읽을 내용 확인</button>
       {preview && <details open={previewOpen} onToggle={event => setPreviewOpen(event.currentTarget.open)}><summary>최근 확인한 내용 · {preview.document_context.text.length.toLocaleString()}자{preview.document_context.truncated ? " · 일부 발췌" : ""}</summary>
         <p className="hint">{pending ? "재확인은 보관한 질문과 이 문서 내용을 사용합니다." : "새 질문을 보낼 때 문서를 다시 읽습니다. 이전 응답은 요청 당시 내용을 기준으로 합니다."}</p>
         {preview.document_context.truncated && <p className="notice">문서가 길어 앞부분만 포함됩니다. 포함되지 않은 부분은 AI가 확인할 수 없습니다.</p>}
@@ -290,7 +288,7 @@ export function DocumentAssistantPanel({ thread, document: doc, captureDocument,
     </div>
     {writable && <div className="assistant-composer">
       {documentRewrite && <label className="assistant-scope">수정 범위 <select aria-label="AI 수정 범위" value={scope} disabled={active || !!pending} onChange={event => setScope(event.target.value as typeof scope)}>
-        <option value="document">문서 전체 문장</option><option value="selection">현재 문단</option>
+        <option value="document">본문 전체 문장</option><option value="selection">현재 문단</option>
       </select></label>}
       <label htmlFor={`assistant-message-${thread}`}>AI에게 요청</label>
       <textarea id={`assistant-message-${thread}`} aria-label="AI에게 요청" rows={3} maxLength={12000} value={message} placeholder="전체 문장을 짧고 간결한 보고서 문체로 다듬어줘."

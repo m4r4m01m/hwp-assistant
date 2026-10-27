@@ -4,13 +4,13 @@ import { readFileSync } from 'node:fs';
 
 export const controllerPath = 'rhwp-studio/src/document-agent/controller.ts';
 export const controllerSourceSha256 = 'a2a1e104076a882bc8f58e9962bffc2a214c7bcc22cbca269ff2c3c5f5cfa8a6';
-export const controllerPatchedSha256 = '652e8f1d1da500d1502d2b55b9f87a159cc1dbef08c16a358df3a802342d8986';
+export const controllerPatchedSha256 = 'a44f8e8ede4d1ca36c4da0456d0d9dfee0ac7846ac4ff0c2eab4bd39ab4359d1';
 const hash = value => createHash('sha256').update(value).digest('hex');
 const normalize = value => value.replaceAll('\r\n', '\n');
 
 // These exact fragments are compiled in the controller and exercised in fixture tests.
 export const fixedPrefixHelpers = String.raw`
-type FixedPrefix = { text: string; runs: Array<{ text: string; charShapeId: number }> };
+type FixedPrefix = { text: string; runs: Array<{ text: string; charShapeId: number }>; inline?: true };
 
 function collectFixedPrefix(text: string, ids: number[]): FixedPrefix | undefined {
   if (ids.every(id => id === ids[0])) return undefined;
@@ -21,7 +21,17 @@ function collectFixedPrefix(text: string, ids: number[]): FixedPrefix | undefine
   if (boundary < 1 || boundary > 120 || points.length !== ids.length
       || !/^\s*[□ㅇ○\-․]\s+\([^()\r\n]{1,40}\)\s*$/.test(prefix)
       || !points.slice(boundary).join('').trim()) {
-    throw new DocumentAgentError('TARGET_FORMAT_MISMATCH', '고정된 요약 말머리 외의 혼합 서식은 편집할 수 없습니다.');
+    if (!/^\s*[□ㅇ○\-․]\s+/.test(text) || points.length !== ids.length)
+      throw new DocumentAgentError('TARGET_FORMAT_MISMATCH', '본문 기호가 있는 문단만 수정할 수 있습니다.');
+    const runs: FixedPrefix['runs'] = [];
+    for (let offset = 0; offset < ids.length;) {
+      const start = offset, id = ids[offset];
+      while (offset < ids.length && ids[offset] === id) offset++;
+      if (id !== ids[0]) runs.push({ text: points.slice(start, offset).join(''), charShapeId: id });
+    }
+    const result: FixedPrefix = { text: '', runs, inline: true };
+    assertFixedPrefixReplacement(result, text);
+    return result;
   }
   const runs: FixedPrefix['runs'] = [];
   for (let offset = 0; offset < boundary; offset += 1) {
@@ -33,6 +43,18 @@ function collectFixedPrefix(text: string, ids: number[]): FixedPrefix | undefine
 }
 
 function assertFixedPrefixReplacement(prefix: FixedPrefix | undefined, replacement: string): void {
+  if (prefix?.inline) {
+    if (!prefix.runs.length || prefix.runs.length > 24 || prefix.runs.reduce((sum, run) => sum + codePointLength(run.text), 0) > 1000)
+      throw new DocumentAgentError('TARGET_FORMAT_MISMATCH', '고정할 강조·주석 범위를 초과했습니다.');
+    let offset = 0;
+    for (const run of prefix.runs) {
+      const start = replacement.indexOf(run.text);
+      if (!run.text.trim() || start < offset || start !== replacement.lastIndexOf(run.text))
+        throw new DocumentAgentError('TARGET_FORMAT_MISMATCH', '강조·주석 문구를 같은 순서로 한 번씩 유지하세요.');
+      offset = start + run.text.length;
+    }
+    return;
+  }
   if (prefix && (!replacement.startsWith(prefix.text) || !replacement.slice(prefix.text.length).trim())) {
     throw new DocumentAgentError('TARGET_FORMAT_MISMATCH', '요약 말머리 원문을 유지하고 본문만 수정하세요.');
   }
@@ -40,6 +62,15 @@ function assertFixedPrefixReplacement(prefix: FixedPrefix | undefined, replaceme
 
 function applyTargetCharShapes(wasm: DocumentAgentWasm, target: RhwpBodyParagraphTargetV1, evidence: TargetEvidence): void {
   if (target.length > 0) wasm.setCharShapeId(target.section, target.paragraph, 0, target.length, evidence.charShapeId);
+  if (evidence.fixedPrefix?.inline) {
+    const text = wasm.getTextRange(target.section, target.paragraph, 0, target.length);
+    assertFixedPrefixReplacement(evidence.fixedPrefix, text);
+    for (const run of evidence.fixedPrefix.runs) {
+      const start = codePointLength(text.slice(0, text.indexOf(run.text)));
+      wasm.setCharShapeId(target.section, target.paragraph, start, start + codePointLength(run.text), run.charShapeId);
+    }
+    return;
+  }
   let offset = 0;
   for (const run of evidence.fixedPrefix?.runs || []) {
     const end = offset + codePointLength(run.text);
@@ -57,7 +88,7 @@ const oldShapes = `  const charShapeId = charShapeIds[0];
     );
   }
 `;
-const newShapes = `  const charShapeId = charShapeIds[charShapeIds.length - 1];
+const newShapes = `  let charShapeId = charShapeIds[charShapeIds.length - 1];
 `;
 function replaceOnce(source, before, after) {
   if (source.split(before).length !== 2) throw Error('Pinned controller patch anchor is missing or ambiguous');
@@ -74,6 +105,7 @@ export function transformController(source) {
     text,
     textSha256: digestText(text),`, `    : '';
   const fixedPrefix = collectFixedPrefix(text, charShapeIds);
+  if (fixedPrefix?.inline) charShapeId = charShapeIds[0];
   return {
     text,
     textSha256: digestText(text),`);
@@ -119,12 +151,12 @@ export function patchedController(original) {
 }
 export function assertControllerSource(current, original) {
   const patched = patchedController(original), normalized = normalize(current);
-  if (normalized !== normalize(original) && normalized !== patched)
+  if (normalized !== normalize(original) && normalized !== patched && hash(normalized) !== '652e8f1d1da500d1502d2b55b9f87a159cc1dbef08c16a358df3a802342d8986')
     throw Error('Preserving unexpected vendor controller changes');
   return patched;
 }
 export function controllerReceipt() {
-  return { policy: 'fixed-summary-prefix-v1', path: controllerPath,
+  return { policy: 'fixed-inline-text-v2', path: controllerPath,
     source_sha256: controllerSourceSha256, patched_sha256: controllerPatchedSha256,
     helper_sha256: hash(readFileSync(new URL(import.meta.url))) };
 }
