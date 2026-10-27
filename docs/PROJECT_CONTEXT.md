@@ -8,7 +8,11 @@
 
 수정은 기존 `shared` 정책에 삭제·휴지통 조회·복구를 함께 맞추고, `private`에서는 실제 소유자 제한을 유지한다. 원래 Access·작성자·버전·파일은 변경하지 않는다. 활성 승인 상태와 현재 관리 권한을 서버에서 다시 검사하며, 편집 임대·문서 행 잠금·멱등 영수증·이전 복구 요청의 재사용 거부·감사 기록을 유지한다. 삭제는 복구 가능한 휴지통 이동이고 영구 삭제는 제공하지 않는다. 문서 행에는 **삭제** 버튼을 직접 표시하고 권한이 없으면 비활성 안내를 제공하며, 공용 휴지통 설명도 실제 범위에 맞춘다.
 
-검증과 운영 배포의 완료 여부는 후속 증거로 기록한다. 사용자 문서로 삭제 시험하거나 운영 계정·환경·소유권을 바꾸는 방법은 사용하지 않는다.
+구현 source는 [`ca45dd86854eb17615117a07eabee310d2d57bcc`](https://github.com/m4r4m01m/hwp-assistant/commit/ca45dd86854eb17615117a07eabee310d2d57bcc), [PR #51](https://github.com/m4r4m01m/hwp-assistant/pull/51)이다. 백엔드 집중 36개·TypeScript·모의 UI 5개를 통과했다. 별도 Windows SQLite/API·Chrome의 실제 계정 시험에서 공용 문서의 타계정 삭제·공용 휴지통·복구, guest/admin 삭제 후 다른 회원 복구, 편집 중 삭제 409를 확인했다. 개인 문서함의 비소유자 삭제 버튼 비활성·삭제/복구 403도 확인했다. 원본·버전 2개·모든 Access/Version/VersionAuthor 열·현재 버전이 보존됐고 두 환경의 실제 제공 자원 각 26개가 검증 빌드와 같았다. 760px 화면도 직접 확인했다. 새 합성 시험 서버만 정리하고 기존 로컬/QA 서비스·문서를 보존했다. [검증·배포 영수증](evidence/shared-library-trash-2026-10-27.json)에 집중 시험, 실제 API/브라우저, CI와 배포를 나눠 기록한다. 운영 사용자 세션으로 삭제하거나 실제 모델·Hancom 검수를 한 결과는 아니다.
+
+**운영 반영 완료:** 정확한 PR head의 CI 4개([HWP](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40447664084)·[PoC](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40447664120)·[빌드 경로](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40447664225)·[배포 계약](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40447664088))가 모두 성공했다. Linux 전체 pytest 1,569개, 모의 UI 101개와 엄격 TLS 1개를 확인했다. merge commit [`76fbec8461e5441237198de7504baddcc64e0304`](https://github.com/m4r4m01m/hwp-assistant/commit/76fbec8461e5441237198de7504baddcc64e0304)으로 main에 병합했고, 같은 SHA의 push 검사 3개도 성공했다. 한 번 dispatch한 [운영 배포 run 40448414141](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40448414141)의 5개 job이 모두 성공했다. [운영 job](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40448414141/job/122007808345)에서 **2026-10-27 13:21:33 KST DB·문서 백업 완료**, 같은 SHA 교체·내부 및 공개 HTTPS 무결성 PASS를 확인했고 job은 **13:21:55 KST**에 끝났다. 별도 외부 검사도 공개 경로·보호 API·앱/편집기/비교 자원·WASM 무결성을 통과했다. 공개 앱 JS/CSS에서 새 직접 삭제 버튼과 공용 휴지통 안내가 제공됨도 확인했다. 운영 계정·환경 설정·원소유자 기록은 변경하지 않았다.
+
+이번 후속 기록은 배포 후 검증 영수증이며 앱 변경이나 재배포 사유가 아니다. 로컬 15330/18330은 앞서 갱신한 `0eddf4b` 실행본을 유지한다. 현재 checkout의 제품 소스가 달라 바탕화면 실행기의 다음 재사용 검사는 기존 run을 거부하고 점유 중인 포트에서 중단한다. 기존 URL은 계속 사용할 수 있지만 로컬 최신 버전·바로가기 재사용에는 기존 자료를 보존하는 별도 재기동이 필요하다. 이번 운영 배포를 위해 로컬 서비스를 추가 중지하지 않았고 PC도 켜 두었다.
 
 ## 2026-10-27 — 로컬 갱신 완료와 요청사항 재점검
 
