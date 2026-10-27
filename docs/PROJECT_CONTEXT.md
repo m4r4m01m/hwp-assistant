@@ -1,5 +1,18 @@
 # HWP Assistant 프로젝트 컨텍스트
 
+## 2026-10-28 — 공동편집 main 병합과 최종 검증
+
+[PR #52](https://github.com/m4r4m01m/hwp-assistant/pull/52)의 검토 head `e27802499bb24a45beefbfbd6031846efad2c2c6`를 필수 검사 성공 후 merge commit **`61db3165990d203e8189dbf1a7c0e10bd9254fd4`**로 main에 병합했다. merge 전 main은 `76fbec8461e5441237198de7504baddcc64e0304`였고, 최종 main과 검토 head의 제품 파일 트리가 같음을 대조했다. 원래 개발 브랜치를 보존했고 로컬 main도 fast-forward로 동기화했다. 이전 절의 미병합/미배포 설명은 당시 기록이다.
+
+- 최종 PR의 [HWP 검사](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40527825158): Linux 전체 pytest **1,612 passed**, 프런트엔드 unit **38**, Node 계약 **55**, 모의 UI **102**, 엄격 TLS **1** 통과. PR의 이미지 게시·운영 배포 job은 정상 skip이므로 배포 성공으로 계산하지 않는다. [빌드 경로](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40527824866)와 [게시 계약](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40527824997)도 성공했다.
+- [PoC 통합](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40527825022): 실제 PostgreSQL·HTTPS·최적화 엔진에서 계정 승인/격리·두 네이티브 공동편집 화면의 입력 병합·원본 보존 및 재시작 후 비밀번호 세션/문서 해시 보존 성공. 브라우저 시험 **3개** 안에 공동편집 검사를 포함했다. 모델 호출은 없었다.
+- Windows 별도 API와 diagnostic rhwp에서 네이티브 두 탭 병합·저장/재열기, 동일 위치 충돌 버퍼 보존, 읽기 전용 후 편집권 재획득, 편집기 내부에서 다른 문서를 열 때 기존 공동문서에 덮어쓰기 거부 **4개** 통과. 별도 실제 응답 유실 시험에서도 서버 커밋 후 같은 요청 바이트/ID 재확인과 중복 버전 방지를 확인했다. 실제 모델/Hancom/사람 검수로 바꿔 적지 않는다.
+- 로컬 `http://127.0.0.1:15330/`는 새 제품으로 재기동했다. 중지 후 DB·파일 동시 백업과 복사본 이행을 수행했고, 기존 **31개 테이블·202행·37개 파일**을 값/해시까지 그대로 유지했다. 추가 테이블 4개 외 기존 데이터 변환은 없다. 실제 Windows 바탕화면 실행기의 같은 서버 재사용도 확인했다. private 증거 `.cache/coedit-20261027/`, 백업 `.cache/final-polish-20261027/local-restart-backup-20261028-coedit/`, 실행 영수증 `.cache/developer/runs/20261028-000934-25f52842/`.
+
+운영 배포는 같은 main SHA에 대해 [run 40529793231](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40529793231)을 `deploy=true`로 한 번 실행해 **성공**했다. 최종 SHA의 전체 pytest 1,612개와 UI/프런트엔드 검사, 이미지의 실제 PostgreSQL·HTTPS 저장/재시작·브라우저 검증 후 게시했다. 운영 job `122287265145`에서 **2026-10-27 15:33:28 UTC** DB·문서 동시 백업을 완료하고 `61db3165990d203e8189dbf1a7c0e10bd9254fd4` 이미지로 교체했다. 로컬 HTTP와 공개 Funnel HTTPS의 경로·인증 필요 API·편집기/비교 assets·WASM 무결성 검사가 통과했다. 운영 사용자 로그인/문서 쓰기 및 실제 모델 호출은 이 배포 후 검사에 포함하지 않았다. main push 검사 3종도 성공했다. [검증 영수증](evidence/coediting-deployment-2026-10-28.json). 이 절과 영수증만 갱신하는 후속 문서 커밋은 제품을 바꾸지 않으며 재배포 대상이 아니다.
+
+사용 경로는 **문서함 → 공동편집**이다. 일반 열기로 들어가면 기존 단독 편집을 사용하며, 다른 편집자가 있으면 저장본 읽기/공동편집 참여를 제공한다. 약 2초 주기의 보수적 HWPX 병합이고 CRDT/OT 또는 상대 커서가 아니다. 같은 글자 범위·구조 충돌은 자동 덮어쓰지 않으며 내 편집 다운로드와 재확인으로 처리한다. AI·정교한 표준 디자인 적용은 단독 편집에서 사용한다. 현재 열어 둔 예전 브라우저 화면은 미저장 내용을 저장한 뒤 새로고침하여 새 UI를 사용한다. [상세 계약](coediting.md).
+
 ## 2026-10-27 — 로그인별 편집권과 공동편집 구현, 통합 검증 진행
 
 사용자는 세션 충돌 해결 뒤 **main 반영·운영 배포까지 자동 진행**하도록 승인했고, 추가 확인에 **실시간 공동편집까지 필요**하다고 답했다. 기준은 fetch로 확인한 `origin/main` `76fbec8461e5441237198de7504baddcc64e0304`다. 기존 `55994a0700befee7fb64292d4f5898b26c506a0c`까지 로컬 AI·보고서 개선 이력을 보존하여 `codex/concurrent-edit-sessions-2026-10-27`에서 이어간다. 원격 기준 SHA의 push 검사와 운영 run `40515141765` 성공을 읽기 전용으로 확인했다. 이 절 작성 시 새 변경의 push·병합·운영 배포는 아직 수행 전이며 완료 영수증과 구분한다.
