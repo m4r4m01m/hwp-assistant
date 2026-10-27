@@ -1,0 +1,45 @@
+{
+  "date": "2026-10-27",
+  "base_main": "76fbec8461e5441237198de7504baddcc64e0304",
+  "branch": "codex/assistant-concise-preview-2026-10-27",
+  "source_commit": "4109faa88706539ecc08553479c3257774b59f75",
+  "diagnosis": {
+    "previous_editable_body_paragraphs": 5,
+    "previous_excluded_mixed_paragraphs": 12,
+    "new_supported_body_paragraphs": 17,
+    "user_document_modified": false,
+    "external_model_calls_with_user_document": 0
+  },
+  "checks": {
+    "backend_existing_focused": 48,
+    "backend_inline_preservation": 6,
+    "controller_fragment_tests": 7,
+    "typescript": "passed",
+    "mock_ui_lifecycle_and_routing": 17,
+    "mock_ui_history_polling": 1,
+    "real_rhwp_api_synthetic_inference_and_conversation": 4,
+    "real_engine_kind": "isolated Windows diagnostic; unchanged core",
+    "preserved": ["bold leads", "inline emphasis", "superscript markers", "titles", "tables", "note descriptions", "original blob", "later unsaved edit"],
+    "full_regression": "not run",
+    "hancom": "not run",
+    "human_review": "pending"
+  },
+  "actual_model": {
+    "calls": 1,
+    "model": "gpt-6.1-sol",
+    "source": "synthetic",
+    "characters_before_after": [[47, 35], [45, 33], [56, 36], [45, 28]],
+    "not_same_as_mock_engine_run": true
+  },
+  "local": {
+    "url": "http://127.0.0.1:15330/",
+    "paired_backup": true,
+    "preserved_tables": 31,
+    "preserved_rows": 160,
+    "preserved_files": 33,
+    "browser_operated": false,
+    "desktop_shortcut_reuses_same_servers": true,
+    "production_deployed": false
+  },
+  "limits": ["No automatic paragraph splitting", "No exact 1-2-line guarantee", "Ambiguous repeated styled text and object/control paragraphs remain excluded", "Existing AI turns remain frozen"]
+}
