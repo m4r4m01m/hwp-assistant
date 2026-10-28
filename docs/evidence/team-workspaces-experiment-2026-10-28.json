@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-28",
+  "branch": "codex/experiment-team-workspaces-2026-10-28",
+  "base_main": "4b20b5f293ee81f158fe25d14a48955d47948373",
+  "product_source": "4dd7fa0c48c0119576ab4eb0b59c33f80ed46ad4",
+  "main_changed": false,
+  "remote_push": false,
+  "production_deployment": false,
+  "checks": {
+    "new_branch_workspace_api": {"passed": 25, "environment": "synthetic SQLite"},
+    "additional_nested_table_text_regression": {"passed": 1},
+    "coedit_login_copy_collaboration_template_regression": {"passed": 63},
+    "workspace_copy_template_collaboration_regression": {"passed": 55},
+    "regression_counts_overlap": true,
+    "mocked_chrome_ui": {"passed": 16},
+    "typescript": "passed",
+    "frontend_build": "passed; reused verified diagnostic engine, not a new optimized release core",
+    "real_browser": {
+      "native_work_copy_input_and_save": true,
+      "frozen_submission": true,
+      "another_account_native_before_after_preview": true,
+      "explicit_approval_creates_new_version": true,
+      "original_file_bytes_unchanged": true,
+      "outsider_access_denied": true,
+      "reviewer_cannot_open_private_work_copy": true
+    },
+    "model_calls": 0,
+    "postgres_runtime": false,
+    "hancom": false,
+    "human_review": false,
+    "full_suite": false
+  },
+  "experimental_runtime": {
+    "url": "http://127.0.0.1:15350/",
+    "api_port": 18350,
+    "synthetic_accounts_and_data_only": true,
+    "paired_backup_before_final_restart": true,
+    "existing_user_runtime_unchanged": true
+  },
+  "limits": [
+    "No inherited department permissions or organization SSO",
+    "No automatic migration of existing documents",
+    "New uploads and reports still enter the existing library before explicit assignment",
+    "No space deletion or detachment",
+    "No per-line conflict resolution or automatic rebase",
+    "Existing direct editing remains available; approval is enforced for integration requests",
+    "Document integration is limited to 10 MiB and existing conservative merge rules",
+    "Downloaded or deliberately exported copies cannot be recalled"
+  ]
+}
