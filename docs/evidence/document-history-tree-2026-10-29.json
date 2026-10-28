@@ -1,0 +1,54 @@
+{
+  "date": "2026-10-29",
+  "branch": "codex/experiment-team-workspaces-2026-10-28",
+  "product_source": "c0f7502b2bcbdd387d7926822797534c8c2a8bc8",
+  "previous_head": "7209e3e93f1284cc9e7bc89ab090a1d6b5ff4ae7",
+  "observed_origin_main": "4b20b5f293ee81f158fe25d14a48955d47948373",
+  "remote_push_main_merge_or_deploy": false,
+  "backend_suites": [
+    {"files": ["backend/tests/test_document_branches.py"], "passed": 20},
+    {"files": ["backend/tests/test_workspaces.py"], "passed": 11},
+    {"files": ["backend/tests/test_coedit.py", "backend/tests/test_edit_login_fences.py"], "passed": 17}
+  ],
+  "mock_ui": {
+    "browser": "Chrome",
+    "document_branches_passed": 11,
+    "responsiveness_first_run": {"passed": 13, "failed": 2},
+    "responsiveness_targeted_retry_passed": 2,
+    "retry_reason": "Updated obsolete synthetic server-error text expectations to the existing user-facing error policy. No full rerun claimed."
+  },
+  "typescript": "passed",
+  "frontend_build": "passed using existing verified diagnostic engine; no engine rebuild",
+  "native_verification": {
+    "isolated_api_and_synthetic_password_accounts": true,
+    "two_account_private_branch_coedit_saved_and_converged": true,
+    "frozen_submission_independent_review_and_integration": true,
+    "selected_node_native_preview_without_publish": true,
+    "explicit_restore_response_loss_same_key_single_version": true,
+    "original_and_merged_bytes_preserved": true,
+    "actual_existing_version_comparison_and_structure_detail": true,
+    "restore_provenance_navigation_is_readonly": true,
+    "graph_edges_point_up_including_private_anchors": true,
+    "desktop_preview_fills_column_mobile_page_has_no_overflow": true,
+    "history_editor_real_regression_passed": 1,
+    "model_calls": 0
+  },
+  "local_preview": {
+    "url": "http://127.0.0.1:15350/",
+    "api_port": 18350,
+    "active_work_before_restart": 0,
+    "paired_database_document_backup": true,
+    "existing_tables_unchanged": 40,
+    "existing_rows_unchanged": 200,
+    "document_files_hash_unchanged": 18,
+    "new_table": "branch_participants",
+    "existing_document_native_ui_smoke": "passed",
+    "private_evidence_directory": ".cache/history-tree-20261029/"
+  },
+  "limitations": [
+    "Experimental branch only; existing 15330 and production unchanged.",
+    "No full pytest/E2E claim. Other updated real UI specs were type-checked and listed, not all executed.",
+    "No actual PostgreSQL concurrency, Hancom or human acceptance validation.",
+    "Coedit still preserves conflicting same-location edits for explicit resolution; no new character-level conflict engine."
+  ]
+}
