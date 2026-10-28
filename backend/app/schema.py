@@ -9,6 +9,8 @@ from .audit import AuditEvent
 from .account_settings import AccountSetting
 from .account_notifications import RegistrationNotification
 from .coedit import Room, Member, Receipt
+from .mattermost_store import MattermostLink, MattermostChallenge, MattermostRequest
+from .document_search import DocumentSearchIndex
 
 
 def migrate(engine, users):
