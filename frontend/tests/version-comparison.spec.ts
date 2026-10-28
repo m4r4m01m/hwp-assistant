@@ -176,6 +176,10 @@ async function chooseVersion(page: Page, ordinal: number) {
 }
 async function preparePair(page: Page, left: number, right: number) {
   const leftId = await chooseVersion(page, left);
+  const more = page.locator(".history-more");
+  if (await more.getAttribute("open") === null) {
+    await more.locator(":scope > summary").click();
+  }
   await page.getByRole("button", { name: "비교 기준으로 지정", exact: true }).click();
   const rightId = await chooseVersion(page, right);
   return {leftId, rightId};
@@ -209,7 +213,7 @@ test("REAL rhwp: arbitrary pair, per-paragraph savers, native pages, reverse and
   await chooseVersion(page, 1);
   await expect(
     page.getByRole("button", { name: "이 저장본 복원", exact: true }),
-  ).toBeDisabled();
+  ).toHaveCount(0);
   await expect(page.locator(".history-save-node")).toHaveCount(3);
   const compareButton = page.getByRole("button", {
     name: "선택한 두 저장본 비교",

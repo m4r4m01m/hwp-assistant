@@ -28,6 +28,7 @@ test("MOCK branches: uncertain creation retains exact frozen request and blocks 
     return route.fulfill({json: {document: {...source, id: "new"}}});
   });
   await page.goto("/tests/fixtures/document-branches.html");
+  await page.getByRole("button", {name: "작업본 만들기", exact:true}).click();
   await page.getByLabel("새 작업본 이름").fill("위험 분석");
   await page.getByRole("button", {name: "이 저장본에서 작업본 만들기"}).click();
   await expect(page.getByRole("button", {name: "닫기", exact:true})).toBeDisabled();
@@ -88,9 +89,10 @@ test("MOCK history: actual save nodes ascend, selection fetches only saved bytes
   await expect(old).toBeVisible();
   expect((await latest.boundingBox())!.y).toBeLessThan((await old.boundingBox())!.y);
   await expect(page.locator('path[data-edge-kind="branch"]')).toHaveCount(1);
-  await old.click();await expect(page.getByRole("button",{name:"편집",exact:true})).toBeDisabled();
+  await old.click();await expect(page.getByRole("button",{name:"편집",exact:true})).toHaveCount(0);
   await expect(page.getByRole("button",{name:"이 저장본 복원",exact:true})).toBeEnabled();
   await expect.poll(()=>files.includes("/api/documents/source/versions/v1/file")).toBeTruthy();expect(writes).toHaveLength(0);
+  await page.getByRole("button",{name:"작업본 만들기",exact:true}).click();
   await page.getByRole("button",{name:"이 저장본에서 작업본 만들기"}).click();
   await expect.poll(()=>writes.length).toBe(1);expect(writes[0]).toMatchObject({source_version:"v1"});
   await page.screenshot({path:info.outputPath("history-tree-desktop.png")});
@@ -113,6 +115,7 @@ test("MOCK history: latest workcopy enters coedit and owner explicitly adds part
   await load(page,{...flow,branches:[{...branch,can_manage_participants:true}]});
   await page.locator('[data-version-id="b2"]').click();await page.getByRole("button",{name:"공동편집",exact:true}).click();
   await expect(page.getByLabel("편집 문서")).toHaveText("coedit:branch");
+  await page.locator('.history-more > summary').click();
   await page.getByText("작업본 참여자 관리",{exact:true}).click();await page.getByLabel("추가할 계정 ID").fill("colleague");await page.getByRole("button",{name:"참여자 추가"}).click();
   await expect.poll(()=>calls.length).toBe(1);expect(calls).toEqual(["PUT"]);
 });
@@ -124,10 +127,12 @@ test("MOCK history: saved download, restore provenance, structure and arbitrary 
   await page.route("**/versions/v2/changes",route=>route.fulfill({json:{version:restored,recorded:true,entries:[{path:"Contents/section0.xml",before_sha256:"before",after_sha256:"after"}]}}));
   await page.route("**/api/documents/source/compare?*",route=>{compared=route.request().url();return route.fulfill({status:503,json:{detail:"comparison engine excluded in mocked test"}});});
   await load(page,{...flow,graph:{...graph,nodes:[nodes[0],nodes[1],restored,nodes[3]]}});
-  await expect(page.getByRole("link",{name:"선택한 저장본 다운로드",exact:true})).toHaveAttribute("href","/api/documents/source/versions/v2/file");
+  await page.locator('.history-more > summary').click();
+  await expect(page.getByRole("link",{name:"이 버전 다운로드",exact:true})).toHaveAttribute("href","/api/documents/source/versions/v2/file");
   await expect(page.getByText("저장본에서 복원",{exact:false})).toBeVisible();
-  await page.getByText("내부 구조 상세",{exact:true}).click();await expect(page.getByText("Contents/section0.xml",{exact:true})).toBeVisible();
+  await page.getByText("파일 진단 정보",{exact:true}).click();await expect(page.getByText("Contents/section0.xml",{exact:true})).toBeVisible();
   await page.getByRole("button",{name:"복원 원본 보기"}).click();await expect(page.locator('[data-version-id="v1"]')).toHaveAttribute("aria-pressed","true");
+  await page.locator('.history-more > summary').click();
   await page.getByRole("button",{name:"비교 기준으로 지정"}).click();await page.locator('[data-version-id="v2"]').click();
   await page.getByRole("button",{name:"선택한 두 저장본 비교"}).click();await expect(page.getByRole("dialog",{name:"합성 보고서.hwpx · 문서 비교"})).toBeVisible();
   await expect.poll(()=>compared).toContain("left=v1&right=v2");
@@ -161,4 +166,81 @@ test("MOCK history: private anchors respect actual ancestry and inspector fills 
   const workspace=(await page.locator(".history-workspace").boundingBox())!,inspector=(await page.locator(".history-inspector").boundingBox())!;
   expect(inspector.width).toBeGreaterThan(workspace.width*.45);expect(Math.abs(inspector.x+inspector.width-workspace.x-workspace.width)).toBeLessThan(2);
   await page.screenshot({path:info.outputPath("history-tree-anchors-full-width.png")});
+});
+
+test("MOCK history: repeated node switches keep one live diagnostic and one matching preview",async({page})=>{
+  const fetched:string[]=[],keyWarnings:string[]=[];
+  page.on("console",message=>{if(/same key|unique.*key/i.test(message.text()))keyWarnings.push(message.text());});
+  await page.route("**/versions/*/changes",route=>{
+    const id=new URL(route.request().url()).pathname.split("/").at(-2)!;fetched.push(id);
+    return route.fulfill({json:{version:nodes.find(node=>node.id===id),recorded:true,entries:[{path:`Contents/${id}.xml`,before_sha256:"before",after_sha256:"after"}]}});
+  });
+  await load(page);
+  await expect(page.getByLabel("새 작업본 이름")).toHaveCount(0);
+  expect(fetched).toEqual([]);
+  for(const id of ["v1","v2","v1","v2","v1","v2"]){
+    await page.locator(`[data-version-id="${id}"]`).click();
+    await expect(page.locator('.history-more')).toHaveCount(1);
+    await expect(page.locator('.history-structure-detail')).toHaveCount(1);
+    await expect(page.locator('.history-inspector .branch-preview')).toHaveCount(1);
+    await expect(page.locator('.history-more')).not.toHaveAttribute("open","");
+    await page.locator('.history-more > summary').click();
+    await page.getByText("파일 진단 정보",{exact:true}).click();
+    await expect(page.locator('.history-structure-detail code')).toHaveText(`Contents/${id}.xml`);
+    await expect(page.getByRole("link",{name:"이 버전 다운로드",exact:true})).toHaveAttribute("href",`/api/documents/source/versions/${id}/file`);
+  }
+  expect(fetched).toEqual(["v1","v2","v1","v2","v1","v2"]);
+  expect(keyWarnings).toEqual([]);
+});
+
+for(const recorded of [false,true])test(`MOCK history: ${recorded?"unchanged":"unrecorded"} file diagnostics show an explicit explanation`,async({page})=>{
+  await page.route("**/versions/v2/changes",route=>route.fulfill({json:{version:nodes[2],recorded,entries:[]}}));
+  await load(page);await page.locator('.history-more > summary').click();await page.getByText("파일 진단 정보",{exact:true}).click();
+  const detail=page.locator('.history-structure-detail');
+  await expect(detail).toContainText(recorded?"직전 버전과 파일 구성의 차이가 없습니다.":"이 버전에는 파일 변경 기록이 없습니다.");
+  await expect(detail.getByRole("alert")).toHaveCount(0);
+  await expect(detail.getByRole("status")).toHaveCount(0);
+  await expect(detail).toContainText("글·표·서식은 ‘변경 내용 보기’에서 비교하세요.");
+});
+
+test("MOCK history: wrong-version diagnostics show a retryable error instead of blank content",async({page})=>{
+  let attempts=0;
+  await page.route("**/versions/v2/changes",route=>{
+    attempts++;
+    return route.fulfill({json:{version:nodes[attempts===1?0:2],recorded:true,entries:[{path:"Contents/section0.xml",before_sha256:"before",after_sha256:"after"}]}});
+  });
+  await load(page);await page.locator('.history-more > summary').click();await page.getByText("파일 진단 정보",{exact:true}).click();
+  const detail=page.locator('.history-structure-detail');
+  await expect(detail.getByRole("alert")).toContainText("선택한 버전의 정보를 확인하지 못했습니다.");
+  await expect(detail.locator('code')).toHaveCount(0);
+  await detail.getByRole("button",{name:"다시 불러오기",exact:true}).click();
+  await expect(detail.locator('code')).toHaveText("Contents/section0.xml");
+  await expect(detail.getByRole("alert")).toHaveCount(0);expect(attempts).toBe(2);
+});
+
+test("MOCK history: selection scopes requests and merged navigation clears review",async({page})=>{
+  const pending={...request,created_at:10};
+  const merged={...request,id:"merged-request",status:"merged",created_at:8,reviewed_by:"independent-reviewer",merged_version_id:"v2"};
+  const old={...request,id:"old-request",source_version_id:"b1",status:"rejected",author_id:"previous-writer",created_at:5};
+  await page.route("**/api/integration-requests/request/review",route=>route.fulfill({json:{...review,request:pending}}));
+  await load(page,{...flow,requests:[pending,merged,old]});
+  await page.locator('[data-version-id="b1"]').click();
+  await expect(page.locator('.history-integration-list article')).toHaveCount(1);
+  await expect(page.locator('.history-integration-list')).toContainText("previous-writer 요청");
+  await expect(page.getByRole("button",{name:"수정안 검토",exact:true})).toHaveCount(0);
+  await page.locator('[data-version-id="b2"]').click();
+  await expect(page.locator('.history-integration-list article')).toHaveCount(2);
+  await expect(page.locator('.history-integration-list')).not.toContainText("previous-writer");
+  await expect(page.getByRole("button",{name:"통합 요청",exact:true})).toHaveCount(0);
+  await page.getByRole("button",{name:"수정안 검토",exact:true}).click();
+  const reviewPanel=page.getByRole("region",{name:"통합 수정안 검토",exact:true});
+  await expect(reviewPanel).toBeVisible();await reviewPanel.getByLabel("수정안을 확인했습니다.").check();
+  await page.getByRole("button",{name:"통합된 문서 보기",exact:true}).click();
+  await expect(page.locator('[data-version-id="v2"]')).toHaveAttribute("aria-pressed","true");
+  await expect(reviewPanel).toHaveCount(0);await expect(page.getByRole("button",{name:"승인·통합",exact:true})).toHaveCount(0);
+  await expect(page.locator('.history-integration-list article')).toHaveCount(1);
+  await expect(page.locator('.history-integration-list')).toContainText("independent-reviewer 승인");
+  await page.locator('[data-version-id="b2"]').click();await page.getByRole("button",{name:"수정안 검토",exact:true}).click();
+  await expect(reviewPanel.getByLabel("수정안을 확인했습니다.")).not.toBeChecked();
+  await expect(reviewPanel.getByRole("button",{name:"승인·통합",exact:true})).toBeDisabled();
 });

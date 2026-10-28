@@ -32,6 +32,7 @@ export function DocumentBranches({ document: doc, onClose, onOpen, onUpdated, on
   const [name, setName] = useState("내 수정안"), [error, setError] = useState(""), [notice, setNotice] = useState("");
   const [review, setReview] = useState<Review | null>(null), [reviewId, setReviewId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [creatingFrom, setCreatingFrom] = useState<string | null>(null);
   const [comparisonBase, setComparisonBase] = useState<{documentId:string;versionId:string;label:string}|null>(null);
   const [comparison, setComparison] = useState<{document:Document;left:Version;right:Version}|null>(null);
   const pendingRestore = useRef<{document: Document; version: string; key: string} | null>(null);
@@ -108,8 +109,13 @@ export function DocumentBranches({ document: doc, onClose, onOpen, onUpdated, on
     role: selectedBranch.can_edit ? "editor" : "reader", branch_source_id:selectedBranch.source_document_id,
     workspace_id:flow.source_document.workspace_id, workspace_name:flow.source_document.workspace_name,
   } : null);
-  const selectedRequests = flow?.requests.filter(item => item.branch_document_id === selected?.document_id) || [];
-  const lastRequest = [...selectedRequests].sort((a,b) => b.created_at - a.created_at)[0];
+  const branchRequests = flow?.requests.filter(item => item.branch_document_id === selected?.document_id) || [];
+  const selectedRequests = (flow?.requests || []).filter(item => item.source_version_id === selected?.id || item.merged_version_id === selected?.id);
+  const lastRequest = [...branchRequests].sort((a,b) => b.created_at - a.created_at)[0];
+  function selectVersion(id: string | null) {
+    if(disabled)return;
+    setSelectedId(id);setReview(null);setReviewId(null);setPreview(false);setConfirmed(false);setCreatingFrom(null);
+  }
   const versionName = (id: string) => {
     const version = flow?.versions.find(item => item.id === id);
     return version ? `${dateLabel(version.created_at)} 저장본` : "이전 저장본";
@@ -129,7 +135,7 @@ export function DocumentBranches({ document: doc, onClose, onOpen, onUpdated, on
   return <div className="branch-overlay"><section ref={dialog} role="dialog" aria-modal="true" aria-labelledby="branch-title" className="branch-dialog">
     <HistoryKeyboard dialog={dialog} onClose={close} />
     <header><div><h2 id="branch-title">문서 이력</h2><p>{flow?.source_document.name || doc.name}</p></div><button onClick={close} disabled={busy}>닫기</button></header>
-    <p className="branch-intro">아래에서 위로 이어지는 저장 기록입니다. 점을 선택해 문서를 보고, 작업본 만들기·복원·통합을 진행하세요.</p>
+    <p className="branch-intro">기록을 선택하면 오른쪽에서 그때의 문서를 볼 수 있습니다. 최근 기록은 위에 있습니다.</p>
     {error && <p role="alert" className="branch-error">{error}</p>}
     {notice && <p role="status" className="branch-notice">{notice}</p>}
     {retry && <div className="branch-error"><p>처리 결과가 불확실합니다. 같은 요청으로 확인합니다.</p><button disabled={busy} onClick={() => pending.current && void mutate(pending.current)}>같은 요청으로 결과 확인</button></div>}
@@ -140,40 +146,35 @@ export function DocumentBranches({ document: doc, onClose, onOpen, onUpdated, on
       <div className="history-workspace">
         <section className="history-tree-pane" aria-label="문서 분기와 통합 흐름">
           <div className="history-tree-legend"><strong>최근 ↑</strong><span className="save-key">저장</span><span className="branch-key">분기</span><span className="merge-key">통합</span><span className="restore-key">복원</span></div>
-          <HistoryTree graph={graph} source={flow.source_document} branches={flow.branches} selected={selected?.id} disabled={disabled} onSelect={id => {setSelectedId(id);setReview(null);setReviewId(null);setPreview(false);setConfirmed(false);}} />
+          <HistoryTree graph={graph} source={flow.source_document} branches={flow.branches} selected={selected?.id} disabled={disabled} onSelect={selectVersion} />
           {graph.truncated && <p className="branch-muted">최근 이력을 표시합니다. 생략된 구간은 연결을 추정하지 않고 별도로 표시합니다.</p>}
-          <p className="branch-muted history-tree-oldest">↓ 이전 기록 · 선은 실제 저장·분기·통합 관계입니다.</p>
         </section>
         <aside className="history-inspector" aria-label="선택한 저장본">
           {!selected || !selectedDocument ? <p>이력에서 저장본을 선택하세요.</p> : <>
-            <header><div><h3>{selectedDocument.name}</h3><span>{selected.current ? "최신 저장본" : "이전 저장본"} · {selected.created_at ? dateLabel(selected.created_at) : "기록 시각 미상"}</span></div></header>
-            <p className="branch-muted">{selected.author?.user_id || "수정자 기록 없음"}{selectedBranch ? " · 작업본" : " · 기준 문서"}</p>
-            {selected.cause && <p className="branch-muted">{causeLabel(selected.cause)}{selected.size != null && ` · ${selected.size.toLocaleString()} bytes`}</p>}
-            {selected.restore_source && <p className="history-restore-source">{dateLabel(selected.restore_source.created_at)} 저장본에서 복원 · {selected.restore_source.author?.user_id || "원본 수정자 미상"} <button disabled={disabled || !graph.nodes.some(node=>node.id===selected.restore_source!.version_id && node.kind==="version")} onClick={()=>{setSelectedId(selected.restore_source!.version_id);setPreview(false);}}>복원 원본 보기</button></p>}
+            <header><div><h3>{selectedBranch ? selectedDocument.name : "기준 문서"}</h3><span>{selected.current ? "현재 사용 중인 버전" : selected.document === null ? "검토를 요청한 버전" : "이전 버전"} · {selected.author?.user_id || "수정자 기록 없음"} · {selected.created_at ? dateLabel(selected.created_at) : "기록 시각 미상"}</span></div></header>
             <div className="history-node-actions">
-              <button disabled={disabled || !selected.current || !selected.can_edit} onClick={() => onOpen(selectedDocument)}>편집</button>
-              {onCoedit && <button disabled={disabled || !selected.current || !selected.can_edit} onClick={() => onCoedit(selectedDocument)}>공동편집</button>}
-              {onRestore && <button disabled={disabled || selected.current || !selected.can_restore} onClick={() => void restoreSelected(selectedDocument,selected.id)}>이 저장본 복원</button>}
+              {selected.current && selected.can_edit && <button className="history-primary" disabled={disabled} onClick={() => onOpen(selectedDocument)}>편집</button>}
+              {onCoedit && selected.current && selected.can_edit && <button disabled={disabled} onClick={() => onCoedit(selectedDocument)}>공동편집</button>}
+              {onRestore && !selected.current && selected.can_restore && <button disabled={disabled} onClick={() => void restoreSelected(selectedDocument,selected.id)}>이 저장본 복원</button>}
+              {selected.can_read && selected.document !== null && selected.base_version && <button disabled={disabled} onClick={()=>void compareSaved(selectedDocument,selected.base_version!,selected.id)}>변경 내용 보기</button>}
+              {selected.document_id === flow.source_document.id && selected.kind === "version" && selected.can_read && <button disabled={disabled} aria-expanded={creatingFrom===selected.id} onClick={()=>setCreatingFrom(value=>value===selected.id?null:selected.id)}>작업본 만들기</button>}
             </div>
-            {selected.can_read && selected.document !== null && <div className="history-saved-actions">
-              <SavedDownload document={selectedDocument} versionId={selected.id} icon={false} label="선택한 저장본 다운로드" />
-              <button disabled={disabled} onClick={()=>setComparisonBase({documentId:selected.document_id,versionId:selected.id,label:selected.created_at?dateLabel(selected.created_at):"선택 저장본"})}>비교 기준으로 지정</button>
-              {selected.base_version && <button disabled={disabled} onClick={()=>void compareSaved(selectedDocument,selected.base_version!,selected.id)}>직전 저장본과 비교</button>}
-              {comparisonBase && <div className="history-comparison-selection"><span>비교 기준: {comparisonBase.label}</span><button disabled={disabled || comparisonBase.documentId!==selected.document_id || comparisonBase.versionId===selected.id} onClick={()=>void compareSaved(selectedDocument,comparisonBase.versionId,selected.id)}>선택한 두 저장본 비교</button><button disabled={disabled} onClick={()=>setComparisonBase(null)}>기준 해제</button>{comparisonBase.documentId!==selected.document_id && <small>같은 문서 안의 저장본을 선택하세요. 작업본과 기준 문서는 통합 수정안에서 비교합니다.</small>}</div>}
-            </div>}
-            {selected.can_read && selected.document === null && selected.file_url && <a className="button" href={publicPath(`api${selected.file_url}`)} download>제출 저장본 HWPX 다운로드</a>}
-            {selected.can_read && selected.document !== null && <VersionStructure key={selected.id} documentId={selected.document_id} versionId={selected.id} />}
-            {!selected.current && <p className="branch-muted">과거 저장본은 직접 바꾸지 않습니다. 복원하면 새 버전이 생깁니다.</p>}
-            {selected.document_id === flow.source_document.id && selected.kind === "version" && selected.can_read && <form className="branch-create" onSubmit={event => {event.preventDefault(); if(disabled || !name.trim()) return; void mutate({path:`/documents/${flow.source_document.id}/branches`,body:{document_id:crypto.randomUUID(),source_version:selected.id,request_id:crypto.randomUUID(),name:name.trim()},action:"create",label:"작업본 만들기"});}}>
-              <label>새 작업본 이름<input value={name} maxLength={200} disabled={disabled} onChange={event => setName(event.target.value)} placeholder="예: 대응방안 보완" /></label><button disabled={disabled || !name.trim()}>이 저장본에서 작업본 만들기</button>
+            {comparisonBase && selected.can_read && selected.document !== null && <div className="history-comparison-selection"><span>비교 기준: {comparisonBase.label}</span><button disabled={disabled || comparisonBase.documentId!==selected.document_id || comparisonBase.versionId===selected.id} onClick={()=>void compareSaved(selectedDocument,comparisonBase.versionId,selected.id)}>선택한 두 저장본 비교</button><button disabled={disabled} onClick={()=>setComparisonBase(null)}>기준 해제</button>{comparisonBase.documentId!==selected.document_id ? <small>같은 문서의 다른 버전을 선택하세요.</small> : comparisonBase.versionId===selected.id && <small>왼쪽에서 비교할 다른 버전을 선택하세요.</small>}</div>}
+            {creatingFrom === selected.id && selected.document_id === flow.source_document.id && selected.kind === "version" && selected.can_read && <form className="branch-create" onSubmit={event => {event.preventDefault(); if(disabled || !name.trim()) return; void mutate({path:`/documents/${flow.source_document.id}/branches`,body:{document_id:crypto.randomUUID(),source_version:selected.id,request_id:crypto.randomUUID(),name:name.trim()},action:"create",label:"작업본 만들기"});}}>
+              <p>선택한 버전에서 별도로 수정할 작업본을 만듭니다.</p><label>새 작업본 이름<input value={name} maxLength={200} disabled={disabled} onChange={event => setName(event.target.value)} placeholder="예: 대응방안 보완" /></label><button disabled={disabled || !name.trim()}>이 저장본에서 작업본 만들기</button><button type="button" disabled={disabled} onClick={()=>setCreatingFrom(null)}>취소</button>
             </form>}
             {selectedBranch && <>
-              {selectedBranch.can_submit !== false && selectedBranch.can_edit && <button disabled={disabled || !selected.current || (lastRequest?.status === "pending" && lastRequest.target_version_id === flow.source_document.current_version && lastRequest.source_version_id === selected.id)} onClick={() => void mutate({path:`/documents/${selectedBranch.document_id}/integration-requests`,body:{request_id:crypto.randomUUID(),source_version:selected.id,target_version:flow.source_document.current_version},action:"submit",label:"통합 요청"})}>통합 요청</button>}
-              <p className="branch-muted">새 분기는 기준 문서의 저장본에서 만듭니다. 제출 후 편집 내용은 기존 통합 요청에 포함되지 않습니다.</p>
-              {selectedBranch.can_manage_participants && <BranchParticipants branch={selectedBranch} disabled={disabled} onUpdated={() => {onUpdated();void reload();}} />}
+              {selectedBranch.can_submit !== false && selectedBranch.can_edit && selected.current && !(lastRequest?.status === "pending" && lastRequest.target_version_id === flow.source_document.current_version && lastRequest.source_version_id === selected.id) && <button className="history-primary" disabled={disabled} onClick={() => void mutate({path:`/documents/${selectedBranch.document_id}/integration-requests`,body:{request_id:crypto.randomUUID(),source_version:selected.id,target_version:flow.source_document.current_version},action:"submit",label:"통합 요청"})}>통합 요청</button>}
             </>}
-            {selectedRequests.length > 0 && <div className="history-integration-list">{selectedRequests.map(item => <article key={item.id} className={`branch-request ${item.status}`}><strong>{statusName[item.status]}</strong><span>{dateLabel(item.created_at)} · {item.author_id}</span>{item.status === "pending" && <button disabled={disabled} onClick={() => void showReview(item)}>{item.can_review ? "수정안 검토" : "제출 내용 확인"}</button>}{item.status === "merged" && <button disabled={disabled} onClick={() => setSelectedId(item.merged_version_id)}>{item.reviewed_by} 승인 · 통합 저장본 보기</button>}</article>)}</div>}
-            {!preview && (selected.can_read && selected.kind === "version" ? <BranchPreview key={selected.id} title="선택한 저장본 미리보기" url={selected.file_url ? publicPath(`api${selected.file_url}`) : fileUrl(selectedDocument,selected.id)} /> : <p className="branch-muted">이 저장본은 내용 열람 권한이 없습니다.</p>)}
+            {selectedRequests.length > 0 && <div className="history-integration-list">{selectedRequests.map(item => <article key={item.id} className={`branch-request ${item.status}`}><strong>{statusName[item.status]}</strong><span>{item.status==="merged" ? `${item.reviewed_by} 승인` : `${item.author_id} 요청`} · {dateLabel(item.created_at)}</span>{item.status === "pending" && <button disabled={disabled} onClick={() => void showReview(item)}>{item.can_review ? "수정안 검토" : "제출 내용 확인"}</button>}{item.status === "merged" && item.merged_version_id!==selected.id && <button disabled={disabled} onClick={() => selectVersion(item.merged_version_id)}>통합된 문서 보기</button>}</article>)}</div>}
+            <details key={`more:${selected.id}`} className="history-more"><summary>더보기</summary><div className="history-more-content">
+              {selected.restore_source && <p className="history-restore-source">{dateLabel(selected.restore_source.created_at)} 저장본에서 복원 <button disabled={disabled || !graph.nodes.some(node=>node.id===selected.restore_source!.version_id && node.kind==="version")} onClick={()=>selectVersion(selected.restore_source!.version_id)}>복원 원본 보기</button></p>}
+              {selected.can_read && selected.document !== null && <><div className="history-saved-actions"><SavedDownload document={selectedDocument} versionId={selected.id} icon={false} label="이 버전 다운로드" /><button disabled={disabled} onClick={()=>setComparisonBase({documentId:selected.document_id,versionId:selected.id,label:selected.created_at?dateLabel(selected.created_at):"선택 저장본"})}>비교 기준으로 지정</button></div><VersionStructure documentId={selected.document_id} versionId={selected.id} /></>}
+              {selected.can_read && selected.document === null && selected.file_url && <a className="button" href={publicPath(`api${selected.file_url}`)} download>이 버전 다운로드</a>}
+              {selectedBranch?.can_manage_participants && <BranchParticipants branch={selectedBranch} disabled={disabled} onUpdated={() => {onUpdated();void reload().catch(cause=>setError(errorMessage(cause)));}} />}
+              {selected.cause && <p className="branch-muted">{causeLabel(selected.cause)}{selected.size != null && ` · ${Math.max(1,Math.round(selected.size/1024)).toLocaleString()} KB`}</p>}
+            </div></details>
+            {!preview && (selected.can_read && selected.kind === "version" ? <BranchPreview key={`preview:${selected.id}`} title="선택한 저장본 미리보기" url={selected.file_url ? publicPath(`api${selected.file_url}`) : fileUrl(selectedDocument,selected.id)} /> : <p className="branch-muted">이 저장본은 내용 열람 권한이 없습니다.</p>)}
           </>}
         </aside>
       </div>
@@ -186,7 +187,6 @@ export function DocumentBranches({ document: doc, onClose, onOpen, onUpdated, on
           {review.truncated && <p>긴 문서의 텍스트 비교는 일부만 표시됩니다. 문서 모양으로 전체를 확인하세요.</p>}
           <button disabled={busy} onClick={() => setPreview(value => !value)}>{preview ? "문서 비교 접기" : "문서 모양으로 전후 비교"}</button>
           {preview && <div className="branch-preview-pair"><BranchPreview title="현재 기준 문서" url={fileUrl(flow.source_document, review.request.target_version_id)} /><BranchPreview title="통합 후 예상 문서" url={publicPath(`api/integration-requests/${review.request.id}/preview`)} /></div>}
-          <details><summary>변경된 문서 구성 {review.changes.length}개</summary><ul>{review.changes.map(change => <li key={change.path}>{change.path}</li>)}</ul></details>
           {review.request.can_review ? <div className="branch-decision"><label><input type="checkbox" checked={confirmed} disabled={disabled} onChange={event => setConfirmed(event.target.checked)} />수정안을 확인했습니다.</label>
             <button disabled={disabled || !confirmed} onClick={() => void mutate({path: `/integration-requests/${review.request.id}/accept`, body: {merged_sha256: review.merged_sha256}, action: "accept", label: "승인·통합"})}>승인·통합</button>
             <button disabled={disabled} onClick={() => void mutate({path: `/integration-requests/${review.request.id}/reject`, body: {}, action: "reject", label: "반려"})}>반려</button></div>
@@ -200,20 +200,22 @@ export function DocumentBranches({ document: doc, onClose, onOpen, onUpdated, on
 function HistoryKeyboard({dialog,onClose}:{dialog:React.RefObject<HTMLElement|null>;onClose:()=>void}) { useComparisonDialog(dialog,onClose);return null; }
 function VersionStructure({documentId,versionId}:{documentId:string;versionId:string}) {
   const [open,setOpen]=useState(false),[loading,setLoading]=useState(false),[error,setError]=useState("");
+  const [attempt,setAttempt]=useState(0);
   const [changes,setChanges]=useState<{recorded:boolean;version:Version;entries:{path:string;before_sha256:string|null;after_sha256:string|null}[]}|null>(null);
   useEffect(()=>{
-    if(!open)return;const controller=new AbortController();setLoading(true);setError("");
+    if(!open)return;const controller=new AbortController();setLoading(true);setError("");setChanges(null);
     void api<NonNullable<typeof changes>>(`/documents/${documentId}/versions/${versionId}/changes`,{signal:controller.signal})
-      .then(value=>{if(!controller.signal.aborted)setChanges(value);})
+      .then(value=>{if(value?.version?.id!==versionId || !Array.isArray(value.entries))throw new Error("선택한 버전의 정보를 확인하지 못했습니다. 다시 불러와 주세요.");if(!controller.signal.aborted)setChanges(value);})
       .catch(cause=>{if(!controller.signal.aborted)setError(errorMessage(cause));})
       .finally(()=>{if(!controller.signal.aborted)setLoading(false);});
     return()=>controller.abort();
-  },[open,documentId,versionId]);
-  return <details className="history-structure-detail" onToggle={event=>setOpen(event.currentTarget.open)}><summary>내부 구조 상세</summary>
-    {loading&&<p role="status">변경한 파일을 확인하는 중…</p>}{error&&<p role="alert">{error}</p>}
-    {changes?.version.id===versionId&&<><p>{changes.version.base_version?"직전 저장본과의 파일 구성 변경":"최초 저장"}</p>
-      {!changes.recorded?<p>이 버전에는 내부 변경 기록이 없습니다. 최초 저장 또는 기록 도입 전 버전입니다.</p>:!changes.entries.length?<p>HWPX 내부 항목의 내용 변경이 없습니다.</p>:<ul>{changes.entries.map(entry=><li key={entry.path}><code>{entry.path}</code> · {!entry.before_sha256?"추가":!entry.after_sha256?"삭제":"변경"}</li>)}</ul>}
-      <p>글·표·서식의 차이는 저장본 비교에서 확인하세요.</p></>}
+  },[open,documentId,versionId,attempt]);
+  return <details className="history-structure-detail" onToggle={event=>{event.stopPropagation();setOpen(event.currentTarget.open);}}><summary>파일 진단 정보</summary>
+    <p>문제 확인을 위한 파일 구성 기록입니다. 글·표·서식은 ‘변경 내용 보기’에서 비교하세요.</p>
+    {loading&&<p role="status">파일 정보를 불러오는 중…</p>}{error&&<><p role="alert">{error}</p><button onClick={()=>setAttempt(value=>value+1)}>다시 불러오기</button></>}
+    {changes?.version.id===versionId&&<>
+      {!changes.recorded?<p>이 버전에는 파일 변경 기록이 없습니다. 최초 저장 또는 기록 도입 전 버전입니다.</p>:!changes.entries.length?<p>직전 버전과 파일 구성의 차이가 없습니다.</p>:<><p>직전 버전에서 변경된 파일 {changes.entries.length}개</p><ul>{changes.entries.map(entry=><li key={entry.path}><code>{entry.path}</code> · {!entry.before_sha256?"추가":!entry.after_sha256?"삭제":"변경"}</li>)}</ul></>}
+      </>}
   </details>;
 }
 
