@@ -12,6 +12,10 @@
 
 수정 도중 시작한 전체 backend 실행은 **1,714 통과/2 실패(340.86초)**였다. 수정 전 검색 fixture import 실패는 현재 코드 재실행에서 통과했다. 변경하지 않은 `test_stdio_split_utf8_and_unterminated_final_event_are_decoded`는 `report_rpc.py`의 `os.killpg`에서 macOS `PermissionError`로 재실행도 실패했다. 전체 통과로 기록하지 않는다. 실제 Mattermost/내부 임베딩 모델/Codex 호출, PostgreSQL·실제 엔진 통합, 운영 배포는 수행하지 않았다. exact-head CI는 PR에서 별도로 확인하며 다음 단계는 해당 검사와 별도 환경의 합성 자료 연동 검수다.
 
+후속 검증: [Draft PR #54](https://github.com/m4r4m01m/hwp-assistant/pull/54)의 exact head **`1efc44a0e9f6ec31b3ec9b7b8c2de95b10c4af8c`**에서 [HWP CI](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40613120628)가 성공했다. Linux/Python 3.14 전체 **1,730 passed/2 warnings/514.24초**, Node 24.15.0 프런트엔드 검사, 모의 UI **107개**와 엄격 TLS **1개**가 통과했다. [빌드 경로](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40613120671)·[배포 전용 계약](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40613120556)도 성공했다. [PoC 통합](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40613120663)은 기존 실제 PostgreSQL·HTTPS·엔진의 계정/공동편집 브라우저 **3개**와 재시작 후 계정·세션·HWPX 해시 보존을 통과했다. 봇은 이 컨테이너 시험에서 기본 비활성이므로 실제 봇/Mattermost 연동 성공으로 확대하지 않는다. macOS 잔여 오류는 별도 추출한 기준 `4b20b5f`의 동일 시험에서도 재현되어 이번 변경 이전 문제로 구분했다.
+
+이 후속 기록은 문서만 갱신하며 위 제품 source를 바꾸지 않는다. main 병합·이미지 게시·운영 배포 job은 실행하지 않았고, PR의 게시/배포 job `skipped`를 성공으로 계산하지 않는다. 다음 단계는 검토와 별도 환경의 실제 Mattermost 및 내부 모델 연결이며 기존 사용자 자료·서비스는 보존한다.
+
 ## 2026-10-28 — 공동편집 main 병합과 최종 검증
 
 [PR #52](https://github.com/m4r4m01m/hwp-assistant/pull/52)의 검토 head `e27802499bb24a45beefbfbd6031846efad2c2c6`를 필수 검사 성공 후 merge commit **`61db3165990d203e8189dbf1a7c0e10bd9254fd4`**로 main에 병합했다. merge 전 main은 `76fbec8461e5441237198de7504baddcc64e0304`였고, 최종 main과 검토 head의 제품 파일 트리가 같음을 대조했다. 원래 개발 브랜치를 보존했고 로컬 main도 fast-forward로 동기화했다. 이전 절의 미병합/미배포 설명은 당시 기록이다.

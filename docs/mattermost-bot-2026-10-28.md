@@ -110,4 +110,4 @@
 - 기존 보고서 접수 재사용: [reports.py](../backend/app/reports.py)
 - 링크·연결 확인·저장본 열람: [external-entry.ts](../frontend/src/external-entry.ts), [external-entry-view.tsx](../frontend/src/external-entry-view.tsx)
 
-합성 계정·문서, 모의 HTTP/모델, 브라우저 UI의 검증 결과는 [PROJECT_CONTEXT](PROJECT_CONTEXT.md)에 기록한다. 실제 Mattermost의 `/hwp` 등록·입력창·개인 메시지, 실제 내부 임베딩 모델의 표현 차이 검색, 실제 Codex 생성, PostgreSQL·재시작·운영 HTTPS 경로, 실제 엔진의 읽기 전용 링크·서식 검토·명시적 저장 검수는 별도 증거가 필요하다. 현재 문서는 이 항목들의 성공이나 운영 배포 완료를 뜻하지 않는다.
+합성 계정·문서, 모의 HTTP/모델, 브라우저 UI와 exact-head CI의 검증 결과는 [PROJECT_CONTEXT](PROJECT_CONTEXT.md)에 기록한다. 실제 Mattermost의 `/hwp` 등록·입력창·개인 메시지, 실제 내부 임베딩 모델의 표현 차이 검색, 실제 Codex 생성, 봇을 활성화한 PostgreSQL·재시작·운영 HTTPS 경로, 실제 엔진의 읽기 전용 링크·서식 검토·명시적 저장 검수는 별도 증거가 필요하다. 기존 계정·공동편집의 PostgreSQL 통합 CI 성공은 이 봇 실연동이나 운영 배포 완료를 뜻하지 않는다.
