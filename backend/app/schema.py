@@ -9,6 +9,8 @@ from .audit import AuditEvent
 from .account_settings import AccountSetting
 from .account_notifications import RegistrationNotification
 from .coedit import Room, Member, Receipt
+from .workspaces import Workspace, WorkspaceMember, WorkspaceDocument
+from .document_branches import DocumentBranch, IntegrationRequest
 
 
 def migrate(engine, users):

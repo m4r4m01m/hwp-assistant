@@ -9,6 +9,9 @@ export type Document = {
   created_at: number;
   role: "owner" | "editor" | "reader";
   can_trash?: boolean;
+  workspace_id?: string | null;
+  workspace_name?: string | null;
+  branch_source_id?: string | null;
 };
 export type Version = {
   id: string;

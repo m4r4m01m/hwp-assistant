@@ -1,5 +1,7 @@
 import { AccountGate, clearAccountWorkspaceState, type Account } from "./account-gate";
 import { SessionViewer } from "./session-viewer";
+import { TeamWorkspaces, type TeamSpace } from "./team-workspaces";
+import { DocumentBranches } from "./document-branches";
 import React, { useEffect, useRef, useState } from "react";
 const Coedit = React.lazy(() => import("./coedit").then(module => ({default: module.Coedit})));
 import { createRoot } from "react-dom/client";
@@ -83,6 +85,10 @@ function App({
     [reports, setReports] = useState(false);
   const [editorDesign, setEditorDesign] = useState<DesignChoice | null>(null);
   const [coeditDocument, setCoeditDocument] = useState<Document | null>(null);
+  const [branchDocument, setBranchDocument] = useState<Document | null>(null);
+  const [spacePanel, setSpacePanel] = useState<{ document?: Document } | null>(null);
+  const [spaces, setSpaces] = useState<TeamSpace[]>([]);
+  const [spaceFilter, setSpaceFilter] = useState("");
   const [trashDialog, setTrashDialog] = useState<{ document: Document | null } | null>(null);
   const [managingAccounts, setManagingAccounts] = useState(false);
   const listGeneration = useRef(0), listController = useRef<AbortController | null>(null);
@@ -132,7 +138,7 @@ function App({
       dragDepth.current = 0;
     };
   }, [inLibrary, history, sharing, trashDialog]);
-  const sortedDocs = [...docs].sort((a, b) => sort === "name" ? a.name.localeCompare(b.name, "ko", { numeric: true }) || a.id.localeCompare(b.id)
+  const sortedDocs = docs.filter(d => !spaceFilter || (spaceFilter === "unassigned" ? !d.workspace_id : d.workspace_id === spaceFilter)).sort((a, b) => sort === "name" ? a.name.localeCompare(b.name, "ko", { numeric: true }) || a.id.localeCompare(b.id)
     : sort === "oldest" ? a.created_at - b.created_at || a.id.localeCompare(b.id) : b.created_at - a.created_at || a.id.localeCompare(b.id));
   const refresh = () => {
     const generation = ++listGeneration.current;
@@ -146,6 +152,7 @@ function App({
   };
   useEffect(() => { refresh(); return () => { listController.current?.abort(); listGeneration.current++; }; }, [searchQuery]);
   function navigate(section: WorkspaceSection) {
+    setBranchDocument(null); setSpacePanel(null);
     setTrashDialog(null);
     setManagingAccounts(false);
     setEditorDesign(null);
@@ -267,10 +274,12 @@ function App({
       <header className="library-heading">
         <div>
           <h1>HWPX 문서함</h1>
-          <p>문서 이름을 눌러 열고 편집하세요.</p>
+          <p>개인 작업본에서 수정하고 통합 요청으로 검토받으세요.</p>
         </div>
         <span className="library-document-count">{docs.length}개 문서</span>
       </header>
+      <div className="library-space-filter"><label>문서 공간 <select aria-label="문서 공간" value={spaceFilter} onChange={e => setSpaceFilter(e.target.value)} onFocus={() => void api<TeamSpace[]>("/workspaces").then(setSpaces).catch(e => setError(errorMessage(e)))}><option value="">접근 가능한 모든 문서</option><option value="unassigned">기존 문서함·개인 작업본</option>{spaces.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label><button onClick={() => setSpacePanel({})}>팀·부서 공간 관리</button></div>
+      <p className="hint">공간 선택은 목록 필터입니다. 새 업로드·보고서는 기존 문서함에 저장되며, 더보기 → 공간 지정으로 접근 범위를 설정합니다.</p>
       <div className="library-drop-hint" role="region" aria-label="HWPX 파일 놓기" aria-busy={uploading}>
         <WorkspaceIcon name="upload" size={22}/><div><strong>{uploading ? "파일을 업로드하고 있습니다…" : dragOver ? "여기에 놓아 새 문서로 가져오세요" : "HWPX 파일을 이 문서함에 끌어 놓으세요"}</strong>
           <p>파일 한 개씩 · 최대 30MB · 기존 문서는 그대로 유지됩니다.</p></div>
@@ -328,12 +337,14 @@ function App({
                   <button className="link" onClick={() => setActive(d)}>
                     <WorkspaceIcon name="documents"/><span>{d.name}</span>
                   </button>
+                  {(d.workspace_name || d.branch_source_id) && <span className="library-space-tag">{d.branch_source_id ? "개인 작업본" : d.workspace_name}</span>}
                 </td>
                 <td>{new Date(d.created_at * 1000).toLocaleString("ko-KR")}</td>
                 <td className="library-document-actions">
                   <SavedDownload document={d} />
                   {d.role !== "reader" && <button onClick={() => setCoeditDocument(d)}><WorkspaceIcon name="conversation" size={17}/><span>공동편집</span></button>}
                   <button aria-label="버전 기록" title="버전 기록" onClick={() => setHistory(d)}><WorkspaceIcon name="history" size={17}/><span>버전 기록</span></button>
+                  <button onClick={() => setBranchDocument(d)}><WorkspaceIcon name="copy" size={17}/><span>작업본·통합</span></button>
                   <span className="library-delete-action" title={d.can_trash ? "휴지통으로 이동하며 나중에 복구할 수 있습니다." : account.library_access_mode === "shared" ? "이 문서를 삭제할 권한이 없습니다." : "개인 문서함에서는 문서 소유자만 삭제할 수 있습니다."}>
                     <button className="library-delete-button" aria-label={`${d.name} 삭제`}
                       aria-description={!d.can_trash ? account.library_access_mode === "shared" ? "이 문서를 삭제할 권한이 없습니다." : "개인 문서함에서는 문서 소유자만 삭제할 수 있습니다." : undefined}
@@ -369,6 +380,7 @@ function App({
                     <WorkspaceIcon name="rename" size={17}/><span>이름 변경</span>
                   </button>
                   <button aria-label="저장본 복제" title="저장본 복제" disabled={copying || !!copyPending} onClick={() => void copySaved(d)}><WorkspaceIcon name="copy" size={17}/><span>저장본 복제</span></button>
+                  {d.role === "owner" && !d.branch_source_id && <button onClick={() => setSpacePanel({ document: d })}>공간 지정</button>}
                   <label className="button" title="새 버전 업로드">
                     <WorkspaceIcon name="upload" size={17}/><span>새 버전 업로드</span>
                     <input
@@ -413,7 +425,7 @@ function App({
                       }}
                     />
                   </label>
-                  {account.authentication_required && account.library_access_mode !== "shared" && d.role === "owner" && (
+                  {account.authentication_required && account.library_access_mode !== "shared" && d.role === "owner" && !d.workspace_id && !d.branch_source_id && (
                     <button aria-label="공유 권한" title="공유 권한" onClick={() => setSharing(d)}><WorkspaceIcon name="share" size={17}/><span>공유 권한</span></button>
                   )}
                   {d.role !== "reader" && (
@@ -431,6 +443,8 @@ function App({
         </table></div>
       )}
       {trashDialog && <DocumentTrashDialog document={trashDialog.document} shared={account.library_access_mode === "shared"} onClose={() => setTrashDialog(null)} onChanged={() => { setExpandedDocument(null); refresh(); }} />}
+      {spacePanel && <TeamWorkspaces account={account} document={spacePanel.document} onClose={() => setSpacePanel(null)} onUpdated={() => { refresh(); void api<TeamSpace[]>("/workspaces").then(setSpaces).catch(e => setError(errorMessage(e))); }} />}
+      {branchDocument && <DocumentBranches document={branchDocument} onClose={() => setBranchDocument(null)} onOpen={doc => { setBranchDocument(null); setActive(doc); }} onUpdated={refresh} />}
       {sharing && (
         <AccessPanel document={sharing} onClose={() => setSharing(null)} />
       )}
@@ -1140,8 +1154,10 @@ function Editor({
             if ((event.target as Element).closest("button, a") && fileMenu.current) fileMenu.current.open = false;
           }}>
         <button
-          disabled={!ready || blockHolding}
+          disabled={!ready || blockHolding || !!initial?.workspace_id || !!initial?.branch_source_id}
+          title={initial?.workspace_id || initial?.branch_source_id ? "공간·작업본 접근 범위를 보존하려면 문서함의 작업본·통합 또는 저장본 복제를 사용하세요." : undefined}
           onClick={async () => {
+            if (initial?.workspace_id || initial?.branch_source_id) return;
             if (blockHold.current || busy.current || pending.current || applied.current) { setError("진행 중인 저장·승인·블록 준비를 먼저 완료하세요."); return; }
             const n = prompt("다른 이름으로 저장", name);
             if (!n) return;
