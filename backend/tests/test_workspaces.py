@@ -194,3 +194,71 @@ def test_personal_branch_cannot_escape_through_copy_or_template(spaces):
     assert copied.status_code == 409
     registered = c.post("/api/templates", json={"document_id": branch["id"], "version_id": branch["current_version"], "name": "내 비공개 초안"})
     assert registered.status_code == 409
+
+
+def create_work_copy(c, source, name="초대된 작업본.hwpx"):
+    response = c.post(f"/api/documents/{source['id']}/branches", json={
+        "document_id": str(uuid.uuid4()), "source_version": source["current_version"],
+        "request_id": str(uuid.uuid4()), "name": name})
+    assert response.status_code == 200, response.text
+    return response.json()["document"]
+
+
+def test_invited_branch_scope_matches_listing_and_rechecks_source_editor(spaces):
+    c, app, _, folder = spaces
+    space, _ = new_space(c); add(c, space, "writer", "editor"); add(c, space, "reader", "reader")
+    source = scoped_doc(c, space)
+    branch = create_work_copy(c, source)
+    with TestClient(app, base_url="https://testserver") as participant:
+        assert login(participant, "writer").status_code == 200
+        assert participant.get(f"/api/documents/{branch['id']}").status_code == 404
+        assert branch["id"] not in [row["id"] for row in participant.get("/api/documents").json()]
+        invited = c.put(f"/api/documents/{branch['id']}/branch-participants/writer")
+        assert invited.status_code == 200, invited.text
+        listed = next(row for row in participant.get("/api/documents").json() if row["id"] == branch["id"])
+        assert listed["role"] == "editor" and listed["can_trash"] is False
+        assert participant.get(f"/api/documents/{branch['id']}").json()["role"] == "editor"
+        assert participant.put(f"/api/documents/{branch['id']}/branch-participants/reader").status_code == 403
+        token = participant.post(f"/api/documents/{branch['id']}/session").json()["token"]
+        saved = save(participant, branch, token, package("참여자 수정"))
+        assert saved.status_code == 200, saved.text
+        with Session(app.state.engine) as db:
+            before = [(v.id, v.sha256) for v in db.scalars(select(Version).where(Version.document_id == branch["id"]))]
+        hashes = {p.name: p.read_bytes() for p in folder.glob("*.hwpx")}
+        add(c, space, "writer", "reader")
+        assert branch["id"] not in [row["id"] for row in participant.get("/api/documents").json()]
+        for path in [f"/api/documents/{branch['id']}", f"/api/documents/{branch['id']}/versions",
+                     f"/api/documents/{branch['id']}/versions/{branch['current_version']}/file",
+                     f"/api/documents/{branch['id']}/branches"]:
+            assert participant.get(path).status_code == 404, path
+        assert save(participant, branch, token, package("회수 후 수정"), base=saved.json()["id"]).status_code == 404
+        assert branch["id"] not in participant.get(f"/api/documents/{source['id']}/branches").text
+        assert {p.name: p.read_bytes() for p in folder.glob("*.hwpx")} == hashes
+        with Session(app.state.engine) as db:
+            assert [(v.id, v.sha256) for v in db.scalars(select(Version).where(Version.document_id == branch["id"]))] == before
+        add(c, space, "writer", "editor")
+        assert participant.get(f"/api/documents/{branch['id']}").status_code == 200
+        assert c.delete(f"/api/documents/{branch['id']}/branch-participants/writer").status_code == 200
+        assert participant.get(f"/api/documents/{branch['id']}").status_code == 404
+        assert branch["id"] not in [row["id"] for row in participant.get("/api/documents").json()]
+
+
+def test_shared_source_never_implicitly_grants_private_branch_participation(spaces):
+    c, app, _, _ = spaces
+    source, token = create(c)
+    assert c.delete(f"/api/documents/{source['id']}/session", headers={"X-Edit-Session": token}).status_code == 200
+    branch = create_work_copy(c, source, "비공개 분기 이름.hwpx")
+    assert c.put(f"/api/documents/{branch['id']}/branch-participants/writer").status_code == 200
+    with TestClient(app, base_url="https://testserver") as participant:
+        assert login(participant, "writer").status_code == 200
+        joined = participant.post(f"/api/documents/{branch['id']}/coedit", json={"request_id": str(uuid.uuid4())})
+        assert joined.status_code == 200, joined.text
+        assert c.delete(f"/api/documents/{branch['id']}/branch-participants/writer").status_code == 200
+        assert participant.put(f"/api/documents/{branch['id']}/coedit", headers={"X-Coedit-Session": joined.json()["token"]}).status_code == 404
+        flow = participant.get(f"/api/documents/{source['id']}/branches")
+        assert flow.status_code == 200
+        assert branch["id"] not in flow.text and "비공개 분기 이름" not in flow.text
+        assert branch["id"] not in [row["id"] for row in participant.get("/api/documents").json()]
+    assert login(c, "outsider").status_code == 200
+    assert c.get(f"/api/documents/{source['id']}").status_code == 200
+    assert c.get(f"/api/documents/{branch['id']}").status_code == 404

@@ -9,7 +9,8 @@ async function content(page: Page) { return strFromU8(unzipSync(await bytes(page
 async function open(page: Page, name: string) {
   await page.goto("/");
   const row = page.getByRole("row").filter({has: page.getByRole("button", {name, exact: true})});
-  await row.getByRole("button", {name: "공동편집", exact: true}).click();
+  await row.getByRole("button", {name: "문서 이력", exact: true}).click();
+  await page.getByRole("dialog", {name: "문서 이력", exact: true}).getByRole("button", {name:"공동편집", exact:true}).click();
   await expect(page.getByRole("status")).toHaveText("공동 변경 저장 완료", {timeout: 90000});
 }
 async function type(page: Page, end: boolean, value: string) {

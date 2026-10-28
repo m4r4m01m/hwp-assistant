@@ -10,7 +10,7 @@ from .account_settings import AccountSetting
 from .account_notifications import RegistrationNotification
 from .coedit import Room, Member, Receipt
 from .workspaces import Workspace, WorkspaceMember, WorkspaceDocument
-from .document_branches import DocumentBranch, IntegrationRequest
+from .document_branches import DocumentBranch, IntegrationRequest, BranchParticipant
 
 
 def migrate(engine, users):

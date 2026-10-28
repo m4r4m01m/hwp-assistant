@@ -153,9 +153,14 @@ def test_revoked_author_cannot_merge_or_read_private_work(setup):
     client, _, source, branch, identity, review = request_ready(setup)
     assert client.delete(f"/api/documents/{source['id']}/access/bob").status_code == 200
     assert client.post(f"/api/integration-requests/{identity}/accept", json={"merged_sha256": review["merged_sha256"]}).status_code == 409
+    archived = client.get(f"/api/integration-requests/{identity}/source")
+    assert archived.status_code == 200 and text(archived.content) == "작업자 수정|둘째 문단 원문"
     user(client, "bob")
     assert client.get(f"/api/documents/{branch['id']}").status_code == 404
     assert client.get(f"/api/integration-requests/{identity}/preview").status_code == 404
+    assert client.get(f"/api/integration-requests/{identity}/source").status_code == 404
+    user(client, "eve")
+    assert client.get(f"/api/integration-requests/{identity}/source").status_code == 404
 
 
 def test_reject_keeps_both_documents_unchanged(setup):
@@ -254,3 +259,80 @@ def test_review_text_lists_nested_table_cells_once():
     result, truncated = _text(data)
     assert result == "비교표\n대상 기업\n조치 현황\n후속 조치"
     assert not truncated
+
+
+def test_graph_uses_actual_save_branch_merge_edges_and_hides_unsubmitted_versions(setup):
+    client, _, source, branch, _ = setup
+    initial = branch["current_version"]
+    branch = edit(client, branch, document(a="제출할 수정"))
+    own = client.get(f"/api/documents/{branch['id']}/branches").json()["graph"]
+    assert {"from": source["current_version"], "to": initial, "kind": "branch"} in own["edges"]
+    assert {"from": initial, "to": branch["current_version"], "kind": "save"} in own["edges"]
+    assert next(n for n in own["nodes"] if n["id"] == branch["current_version"])["document"]["branch_source_id"] == source["id"]
+    request = submit(client, source, branch).json()
+    later = edit(client, branch, document(a="미제출 내용"))
+    user(client, "alice")
+    before = client.get(f"/api/documents/{source['id']}/branches").json()["graph"]
+    nodes = {node["id"]: node for node in before["nodes"]}
+    assert later["current_version"] not in nodes
+    assert nodes[initial]["kind"] == "anchor" and "author" not in nodes[initial]
+    frozen = nodes[branch["current_version"]]
+    assert frozen["can_read"] and not frozen["can_edit"] and not frozen["can_restore"]
+    assert frozen["document"] is None
+    assert text(client.get("/api" + frozen["file_url"]).content) == "제출할 수정|둘째 문단 원문"
+    preview = client.get(f"/api/integration-requests/{request['id']}/review").json()
+    accepted = client.post(f"/api/integration-requests/{request['id']}/accept", json={"merged_sha256": preview["merged_sha256"]}).json()
+    flow = client.get(f"/api/documents/{source['id']}/branches").json()
+    assert {"from": branch["current_version"], "to": accepted["merged_version_id"], "kind": "merge"} in flow["graph"]["edges"]
+    assert {"from": source["current_version"], "to": accepted["merged_version_id"], "kind": "save"} in flow["graph"]["edges"]
+    assert {"size", "sha256", "document_id", "restore_source", "cause"} <= flow["versions"][0].keys()
+    # Processed requests remain immutable historical nodes, even after newer saves.
+    edit(client, {**source, "current_version": accepted["merged_version_id"]}, document(a="새 공통 편집"))
+    assert text(client.get("/api" + frozen["file_url"]).content) == "제출할 수정|둘째 문단 원문"
+
+
+def test_graph_truncation_has_explicit_parent_anchors_not_invented_edges(setup):
+    client, app, source, _, _ = setup
+    from app.db import Document
+    identities = []
+    with transaction(app.state.engine) as db:
+        doc = db.get(Document, source["id"])
+        original = db.get(Version, source["current_version"])
+        base = original.id
+        for index in range(105):
+            identity = str(uuid.uuid4()); identities.append(identity)
+            db.add(Version(id=identity, document_id=doc.id, base_version=base, storage_key=f"synthetic-graph-{index}.hwpx",
+                size=original.size, sha256=original.sha256, created_at=original.created_at + index + 1,
+                cause="web-edit", request_id=identity, fingerprint="f" * 64, session_hash="s" * 64))
+            base = identity
+        doc.current_version = base
+    user(client, "alice")
+    graph = client.get(f"/api/documents/{source['id']}/branches").json()["graph"]
+    assert graph["truncated"] and graph["limits"]["root_versions"] == 100
+    nodes = {node["id"]: node for node in graph["nodes"]}
+    assert len(nodes) == 101
+    assert nodes[identities[4]]["kind"] == "anchor"
+    assert identities[3] not in nodes
+    assert {"from": identities[4], "to": identities[5], "kind": "save"} in graph["edges"]
+    assert all(edge["from"] in nodes and edge["to"] in nodes for edge in graph["edges"])
+
+
+def test_contributor_cannot_approve_even_after_invitation_removed(setup):
+    from app.accounts import UserAccount
+    client, app, source, branch, _ = setup
+    with transaction(app.state.engine) as db:
+        db.add(UserAccount(user_id="alice", name="alice", password_hash="synthetic-unusable", session_revision="synthetic", created_at=time.time()))
+    assert client.put(f"/api/documents/{branch['id']}/branch-participants/alice", json={}).status_code == 200
+    user(client, "alice")
+    branch = edit(client, branch, document(a="관리자가 직접 수정한 내용"))
+    assert submit(client, source, branch).status_code == 404
+    user(client, "bob")
+    requested = submit(client, source, branch)
+    assert requested.status_code == 200, requested.text
+    identity = requested.json()["id"]
+    assert client.delete(f"/api/documents/{branch['id']}/branch-participants/alice").status_code == 200
+    user(client, "alice")
+    preview = client.get(f"/api/integration-requests/{identity}/review")
+    assert preview.status_code == 200, preview.text
+    assert not preview.json()["request"]["can_review"]
+    assert client.post(f"/api/integration-requests/{identity}/accept", json={"merged_sha256": preview.json()["merged_sha256"]}).status_code == 403

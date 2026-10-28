@@ -92,14 +92,14 @@ function App({
   const [trashDialog, setTrashDialog] = useState<{ document: Document | null } | null>(null);
   const [managingAccounts, setManagingAccounts] = useState(false);
   const listGeneration = useRef(0), listController = useRef<AbortController | null>(null);
-  const libraryRestore = useRef<{ document: string; version: string; key: string; token: string; expired?: boolean } | null>(null);
+  const libraryRestore = useRef<{ document: string; version: string; key: string; token: string; base?: string; expired?: boolean } | null>(null);
   useEffect(() => {
-    if (history && !active) return;
+    if ((history || branchDocument) && !active && !coeditDocument) return;
     const frozen = libraryRestore.current; libraryRestore.current = null;
     if (frozen) void api(`/documents/${frozen.document}/session`, { method: "DELETE", headers: { "X-Edit-Session": frozen.token } }).catch(() => {});
-  }, [history, active]);
+  }, [history, branchDocument, active, coeditDocument]);
   useEffect(() => {
-    if (!history || active) return;
+    if ((!history && !branchDocument) || active || coeditDocument) return;
     const interval = setInterval(() => {
       const frozen = libraryRestore.current;
       if (!frozen || frozen.expired) return;
@@ -109,11 +109,11 @@ function App({
         });
     }, 30000);
     return () => clearInterval(interval);
-  }, [history?.id, active]);
+  }, [history?.id, branchDocument?.id, active, coeditDocument]);
   const [searchQuery, flushSearch] = useDebouncedValue(query);
   const uploadBusy = useRef(false), dragDepth = useRef(0);
   const frozenUpload = useRef<{ bytes: Uint8Array; name: string; id: string; key: string } | null>(null);
-  const inLibrary = !active && !creating && !standardDesigner && !reports && !templates && !managingAccounts;
+  const inLibrary = !active && !creating && !standardDesigner && !reports && !templates && !managingAccounts && !coeditDocument && !branchDocument && !spacePanel;
   useAiSetupLanding(inLibrary && !loading && !copying && !uploading && !history && !sharing && !trashDialog);
   useEffect(() => {
     if (!inLibrary) return;
@@ -123,7 +123,7 @@ function App({
       if (!filesDragged(event)) return;
       event.preventDefault();
       if (event.type === "drop") clearDrag();
-      else if (!(event.target instanceof Element) || !event.target.closest(".library-drop-target") || history || sharing || trashDialog)
+      else if (!(event.target instanceof Element) || !event.target.closest(".library-drop-target") || history || sharing || trashDialog || branchDocument || spacePanel)
         event.dataTransfer!.dropEffect = "none";
     };
     const escape = (event: KeyboardEvent) => { if (event.key === "Escape") clearDrag(); };
@@ -162,6 +162,35 @@ function App({
     setTemplates(section === "templates"); setReports(section === "reports");
     setStandardDesigner(section === "standards");
     if (section === "documents") refresh();
+  }
+  async function restoreTimeline(target: Document, versionId: string, requestId: string): Promise<Version> {
+    let token = "", release = false, releaseDocument = target.id;
+    try {
+      const previous = libraryRestore.current;
+      if (previous?.expired) {
+        token = previous.token; releaseDocument = previous.document;
+        throw new ApiError(409, "복원 확인 세션이 만료됐습니다. 갱신된 문서 이력에서 저장 결과를 확인하세요.");
+      }
+      if (previous && (previous.document !== target.id || previous.version !== versionId || previous.key !== requestId))
+        throw new ApiError(409, "확인되지 않은 복원 요청이 있습니다. 같은 요청부터 재확인하세요.");
+      if (!previous) {
+        const lease = await api<{token: string; document: Document}>(`/documents/${target.id}/session`, {method:"POST"});
+        token = lease.token;
+        if (lease.document.current_version !== target.current_version) { release = true; throw new ApiError(409, "최신 버전이 변경됐습니다. 문서 이력을 다시 불러온 뒤 선택하세요."); }
+        libraryRestore.current = { document:target.id, version:versionId, key:requestId, token, base:target.current_version };
+      } else token = previous.token;
+      const frozen = libraryRestore.current!;
+      const result = await api<Version>(`/documents/${frozen.document}/versions/${frozen.version}/restore?base_version=${frozen.base}`, {
+        method:"POST", headers:{"X-Edit-Session":token,"Idempotency-Key":frozen.key}
+      });
+      release = true; refresh(); return result;
+    } catch(cause) {
+      if (cause instanceof ApiError && [401,403,409].includes(cause.status) && libraryRestore.current) libraryRestore.current.expired = true;
+      release ||= cause instanceof ApiError && cause.status < 500;
+      throw cause;
+    } finally {
+      if (release && token) { libraryRestore.current = null; await api(`/documents/${releaseDocument}/session`, {method:"DELETE",headers:{"X-Edit-Session":token}}).catch(() => {}); }
+    }
   }
   async function copySaved(source: Document) {
     if (copying) return;
@@ -242,6 +271,7 @@ function App({
           refresh();
         }}
         onHistory={setHistory}
+        onTimeline={doc => { setActive(null); setBranchDocument(doc); refresh(); }}
         history={history}
         closeHistory={() => setHistory(null)}
       />
@@ -255,18 +285,18 @@ function App({
       </WorkspaceNav>
     <main className={`drive drive-workspace library-drop-target${dragOver ? " is-file-dragging" : ""}`}
       onDragEnter={event => {
-        if (!Array.from(event.dataTransfer.types).includes("Files") || history || sharing || trashDialog) return;
+        if (!Array.from(event.dataTransfer.types).includes("Files") || history || sharing || trashDialog || branchDocument || spacePanel) return;
         event.preventDefault(); dragDepth.current++; setDragOver(true);
       }}
       onDragOver={event => {
         if (!Array.from(event.dataTransfer.types).includes("Files")) return;
-        event.preventDefault(); event.dataTransfer.dropEffect = history || sharing || trashDialog || uploading || uploadPending ? "none" : "copy";
+        event.preventDefault(); event.dataTransfer.dropEffect = history || sharing || trashDialog || branchDocument || spacePanel || uploading || uploadPending ? "none" : "copy";
       }}
       onDragLeave={() => { dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragOver(false); }}
       onDrop={event => {
         if (!Array.from(event.dataTransfer.types).includes("Files")) return;
         event.preventDefault(); event.stopPropagation(); dragDepth.current = 0; setDragOver(false);
-        if (history || sharing || trashDialog) return;
+        if (history || sharing || trashDialog || branchDocument || spacePanel) return;
         const files = Array.from(event.dataTransfer.files);
         if (files.length !== 1) { setError("한 번에 HWPX 파일 한 개씩 가져오세요. 여러 파일이나 폴더는 업로드하지 않았습니다."); return; }
         void incoming(files[0]);
@@ -342,9 +372,7 @@ function App({
                 <td>{new Date(d.created_at * 1000).toLocaleString("ko-KR")}</td>
                 <td className="library-document-actions">
                   <SavedDownload document={d} />
-                  {d.role !== "reader" && <button onClick={() => setCoeditDocument(d)}><WorkspaceIcon name="conversation" size={17}/><span>공동편집</span></button>}
-                  <button aria-label="버전 기록" title="버전 기록" onClick={() => setHistory(d)}><WorkspaceIcon name="history" size={17}/><span>버전 기록</span></button>
-                  <button onClick={() => setBranchDocument(d)}><WorkspaceIcon name="copy" size={17}/><span>작업본·통합</span></button>
+                  <button onClick={() => setBranchDocument(d)}><WorkspaceIcon name="history" size={17}/><span>문서 이력</span></button>
                   <span className="library-delete-action" title={d.can_trash ? "휴지통으로 이동하며 나중에 복구할 수 있습니다." : account.library_access_mode === "shared" ? "이 문서를 삭제할 권한이 없습니다." : "개인 문서함에서는 문서 소유자만 삭제할 수 있습니다."}>
                     <button className="library-delete-button" aria-label={`${d.name} 삭제`}
                       aria-description={!d.can_trash ? account.library_access_mode === "shared" ? "이 문서를 삭제할 권한이 없습니다." : "개인 문서함에서는 문서 소유자만 삭제할 수 있습니다." : undefined}
@@ -444,7 +472,7 @@ function App({
       )}
       {trashDialog && <DocumentTrashDialog document={trashDialog.document} shared={account.library_access_mode === "shared"} onClose={() => setTrashDialog(null)} onChanged={() => { setExpandedDocument(null); refresh(); }} />}
       {spacePanel && <TeamWorkspaces account={account} document={spacePanel.document} onClose={() => setSpacePanel(null)} onUpdated={() => { refresh(); void api<TeamSpace[]>("/workspaces").then(setSpaces).catch(e => setError(errorMessage(e))); }} />}
-      {branchDocument && <DocumentBranches document={branchDocument} onClose={() => setBranchDocument(null)} onOpen={doc => { setBranchDocument(null); setActive(doc); }} onUpdated={refresh} />}
+      {branchDocument && <DocumentBranches document={branchDocument} onClose={() => setBranchDocument(null)} onOpen={setActive} onCoedit={setCoeditDocument} onRestore={restoreTimeline} onUpdated={refresh} />}
       {sharing && (
         <AccessPanel document={sharing} onClose={() => setSharing(null)} />
       )}
@@ -521,6 +549,7 @@ function Editor({
   initialDesign,
   onClose,
   onHistory,
+  onTimeline,
   history,
   closeHistory,
 }: {
@@ -529,6 +558,7 @@ function Editor({
   initialDesign?: DesignChoice | null;
   onClose: () => void;
   onHistory: (d: Document) => void;
+  onTimeline: (d: Document) => void;
   history: Document | null;
   closeHistory: () => void;
 }) {
@@ -1189,8 +1219,13 @@ function Editor({
         >
           복구용 다운로드
         </button>
-        <button disabled={!doc.current} onClick={() => onHistory(doc.current!)}>
-          버전 기록
+        <button disabled={!doc.current || !ready} onClick={() => {
+          if (dirtyRef.current || contextDraftDirty.current || busy.current || pending.current || applied.current || blockHold.current || assistantHold.current || restoring.current) {
+            setError("문서 이력을 열기 전에 변경사항을 저장하고 진행 중인 작업을 마무리하세요."); return;
+          }
+          onTimeline({ ...doc.current!, workspace_id: initial?.workspace_id, workspace_name: initial?.workspace_name, branch_source_id: initial?.branch_source_id });
+        }}>
+          문서 이력
         </button>
           <p>다운로드는 서버 저장과 별개입니다. 미저장 내용은 복구용 다운로드에 포함됩니다.</p>
           </div>

@@ -8,6 +8,17 @@ const documentRow = { id: "document-one", name: "합성 문서.hwpx", current_ve
 const feature = { configured: false, reachable: null, allowed: true, reason_code: "not_configured", message: "서버의 AI 연결 설정이 필요합니다.", supports_stream: false };
 const capabilities = { features: Object.fromEntries(["chat", "rewrite", "review", "reports"].map(name => [name, feature])) };
 const writingContext = { revision: 0, base_version: "version-lease", purpose: "", audience: "", tone: "", background: "", requirements: "", restrictions: "", facts: "", terminology: "", confirmation: null, stale: false };
+function timelineFlow(currentVersion = documentRow.current_version) {
+  const document = { ...documentRow, current_version: currentVersion };
+  const original = { id: "version-original", document_id: document.id, base_version: null as string | null, size: 100, sha256: "a".repeat(64), created_at: 1, cause: "upload" };
+  const latest = { ...original, id: documentRow.current_version, base_version: original.id, created_at: 2, cause: "web-edit" };
+  const rows = [original, latest];
+  if (currentVersion !== latest.id) rows.push({ ...latest, id: currentVersion, base_version: latest.id, created_at: 3, cause: "restore" });
+  return { source_document: document, branches: [], requests: [], versions: rows,
+    graph: { nodes: rows.map(row => ({ ...row, kind: "version", current: row.id === currentVersion, can_read: true,
+      can_edit: row.id === currentVersion, can_restore: true, file_url: `/documents/${document.id}/versions/${row.id}/file`, document })),
+      edges: rows.filter(row => row.base_version).map(row => ({ from: row.base_version, to: row.id, kind: "save" })), truncated: false } };
+}
 type Handler = (route: Route, path: string) => Promise<boolean | void>;
 async function json(route: Route, body: unknown, status = 200) { await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) }); }
 async function mockApi(page: Page, handler?: Handler) {
@@ -18,6 +29,8 @@ async function mockApi(page: Page, handler?: Handler) {
     if (path === "/auth/me") return json(route, { user_id: "test-user", authentication_required: true });
     if (path === "/capabilities") return json(route, capabilities);
     if (path === "/documents") return json(route, [documentRow]);
+    if (path === "/workspaces") return json(route, []);
+    if (path.endsWith("/branches")) return json(route, timelineFlow());
     if (path === "/documents/document-one/session") return json(route, route.request().method() === "POST" ? { token: "local-test-lease", document: { ...documentRow, name: "서버의 현재 문서.hwpx", current_version: "version-lease" } } : {});
     if (path.endsWith("/file")) return route.fulfill({ status: 200, contentType: "application/octet-stream", body: "local-test-file" });
     if (path.endsWith("/versions") || path.endsWith("/proposals") || path.endsWith("/rewrite-tasks") || path.endsWith("/assistant-turns")) return json(route, []);
@@ -46,7 +59,8 @@ async function mockEditor(page: Page) {
         await new Promise(resolve => setTimeout(resolve, window.__engineDelay || 0));
         const state = { documentEpoch: 1, changeSeq: 0, documentSha256: 'a'.repeat(64) };
         const instance = new EditorAdapter();
-        instance.sdk = { element: frame, getDocumentState: async () => state, destroy: () => frame.remove() };
+        instance.sdk = { element: frame, getDocumentState: async () => state, destroy: () => frame.remove(), pageCount: async () => 1,
+          getPageSvg: async () => '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="140"><text x="5" y="20">합성 저장본</text></svg>' };
         instance.bridge = { revision: () => 0, warnings: () => null, subscribe: () => () => {}, newDocument: async () => {}, documentState: () => state };
         return instance;
       }
@@ -65,46 +79,98 @@ async function openEditor(page: Page) {
   await expect(page.locator(".editor-current-document [role=status]")).toHaveText("저장 완료");
 }
 
-for (const expired of [false, true]) test(`MOCK UI: lost library restore ${expired ? "ends expired confirmation without a new lease" : "renews the frozen lease and retries the same request"}`, async ({ page }) => {
+for (const expired of [false, true]) test(`MOCK UI: lost timeline restore ${expired ? "cleans expired confirmation and reloads without a new lease" : "renews the frozen lease and retries the same request"}`, async ({ page }) => {
   await page.clock.install();
-  let leases = 0, heartbeats = 0;
+  await mockEditor(page);
+  let leases = 0, heartbeats = 0, releases = 0, flowReads = 0;
   const keys: string[] = [];
-  const original = { id: "version-list", document_id: documentRow.id, base_version: null, size: 100, sha256: "a".repeat(64), created_at: 1, cause: "upload" };
-  const restored = { ...original, id: "restored-version", base_version: original.id, created_at: 2, cause: "restore", restore_source: { version_id: original.id, created_at: 1 } };
+  const bases: string[] = [], tokens: string[] = [];
+  const original = timelineFlow().versions[0];
+  const restored = { ...original, id: "restored-version", base_version: documentRow.current_version, created_at: 3, cause: "restore", restore_source: { version_id: original.id, created_at: 1 } };
   await mockApi(page, async (route, path) => {
     const method = route.request().method();
     if (path.endsWith("/session")) {
-      if (method === "POST") { leases++; await json(route, { token: "synthetic-restore-lease" }); }
+      if (method === "POST") { leases++; await json(route, { token: "synthetic-restore-lease", document: documentRow }); }
       else if (method === "PUT") { heartbeats++; await json(route, expired ? { detail: "편집 세션 만료" } : {}, expired ? 409 : 200); }
-      else await json(route, {});
+      else { releases++; await json(route, {}); }
       return true;
     }
-    if (path.endsWith("/versions")) { await json(route, keys.length > 1 ? [restored, original] : [original]); return true; }
+    if (path.endsWith("/branches")) { flowReads++; await json(route, timelineFlow(keys.length ? restored.id : documentRow.current_version)); return true; }
     if (path.endsWith("/restore")) {
       keys.push(route.request().headers()["idempotency-key"]);
+      bases.push(new URL(route.request().url()).searchParams.get("base_version")!);
+      tokens.push(route.request().headers()["x-edit-session"]);
       await json(route, keys.length === 1 ? { detail: "합성 응답 유실" } : restored, keys.length === 1 ? 503 : 200);
       return true;
     }
   });
   await library(page);
-  await page.getByRole("button", { name: "버전 기록", exact: true }).click();
+  await page.getByRole("button", { name: "문서 이력", exact: true }).click();
+  const timeline = page.getByRole("dialog", { name: "문서 이력", exact: true });
+  await timeline.locator('[data-version-id="version-original"]').click();
   page.on("dialog", dialog => dialog.accept());
-  await page.getByRole("button", { name: "이 버전 복원", exact: true }).click();
-  await expect(page.getByRole("dialog").getByRole("alert")).toBeVisible();
+  await timeline.getByRole("button", { name: "이 저장본 복원", exact: true }).click();
+    await expect(timeline.getByRole("alert")).toContainText("서버에서 요청을 처리하지 못했습니다");
   const heartbeat = page.waitForResponse(response => response.url().endsWith("/session") && response.request().method() === "PUT");
   await page.clock.fastForward(31000);
   await heartbeat;
   await expect.poll(() => heartbeats).toBe(1);
-  await page.getByRole("button", { name: "이 버전 복원", exact: true }).click();
+  await timeline.getByRole("button", { name: "같은 복원 요청으로 확인", exact: true }).click();
   if (expired) {
-    await expect(page.getByRole("dialog").getByRole("alert")).toContainText("버전 기록을 닫았다가 다시 열어");
+    await expect(timeline.getByRole("alert")).toContainText("복원 확인 세션이 만료");
     expect(keys).toHaveLength(1);
+    await expect(timeline.getByRole("button", { name: "같은 복원 요청으로 확인", exact: true })).toHaveCount(0);
+    await expect(timeline.locator('[data-version-id="restored-version"]')).toBeEnabled();
   } else {
-    await expect(page.getByText("합성 문서.hwpx의 v1에서 복원한 새 버전을 저장했습니다.")).toBeVisible();
+    await expect(timeline.getByRole("status").filter({ hasText: "선택한 저장본을 새 버전으로 복원했습니다" })).toBeVisible();
     expect(keys).toHaveLength(2);
     expect(keys[0]).toBe(keys[1]);
+    expect(bases).toEqual([documentRow.current_version, documentRow.current_version]);
+    expect(tokens).toEqual(["synthetic-restore-lease", "synthetic-restore-lease"]);
   }
+  await expect.poll(() => releases).toBe(1);
+  expect(flowReads).toBeGreaterThanOrEqual(2);
   expect(leases).toBe(1);
+});
+
+test("MOCK UI: stale timeline restore releases its lease, reloads, and allows a fresh confirmed restore", async ({ page }) => {
+  await mockEditor(page);
+  let flowReads = 0, leases = 0, releases = 0, restores = 0;
+  const changed = "version-server-newer", restored = "version-after-restore";
+  const bases: string[] = [];
+  await mockApi(page, async (route, path) => {
+    const method = route.request().method();
+    if (path.endsWith("/branches")) {
+      flowReads++;
+      await json(route, timelineFlow(restores ? restored : flowReads === 1 ? documentRow.current_version : changed));
+      return true;
+    }
+    if (path.endsWith("/session")) {
+      if (method === "POST") { leases++; await json(route, { token: `restore-lease-${leases}`, document: { ...documentRow, current_version: changed } }); }
+      else { if (method === "DELETE") releases++; await json(route, {}); }
+      return true;
+    }
+    if (path.endsWith("/restore")) {
+      restores++; bases.push(new URL(route.request().url()).searchParams.get("base_version")!);
+      await json(route, { ...timelineFlow(restored).versions.at(-1), cause: "restore" }); return true;
+    }
+  });
+  await library(page);
+  await page.getByRole("button", { name: "문서 이력", exact: true }).click();
+  const timeline = page.getByRole("dialog", { name: "문서 이력", exact: true });
+  await timeline.locator('[data-version-id="version-original"]').click();
+  page.on("dialog", dialog => dialog.accept());
+  const restore = timeline.getByRole("button", { name: "이 저장본 복원", exact: true });
+  await restore.click();
+  await expect(timeline.getByRole("alert")).toContainText("최신 버전이 변경");
+  await expect(timeline.getByRole("button", { name: "같은 복원 요청으로 확인", exact: true })).toHaveCount(0);
+  await expect(timeline.locator(`[data-version-id="${changed}"]`)).toBeEnabled();
+  await expect.poll(() => releases).toBe(1);
+  expect(restores).toBe(0);
+  await restore.click();
+  await expect(timeline.getByRole("status").filter({ hasText: "선택한 저장본을 새 버전으로 복원했습니다" })).toBeVisible();
+  await expect.poll(() => releases).toBe(2);
+  expect(leases).toBe(2); expect(restores).toBe(1); expect(bases).toEqual([changed]);
 });
 
 test("MOCK UI: initial 401 is normal and repeated Enter submits one pending login", async ({ page }) => {
@@ -153,18 +219,21 @@ test("MOCK UI: search debounces keystrokes and a late old response cannot replac
   await expect(page.getByRole("button", { name: "new.hwpx", exact: true })).toBeVisible();
 });
 
-test("MOCK UI: history shows loading until its response and sharing dialog restores focus", async ({ page }) => {
+test("MOCK UI: timeline shows loading until its response and sharing dialog restores focus", async ({ page }) => {
+  await mockEditor(page);
   let finish!: () => void;
   const pending = new Promise<void>(resolve => { finish = resolve; });
   await mockApi(page, async (route, path) => {
-    if (path.endsWith("/versions")) { await pending; await json(route, []); return true; }
+    if (path.endsWith("/branches")) { await pending; await json(route, timelineFlow()); return true; }
   });
   await library(page);
-  await page.getByRole("button", { name: "버전 기록", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("버전 기록을 불러오는 중");
-  await expect(page.getByText("두 버전 이상 있어야 비교할 수 있습니다.", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "문서 이력", exact: true }).click();
+  const timeline = page.getByRole("dialog", { name: "문서 이력", exact: true });
+  await expect(timeline.getByRole("status")).toContainText("문서 이력을 불러오는 중");
+  await expect(timeline.locator('[data-version-id]')).toHaveCount(0);
   finish();
-  await expect(page.getByRole("status")).toHaveCount(0);
+  await expect(timeline.locator('[data-version-id]')).toHaveCount(2);
+  await expect(timeline.getByRole("status").filter({ hasText: "문서 이력을 불러오는 중" })).toHaveCount(0);
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: `${documentRow.name} 더보기`, exact: true }).click();
   const share = page.getByRole("button", { name: "공유 권한", exact: true });

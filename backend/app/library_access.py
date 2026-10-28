@@ -24,16 +24,24 @@ def shared_library(db, user):
 
 
 def document_role(db, document_id, user, *, fresh=False):
-    from .document_branches import DocumentBranch
+    from .document_branches import BranchParticipant, DocumentBranch
     from .workspaces import WorkspaceDocument, WorkspaceMember
     branch = db.get(DocumentBranch, document_id, populate_existing=True)
     if branch:
-        if branch.owner_id != user or db.get(DocumentBranch, branch.source_document_id):
+        if db.get(DocumentBranch, branch.source_document_id):
             return None
         from .db import document_is_trashed
         if db.scalar(select(document_is_trashed(branch.source_document_id))):
             return None
-        return "owner" if document_role(db, branch.source_document_id, user, fresh=fresh) else None
+        source_role = document_role(db, branch.source_document_id, user, fresh=fresh)
+        if branch.owner_id == user:
+            return "owner" if source_role else None
+        if source_role not in {"owner", "editor"}:
+            return None
+        query = select(BranchParticipant).where(BranchParticipant.document_id == document_id,
+            BranchParticipant.user_id == user).execution_options(populate_existing=True)
+        participant = db.scalar(query.with_for_update(read=True) if fresh else query)
+        return "editor" if participant else None
     scoped = db.get(WorkspaceDocument, document_id, populate_existing=True)
     if scoped:
         query = select(WorkspaceMember).where(WorkspaceMember.workspace_id == scoped.workspace_id,
@@ -58,7 +66,7 @@ def _scope(db, user, *, manage=False):
     capability returned by an earlier listing or a previous trash receipt.
     """
     from .db import Access, Document, document_is_trashed
-    from .document_branches import DocumentBranch
+    from .document_branches import BranchParticipant, DocumentBranch
     from .workspaces import WorkspaceDocument, WorkspaceMember
     if os.getenv("HWP_ACCOUNTS_ENABLED", "0") == "1":
         from .accounts import UserAccount
@@ -67,17 +75,26 @@ def _scope(db, user, *, manage=False):
             return false()
     branches = select(DocumentBranch.document_id)
     scoped = select(WorkspaceDocument.document_id)
-    def ordinary(management):
+    def ordinary(level):
+        grant_roles = {"read": ("reader", "editor", "owner"), "edit": ("editor", "owner"), "manage": ("owner",)}[level]
+        space_roles = {"read": ("reader", "editor", "manager"), "edit": ("editor", "manager"), "manage": ("manager",)}[level]
         legacy = true() if shared_library(db, user) else Document.id.in_(select(Access.document_id).where(
-            Access.user_id == user, Access.role == "owner" if management else true()).correlate(None))
+            Access.user_id == user, Access.role.in_(grant_roles)).correlate(None))
         membership = select(WorkspaceDocument.document_id).join(WorkspaceMember,
             WorkspaceMember.workspace_id == WorkspaceDocument.workspace_id).where(
-            WorkspaceMember.user_id == user, WorkspaceMember.role == "manager" if management else true()).correlate(None)
+            WorkspaceMember.user_id == user, WorkspaceMember.role.in_(space_roles)).correlate(None)
         return and_(Document.id.not_in(branches), or_(and_(Document.id.not_in(scoped), legacy), Document.id.in_(membership)))
-    readable_sources = select(Document.id).where(ordinary(False), ~document_is_trashed(Document.id)).correlate(None)
+    readable_sources = select(Document.id).where(ordinary("read"), ~document_is_trashed(Document.id)).correlate(None)
     own_branches = select(DocumentBranch.document_id).where(DocumentBranch.owner_id == user,
         DocumentBranch.source_document_id.in_(readable_sources)).correlate(None)
-    return or_(ordinary(manage), Document.id.in_(own_branches))
+    visible = or_(ordinary("manage" if manage else "read"), Document.id.in_(own_branches))
+    if manage:
+        return visible
+    editable_sources = select(Document.id).where(ordinary("edit"), ~document_is_trashed(Document.id)).correlate(None)
+    invited_branches = select(DocumentBranch.document_id).join(BranchParticipant,
+        BranchParticipant.document_id == DocumentBranch.document_id).where(BranchParticipant.user_id == user,
+        DocumentBranch.source_document_id.in_(editable_sources)).correlate(None)
+    return or_(visible, Document.id.in_(invited_branches))
 
 
 def document_read_scope(db, user):
@@ -94,4 +111,4 @@ def require_individual_grants(db, document_id):
     if db.get(WorkspaceDocument, document_id):
         raise HTTPException(409, "공간 문서의 권한은 공간 구성원에서 관리하세요.")
     if db.get(DocumentBranch, document_id):
-        raise HTTPException(409, "개인 작업본은 작성자만 편집합니다. 통합 요청으로 검토를 공유하세요.")
+        raise HTTPException(409, "작업본 참여자는 작업본·통합 화면에서 관리하세요.")

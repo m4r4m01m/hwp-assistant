@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
-test("REAL engine restore retries a lost download without publishing twice or changing the open original", async ({ page, request }) => {
+test("REAL engine history releases the editor and retries a lost restore response without duplicate publication", async ({ page, request }) => {
   test.setTimeout(180000);
   const bytes = await readFile(new URL("../../samples/paragraph-and-table.hwpx", import.meta.url));
   const name = `복원 재열기 검증 ${crypto.randomUUID()}.hwpx`;
@@ -16,30 +16,39 @@ test("REAL engine restore retries a lost download without publishing twice or ch
   await page.goto("/");
   await page.getByRole("button", { name, exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("저장 완료", { timeout: 90000 });
-  const handle = await page.locator(".block-editor-slot.active iframe").elementHandle(), original = await handle!.contentFrame();
-  const before = await original!.evaluate(() => Array.from((window as any).hwpAssistantBridge.exportSnapshot().bytes));
-  let fail = true, posts = 0;
-  page.on("request", req => { if (req.method() === "POST" && req.url().includes("/restore?")) posts++; });
-  await page.route(`**/api/documents/${document.id}/versions/*/file`, async route => {
-    const url = route.request().url();
-    if (fail && !url.includes(document.current_version) && !url.includes(second.id)) { fail = false; await route.abort("failed"); }
-    else await route.continue();
+  let fail = true;
+  const restoreKeys: (string | undefined)[] = [];
+  await page.route(`**/api/documents/${document.id}/versions/*/restore?*`, async route => {
+    restoreKeys.push(route.request().headers()["idempotency-key"]);
+    if (fail) {
+      fail = false;
+      const committed = await route.fetch();
+      expect(committed.ok()).toBeTruthy();
+      await route.abort("failed");
+    } else await route.continue();
   });
   await page.getByLabel("파일 작업", { exact: true }).click();
-  await page.getByRole("button", { name: "버전 기록", exact: true }).click();
+  await page.getByRole("button", { name: "문서 이력", exact: true }).click();
+  await expect(page.locator(".block-editor-slot.active iframe")).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "문서 이력", exact: true })).toBeVisible();
+  await page.locator(`[data-version-id="${document.current_version}"]`).click();
   page.on("dialog", dialog => dialog.accept());
-  await page.getByRole("button", { name: "이 버전 복원" }).last().click();
-  await expect(page.getByRole("dialog").getByRole("alert")).toBeVisible();
-  expect(await original!.evaluate(() => Array.from((window as any).hwpAssistantBridge.exportSnapshot().bytes))).toEqual(before);
-  expect(posts).toBe(1);
-  await page.getByRole("button", { name: "이 버전 복원" }).last().click();
-  await expect(page.getByText(`${name}의 v1에서 복원한 새 버전을 저장했습니다.`)).toBeVisible({ timeout: 90000 });
-  expect(posts).toBe(1);
+  await page.getByRole("button", { name: "이 저장본 복원", exact: true }).click();
+  await expect(page.getByRole("button", { name: "같은 복원 요청으로 확인", exact: true })).toBeVisible();
+  expect(restoreKeys).toHaveLength(1);
+  expect(await (await request.get(`/api/documents/${document.id}/versions/${document.current_version}/file`)).body()).toEqual(bytes);
+  expect(await (await request.get(`/api/documents/${document.id}/versions/${second.id}/file`)).body()).toEqual(bytes);
+  await page.getByRole("button", { name: "같은 복원 요청으로 확인", exact: true }).click();
+  await expect(page.getByText("선택한 저장본을 새 버전으로 복원했습니다. 이전 이력은 보존됩니다.")).toBeVisible({ timeout: 90000 });
+  expect(restoreKeys).toHaveLength(2);
+  expect(restoreKeys[0]).toBeTruthy(); expect(restoreKeys[1]).toBe(restoreKeys[0]);
   const versions = await (await request.get(`/api/documents/${document.id}/versions`)).json();
   expect(versions).toHaveLength(3);
   expect(versions[0].restore_source.version_id).toBe(document.current_version);
   const restored = await request.get(`/api/documents/${document.id}/versions/${versions[0].id}/file`);
   expect(await restored.body()).toEqual(bytes);
   await page.getByRole("button", { name: "닫기", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("저장 완료");
+  await page.getByRole("button", { name, exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("저장 완료", { timeout: 90000 });
+  await expect(page.getByRole("link", { name: "저장본 다운로드", exact: true })).toHaveAttribute("href", `/api/documents/${document.id}/versions/${versions[0].id}/file`);
 });
