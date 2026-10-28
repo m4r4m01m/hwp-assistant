@@ -1,5 +1,17 @@
 # HWP Assistant 프로젝트 컨텍스트
 
+## 2026-10-28 — 매터모스트 문서 검색·초안 봇 구현 브랜치
+
+사용자가 별도 브랜치 구현을 요청하여 기준 main **[`4b20b5f293ee81f158fe25d14a48955d47948373`](https://github.com/m4r4m01m/hwp-assistant/commit/4b20b5f293ee81f158fe25d14a48955d47948373)**의 격리 worktree에서 `codex/mattermost-document-bot-2026-10-28`로 진행한다. 기존 체크아웃·미커밋 작업·실행 서비스는 보존한다. 이 절은 구현 중인 브랜치의 설계·소스 상태이며 main 병합이나 운영 반영 기록이 아니다. [설정·사용 흐름·처리 한계](mattermost-bot-2026-10-28.md).
+
+- 기존 API 안에 `/hwp` Slash Command 수신, 계정 연결 확인, 입력창 제출, DB 요청 처리와 봇 REST 개인 메시지를 추가한다. 별도 봇 컨테이너나 Outgoing Webhook은 필요하지 않다. 기존 가입 승인 Incoming Webhook 설정과 분리하고 기본 비활성을 유지한다. `/hwp-assistant/`와 API 1 worker·기존 3개 서비스/외부 볼륨을 보존한다.
+- 승인·활성 개인 계정을 웹에서 명시적으로 연결하고 현재 계정·문서 권한과 연결 세대를 다시 확인한다. 검색 결과는 개인 메시지로 전달하고 웹에서는 저장 버전을 읽기 전용으로 연다. 제목·본문의 단어 검색을 기본으로 하며 내부 임베딩 서버를 명시적으로 설정했을 때 의미 검색을 함께 사용한다. 원본을 바꾸지 않는 버전·해시 고정 파생 색인이며 현재 문서당 조각 수와 후보 수 한도가 있다.
+- 초안은 기존 보고서 접수·Codex 권한/한도와 revision 3 표준을 재사용한다. 기본 공개자료 조회는 꺼지고, 대화상자에서 선택할 수 있다. 내용 검토·서식 미리보기·명시적 서버 저장, 보완본 별도 생성과 원본 보존은 유지한다. 요청 영수증을 보존하며 재시작 때 이미 생성한 작업을 자동 재생성하거나 전송 여부가 불명인 개인 메시지를 자동 반복하지 않는다.
+
+제품 source는 **`f5941cef11447bbced1ab3221a002054298bbbbf`**다. macOS 14.6.1 arm64의 격리 환경(Python 3.14.7, Node 22.19.0)에서 봇·검색·전송 집중 **118개**와 마지막 입력창 호환성 변경의 관련 **1개 재확인**이 통과했다(중복 합산하지 않음). TypeScript, 프런트엔드 unit **40개**, 모의 UI **107개**, Node 계약 **55개**, 빌드/미리보기 fixture **7개**, 공개 경로·공백 검사가 통과했다. Python 배포 계약은 **96 통과/2 환경별 skip**이며, CI 계약 17개는 macOS 임시 디렉터리 별칭 때문에 처음 두 subcase가 실패한 후 정규화된 작업 전용 경로로 재실행해 모두 통과했다. CI의 Node 24.15.0/Linux 환경과 구분한다.
+
+수정 도중 시작한 전체 backend 실행은 **1,714 통과/2 실패(340.86초)**였다. 수정 전 검색 fixture import 실패는 현재 코드 재실행에서 통과했다. 변경하지 않은 `test_stdio_split_utf8_and_unterminated_final_event_are_decoded`는 `report_rpc.py`의 `os.killpg`에서 macOS `PermissionError`로 재실행도 실패했다. 전체 통과로 기록하지 않는다. 실제 Mattermost/내부 임베딩 모델/Codex 호출, PostgreSQL·실제 엔진 통합, 운영 배포는 수행하지 않았다. exact-head CI는 PR에서 별도로 확인하며 다음 단계는 해당 검사와 별도 환경의 합성 자료 연동 검수다.
+
 ## 2026-10-28 — 공동편집 main 병합과 최종 검증
 
 [PR #52](https://github.com/m4r4m01m/hwp-assistant/pull/52)의 검토 head `e27802499bb24a45beefbfbd6031846efad2c2c6`를 필수 검사 성공 후 merge commit **`61db3165990d203e8189dbf1a7c0e10bd9254fd4`**로 main에 병합했다. merge 전 main은 `76fbec8461e5441237198de7504baddcc64e0304`였고, 최종 main과 검토 head의 제품 파일 트리가 같음을 대조했다. 원래 개발 브랜치를 보존했고 로컬 main도 fast-forward로 동기화했다. 이전 절의 미병합/미배포 설명은 당시 기록이다.
