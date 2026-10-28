@@ -70,6 +70,7 @@
 }
 .workspace-nav[data-mode="icons"] .workspace-nav-footer { padding: 10px 0 0; text-align: center; }
 .workspace-nav[data-mode="icons"] .workspace-account-actions { flex-direction: column; gap: 4px; margin-top: 0; }
+.workspace-nav[data-mode="icons"] .workspace-nav-footer button { width: 100%; min-width: 0; white-space: normal; overflow-wrap: anywhere; padding: 6px 2px; line-height: 1.5; }
 .workspace-nav.workspace-nav[data-mode="hidden"] { width: 0; padding: 0; border: 0; overflow: visible; }
 .workspace-nav[data-mode="hidden"] > * { display: none; }
 /* A narrow edge hit area reveals only the opener; clicking restores the sidebar. */
