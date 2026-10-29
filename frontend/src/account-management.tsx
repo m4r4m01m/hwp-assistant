@@ -22,6 +22,7 @@ const statusLabels: Record<string, string> = { pending: "승인 대기", approve
 const actionLabels: Record<string, string> = {
   "account.login": "로그인", "account.logout": "로그아웃", "account.signup": "가입 신청",
   "account.create": "계정 생성", "account.create-admin": "관리자 계정 생성", "account.promote-admin": "관리자 지정",
+  "account.affiliation": "소속 부서·팀 변경",
   "account.approve": "가입 승인", "account.reject": "가입 거절", "account.disable": "계정 비활성화",
   "account.enable": "계정 활성화", "account.password": "비밀번호 변경", "account.password_reset": "비밀번호 변경", "account.password_change": "본인 비밀번호 변경",
   "document.upload": "파일 추가", "document.create": "문서 생성", "document.delete": "파일 삭제",

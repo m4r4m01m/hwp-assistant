@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, jsonRequest, errorMessage, fileUrl, type Document } from './api';
 import { WorkspaceIcon } from './workspace-nav';
 import { BranchPreview } from './document-branches';
 import type { TeamSpace } from './team-workspaces';
+import type { Affiliation } from './organization';
 import './document-explorer.css';
 export type LibraryFolder = {id:string;name:string;parent_id:string|null};
 export const libraryViews: Record<string,string> = {'':'최근 문서',mine:'내 문서함','shared-with-me':'공유받은 문서',branches:'개인 작업본',unassigned:'기존 문서함'};
@@ -13,15 +14,24 @@ export function folderPath(folders:LibraryFolder[], id:string):string {
 }
 export function LibraryLocations({folders,spaces,value,onSelect,onUpdated,onMove,onManage,onTrash}:{folders:LibraryFolder[];spaces:TeamSpace[];value:string;onSelect:(id:string)=>void;onUpdated:()=>void;onMove:(doc:string,folder:string|null)=>Promise<void>;onManage:()=>void;onTrash:()=>void}) {
   const [busy,setBusy]=useState(false),[error,setError]=useState('');
+  const [affiliation,setAffiliation]=useState<Affiliation|null>(null),[affiliationError,setAffiliationError]=useState(''),[retry,setRetry]=useState(0);
+  useEffect(()=>{const c=new AbortController();setAffiliationError('');api<Affiliation>('/organization/me',{signal:c.signal}).then(v=>{if(!c.signal.aborted)setAffiliation(v);}).catch(e=>{if(!c.signal.aborted){setAffiliation(null);setAffiliationError(errorMessage(e));}});return()=>c.abort();},[spaces,retry]);
+  const ownIds=new Set([affiliation?.department?.id,affiliation?.team?.id].filter(Boolean));
   async function run(fn:()=>Promise<unknown>){if(busy)return;setBusy(true);setError('');try{await fn();onUpdated();}catch(e){setError(errorMessage(e));}finally{setBusy(false);}}
   async function create(){const name=prompt('새 폴더 이름');if(!name)return;await run(()=>api('/folders/'+crypto.randomUUID(),jsonRequest('PUT',{name,parent_id:value.startsWith('folder:')?value.slice(7):null})));}
   function tree(parent:string|null,depth=0):React.ReactNode {return folders.filter(f=>f.parent_id===parent).map(f=><div key={f.id}><button style={{paddingLeft:12+depth*12}} aria-current={value==='folder:'+f.id?'page':undefined} onClick={()=>onSelect('folder:'+f.id)} onDragOver={e=>{if(e.dataTransfer.types.includes('application/x-hwp-document'))e.preventDefault();}} onDrop={e=>{const id=e.dataTransfer.getData('application/x-hwp-document');if(id){e.preventDefault();void run(()=>onMove(id,f.id));}}}><WorkspaceIcon name="file" size={17}/><span>{f.name}</span></button>{depth<8&&tree(f.id,depth+1)}</div>);}
   return <nav className="library-locations" aria-label="문서함 위치">
     {Object.entries(libraryViews).filter(([key])=>key!=='unassigned').map(([key,label])=><button key={key} aria-current={key===value?'page':undefined} onClick={()=>onSelect(key)}><WorkspaceIcon name={key==='shared-with-me'?'share':key==='branches'?'history':'documents'} size={17}/>{label}</button>)}
+    <div className="location-heading"><strong>내 소속</strong></div>
+    {affiliationError?<button title={affiliationError} onClick={()=>setRetry(n=>n+1)}>소속 다시 불러오기</button>:!affiliation?<p>소속 확인 중…</p>:<>
+      {!affiliation.department&&<p>소속 미지정 · 관리자에게 소속 지정을 요청하세요.</p>}
+      {([['team','우리 팀 문서함'],['department','우리 부서 문서함']] as const).map(([key,label])=>{const unit=affiliation[key];return unit&&<button key={key} disabled={!unit.can_access} aria-current={unit.id===value?'page':undefined} title={unit.can_access?unit.name:'소속은 지정됐지만 문서함 접근 권한이 없습니다. 관리자에게 요청하세요.'} onClick={()=>onSelect(unit.id)}><WorkspaceIcon name="documents" size={17}/><span>{label}<small className="affiliation-name">{unit.name}{!unit.can_access?' · 접근 권한 필요':''}</small></span></button>;})}
+      {affiliation.department&&!affiliation.team&&<p>소속 팀 미지정</p>}
+    </>}
     <div className="location-heading"><strong>내 폴더</strong><button aria-label="새 폴더" title="현재 폴더 아래에 만들기" disabled={busy} onClick={()=>void create()}><WorkspaceIcon name="plus" size={16}/></button></div>
     {!folders.length&&<p>폴더를 만들어 문서를 정리하세요.</p>}{tree(null)}
-    <div className="location-heading"><strong>공유 문서함</strong><button aria-label="공유 문서함 관리" onClick={onManage}><WorkspaceIcon name="settings" size={16}/></button></div>
-    {spaces.map(s=><button key={s.id} aria-current={s.id===value?'page':undefined} onClick={()=>onSelect(s.id)}><WorkspaceIcon name="file" size={17}/><span>{s.name}</span></button>)}
+    <div className="location-heading"><strong>다른 공유 문서함</strong><button aria-label="공유 문서함 관리" title="소속·문서함 권한 관리" onClick={onManage}><WorkspaceIcon name="settings" size={16}/></button></div>
+    {spaces.filter(s=>!ownIds.has(s.id)).map(s=><button key={s.id} aria-current={s.id===value?'page':undefined} onClick={()=>onSelect(s.id)}><WorkspaceIcon name="file" size={17}/><span>{s.name}</span></button>)}
     <button aria-current={value==='unassigned'?'page':undefined} onClick={()=>onSelect('unassigned')}><WorkspaceIcon name="documents" size={17}/>기존 문서함</button>
     <button onClick={onTrash}><WorkspaceIcon name="trash" size={17}/>휴지통</button>
     {error&&<p role="alert">{error}</p>}

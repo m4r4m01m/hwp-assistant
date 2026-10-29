@@ -12,6 +12,7 @@ from .coedit import Room, Member, Receipt
 from .workspaces import Workspace, WorkspaceMember, WorkspaceDocument, WorkspaceShare
 from .document_branches import DocumentBranch, IntegrationRequest, BranchParticipant
 from .document_library import PersonalDocument, LibraryFolder, FolderDocument
+from .organization import AccountAffiliation
 
 
 def migrate(engine, users):

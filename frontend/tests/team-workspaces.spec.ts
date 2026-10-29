@@ -12,6 +12,8 @@ async function setup(page: Page) {
     if (path === "/api/documents") return ok([doc]);
     if (path === "/api/workspaces") return ok([space]);
     if (path === "/api/folders") return ok([]);
+    if (path === "/api/organization/me") return ok({user_id:'manager',department:null,team:null,revision:null});
+    if (path === "/api/organization/units") return ok([]);
     if (path === "/api/workspaces/team1/members") return ok([{ user_id: "manager", role: "manager" }]);
     if (path === "/api/workspaces/team1/members/manager") return ok({ detail: "마지막 활성 공간 관리자는 제거하거나 권한을 낮출 수 없습니다." }, 409);
     if (path === "/api/documents/doc1/workspace") { changes.push(route.request().postDataJSON()); return ok({ ok: true, workspace_id: "team1" }); }
@@ -25,7 +27,7 @@ test("MOCK spaces: manager cannot remove the last manager; accessible dialog fit
   await page.setViewportSize({ width: 390, height: 844 }); await setup(page);
   await page.getByRole("button", { name: "공유 문서함 관리" }).click();
   const dialog = page.getByRole("dialog", { name: "팀·부서 공간", exact: true });
-  await expect(dialog).toContainText("하위 팀 권한은 자동으로 생기지 않습니다");
+  await expect(dialog).toContainText("계정의 소속과 문서함 접근 권한은 별개입니다");
   await dialog.getByLabel("manager 권한").selectOption("reader");
   await expect(dialog.getByRole("alert")).toContainText("마지막 활성 공간 관리자");
   await expect(dialog.getByLabel("manager 권한")).toHaveValue("manager");

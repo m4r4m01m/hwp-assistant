@@ -3,6 +3,7 @@ import { api, ApiError, errorMessage, jsonRequest, type Document } from "./api";
 import type { Account } from "./account-gate";
 import { useComparisonDialog } from "./version-comparison";
 import "./team-workspaces.css";
+import { OrganizationSettings } from "./organization";
 
 export type TeamSpace = { id: string; name: string; kind: "department" | "team"; parent_id: string | null; role: "manager" | "editor" | "reader" | null };
 type Member = { user_id: string; role: "manager" | "editor" | "reader" };
@@ -50,7 +51,8 @@ export function TeamWorkspaces({ account, document, onClose, onUpdated }: {
   }
   return <div className="team-space-backdrop"><section ref={dialog} role="dialog" aria-modal="true" aria-labelledby="team-space-title" className="team-space-panel">
     <header><div><small>조직 공간 · 실험 기능</small><h2 id="team-space-title">{document ? "문서 공간 지정" : "팀·부서 공간"}</h2></div><button disabled={busy} onClick={close} aria-label="공간 관리 닫기">닫기</button></header>
-    <p>공간 구성원은 문서함을 함께 사용합니다. 다른 팀 사람은 개별 공유받은 문서만 볼 수 있습니다. 상위 부서에 속해도 하위 팀 권한은 자동으로 생기지 않습니다.</p>
+    <p>계정의 소속과 문서함 접근 권한은 별개입니다. 이곳의 구성원은 문서함에 접근할 수 있는 사람이며 다른 팀 사람도 포함할 수 있습니다. 다른 문서함 권한이 자동으로 생기지는 않습니다.</p>
+    {account.is_admin && !document && <OrganizationSettings onUpdated={onUpdated}/>}
     {error && <div><p role="alert" className="error">{error}</p>{!pendingCreate.current && !pendingAssign.current && <button disabled={busy} onClick={() => void act(async () => {
       const rows = await refresh(); if (!document && rows.some(row => row.id === selected)) setMembers(await api<Member[]>(`/workspaces/${selected}/members`));
     })}>다시 불러오기</button>}</div>}{notice && <p role="status">{notice}</p>}

@@ -7,6 +7,8 @@
 .library-locations button {display:flex;align-items:center;gap:8px;width:100%;text-align:left;min-width:0;padding:10px 8px;margin:0;border:0;background:transparent;color:#40566e;font-size:13px;white-space:normal;}
 .library-locations button span {overflow-wrap:anywhere;}
 .library-locations button svg {flex-shrink:0;}
+.library-locations .affiliation-name {display:block;font-size:11px;font-weight:normal;margin-top:4px;color:#526a80;}
+.library-locations button:disabled {opacity:.65;cursor:default;}
 .library-locations button:hover,.library-locations button[aria-current=page] {background:#eaf2fc;color:#174b7b;}
 .location-heading {display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding:4px 8px;font-size:12px;color:#526a80;}
 .location-heading button {width:auto;padding:4px;}

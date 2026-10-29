@@ -728,6 +728,8 @@ def create_app(database_url=None, storage_dir=None):
     install_document_branches(app, publish, doc_dict)
     from .workspaces import install_workspaces
     install_workspaces(app)
+    from .organization import install_organization
+    install_organization(app)
     from .document_library import install_document_library
     install_document_library(app)
     app.add_middleware(RequestTelemetry, runtime=app)
