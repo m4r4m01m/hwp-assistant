@@ -52,6 +52,8 @@ def setup(tmp_path, monkeypatch):
     }.items(): monkeypatch.setenv(key, value)
     monkeypatch.delenv("HWP_GUEST_PASSWORD", raising=False)
     monkeypatch.delenv("HWP_SEARCH_EMBEDDING_URL", raising=False)
+    monkeypatch.delenv("HWP_MATTERMOST_CALLBACK_URL", raising=False)
+    monkeypatch.delenv("HWP_MATTERMOST_BOT_ALLOW_HTTP", raising=False)
     async def idle(_app, stop):
         await stop.wait()
     async def search_idle(_engine, _folder, stop):
@@ -264,6 +266,45 @@ def test_dialog_nonce_scopes_user_and_duplicate_submission(setup):
     assert client.delete("/api/mattermost/link").status_code == 200
     link(client)
     assert client.post(bot.DIALOG_PATH, json=payload).status_code == 409
+
+
+def test_internal_dialog_callback_preserves_public_links_and_identity_fences(setup, monkeypatch):
+    app, client = setup
+    callback = "http://hwp-api:8000/api/integrations/mattermost/dialog"
+    monkeypatch.setenv("HWP_MATTERMOST_BOT_ALLOW_HTTP", "1")
+    monkeypatch.setenv("HWP_MATTERMOST_CALLBACK_URL", callback)
+    response = command(client, "연결")
+    assert response.status_code == 200
+    assert "https://hwp.example.invalid/hwp-assistant/#mattermost-link=" in response.json()["text"]
+    assert "hwp-api" not in response.json()["text"]
+    token = re.search(r"mattermost-link=([\w-]+)", response.json()["text"])[1]
+    login(client)
+    assert client.post("/api/mattermost/link", json={"token": token}).json() == {"linked": True}
+    assert "입력창" in command(client, "초안").json()["text"]
+    dialog = FakeBot.dialogs[-1]
+    assert dialog["callback"] == callback
+    payload = dict(state=dialog["state"], user_id=MM_USER, team_id=TEAM, channel_id=CHANNEL, callback_id="hwp-report",
+                   submission={"prompt": "합성 내부 연결 점검 보고서를 작성해 주세요.", "preset": "appendix-1", "research": "off"})
+    for invalid in (
+        {"state": "s" * 43}, {"user_id": MM_OTHER}, {"team_id": "x" * 26},
+        {"channel_id": "d" * 26}, {"callback_id": "other-report"},
+    ):
+        assert client.post(bot.DIALOG_PATH, json={**payload, **invalid}).status_code == 401
+    with transaction(app.state.engine) as db:
+        assert list(db.scalars(select(MattermostRequest))) == []
+    assert client.post(bot.DIALOG_PATH, json=payload).json() == {}
+    assert client.post(bot.DIALOG_PATH, json=payload).json() == {}
+    with transaction(app.state.engine) as db:
+        rows = db.scalars(select(MattermostRequest)).all()
+        assert len(rows) == 1 and rows[0].user_id == "alice"
+        rid = rows[0].id
+    process(app, rid)
+    assert wait_report(app, rid) == "ready"
+    process(app, rid)
+    message = FakeBot.messages[-1][1]
+    assert "https://hwp.example.invalid/hwp-assistant/?report=" + rid in message
+    assert "hwp-api" not in message
+    assert "https://hwp.example.invalid/hwp-assistant/?report=" + rid in command(client, "내요청").json()["text"]
 
 
 def test_cancel_and_unlink_prevent_background_creation(setup):

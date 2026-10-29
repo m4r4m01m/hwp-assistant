@@ -27,6 +27,7 @@ def configured(monkeypatch):
     monkeypatch.setenv("HWP_MATTERMOST_COMMAND_TOKEN", COMMAND_TOKEN)
     monkeypatch.setenv("HWP_MATTERMOST_TEAM_ID", TEAM)
     monkeypatch.delenv("HWP_MATTERMOST_BOT_ALLOW_HTTP", raising=False)
+    monkeypatch.delenv("HWP_MATTERMOST_CALLBACK_URL", raising=False)
     return mm.settings()
 
 
@@ -39,7 +40,13 @@ def test_disabled_bot_ignores_unconfigured_and_invalid_secret_settings(monkeypat
 def test_settings_preserve_both_subpaths_and_hide_tokens(configured):
     assert configured.api_url == "https://mattermost.example.invalid/company/mattermost/api/v4/"
     assert configured.public_app_url == "https://app.example.invalid/hwp-assistant/"
+    assert configured.callback_url == "https://app.example.invalid/hwp-assistant/api/integrations/mattermost/dialog"
     assert BOT_TOKEN not in repr(configured) and COMMAND_TOKEN not in repr(configured)
+
+
+def test_empty_optional_callback_keeps_public_default(configured, monkeypatch):
+    monkeypatch.setenv("HWP_MATTERMOST_CALLBACK_URL", "")
+    assert mm.settings().callback_url == configured.callback_url
 
 
 @pytest.mark.parametrize("value", [
@@ -74,6 +81,50 @@ def test_explicit_http_opt_in_and_app_url_validation(configured, monkeypatch):
     monkeypatch.setenv("HWP_MATTERMOST_PUBLIC_APP_URL", "http://127.0.0.1:5173?private=secret")
     with pytest.raises(mm.MattermostConfigurationError):
         mm.settings()
+
+
+def test_internal_callback_requires_http_opt_in_and_preserves_public_links(configured, monkeypatch):
+    callback = "http://hwp-api:8000/api/integrations/mattermost/dialog"
+    monkeypatch.setenv("HWP_MATTERMOST_CALLBACK_URL", callback)
+    with pytest.raises(mm.MattermostConfigurationError):
+        mm.settings()
+    monkeypatch.setenv("HWP_MATTERMOST_BOT_ALLOW_HTTP", "1")
+    monkeypatch.setenv("HWP_MATTERMOST_URL", "http://mattermost:8065/mattermost/")
+    actual = mm.settings()
+    assert actual.callback_url == callback
+    assert actual.api_url == "http://mattermost:8065/mattermost/api/v4/"
+    assert actual.public_app_url == configured.public_app_url
+
+
+def test_explicit_https_callback_preserves_proxy_subpath(configured, monkeypatch):
+    callback = "https://callback.example.invalid/hwp-assistant/api/integrations/mattermost/dialog"
+    monkeypatch.setenv("HWP_MATTERMOST_CALLBACK_URL", callback)
+    assert mm.settings().callback_url == callback
+    assert mm.settings().public_app_url == configured.public_app_url
+
+
+@pytest.mark.parametrize("value", [
+    " ", "file:///api/integrations/mattermost/dialog",
+    "https://user:secret@callback.invalid/api/integrations/mattermost/dialog",
+    "https://@callback.invalid/api/integrations/mattermost/dialog",
+    "https://callback.invalid/api/integrations/mattermost/dialog?token=secret",
+    "https://callback.invalid/api/integrations/mattermost/dialog#secret",
+    "https://callback.invalid:99999/api/integrations/mattermost/dialog",
+    "https://callback.invalid:0/api/integrations/mattermost/dialog",
+    "https://callback.invalid/a/../api/integrations/mattermost/dialog",
+    "https://callback.invalid/a/%2e%2e/api/integrations/mattermost/dialog",
+    "https://callback.invalid/a//api/integrations/mattermost/dialog",
+    "https://callback.invalid/a\\api/integrations/mattermost/dialog",
+    "https://callback.invalid/\napi/integrations/mattermost/dialog",
+    "https://callback.invalid/", "https://callback.invalid/api/documents",
+    "https://callback.invalid/api/integrations/mattermost/command",
+    "https://callback.invalid/api/integrations/mattermost/dialog/extra",
+])
+def test_callback_configuration_rejects_ambiguous_urls_and_other_routes(configured, monkeypatch, value):
+    monkeypatch.setenv("HWP_MATTERMOST_CALLBACK_URL", value)
+    with pytest.raises(mm.MattermostConfigurationError) as error:
+        mm.settings()
+    assert "secret" not in str(error.value) and "callback.invalid" not in str(error.value)
 
 
 def test_dm_requires_bot_and_posts_only_in_recipient_direct_channel(configured):
@@ -251,7 +302,7 @@ def test_dialog_callback_is_pinned_and_preserves_state(configured):
         seen.append(request)
         return httpx.Response(200, json={"id": BOT, "is_bot": True} if request.url.path.endswith("users/me") else {"status": "OK"})
     elements = [{"display_name": "작성할 내용", "name": "prompt", "type": "textarea", "max_length": 6000}]
-    callback = configured.public_app_url + "api/integrations/mattermost/dialog"
+    callback = configured.callback_url
     client = mm.BotClient(configured, transport=httpx.MockTransport(handler))
     asyncio.run(client.open_dialog("synthetic-trigger", callback, "s" * 43, elements))
     body = json.loads(seen[-1].content)
@@ -260,6 +311,33 @@ def test_dialog_callback_is_pinned_and_preserves_state(configured):
     assert seen[-1].url.path == "/company/mattermost/api/v4/actions/dialogs/open"
     with pytest.raises(mm.MattermostError):
         asyncio.run(client.open_dialog("synthetic-trigger", "https://attacker.invalid/steal", "s" * 43, elements))
+    assert len(seen) == 2
+
+
+def test_internal_dialog_callback_is_exactly_pinned_before_transport(configured, monkeypatch):
+    monkeypatch.setenv("HWP_MATTERMOST_BOT_ALLOW_HTTP", "1")
+    callback = "http://hwp-api:8000/api/integrations/mattermost/dialog"
+    monkeypatch.setenv("HWP_MATTERMOST_CALLBACK_URL", callback)
+    actual = mm.settings()
+    seen = []
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(200, json={"id": BOT, "is_bot": True} if request.url.path.endswith("users/me") else {"status": "OK"})
+    client = mm.BotClient(actual, transport=httpx.MockTransport(handler))
+    elements = [{"display_name": "작성할 내용", "name": "prompt", "type": "textarea"}]
+    for untrusted in (
+        configured.callback_url,
+        "http://other-api:8000/api/integrations/mattermost/dialog",
+        callback + "?state=secret",
+        "http://hwp-api:8000/api/documents",
+    ):
+        with pytest.raises(mm.MattermostError):
+            asyncio.run(client.open_dialog("synthetic-trigger", untrusted, "s" * 43, elements))
+    assert seen == []
+    asyncio.run(client.open_dialog("synthetic-trigger", callback, "s" * 43, elements))
+    body = json.loads(seen[-1].content)
+    assert body["url"] == callback
+    assert body["dialog"]["state"] == "s" * 43 and body["dialog"]["elements"] == elements
     assert len(seen) == 2
 
 

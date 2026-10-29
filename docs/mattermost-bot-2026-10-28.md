@@ -4,6 +4,8 @@
 
 2026-10-28, 기준 main [`4b20b5f293ee81f158fe25d14a48955d47948373`](https://github.com/m4r4m01m/hwp-assistant/commit/4b20b5f293ee81f158fe25d14a48955d47948373)에서 분리한 `codex/mattermost-document-bot-2026-10-28`의 구현 안내다. 제품 source는 `f5941cef11447bbced1ab3221a002054298bbbbf`이며 로컬 시험 결과와 남은 실패는 [PROJECT_CONTEXT](PROJECT_CONTEXT.md)의 같은 날짜 봇 항목에 기록한다. 해당 PR의 CI는 별도 근거다. 실제 Mattermost 서버·내부 임베딩 모델·Codex 생성·운영 배포의 성공을 이 문서로 주장하지 않는다.
 
+2026-10-30 보완은 main `50babefdf739a680eb16c984693e5e7b602d6088`에서 서버용 입력창 콜백 주소를 분리한다. 아래 `HWP_MATTERMOST_CALLBACK_URL`과 Docker 내부 통신 안내는 이 보완을 포함한 새 API 이미지가 게시·배포된 뒤 사용할 수 있다. 기존 이미지는 이 환경변수를 읽지 않으며 입력창 제출 주소를 공개 웹 주소로 구성한다. 이 절은 소스·설정 안내이며 실제 운영 반영 기록은 아니다.
+
 봇은 기존 **API 프로세스 안의 명령 수신 경로와 백그라운드 처리기**로 동작한다. 별도 봇 컨테이너나 WebSocket 연결을 추가하지 않는다. `db`, `api`, `web` 구성과 API 1 worker 원칙, `/hwp-assistant/`, 기존 외부 볼륨을 유지한다. 웹은 계정 연결 확인, 저장 문서 열람, 초안 검토를 맡는다.
 
 입력은 **사용자 지정 Slash Command `/hwp`와 대화상자 제출**, 출력은 **봇 계정의 REST API를 통한 개인 메시지**다. Outgoing Webhook을 등록할 필요가 없다. 기존 가입 승인 알림의 Incoming Webhook은 별도 기능이며 설정을 공유하지 않는다. Slash Command의 등록 형식은 [Mattermost 공식 안내](https://docs.mattermost.com/developers/integrate/slash-commands/custom)를 따른다.
@@ -42,12 +44,13 @@
 | 환경변수 | 기본값 | 용도 |
 | --- | --- | --- |
 | `HWP_MATTERMOST_BOT_ENABLED` | `0` | `1`일 때 봇을 활성화한다. 계정 기능과 함께 켜면 API가 봇 처리기와 검색 자료 갱신을 시작한다. |
-| `HWP_MATTERMOST_URL` | 빈 값 | Mattermost SiteURL. 예: `https://chat.example.invalid/mattermost/`. `/company/mattermost/` 같은 하위 경로를 유지한다. `/hooks/...` 또는 `/api/v4/` 주소를 넣지 않는다. |
+| `HWP_MATTERMOST_URL` | 빈 값 | API가 접속할 Mattermost 기준 주소. 예: `https://chat.example.invalid/mattermost/`. 내부 통신에서는 공개 SiteURL과 다른 주소를 지정할 수 있으며 `/company/mattermost/` 같은 실제 하위 경로는 유지한다. `/hooks/...` 또는 `/api/v4/` 주소를 넣지 않는다. |
 | `HWP_MATTERMOST_PUBLIC_APP_URL` | 빈 값 | 웹에서 열 수 있는 HWP 서비스 기준 주소. 예: `https://docs.example.invalid/hwp-assistant/`. |
+| `HWP_MATTERMOST_CALLBACK_URL` | 빈 값 | 선택 사항. Mattermost 서버가 입력창 제출을 보낼 전체 URL. 비어 있으면 `HWP_MATTERMOST_PUBLIC_APP_URL`에 `api/integrations/mattermost/dialog`를 붙인다. 직접 API로 연결하는 예: `http://api:8000/api/integrations/mattermost/dialog`. 경로는 `/api/integrations/mattermost/dialog`로 끝나야 하며 사용자 링크에는 사용하지 않는다. |
 | `HWP_MATTERMOST_BOT_TOKEN` | 빈 값 | 실제 **봇 계정**의 액세스 토큰. 일반 사용자 토큰으로 개인 메시지를 보내지 않는다. |
 | `HWP_MATTERMOST_COMMAND_TOKEN` | 빈 값 | 등록한 `/hwp` Slash Command의 검증 토큰. 봇 토큰과 별개다. |
 | `HWP_MATTERMOST_TEAM_ID` | 빈 값 | 요청을 허용할 Mattermost 팀 ID 하나. 표시 이름이나 URL의 팀 이름이 아니다. |
-| `HWP_MATTERMOST_BOT_ALLOW_HTTP` | `0` | 내부 시험에서 HTTP가 꼭 필요한 경우에만 `1`. 기본적으로 두 기준 URL 모두 HTTPS를 요구한다. |
+| `HWP_MATTERMOST_BOT_ALLOW_HTTP` | `0` | 명시적으로 신뢰하는 내부 연결에 HTTP가 필요한 경우에만 `1`. 기본적으로 Mattermost·공개 웹·별도 콜백 URL 모두 HTTPS를 요구한다. 공개 사용자 링크에는 HTTPS 주소를 유지한다. |
 | `HWP_SEARCH_ENABLED` | `0` | 봇을 켜지 않고도 검색 자료의 백그라운드 갱신을 시작할 때 `1`. 봇 활성화 시에는 별도로 켤 필요가 없다. |
 | `HWP_SEARCH_EMBEDDING_URL` | 빈 값 | 선택 사항. 내부 임베딩 서버의 전체 `/embeddings` endpoint. 예: `https://embedding.internal/v1/embeddings`. |
 | `HWP_SEARCH_EMBEDDING_MODEL` | 빈 값 | 위 내부 서버가 제공하는 임베딩 모델 이름. URL과 모델이 모두 있어야 의미 검색을 준비한다. |
@@ -62,8 +65,8 @@
 
 1. Mattermost에서 이 서비스용 봇 계정을 만들고 토큰을 private 설정에 보관한다. 봇 사용과 개인 메시지가 해당 서버 정책에서 허용돼 있어야 한다. [공식 봇 계정 안내](https://docs.mattermost.com/developers/integrate/reference/bot-accounts)를 참고한다.
 2. 허용할 팀에 사용자 지정 Slash Command를 등록한다. Trigger Word는 `hwp`, 요청 방법은 **POST**, Request URL은 아래 command URL이다. 등록 후 발급된 명령 토큰을 `HWP_MATTERMOST_COMMAND_TOKEN`에 넣는다.
-3. HWP 서비스 기준 URL과 Mattermost SiteURL·팀 ID·봇 토큰을 설정한다. 사용자 브라우저와 Mattermost 서버가 HWP의 아래 HTTPS 경로에 접근할 수 있고, API가 Mattermost REST API에 접근할 수 있어야 한다.
-4. 명령·입력창 콜백은 다음처럼 `/hwp-assistant/`를 포함한다. 입력창 URL은 HWP가 고정하여 전송하므로 별도 Outgoing Webhook으로 등록하지 않는다.
+3. HWP 공개 웹 주소와 API가 접속할 Mattermost 주소·팀 ID·봇 토큰을 설정한다. 사용자 브라우저가 HWP 공개 웹에, Mattermost 서버가 명령·입력창 제출 주소에, API가 Mattermost REST API에 각각 접근할 수 있어야 한다.
+4. 공개 웹 프록시를 거치는 명령·입력창 콜백은 다음처럼 `/hwp-assistant/`를 포함한다. 입력창 URL은 서버 설정으로 고정하여 HWP가 전송하므로 별도 Outgoing Webhook으로 등록하지 않는다. 같은 Docker 호스트에서 직접 API를 호출하는 구성은 아래 내부 통신 절을 따른다.
 
 | 용도 | 공개 URL 예시 |
 | --- | --- |
@@ -73,6 +76,52 @@
 웹 프록시는 기존처럼 `/hwp-assistant/`를 처리하고 API 내부에는 `/api/integrations/mattermost/...`로 전달한다. 정확히 이 두 POST 경로만 자체 연동 인증을 사용한다. 명령은 등록 토큰과 팀·명령을 검증하고, 입력창은 짧은 유효기간의 상태 토큰과 사용자·채널·팀·연결 세대를 검증한다. 다른 API와 웹 연결 확정은 기존 앱 인증을 유지한다. 명령 본문의 `response_url`은 호출하지 않는다.
 
 이 안내는 운영 변경을 실행하라는 지시가 아니다. 운영 반영은 검토된 소스와 해당 커밋의 검증 후 [배포 절차](deployment-runbook.md)를 따른다. `compose.deploy.yaml`은 단독 사용하고 기존 private env·볼륨·실행 이미지를 보존한다. 환경변수 적용에는 컨테이너 재생성이 필요하며 단순 재시작으로 바뀌지 않는다. 기존 서버에서 최초 설치 초기화를 다시 실행하지 않는다.
+
+## 같은 Docker 호스트의 내부 통신
+
+2026-10-30 사용자 제공 네트워크 조회에서 Mattermost와 HWP API는 이미 `hwp-mattermost-hook`에 함께 연결돼 있었다. 이 망에서 Mattermost 별칭은 `mattermost`·`mattermost-webhook`, HWP API 별칭은 `api`였다. 이어 사용자가 HWP 컨테이너의 Python으로 `http://mattermost:8065/mattermost/api/v4/system/ping`을 조회해 HTTP 200·`status: OK`를 확인했다. 이는 HWP → Mattermost 내부 상태 조회의 근거이며 실제 명령·입력창·개인 메시지 성공과 구분한다. 다음 안내는 이 관측과 같은 배치의 예다. 다른 서버에서는 컨테이너의 실제 네트워크·별칭을 먼저 확인한다. 같은 사용자 정의 bridge의 컨테이너는 이름·별칭과 컨테이너 포트로 통신하므로 새 공개 포트를 열거나 고정 IP를 지정할 필요가 없다. [Docker 네트워킹](https://docs.docker.com/compose/how-tos/networking/)을 참고한다.
+
+| 방향 | 주소 |
+| --- | --- |
+| Mattermost → HWP Slash Command | `http://api:8000/api/integrations/mattermost/command` |
+| Mattermost → HWP 입력창 제출 | `http://api:8000/api/integrations/mattermost/dialog` |
+| HWP → Mattermost REST 기준 주소 | `http://mattermost:8065/mattermost/` |
+| 사용자 브라우저 → HWP | 기존 공개 HTTPS 주소와 `/hwp-assistant/` 유지 |
+
+직접 API 주소에는 웹 프록시용 `/hwp-assistant/` 접두사를 붙이지 않는다. Mattermost가 실제로 `/mattermost` 하위 경로를 사용하는 이 예에서는 내부 REST 주소에도 그 경로를 유지한다. `MM_SERVICESETTINGS_SITEURL`은 사용자가 접속하는 공개 HTTPS 주소를 유지한다.
+
+사용자가 확인한 서버 파일 위치와 변경 항목은 다음과 같다. 실제 환경 파일이나 토큰은 저장소에 복사하지 않는다.
+
+| 서버 파일·화면 | 변경 항목 |
+| --- | --- |
+| `/opt/hwp-assistant/production.env` | 아래 HWP 환경변수. 기존 `HWP_ALLOWED_HOSTS` 목록에는 `api`를 쉼표로 구분해 추가한다. |
+| `/opt/hwp-assistant/compose.deploy.yaml` | 새 이미지와 짝을 이루는 이 보완의 Compose를 사용한다. API에 새 콜백 환경변수를 전달하며 기존 `mattermost_hook` 네트워크를 유지한다. 개발 Compose와 병합하지 않는다. |
+| `/home/pseudowasabi/apps/mattermost/docker-compose.yml` | `mattermost` 서비스의 기존 `MM_SERVICESETTINGS_ALLOWEDUNTRUSTEDINTERNALCONNECTIONS`에 `api`를 공백으로 구분해 추가한다. 기존 Mattermost DB 네트워크와 `hwp-mattermost-hook` 연결을 유지한다. |
+| Mattermost → Integrations → Slash Commands → `hwp` | Request Method는 `POST`, Request URL은 위 내부 command 주소로 바꾼다. 기존 명령 검증 토큰은 유지한다. |
+
+HWP private 환경 파일에서 사용할 값은 다음과 같다. 공개 웹 주소는 해당 서버의 기존 주소를 유지한다.
+
+```dotenv
+HWP_MATTERMOST_URL=http://mattermost:8065/mattermost/
+HWP_MATTERMOST_PUBLIC_APP_URL=https://docs.example.invalid/hwp-assistant/
+HWP_MATTERMOST_CALLBACK_URL=http://api:8000/api/integrations/mattermost/dialog
+HWP_MATTERMOST_BOT_ALLOW_HTTP=1
+```
+
+공개 웹 주소를 내부 주소로 바꾸면 사용자에게 전달하는 계정 연결·문서·초안 링크도 내부 주소가 된다. 서버용 콜백만 `HWP_MATTERMOST_CALLBACK_URL`로 분리한다. 이 설정으로 입력창 제출 주소가 달라져도 상태 토큰·만료·사용자·팀·채널·연결 세대 검증은 동일하게 적용된다. 내부 HTTP는 신뢰하는 같은 호스트의 bridge에 한정하고 기존 봇·명령 토큰과 Host 검증을 유지한다.
+
+현재 구현은 `HWP_MATTERMOST_URL`의 정규화된 주소 해시로 Mattermost 인스턴스를 구분한다. 이 값을 공개 주소에서 내부 주소로 바꾸면 같은 Mattermost 서버라도 새 인스턴스로 처리하므로 사용자는 `/hwp 연결`을 다시 진행해야 한다. 기존 HWP 계정·문서는 유지되며 이전 연결과 요청을 새 주소의 연결로 자동 재지정하지 않는다.
+
+적용은 다음 순서로 검증한다.
+
+1. 실제 네트워크·별칭과 `http://mattermost:8065/mattermost/api/v4/system/ping`의 API 컨테이너 응답을 확인한다. Mattermost 이미지에 `curl`·`printenv`·셸이 있다고 가정하지 않는다.
+2. 보완을 포함한 새 API 이미지와 짝이 맞는 운영 Compose를 [게시 이미지 배포 절차](deploy-published-images.md)에 따라 반영한다. 기존 private 환경, 프로젝트·Compose 옵션, 외부 볼륨과 이전 이미지를 보존하는 절차를 따른다. Mattermost 환경변수만 변경하는 경우에는 현재 이미지 digest를 고정하고 해당 서비스만 재생성한다.
+3. `/hwp 도움말`, `/hwp 연결`, 검색 결과 개인 메시지, `/hwp 초안` 입력창 열기·제출을 각각 확인한다. 입력창 없이 `/hwp 초안 내용`만 성공한 결과를 입력창 콜백 성공으로 계산하지 않는다.
+4. 웹에서 연결·문서·초안 링크가 공개 HTTPS 주소인지, 요청자의 권한으로 열리는지 확인한다. 생성·서식·저장은 기존 검수 단계대로 확인한다.
+
+사용자 제공 장애 로그에서 초기 `address forbidden`은 Mattermost의 내부 주소 제한에 의한 차단이었고, 허용 목록 변경 뒤에는 Tailscale IP의 `:443` 연결 시간 초과로 바뀌었다. 후자는 컨테이너에서 해당 HTTPS 주소까지의 경로가 연결되지 않았다는 근거이며 Tailscale ACL이 원인이라고 단정하지 않는다. Docker→호스트 경로·방화벽·리스너 등은 별도 진단 대상이다.
+
+Mattermost **Test Live URL**은 서버가 `<SiteURL>/api/v4/system/ping`으로 자기 공개 주소를 요청하는 검사다. 봇의 내부 통신 전환이 이 자기 접속 경로까지 바꾸지는 않으므로 버튼은 계속 실패할 수 있다. 공개 SiteURL은 유지하고 이 경로를 별도로 진단한다. [Mattermost 11.11 구현](https://github.com/mattermost/mattermost/blob/v11.11.0/server/channels/app/admin.go#L159-L172). Calls의 UDP 시간 초과와 SMTP 연결 거부도 `/hwp` 명령의 TCP 연결 실패와 구분한다.
 
 ## 검색 방식과 제한
 

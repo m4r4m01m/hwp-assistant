@@ -81,6 +81,7 @@ class BotSettings:
     bot_token: str = field(repr=False)
     command_token: str = field(repr=False)
     team_id: str
+    callback_url: str = field(repr=False)
 
     @property
     def api_url(self):
@@ -94,12 +95,19 @@ def settings():
     allow_http = os.getenv("HWP_MATTERMOST_BOT_ALLOW_HTTP", "0") == "1"
     base = _base_url(os.getenv("HWP_MATTERMOST_URL", ""), allow_http=allow_http)
     app = _base_url(os.getenv("HWP_MATTERMOST_PUBLIC_APP_URL", ""), allow_http=allow_http)
+    callback = os.getenv("HWP_MATTERMOST_CALLBACK_URL", "")
+    if callback:
+        callback = _base_url(callback, allow_http=allow_http).rstrip("/")
+        if not urlsplit(callback).path.endswith("/api/integrations/mattermost/dialog"):
+            raise MattermostConfigurationError()
+    else:
+        callback = app + "api/integrations/mattermost/dialog"
     token = os.getenv("HWP_MATTERMOST_BOT_TOKEN", "")
     command = os.getenv("HWP_MATTERMOST_COMMAND_TOKEN", "")
     team = os.getenv("HWP_MATTERMOST_TEAM_ID", "")
     if not all(valid_id(value) for value in (token, command, team)):
         raise MattermostConfigurationError()
-    return BotSettings(base, app, token, command, team)
+    return BotSettings(base, app, token, command, team, callback)
 
 
 def safe_text(value, max_length=700):
@@ -202,7 +210,7 @@ class BotClient:
 
     async def open_dialog(self, trigger_id, callback_url, state, elements):
         # Callback is an app-owned route, never a URL supplied by a command.
-        expected = self.config.public_app_url + "api/integrations/mattermost/dialog"
+        expected = self.config.callback_url
         if (callback_url != expected or not isinstance(trigger_id, str) or not 1 <= len(trigger_id) <= 2048
                 or any(ord(char) < 33 or ord(char) == 127 for char in trigger_id)
                 or not isinstance(state, str) or not re.fullmatch(r"[A-Za-z0-9_-]{32,128}", state)
