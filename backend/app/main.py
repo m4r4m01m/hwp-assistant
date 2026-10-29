@@ -392,7 +392,7 @@ def create_app(database_url=None, storage_dir=None):
                     .where(Document.name.contains(q, autoescape=True)).order_by(Document.created_at.desc())):
                 branch = db.get(DocumentBranch, d.id)
                 result.append({**doc_dict(d), "role": document_role(db, d.id, request.state.user), "can_trash": bool(can_trash),
-                    **document_workspace_info(db, d.id), "branch_source_id": branch.source_document_id if branch else None})
+                    **document_workspace_info(db, d.id, request.state.user), "branch_source_id": branch.source_document_id if branch else None})
             return result
 
     @app.post("/api/documents")

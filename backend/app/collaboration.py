@@ -164,6 +164,11 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
     def access_list(doc_id: str, request: Request):
         with Session(engine) as db:
             require_access(db, doc_id, request.state.user, "owner")
+            from .workspaces import WorkspaceDocument, WorkspaceShare
+            scoped = db.get(WorkspaceDocument, doc_id)
+            if scoped:
+                return [fields(a, "user_id", "role") for a in db.scalars(select(WorkspaceShare).where(
+                    WorkspaceShare.document_id == doc_id, WorkspaceShare.workspace_id == scoped.workspace_id))]
             from .library_access import require_individual_grants
             require_individual_grants(db, doc_id)
             return [fields(a, "user_id", "role") for a in db.scalars(select(Access).where(Access.document_id == doc_id))]
@@ -176,6 +181,9 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
             raise HTTPException(422, "서버에 등록된 사용자에게만 권한을 부여할 수 있습니다.")
         with transaction(engine) as db:
             doc = locked(db, doc_id, request.state.user, "owner")
+            from .workspaces import change_document_share
+            if change_document_share(db, doc, value.user_id, request.state.user, value.role):
+                return {"ok": True}
             from .library_access import require_individual_grants
             require_individual_grants(db, doc_id)
             from .library_access import shared_library
@@ -200,6 +208,9 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
     def revoke(doc_id: str, user_id: str, request: Request):
         with transaction(engine) as db:
             doc = locked(db, doc_id, request.state.user, "owner")
+            from .workspaces import change_document_share
+            if change_document_share(db, doc, user_id, request.state.user):
+                return {"ok": True}
             from .library_access import require_individual_grants
             require_individual_grants(db, doc_id)
             from .library_access import shared_library
@@ -441,7 +452,7 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
         with transaction(engine) as db:
             locked(db, value.document_id, request.state.user)
             from .workspaces import require_copyable_source
-            require_copyable_source(db, value.document_id)
+            require_copyable_source(db, value.document_id, request.state.user)
             if engine.dialect.name == "postgresql":
                 db.execute(text("SELECT pg_advisory_xact_lock(:key)"),
                            {"key": int(digest(("template:" + template_id).encode())[:15], 16)})
@@ -499,7 +510,7 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
             locked(db, template.document_id, request.state.user, "reader")
             from .workspaces import require_copyable_source, inherit_copy_scope, require_copy_retry, document_workspace_info
             from .library_access import document_role
-            require_copyable_source(db, template.document_id)
+            require_copyable_source(db, template.document_id, request.state.user)
             version = source_version(db, template)
             data = verified_bytes(folder, version)
             if engine.dialect.name == "postgresql":

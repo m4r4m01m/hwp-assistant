@@ -9,7 +9,7 @@ from .audit import AuditEvent
 from .account_settings import AccountSetting
 from .account_notifications import RegistrationNotification
 from .coedit import Room, Member, Receipt
-from .workspaces import Workspace, WorkspaceMember, WorkspaceDocument
+from .workspaces import Workspace, WorkspaceMember, WorkspaceDocument, WorkspaceShare
 from .document_branches import DocumentBranch, IntegrationRequest, BranchParticipant
 
 

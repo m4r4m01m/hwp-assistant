@@ -129,7 +129,7 @@ def test_assignment_requires_original_owner_target_manager_and_no_lease(spaces):
     assert c.put(f"/api/documents/{doc['id']}/workspace", json={**payload, "expected_version": str(uuid.uuid4())}).status_code == 409
     assert c.put(f"/api/documents/{doc['id']}/workspace", json=payload).status_code == 200
     assert c.put(f"/api/documents/{doc['id']}/workspace", json=payload).status_code == 200
-    assert c.put(f"/api/documents/{doc['id']}/access", json={"user_id": "outsider", "role": "editor"}).status_code == 409
+    assert c.put(f"/api/documents/{doc['id']}/access", json={"user_id": "outsider", "role": "editor"}).status_code == 200
 
 
 def test_template_catalogs_hide_scoped_sources(spaces):
@@ -262,3 +262,91 @@ def test_shared_source_never_implicitly_grants_private_branch_participation(spac
     assert login(c, "outsider").status_code == 200
     assert c.get(f"/api/documents/{source['id']}").status_code == 200
     assert c.get(f"/api/documents/{branch['id']}").status_code == 404
+
+
+def test_cross_team_share_exposes_only_invited_document_not_space_or_branch(spaces):
+    c, app, _, _ = spaces
+    space, _ = new_space(c)
+    doc, other = scoped_doc(c, space), scoped_doc(c, space)
+    branch = create_work_copy(c, doc)
+    assert c.put(f"/api/documents/{doc['id']}/access", json={"user_id": "outsider", "role": "reader"}).status_code == 200
+    with TestClient(app, base_url="https://testserver") as invited:
+        assert login(invited, "outsider").status_code == 200
+        rows = invited.get("/api/documents").json()
+        assert [r['id'] for r in rows] == [doc['id']]
+        assert rows[0]['shared_with_me'] and rows[0]['role'] == 'reader' and not rows[0]['can_trash']
+        assert invited.get('/api/workspaces').json() == []
+        for identity in [other['id'], branch['id']]:
+            assert invited.get(f'/api/documents/{identity}/versions').status_code == 404
+        assert invited.get(f'/api/workspaces/{space["id"]}/members').status_code == 404
+        assert invited.get(f'/api/documents/{doc["id"]}/versions').status_code == 200
+        assert invited.get(f'/api/documents/{doc["id"]}/access').status_code == 403
+        assert invited.post(f'/api/documents/{doc["id"]}/session').status_code == 403
+        assert c.delete(f'/api/documents/{doc["id"]}/access/outsider').status_code == 200
+        assert invited.get('/api/documents').json() == []
+        assert invited.get(f'/api/documents/{doc["id"]}/versions/{doc["current_version"]}/file').status_code == 404
+
+
+def test_cross_team_editor_revoke_fences_held_save_and_regrant_starts_new_session(spaces):
+    c, app, _, folder = spaces
+    space, _ = new_space(c); doc = scoped_doc(c, space)
+    path = f'/api/documents/{doc["id"]}'
+    assert c.put(path+'/access', json={'user_id':'outsider','role':'editor'}).status_code == 200
+    with TestClient(app, base_url='https://testserver') as invited:
+        assert login(invited,'outsider').status_code == 200
+        token = invited.post(path+'/session').json()['token']
+        assert save(invited,doc,token,package('초대받은 팀원의 수정')).status_code == 200
+        latest = invited.get(path).json()
+        hashes = {p.name:p.read_bytes() for p in folder.glob('*.hwpx')}
+        assert c.put(path+'/access',json={'user_id':'outsider','role':'reader'}).status_code == 200
+        assert save(invited,latest,token,package('회수 후 수정')).status_code == 403
+        assert {p.name:p.read_bytes() for p in folder.glob('*.hwpx')} == hashes
+        assert c.put(path+'/access',json={'user_id':'outsider','role':'editor'}).status_code == 200
+        assert save(invited,latest,token).status_code == 409
+        assert invited.post(path+'/session').status_code == 200
+
+
+def test_cross_team_revoke_keeps_other_coedit_participants(spaces):
+    c, app, _, _ = spaces
+    space, _ = new_space(c); doc = scoped_doc(c, space); path = f'/api/documents/{doc["id"]}'
+    assert c.put(path+'/access',json={'user_id':'outsider','role':'editor'}).status_code == 200
+    with TestClient(app, base_url='https://testserver') as invited:
+        assert login(invited,'outsider').status_code == 200
+        token = invited.post(path+'/coedit',json={'request_id':str(uuid.uuid4())}).json()['token']
+        manager = c.post(path+'/coedit',json={'request_id':str(uuid.uuid4())}).json()['token']
+        assert c.delete(path+'/access/outsider').status_code == 200
+        assert invited.put(path+'/coedit',headers={'X-Coedit-Session':token}).status_code == 404
+        kept = c.put(path+'/coedit',headers={'X-Coedit-Session':manager})
+        assert kept.status_code == 200 and len(kept.json()['participants']) == 1
+        assert c.put(path+'/access',json={'user_id':'outsider','role':'editor'}).status_code == 200
+        assert invited.put(path+'/coedit',headers={'X-Coedit-Session':token}).status_code == 409
+
+
+def test_cross_team_invite_never_grants_reshare_copy_template_or_management(spaces):
+    c, app, _, _ = spaces
+    space, _ = new_space(c); add(c,space,'reader','reader'); doc = scoped_doc(c,space)
+    path = f'/api/documents/{doc["id"]}'
+    for user in ['reader','missing']:
+        assert c.put(path+'/access',json={'user_id':user,'role':'editor'}).status_code in (409,422)
+    assert c.put(path+'/access',json={'user_id':'outsider','role':'editor'}).status_code == 200
+    with TestClient(app, base_url='https://testserver') as invited:
+        assert login(invited,'outsider').status_code == 200
+        assert invited.put(path+'/access',json={'user_id':'writer','role':'editor'}).status_code == 403
+        assert invited.get('/api/documents').json()[0]['can_trash'] is False
+        assert invited.post(path+'/copies',json={'document_id':str(uuid.uuid4()),'source_version':doc['current_version'],'request_id':str(uuid.uuid4()),'name':'밖으로 복제'}).status_code == 403
+        assert invited.post('/api/templates',json={'document_id':doc['id'],'version_id':doc['current_version'],'name':'공개 우회'}).status_code == 403
+
+
+def test_document_move_clears_invites_and_never_revives_legacy_acl(spaces):
+    c, app, _, _ = spaces
+    first, _ = new_space(c,'첫 문서함'); second, _ = new_space(c,'둘째 문서함')
+    doc = scoped_doc(c,first); path = f'/api/documents/{doc["id"]}'
+    with transaction(app.state.engine) as db:
+        db.add(Access(document_id=doc['id'],user_id='outsider',role='owner'))
+    assert c.put(path+'/access',json={'user_id':'outsider','role':'reader'}).status_code == 200
+    for space in [second,first]:
+        assert c.put(path+'/workspace',json={'workspace_id':space['id'],'expected_version':doc['current_version']}).status_code == 200
+        assert c.get(path+'/access').json() == []
+        with TestClient(app,base_url='https://testserver') as invited:
+            assert login(invited,'outsider').status_code == 200
+            assert invited.get(path).status_code == 404 and invited.get('/api/documents').json() == []

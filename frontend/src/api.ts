@@ -10,6 +10,7 @@ export type Document = {
   role: "owner" | "editor" | "reader";
   can_trash?: boolean;
   workspace_id?: string | null;
+  shared_with_me?: boolean;
   workspace_name?: string | null;
   branch_source_id?: string | null;
 };

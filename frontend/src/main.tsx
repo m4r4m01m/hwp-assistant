@@ -114,6 +114,12 @@ function App({
   const uploadBusy = useRef(false), dragDepth = useRef(0);
   const frozenUpload = useRef<{ bytes: Uint8Array; name: string; id: string; key: string } | null>(null);
   const inLibrary = !active && !creating && !standardDesigner && !reports && !templates && !managingAccounts && !coeditDocument && !branchDocument && !spacePanel;
+  useEffect(() => {
+    if (!inLibrary) return;
+    const controller = new AbortController();
+    void api<TeamSpace[]>("/workspaces", { signal: controller.signal }).then(setSpaces).catch(e => { if (!controller.signal.aborted) setError(errorMessage(e)); });
+    return () => controller.abort();
+  }, [inLibrary]);
   useAiSetupLanding(inLibrary && !loading && !copying && !uploading && !history && !sharing && !trashDialog);
   useEffect(() => {
     if (!inLibrary) return;
@@ -138,7 +144,7 @@ function App({
       dragDepth.current = 0;
     };
   }, [inLibrary, history, sharing, trashDialog]);
-  const sortedDocs = docs.filter(d => !spaceFilter || (spaceFilter === "unassigned" ? !d.workspace_id : d.workspace_id === spaceFilter)).sort((a, b) => sort === "name" ? a.name.localeCompare(b.name, "ko", { numeric: true }) || a.id.localeCompare(b.id)
+  const sortedDocs = docs.filter(d => !spaceFilter || (spaceFilter === "shared-with-me" ? d.shared_with_me : spaceFilter === "unassigned" ? !d.workspace_id : d.workspace_id === spaceFilter)).sort((a, b) => sort === "name" ? a.name.localeCompare(b.name, "ko", { numeric: true }) || a.id.localeCompare(b.id)
     : sort === "oldest" ? a.created_at - b.created_at || a.id.localeCompare(b.id) : b.created_at - a.created_at || a.id.localeCompare(b.id));
   const refresh = () => {
     const generation = ++listGeneration.current;
@@ -308,7 +314,7 @@ function App({
         </div>
         <span className="library-document-count">{docs.length}개 문서</span>
       </header>
-      <div className="library-space-filter"><label>문서 공간 <select aria-label="문서 공간" value={spaceFilter} onChange={e => setSpaceFilter(e.target.value)} onFocus={() => void api<TeamSpace[]>("/workspaces").then(setSpaces).catch(e => setError(errorMessage(e)))}><option value="">접근 가능한 모든 문서</option><option value="unassigned">기존 문서함·개인 작업본</option>{spaces.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label><button onClick={() => setSpacePanel({})}>팀·부서 공간 관리</button></div>
+      <div className="library-space-filter"><label>문서 공간 <select aria-label="문서 공간" value={spaceFilter} onChange={e => setSpaceFilter(e.target.value)} onFocus={() => void api<TeamSpace[]>("/workspaces").then(setSpaces).catch(e => setError(errorMessage(e)))}><option value="">접근 가능한 모든 문서</option><option value="shared-with-me">나에게 개별 공유된 문서</option><option value="unassigned">기존 문서함·개인 작업본</option>{spaces.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label><button onClick={() => setSpacePanel({})}>팀·부서 공간 관리</button></div>
       <p className="hint">공간 선택은 목록 필터입니다. 새 업로드·보고서는 기존 문서함에 저장되며, 더보기 → 공간 지정으로 접근 범위를 설정합니다.</p>
       <div className="library-drop-hint" role="region" aria-label="HWPX 파일 놓기" aria-busy={uploading}>
         <WorkspaceIcon name="upload" size={22}/><div><strong>{uploading ? "파일을 업로드하고 있습니다…" : dragOver ? "여기에 놓아 새 문서로 가져오세요" : "HWPX 파일을 이 문서함에 끌어 놓으세요"}</strong>
@@ -367,7 +373,7 @@ function App({
                   <button className="link" onClick={() => setActive(d)}>
                     <WorkspaceIcon name="documents"/><span>{d.name}</span>
                   </button>
-                  {(d.workspace_name || d.branch_source_id) && <span className="library-space-tag">{d.branch_source_id ? "개인 작업본" : d.workspace_name}</span>}
+                  {(d.workspace_name || d.branch_source_id) && <span className="library-space-tag">{d.branch_source_id ? "개인 작업본" : d.shared_with_me ? `${d.workspace_name} · 개별 공유 · ${d.role === "reader" ? "열람" : "편집"}` : d.workspace_name}</span>}
                 </td>
                 <td>{new Date(d.created_at * 1000).toLocaleString("ko-KR")}</td>
                 <td className="library-document-actions">
@@ -453,7 +459,7 @@ function App({
                       }}
                     />
                   </label>
-                  {account.authentication_required && account.library_access_mode !== "shared" && d.role === "owner" && !d.workspace_id && !d.branch_source_id && (
+                  {account.authentication_required && (d.workspace_id || account.library_access_mode !== "shared") && d.role === "owner" && !d.branch_source_id && (
                     <button aria-label="공유 권한" title="공유 권한" onClick={() => setSharing(d)}><WorkspaceIcon name="share" size={17}/><span>공유 권한</span></button>
                   )}
                   {d.role !== "reader" && (

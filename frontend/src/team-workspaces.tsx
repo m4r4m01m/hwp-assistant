@@ -50,14 +50,14 @@ export function TeamWorkspaces({ account, document, onClose, onUpdated }: {
   }
   return <div className="team-space-backdrop"><section ref={dialog} role="dialog" aria-modal="true" aria-labelledby="team-space-title" className="team-space-panel">
     <header><div><small>조직 공간 · 실험 기능</small><h2 id="team-space-title">{document ? "문서 공간 지정" : "팀·부서 공간"}</h2></div><button disabled={busy} onClick={close} aria-label="공간 관리 닫기">닫기</button></header>
-    <p>공간 구성원에게만 문서가 보입니다. 상위 부서에 속해도 하위 팀 권한은 자동으로 생기지 않습니다.</p>
+    <p>공간 구성원은 문서함을 함께 사용합니다. 다른 팀 사람은 개별 공유받은 문서만 볼 수 있습니다. 상위 부서에 속해도 하위 팀 권한은 자동으로 생기지 않습니다.</p>
     {error && <div><p role="alert" className="error">{error}</p>{!pendingCreate.current && !pendingAssign.current && <button disabled={busy} onClick={() => void act(async () => {
       const rows = await refresh(); if (!document && rows.some(row => row.id === selected)) setMembers(await api<Member[]>(`/workspaces/${selected}/members`));
     })}>다시 불러오기</button>}</div>}{notice && <p role="status">{notice}</p>}
     {loading ? <p role="status">공간을 불러오는 중…</p> : <>
       <label>공간 선택<select value={selected} disabled={busy || !!pendingAssign.current} onChange={e => { setSelected(e.target.value); setError(""); setNotice(""); }}><option value="">공간을 선택하세요</option>{spaces.map(s => <option key={s.id} value={s.id}>{s.kind === "department" ? "부서" : "팀"} · {s.name}{s.role ? ` · ${roleName[s.role]}` : ""}</option>)}</select></label>
       {!spaces.length && <p className="hint">참여 중인 공간이 없습니다.{account.is_admin && !document ? " 아래에서 공간을 만들 수 있습니다." : " 공간 관리자에게 참여를 요청하세요."}</p>}
-      {document ? <div className="team-space-assignment"><h3>{document.name}</h3><p>이 문서의 열람·편집 범위를 선택한 공간의 구성원으로 제한합니다. 기존 개별 공유 권한은 공간 안에서는 적용되지 않습니다. 문서 이력과 원본은 보존됩니다.</p>
+      {document ? <div className="team-space-assignment"><h3>{document.name}</h3><p>이 문서를 선택한 공간의 구성원에게 공개합니다. 이동하면 이전의 개별 공유 권한은 해제됩니다. 다른 팀 사람은 이동 후 공유 권한에서 다시 초대하세요. 문서 이력과 원본은 보존됩니다.</p>
         <button className="primary" disabled={busy || !space || space.role !== "manager" || document.workspace_id === selected} onClick={() => {
           if (!pendingAssign.current && !confirm(`“${document.name}”의 접근 범위를 “${space?.name}” 공간으로 변경할까요?`)) return;
           void act(async () => { const frozen = pendingAssign.current ||= { workspace_id: selected, expected_version: document.current_version };

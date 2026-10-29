@@ -5,7 +5,7 @@ from typing import Literal
 
 from fastapi import HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import Float, ForeignKey, String, func, select, text
+from sqlalchemy import Float, ForeignKey, String, delete, func, select, text, update
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from .accounts import UserAccount
@@ -38,6 +38,57 @@ class WorkspaceDocument(Base):
     workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), index=True)
     assigned_by: Mapped[str] = mapped_column(String(80))
     assigned_at: Mapped[float] = mapped_column(Float)
+
+
+class WorkspaceShare(Base):
+    """New, explicit document invitations; never activate old legacy ACL rows."""
+    __tablename__ = "workspace_document_shares"
+    document_id: Mapped[str] = mapped_column(ForeignKey("documents.id"), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"))
+    role: Mapped[str] = mapped_column(String(12))
+    granted_by: Mapped[str] = mapped_column(String(80))
+    created_at: Mapped[float] = mapped_column(Float)
+
+
+def change_document_share(db, doc, user, actor, role=None):
+    scoped = db.get(WorkspaceDocument, doc.id, populate_existing=True)
+    if not scoped:
+        return False
+    workspace_access(db, scoped.workspace_id, actor, manager=True)
+    if role:
+        account = db.get(UserAccount, user, populate_existing=True)
+        if not account or not account.is_active or account.approval_status != "approved":
+            raise HTTPException(422, "활성 승인 계정에게만 공유할 수 있습니다.")
+        if db.get(WorkspaceMember, (scoped.workspace_id, user), populate_existing=True):
+            raise HTTPException(409, "이미 문서함 구성원입니다. 구성원 권한에서 관리하세요.")
+    row = db.scalar(select(WorkspaceShare).where(WorkspaceShare.document_id == doc.id,
+        WorkspaceShare.user_id == user).with_for_update().execution_options(populate_existing=True))
+    if row and (role is None or row.role == "editor" and role == "reader"):
+        # Only this invited user's session is retired. Other coedit users keep working.
+        from .coedit import Member
+        from .db import LeaseOwner
+        from .rewrite_jobs import invalidate_running
+        invalidate_running(db, doc.id, "문서 공유 권한이 변경되어 실행 결과를 게시하지 않습니다.", user=user)
+        db.execute(update(Member).where(Member.document_id == doc.id, Member.user_id == user).values(expires_at=0))
+        owner = db.get(LeaseOwner, doc.id)
+        if owner and owner.user_id == user and not (doc.lease_token or "").startswith("coedit:"):
+            doc.lease_token, doc.lease_until = None, 0
+        elif (doc.lease_token or "").startswith("coedit:") and not db.scalar(select(Member.id).where(
+                Member.document_id == doc.id, Member.generation == doc.lease_token.removeprefix("coedit:"),
+                Member.expires_at > time.time()).limit(1)):
+            doc.lease_token, doc.lease_until = None, 0
+    if role:
+        if row:
+            row.role, row.workspace_id, row.granted_by = role, scoped.workspace_id, actor
+        else:
+            db.add(WorkspaceShare(document_id=doc.id, user_id=user, workspace_id=scoped.workspace_id,
+                                  role=role, granted_by=actor, created_at=time.time()))
+    elif row:
+        db.delete(row)
+    record_event(db, actor, "workspace.document.share" if role else "workspace.document.unshare",
+                 "workspace", scoped.workspace_id, document_id=doc.id)
+    return True
 
 
 class NewWorkspace(BaseModel):
@@ -75,15 +126,21 @@ def workspace_for_document(db, document_id):
     return {"id": space.id, "name": space.name, "kind": space.kind} if space else None
 
 
-def document_workspace_info(db, document_id):
+def document_workspace_info(db, document_id, user=None):
     space = workspace_for_document(db, document_id)
-    return {"workspace_id": space["id"], "workspace_name": space["name"]} if space else {"workspace_id": None, "workspace_name": None}
+    share = db.get(WorkspaceShare, (document_id, user)) if space and user else None
+    invited = bool(space and user and not db.get(WorkspaceMember, (space["id"], user))
+                   and share and share.workspace_id == space["id"])
+    return {"workspace_id": space["id"], "workspace_name": space["name"], "shared_with_me": invited} if space else {"workspace_id": None, "workspace_name": None, "shared_with_me": False}
 
 
-def require_copyable_source(db, document_id):
+def require_copyable_source(db, document_id, user=None):
     from .document_branches import DocumentBranch
     if db.get(DocumentBranch, document_id):
         raise HTTPException(409, "개인 작업본은 사본이나 양식으로 공개하지 않습니다. 통합 요청을 사용하세요.")
+    scoped = db.get(WorkspaceDocument, document_id)
+    if scoped and user and not db.get(WorkspaceMember, (scoped.workspace_id, user)):
+        raise HTTPException(403, "개별 공유받은 문서는 문서함 안에 복제하거나 양식으로 등록할 수 없습니다.")
 
 
 def inherit_copy_scope(db, source_id, destination_id, user):
@@ -218,6 +275,8 @@ def install_workspaces(app):
                 return {"ok": True, "workspace_id": space.id}
             if doc.lease_token and doc.lease_until > time.time():
                 raise HTTPException(409, "편집 중인 문서는 이동할 수 없습니다. 저장 후 편집을 종료하세요.")
+            # Moving a document never revives invitations from an earlier space.
+            db.execute(delete(WorkspaceShare).where(WorkspaceShare.document_id == doc_id))
             if row: row.workspace_id, row.assigned_by, row.assigned_at = space.id, request.state.user, time.time()
             else: db.add(WorkspaceDocument(document_id=doc_id, workspace_id=space.id,
                                            assigned_by=request.state.user, assigned_at=time.time()))

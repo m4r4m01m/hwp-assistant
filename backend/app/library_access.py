@@ -1,6 +1,6 @@
 """Current document scope: private branches, explicit spaces, then legacy policy.
 
-Space membership overrides legacy grants/shared-library access. Account admins
+Space membership and new document invitations override legacy grants/shared-library access. Account admins
 manage accounts but receive no implicit access to space documents or branches.
 """
 import os
@@ -25,7 +25,7 @@ def shared_library(db, user):
 
 def document_role(db, document_id, user, *, fresh=False):
     from .document_branches import BranchParticipant, DocumentBranch
-    from .workspaces import WorkspaceDocument, WorkspaceMember
+    from .workspaces import WorkspaceDocument, WorkspaceMember, WorkspaceShare
     branch = db.get(DocumentBranch, document_id, populate_existing=True)
     if branch:
         if db.get(DocumentBranch, branch.source_document_id):
@@ -50,7 +50,12 @@ def document_role(db, document_id, user, *, fresh=False):
         # holds revocation until publication without deadlocking a source->work
         # copy integration against an ordinary work-copy save.
         member = db.scalar(query.with_for_update(read=True) if fresh else query)
-        return {"manager": "owner", "editor": "editor", "reader": "reader"}.get(member.role) if member else None
+        invitation = select(WorkspaceShare).where(WorkspaceShare.document_id == document_id,
+            WorkspaceShare.workspace_id == scoped.workspace_id, WorkspaceShare.user_id == user).execution_options(populate_existing=True)
+        share = db.scalar(invitation.with_for_update(read=True) if fresh else invitation)
+        roles = [{"manager": "owner", "editor": "editor", "reader": "reader"}.get(member.role) if member else None,
+                 share.role if share else None]
+        return next((role for role in ("owner", "editor", "reader") if role in roles), None)
     if shared_library(db, user):
         return "owner"
     from .db import Access
@@ -67,7 +72,7 @@ def _scope(db, user, *, manage=False):
     """
     from .db import Access, Document, document_is_trashed
     from .document_branches import BranchParticipant, DocumentBranch
-    from .workspaces import WorkspaceDocument, WorkspaceMember
+    from .workspaces import WorkspaceDocument, WorkspaceMember, WorkspaceShare
     if os.getenv("HWP_ACCOUNTS_ENABLED", "0") == "1":
         from .accounts import UserAccount
         account = db.get(UserAccount, user, populate_existing=True)
@@ -83,7 +88,12 @@ def _scope(db, user, *, manage=False):
         membership = select(WorkspaceDocument.document_id).join(WorkspaceMember,
             WorkspaceMember.workspace_id == WorkspaceDocument.workspace_id).where(
             WorkspaceMember.user_id == user, WorkspaceMember.role.in_(space_roles)).correlate(None)
-        return and_(Document.id.not_in(branches), or_(and_(Document.id.not_in(scoped), legacy), Document.id.in_(membership)))
+        invitations = select(WorkspaceShare.document_id).join(WorkspaceDocument,
+            and_(WorkspaceDocument.document_id == WorkspaceShare.document_id,
+                 WorkspaceDocument.workspace_id == WorkspaceShare.workspace_id)).where(
+            WorkspaceShare.user_id == user, WorkspaceShare.role.in_(grant_roles)).correlate(None)
+        return and_(Document.id.not_in(branches), or_(and_(Document.id.not_in(scoped), legacy),
+                     Document.id.in_(membership), Document.id.in_(invitations)))
     readable_sources = select(Document.id).where(ordinary("read"), ~document_is_trashed(Document.id)).correlate(None)
     own_branches = select(DocumentBranch.document_id).where(DocumentBranch.owner_id == user,
         DocumentBranch.source_document_id.in_(readable_sources)).correlate(None)

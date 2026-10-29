@@ -46,7 +46,7 @@ def install_document_copy(app, locked, publish, doc_dict):
             locked(db, source_id, request.state.user, "reader")
             from .workspaces import require_copyable_source, inherit_copy_scope, require_copy_retry, document_workspace_info
             from .library_access import document_role
-            require_copyable_source(db, source_id)
+            require_copyable_source(db, source_id, request.state.user)
             version = db.get(Version, str(value.source_version))
             if not version or version.document_id != source_id:
                 raise HTTPException(404, "원본 문서의 저장 버전을 찾을 수 없습니다.")
