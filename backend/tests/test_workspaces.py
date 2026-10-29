@@ -124,7 +124,7 @@ def test_assignment_requires_original_owner_target_manager_and_no_lease(spaces):
     assert c.put(f"/api/documents/{doc['id']}/workspace", json=payload).status_code == 409
     assert c.delete(f"/api/documents/{doc['id']}/session", headers={"X-Edit-Session": token}).status_code == 200
     assert login(c, "writer").status_code == 200
-    assert c.put(f"/api/documents/{doc['id']}/workspace", json=payload).status_code == 403
+    assert c.put(f"/api/documents/{doc['id']}/workspace", json=payload).status_code == 404
     assert login(c, "manager").status_code == 200
     assert c.put(f"/api/documents/{doc['id']}/workspace", json={**payload, "expected_version": str(uuid.uuid4())}).status_code == 409
     assert c.put(f"/api/documents/{doc['id']}/workspace", json=payload).status_code == 200
@@ -246,6 +246,10 @@ def test_invited_branch_scope_matches_listing_and_rechecks_source_editor(spaces)
 def test_shared_source_never_implicitly_grants_private_branch_participation(spaces):
     c, app, _, _ = spaces
     source, token = create(c)
+    # Model an existing legacy shared document; new uploads are now private.
+    from app.document_library import PersonalDocument
+    with transaction(app.state.engine) as db:
+        db.delete(db.get(PersonalDocument, source['id']))
     assert c.delete(f"/api/documents/{source['id']}/session", headers={"X-Edit-Session": token}).status_code == 200
     branch = create_work_copy(c, source, "비공개 분기 이름.hwpx")
     assert c.put(f"/api/documents/{branch['id']}/branch-participants/writer").status_code == 200

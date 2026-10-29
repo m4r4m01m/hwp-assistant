@@ -187,7 +187,8 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
             from .library_access import require_individual_grants
             require_individual_grants(db, doc_id)
             from .library_access import shared_library
-            if shared_library(db, request.state.user):
+            from .document_library import PersonalDocument
+            if shared_library(db, request.state.user) and not db.get(PersonalDocument, doc_id):
                 raise HTTPException(409, "공용 문서함은 모든 활성 승인 계정이 함께 사용합니다.")
             row = db.get(Access, (doc_id, value.user_id))
             if row and row.role == "owner":
@@ -214,7 +215,8 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
             from .library_access import require_individual_grants
             require_individual_grants(db, doc_id)
             from .library_access import shared_library
-            if shared_library(db, request.state.user):
+            from .document_library import PersonalDocument
+            if shared_library(db, request.state.user) and not db.get(PersonalDocument, doc_id):
                 raise HTTPException(409, "공용 문서함은 모든 활성 승인 계정이 함께 사용합니다.")
             row = db.get(Access, (doc_id, user_id))
             if row and row.role == "owner":

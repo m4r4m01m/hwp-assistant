@@ -243,6 +243,10 @@ def create_app(database_url=None, storage_dir=None):
                     409, "이 저장 이후 새 버전이 생겼습니다. 최신 문서를 다시 여세요."
                 )
             return existing  # Already committed receipt; does not renew or modify anything.
+        if account_policy.enabled and doc.current_version is None:
+            from .document_library import PersonalDocument
+            if not db.get(PersonalDocument, doc.id):
+                db.add(PersonalDocument(document_id=doc.id, owner_id=author_id))
         if cause != "upload":
             check_lease(doc, token)
             if doc.current_version != base:
@@ -383,6 +387,7 @@ def create_app(database_url=None, storage_dir=None):
     @app.get("/api/documents")
     def documents(request: Request, q: str = Query("", max_length=200)):
         from .workspaces import document_workspace_info
+        from .document_library import library_info
         from .document_branches import DocumentBranch
         with Session(engine) as db:
             management = document_management_scope(db, request.state.user)
@@ -392,7 +397,7 @@ def create_app(database_url=None, storage_dir=None):
                     .where(Document.name.contains(q, autoescape=True)).order_by(Document.created_at.desc())):
                 branch = db.get(DocumentBranch, d.id)
                 result.append({**doc_dict(d), "role": document_role(db, d.id, request.state.user), "can_trash": bool(can_trash),
-                    **document_workspace_info(db, d.id, request.state.user), "branch_source_id": branch.source_document_id if branch else None})
+                    **document_workspace_info(db, d.id, request.state.user), **library_info(db, d.id, request.state.user), "branch_source_id": branch.source_document_id if branch else None})
             return result
 
     @app.post("/api/documents")
@@ -723,6 +728,8 @@ def create_app(database_url=None, storage_dir=None):
     install_document_branches(app, publish, doc_dict)
     from .workspaces import install_workspaces
     install_workspaces(app)
+    from .document_library import install_document_library
+    install_document_library(app)
     app.add_middleware(RequestTelemetry, runtime=app)
     return app
 

@@ -269,7 +269,7 @@ function BranchParticipants({branch, disabled, onUpdated}: {branch:Branch;disabl
   </details>;
 }
 
-function BranchPreview({title, url}: {title: string; url: string}) {
+export function BranchPreview({title, url}: {title: string; url: string}) {
   const host = useRef<HTMLDivElement>(null), adapter = useRef<EditorAdapter | null>(null);
   const [page, setPage] = useState(0), [pages, setPages] = useState(0), [svg, setSvg] = useState(""), [error, setError] = useState("");
   useEffect(() => {

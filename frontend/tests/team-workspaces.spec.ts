@@ -11,6 +11,7 @@ async function setup(page: Page) {
     if (path === "/api/capabilities") return ok({ features: {} });
     if (path === "/api/documents") return ok([doc]);
     if (path === "/api/workspaces") return ok([space]);
+    if (path === "/api/folders") return ok([]);
     if (path === "/api/workspaces/team1/members") return ok([{ user_id: "manager", role: "manager" }]);
     if (path === "/api/workspaces/team1/members/manager") return ok({ detail: "마지막 활성 공간 관리자는 제거하거나 권한을 낮출 수 없습니다." }, 409);
     if (path === "/api/documents/doc1/workspace") { changes.push(route.request().postDataJSON()); return ok({ ok: true, workspace_id: "team1" }); }
@@ -22,7 +23,7 @@ async function setup(page: Page) {
 }
 test("MOCK spaces: manager cannot remove the last manager; accessible dialog fits mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 }); await setup(page);
-  await page.getByRole("button", { name: "팀·부서 공간 관리" }).click();
+  await page.getByRole("button", { name: "공유 문서함 관리" }).click();
   const dialog = page.getByRole("dialog", { name: "팀·부서 공간", exact: true });
   await expect(dialog).toContainText("하위 팀 권한은 자동으로 생기지 않습니다");
   await dialog.getByLabel("manager 권한").selectOption("reader");
@@ -52,6 +53,7 @@ test("MOCK spaces: manager shares one team document even in legacy shared-librar
     if(path==='/api/auth/me')return ok({user_id:'manager',authentication_required:true,is_admin:true,library_access_mode:'shared'});
     if(path==='/api/capabilities')return ok({features:{}});
     if(path==='/api/workspaces')return ok([space]);
+    if(path==='/api/folders')return ok([]);
     if(path==='/api/documents')return ok([{...doc,workspace_id:space.id,workspace_name:space.name}]);
     if(path==='/api/documents/doc1/access'){
       if(method==='PUT')grants=[route.request().postDataJSON()];
@@ -82,10 +84,11 @@ test("MOCK spaces: invited reader finds only individually shared rows and cannot
     if(path==='/api/auth/me')data={user_id:'test4',authentication_required:true,library_access_mode:'shared'};
     if(path==='/api/capabilities')data={features:{}};
     if(path==='/api/workspaces')data=[];
+    if(path==='/api/folders')data=[];
     if(path==='/api/documents')data=[{...doc,role:'reader',can_trash:false,workspace_id:space.id,workspace_name:space.name,shared_with_me:true},{...doc,id:'other',name:'기존 문서.hwpx'}];
     return route.fulfill({json:data});
   });
-  await page.goto('/');await page.getByLabel('문서 공간',{exact:true}).selectOption('shared-with-me');
+  await page.goto('/');await page.getByRole('navigation',{name:'문서함 위치'}).getByRole('button',{name:'공유받은 문서',exact:true}).click();
   await expect(page.getByRole('button',{name:doc.name,exact:true})).toBeVisible();await expect(page.getByRole('button',{name:'기존 문서.hwpx',exact:true})).toHaveCount(0);
   await expect(page.getByText('보안팀 · 개별 공유 · 열람',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:doc.name+' 더보기'}).click();await expect(page.getByRole('button',{name:'공유 권한',exact:true})).toHaveCount(0);

@@ -18,7 +18,7 @@ export function TeamWorkspaces({ account, document, onClose, onUpdated }: {
   const [name, setName] = useState(""), [kind, setKind] = useState<"department" | "team">("department"), [parent, setParent] = useState("");
   const [user, setUser] = useState(""), [role, setRole] = useState<Member["role"]>("reader");
   const pendingCreate = useRef<{ id: string; name: string; kind: string; parent_id: string | null } | null>(null);
-  const pendingAssign = useRef<{ workspace_id: string; expected_version: string } | null>(null);
+  const pendingAssign = useRef<{ workspace_id: string | null; expected_version: string } | null>(null);
   const gate = useRef(false);
   const dialog = useRef<HTMLElement | null>(null);
   const close = () => {
@@ -55,16 +55,17 @@ export function TeamWorkspaces({ account, document, onClose, onUpdated }: {
       const rows = await refresh(); if (!document && rows.some(row => row.id === selected)) setMembers(await api<Member[]>(`/workspaces/${selected}/members`));
     })}>다시 불러오기</button>}</div>}{notice && <p role="status">{notice}</p>}
     {loading ? <p role="status">공간을 불러오는 중…</p> : <>
-      <label>공간 선택<select value={selected} disabled={busy || !!pendingAssign.current} onChange={e => { setSelected(e.target.value); setError(""); setNotice(""); }}><option value="">공간을 선택하세요</option>{spaces.map(s => <option key={s.id} value={s.id}>{s.kind === "department" ? "부서" : "팀"} · {s.name}{s.role ? ` · ${roleName[s.role]}` : ""}</option>)}</select></label>
+      <label>공간 선택<select value={selected} disabled={busy || !!pendingAssign.current} onChange={e => { setSelected(e.target.value); setError(""); setNotice(""); }}><option value="">{document ? "내 문서함 · 비공개" : "공간을 선택하세요"}</option>{spaces.map(s => <option key={s.id} value={s.id}>{s.kind === "department" ? "부서" : "팀"} · {s.name}{s.role ? ` · ${roleName[s.role]}` : ""}</option>)}</select></label>
       {!spaces.length && <p className="hint">참여 중인 공간이 없습니다.{account.is_admin && !document ? " 아래에서 공간을 만들 수 있습니다." : " 공간 관리자에게 참여를 요청하세요."}</p>}
       {document ? <div className="team-space-assignment"><h3>{document.name}</h3><p>이 문서를 선택한 공간의 구성원에게 공개합니다. 이동하면 이전의 개별 공유 권한은 해제됩니다. 다른 팀 사람은 이동 후 공유 권한에서 다시 초대하세요. 문서 이력과 원본은 보존됩니다.</p>
-        <button className="primary" disabled={busy || !space || space.role !== "manager" || document.workspace_id === selected} onClick={() => {
-          if (!pendingAssign.current && !confirm(`“${document.name}”의 접근 범위를 “${space?.name}” 공간으로 변경할까요?`)) return;
-          void act(async () => { const frozen = pendingAssign.current ||= { workspace_id: selected, expected_version: document.current_version };
+        {!selected&&<p>내 문서함으로 옮기면 기존 팀과 개별 초대자의 접근 권한이 해제됩니다.</p>}
+        <button className="primary" disabled={busy || (selected ? !space || space.role !== "manager" || document.workspace_id === selected : !document.workspace_id && document.personal_document)} onClick={() => {
+          if (!pendingAssign.current && !confirm(selected ? `“${document.name}”의 접근 범위를 “${space?.name}” 문서함으로 변경할까요?` : `“${document.name}”을 비공개로 전환하고 다른 사람의 접근 권한을 해제할까요?`)) return;
+          void act(async () => { const frozen = pendingAssign.current ||= { workspace_id: selected || null, expected_version: document.current_version };
             try { await api(`/documents/${document.id}/workspace`, jsonRequest("PUT", frozen)); pendingAssign.current = null; onClose(); }
             catch (e) { if (e instanceof ApiError && e.status >= 400 && e.status < 500) pendingAssign.current = null; throw e; }
           });
-        }}>{pendingAssign.current ? "같은 배치 요청 재확인" : "이 공간에 문서 배치"}</button><p className="hint">문서의 원 소유자이면서 대상 공간 관리자여야 합니다. 열려 있는 편집은 먼저 종료하세요.</p></div> : <>
+        }}>{pendingAssign.current ? "같은 배치 요청 재확인" : selected ? "이 공간에 문서 배치" : "내 문서함으로 이동"}</button><p className="hint">문서의 원 소유자이면서 공유 문서함 관리자여야 합니다. 열려 있는 편집은 먼저 종료하세요.</p></div> : <>
         {space && <div><h3>구성원과 권한</h3>{membersLoading && <p role="status">구성원을 불러오는 중…</p>}<ul className="team-members">{members.map(m => <li key={m.user_id}><strong>{m.user_id}</strong><span>{roleName[m.role]}</span>{space.role === "manager" && <>
           <select aria-label={`${m.user_id} 권한`} value={m.role} disabled={busy} onChange={e => void memberChange(m.user_id, e.target.value as Member["role"])}>{Object.entries(roleName).map(([v, label]) => <option key={v} value={v}>{label}</option>)}</select>
           <button disabled={busy} onClick={() => { if (confirm(`${m.user_id}의 공간 접근 권한을 회수할까요?`)) void memberChange(m.user_id); }}>제외</button></>}</li>)}</ul>

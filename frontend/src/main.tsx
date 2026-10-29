@@ -2,6 +2,7 @@ import { AccountGate, clearAccountWorkspaceState, type Account } from "./account
 import { SessionViewer } from "./session-viewer";
 import { TeamWorkspaces, type TeamSpace } from "./team-workspaces";
 import { DocumentBranches } from "./document-branches";
+import { LibraryLocations, LibraryDetails, folderPath, libraryViews, type LibraryFolder } from "./document-explorer";
 import React, { useEffect, useRef, useState } from "react";
 const Coedit = React.lazy(() => import("./coedit").then(module => ({default: module.Coedit})));
 import { createRoot } from "react-dom/client";
@@ -89,6 +90,9 @@ function App({
   const [spacePanel, setSpacePanel] = useState<{ document?: Document } | null>(null);
   const [spaces, setSpaces] = useState<TeamSpace[]>([]);
   const [spaceFilter, setSpaceFilter] = useState("");
+  const [folders, setFolders] = useState<LibraryFolder[]>([]);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const reloadFolders = () => void api<LibraryFolder[]>("/folders").then(setFolders).catch(e => setError(errorMessage(e)));
   const [trashDialog, setTrashDialog] = useState<{ document: Document | null } | null>(null);
   const [managingAccounts, setManagingAccounts] = useState(false);
   const listGeneration = useRef(0), listController = useRef<AbortController | null>(null);
@@ -118,6 +122,7 @@ function App({
     if (!inLibrary) return;
     const controller = new AbortController();
     void api<TeamSpace[]>("/workspaces", { signal: controller.signal }).then(setSpaces).catch(e => { if (!controller.signal.aborted) setError(errorMessage(e)); });
+    void api<LibraryFolder[]>("/folders", { signal: controller.signal }).then(setFolders).catch(e => { if (!controller.signal.aborted) setError(errorMessage(e)); });
     return () => controller.abort();
   }, [inLibrary]);
   useAiSetupLanding(inLibrary && !loading && !copying && !uploading && !history && !sharing && !trashDialog);
@@ -144,7 +149,7 @@ function App({
       dragDepth.current = 0;
     };
   }, [inLibrary, history, sharing, trashDialog]);
-  const sortedDocs = docs.filter(d => !spaceFilter || (spaceFilter === "shared-with-me" ? d.shared_with_me : spaceFilter === "unassigned" ? !d.workspace_id : d.workspace_id === spaceFilter)).sort((a, b) => sort === "name" ? a.name.localeCompare(b.name, "ko", { numeric: true }) || a.id.localeCompare(b.id)
+  const sortedDocs = docs.filter(d => !spaceFilter || (spaceFilter.startsWith("folder:") ? d.folder_id === spaceFilter.slice(7) : spaceFilter === "mine" ? d.personal_document && d.owned_by_me && !d.workspace_id && !d.branch_source_id : spaceFilter === "branches" ? !!d.branch_source_id : spaceFilter === "shared-with-me" ? d.shared_with_me || d.individually_shared : spaceFilter === "unassigned" ? !d.workspace_id && !d.personal_document && !d.branch_source_id : d.workspace_id === spaceFilter)).sort((a, b) => sort === "name" ? a.name.localeCompare(b.name, "ko", { numeric: true }) || a.id.localeCompare(b.id)
     : sort === "oldest" ? a.created_at - b.created_at || a.id.localeCompare(b.id) : b.created_at - a.created_at || a.id.localeCompare(b.id));
   const refresh = () => {
     const generation = ++listGeneration.current;
@@ -156,6 +161,26 @@ function App({
       .catch((e) => { if (generation === listGeneration.current && !isAbortError(e)) setError(errorMessage(e)); })
       .finally(() => { if (generation === listGeneration.current) setLoading(false); });
   };
+  const selectedDocument = docs.find(d => d.id === selectedFile);
+  const activeFolder = folders.find(f => "folder:" + f.id === spaceFilter);
+  const canShare = (d: Document) => account.authentication_required && (d.workspace_id || d.personal_document || account.library_access_mode !== "shared") && d.role === "owner" && !d.branch_source_id;
+  const selectLocation = (value: string) => { setSpaceFilter(value); setSelectedFile(null); setExpandedDocument(null); };
+  async function moveToFolder(id: string, folder: string | null) {
+    await api(`/documents/${id}/folder`, jsonRequest("PUT", { folder_id: folder })); refresh();
+  }
+  async function editFolder(remove = false) {
+    if (!activeFolder) return;
+    try {
+      if (remove) {
+        if (!confirm("폴더를 삭제할까요? 문서와 공유 권한은 그대로 유지됩니다.")) return;
+        await api(`/folders/${activeFolder.id}`, { method: "DELETE" }); selectLocation("mine");
+      } else {
+        const name = prompt("폴더 이름", activeFolder.name); if (!name) return;
+        await api(`/folders/${activeFolder.id}`, jsonRequest("PUT", { name, parent_id: activeFolder.parent_id }));
+      }
+      reloadFolders(); refresh();
+    } catch(e) { setError(errorMessage(e)); }
+  }
   useEffect(() => { refresh(); return () => { listController.current?.abort(); listGeneration.current++; }; }, [searchQuery]);
   function navigate(section: WorkspaceSection) {
     setBranchDocument(null); setSpacePanel(null);
@@ -310,12 +335,16 @@ function App({
       <header className="library-heading">
         <div>
           <h1>HWPX 문서함</h1>
-          <p>개인 작업본에서 수정하고 통합 요청으로 검토받으세요.</p>
+          <p>내 문서를 정리하고 필요한 사람에게 공유하세요.</p>
         </div>
-        <span className="library-document-count">{docs.length}개 문서</span>
+        <span className="library-document-count">{sortedDocs.length}개 문서</span>
       </header>
-      <div className="library-space-filter"><label>문서 공간 <select aria-label="문서 공간" value={spaceFilter} onChange={e => setSpaceFilter(e.target.value)} onFocus={() => void api<TeamSpace[]>("/workspaces").then(setSpaces).catch(e => setError(errorMessage(e)))}><option value="">접근 가능한 모든 문서</option><option value="shared-with-me">나에게 개별 공유된 문서</option><option value="unassigned">기존 문서함·개인 작업본</option>{spaces.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label><button onClick={() => setSpacePanel({})}>팀·부서 공간 관리</button></div>
-      <p className="hint">공간 선택은 목록 필터입니다. 새 업로드·보고서는 기존 문서함에 저장되며, 더보기 → 공간 지정으로 접근 범위를 설정합니다.</p>
+      <div className={`library-explorer${selectedDocument ? " has-details" : ""}`}>
+      <LibraryLocations folders={folders} spaces={spaces} value={spaceFilter} onSelect={selectLocation} onUpdated={reloadFolders} onMove={moveToFolder} onManage={() => setSpacePanel({})} onTrash={() => setTrashDialog({document:null})}/>
+      <section className="library-files" aria-label="현재 위치의 문서">
+      <nav className="library-breadcrumb" aria-label="현재 위치"><strong>{activeFolder ? `내 폴더 / ${folderPath(folders,activeFolder.id)}` : libraryViews[spaceFilter] || spaces.find(s=>s.id===spaceFilter)?.name || "문서함"}</strong>{activeFolder&&<><button onClick={()=>selectLocation(activeFolder.parent_id?'folder:'+activeFolder.parent_id:'mine')}>상위 폴더</button><button onClick={()=>void editFolder()}>폴더 이름 변경</button><button onClick={()=>void editFolder(true)}>폴더 삭제</button></>}</nav>
+      {(spaceFilter==='mine'||activeFolder)&&<div className="library-folder-cards">{folders.filter(f=>f.parent_id===(activeFolder?.id||null)).map(f=><button key={f.id} onClick={()=>selectLocation('folder:'+f.id)}><WorkspaceIcon name="file"/>{f.name}</button>)}</div>}
+      <p className="hint">새 업로드·보고서는 내 문서함에 비공개로 저장됩니다. 공유 문서함 공개는 더보기 → 공간 지정에서 선택하세요.</p>
       <div className="library-drop-hint" role="region" aria-label="HWPX 파일 놓기" aria-busy={uploading}>
         <WorkspaceIcon name="upload" size={22}/><div><strong>{uploading ? "파일을 업로드하고 있습니다…" : dragOver ? "여기에 놓아 새 문서로 가져오세요" : "HWPX 파일을 이 문서함에 끌어 놓으세요"}</strong>
           <p>파일 한 개씩 · 최대 30MB · 기존 문서는 그대로 유지됩니다.</p></div>
@@ -353,9 +382,9 @@ function App({
       )}
       {loading && docs.length === 0 ? (
         <p role="status">문서 목록을 불러오는 중…</p>
-      ) : docs.length === 0 ? (
+      ) : sortedDocs.length === 0 ? (
         <div className="empty">
-          {query ? "검색 결과가 없습니다. 다른 이름으로 검색해 보세요." : "아직 저장한 문서가 없습니다. 보고서를 작성하거나 HWPX 파일을 가져오세요."}
+          {query ? "검색 결과가 없습니다. 다른 이름으로 검색해 보세요." : "이 위치에 문서가 없습니다. 내 문서함에 새 문서를 만들거나 문서 정보에서 폴더를 지정하세요."}
         </div>
       ) : (
         <div className="library-table-wrap"><table className="library-table">
@@ -368,15 +397,17 @@ function App({
           </thead>
           <tbody>
             {sortedDocs.map((d) => (
-              <React.Fragment key={d.id}><tr>
+              <React.Fragment key={d.id}><tr aria-selected={selectedFile===d.id} draggable onDragStart={e=>e.dataTransfer.setData('application/x-hwp-document',d.id)} onClick={e=>{if(!(e.target as Element).closest('button, input, select, a, label'))setSelectedFile(d.id);}}>
                 <td className="library-document-name">
                   <button className="link" onClick={() => setActive(d)}>
                     <WorkspaceIcon name="documents"/><span>{d.name}</span>
                   </button>
                   {(d.workspace_name || d.branch_source_id) && <span className="library-space-tag">{d.branch_source_id ? "개인 작업본" : d.shared_with_me ? `${d.workspace_name} · 개별 공유 · ${d.role === "reader" ? "열람" : "편집"}` : d.workspace_name}</span>}
+                  {!d.workspace_id&&!d.branch_source_id&&<span className="library-space-tag">{d.personal_document ? d.individually_shared ? '공유받은 개인 문서' : '개인 문서' : '기존 문서함'}</span>}
                 </td>
                 <td>{new Date(d.created_at * 1000).toLocaleString("ko-KR")}</td>
                 <td className="library-document-actions">
+                  <button aria-label={`${d.name} 문서 정보`} onClick={()=>setSelectedFile(d.id)}><WorkspaceIcon name="review" size={17}/><span>정보</span></button>
                   <SavedDownload document={d} />
                   <button onClick={() => setBranchDocument(d)}><WorkspaceIcon name="history" size={17}/><span>문서 이력</span></button>
                   <span className="library-delete-action" title={d.can_trash ? "휴지통으로 이동하며 나중에 복구할 수 있습니다." : account.library_access_mode === "shared" ? "이 문서를 삭제할 권한이 없습니다." : "개인 문서함에서는 문서 소유자만 삭제할 수 있습니다."}>
@@ -459,7 +490,7 @@ function App({
                       }}
                     />
                   </label>
-                  {account.authentication_required && (d.workspace_id || account.library_access_mode !== "shared") && d.role === "owner" && !d.branch_source_id && (
+                  {canShare(d) && (
                     <button aria-label="공유 권한" title="공유 권한" onClick={() => setSharing(d)}><WorkspaceIcon name="share" size={17}/><span>공유 권한</span></button>
                   )}
                   {d.role !== "reader" && (
@@ -476,6 +507,9 @@ function App({
           </tbody>
         </table></div>
       )}
+      </section>
+      {selectedDocument&&<LibraryDetails key={selectedDocument.id} doc={selectedDocument} folders={folders} canShare={!!canShare(selectedDocument)} onClose={()=>setSelectedFile(null)} onOpen={()=>setActive(selectedDocument)} onHistory={()=>setBranchDocument(selectedDocument)} onShare={()=>setSharing(selectedDocument)} onMove={moveToFolder}/>}
+      </div>
       {trashDialog && <DocumentTrashDialog document={trashDialog.document} shared={account.library_access_mode === "shared"} onClose={() => setTrashDialog(null)} onChanged={() => { setExpandedDocument(null); refresh(); }} />}
       {spacePanel && <TeamWorkspaces account={account} document={spacePanel.document} onClose={() => setSpacePanel(null)} onUpdated={() => { refresh(); void api<TeamSpace[]>("/workspaces").then(setSpaces).catch(e => setError(errorMessage(e))); }} />}
       {branchDocument && <DocumentBranches document={branchDocument} onClose={() => setBranchDocument(null)} onOpen={setActive} onCoedit={setCoeditDocument} onRestore={restoreTimeline} onUpdated={refresh} />}

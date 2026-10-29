@@ -114,7 +114,7 @@ class MemberRole(BaseModel):
 
 class AssignWorkspace(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    workspace_id: uuid.UUID
+    workspace_id: uuid.UUID | None
     expected_version: uuid.UUID
 
 
@@ -267,10 +267,23 @@ def install_workspaces(app):
             grant = db.get(Access, (doc_id, request.state.user), populate_existing=True)
             if not grant or grant.role != "owner":
                 raise HTTPException(403, "문서의 원 소유자만 공간을 지정할 수 있습니다.")
-            space, _ = workspace_access(db, str(value.workspace_id), request.state.user, manager=True, lock=True)
             if doc.current_version != str(value.expected_version):
                 raise HTTPException(409, "문서가 변경됐습니다. 최신 저장본을 확인하세요.")
             row = db.get(WorkspaceDocument, doc_id, populate_existing=True)
+            if value.workspace_id is None:
+                from .document_library import PersonalDocument
+                if not row and db.get(PersonalDocument, doc_id):
+                    return {"ok": True, "workspace_id": None}
+                if doc.lease_token and doc.lease_until > time.time():
+                    raise HTTPException(409, "편집 중인 문서는 이동할 수 없습니다. 저장 후 편집을 종료하세요.")
+                if row: db.delete(row)
+                db.execute(delete(WorkspaceShare).where(WorkspaceShare.document_id == doc_id))
+                db.execute(delete(Access).where(Access.document_id == doc_id, Access.user_id != request.state.user))
+                if not db.get(PersonalDocument, doc_id):
+                    db.add(PersonalDocument(document_id=doc_id, owner_id=request.state.user))
+                record_event(db, request.state.user, "document.make_private", "document", doc_id, document_id=doc_id)
+                return {"ok": True, "workspace_id": None}
+            space, _ = workspace_access(db, str(value.workspace_id), request.state.user, manager=True, lock=True)
             if row and row.workspace_id == space.id:
                 return {"ok": True, "workspace_id": space.id}
             if doc.lease_token and doc.lease_until > time.time():

@@ -56,7 +56,8 @@ def document_role(db, document_id, user, *, fresh=False):
         roles = [{"manager": "owner", "editor": "editor", "reader": "reader"}.get(member.role) if member else None,
                  share.role if share else None]
         return next((role for role in ("owner", "editor", "reader") if role in roles), None)
-    if shared_library(db, user):
+    from .document_library import PersonalDocument
+    if shared_library(db, user) and not db.get(PersonalDocument, document_id):
         return "owner"
     from .db import Access
     grant = db.get(Access, (document_id, user), populate_existing=fresh)
@@ -73,6 +74,7 @@ def _scope(db, user, *, manage=False):
     from .db import Access, Document, document_is_trashed
     from .document_branches import BranchParticipant, DocumentBranch
     from .workspaces import WorkspaceDocument, WorkspaceMember, WorkspaceShare
+    from .document_library import PersonalDocument
     if os.getenv("HWP_ACCOUNTS_ENABLED", "0") == "1":
         from .accounts import UserAccount
         account = db.get(UserAccount, user, populate_existing=True)
@@ -83,8 +85,9 @@ def _scope(db, user, *, manage=False):
     def ordinary(level):
         grant_roles = {"read": ("reader", "editor", "owner"), "edit": ("editor", "owner"), "manage": ("owner",)}[level]
         space_roles = {"read": ("reader", "editor", "manager"), "edit": ("editor", "manager"), "manage": ("manager",)}[level]
-        legacy = true() if shared_library(db, user) else Document.id.in_(select(Access.document_id).where(
+        explicit = Document.id.in_(select(Access.document_id).where(
             Access.user_id == user, Access.role.in_(grant_roles)).correlate(None))
+        legacy = or_(Document.id.not_in(select(PersonalDocument.document_id)), explicit) if shared_library(db, user) else explicit
         membership = select(WorkspaceDocument.document_id).join(WorkspaceMember,
             WorkspaceMember.workspace_id == WorkspaceDocument.workspace_id).where(
             WorkspaceMember.user_id == user, WorkspaceMember.role.in_(space_roles)).correlate(None)

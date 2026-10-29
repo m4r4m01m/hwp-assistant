@@ -11,6 +11,10 @@ export type Document = {
   can_trash?: boolean;
   workspace_id?: string | null;
   shared_with_me?: boolean;
+  personal_document?: boolean;
+  owned_by_me?: boolean;
+  individually_shared?: boolean;
+  folder_id?: string | null;
   workspace_name?: string | null;
   branch_source_id?: string | null;
 };
