@@ -246,4 +246,4 @@ jobs:
       - name: Check the public Funnel route without sending login credentials
         run: |
           python3 scripts/deploy/smoke.py \
-            --url https://pseudowasabi-svr.taile7b6c4.ts.net/hwp-assistant/
+            --url https://pwsb-svr.taile7b6c4.ts.net/hwp-assistant/
