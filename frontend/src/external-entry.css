@@ -1,0 +1,8 @@
+.external-entry { min-height: 100dvh; display: grid; place-items: center; padding: 24px; box-sizing: border-box; background: #f3f5f8; }
+.external-entry > section { width: min(100%, 560px); padding: 28px; box-sizing: border-box; background: white; border: 1px solid #dce2eb; border-radius: 16px; }
+.external-entry h1 { font-size: 1.35rem; margin-top: 0; }
+.external-entry p { line-height: 1.65; overflow-wrap: anywhere; }
+.external-entry button { margin: 8px 8px 0 0; }
+.external-saved-document { height: 100dvh; display: flex; flex-direction: column; }
+.external-saved-document .session-viewer { flex: 1; height: auto; min-height: 0; }
+.external-entry-status { padding: 12px 20px; background: #fff4d6; }

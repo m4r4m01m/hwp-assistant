@@ -70,11 +70,22 @@ def create_app(database_url=None, storage_dir=None):
         initialize_accounts(engine, account_policy, users)
         from .account_notifications import notification_loop
         notifications = asyncio.create_task(notification_loop(engine)) if account_policy.enabled else None
+        from .mattermost_worker import bot_loop
+        from .document_search import search_index_loop
+        bot_stop = asyncio.Event()
+        bot = asyncio.create_task(bot_loop(app, bot_stop)) if account_policy.enabled and os.getenv("HWP_MATTERMOST_BOT_ENABLED") == "1" else None
+        search_stop = asyncio.Event()
+        search = asyncio.create_task(search_index_loop(engine, folder, search_stop)) if bot or os.getenv("HWP_SEARCH_ENABLED") == "1" else None
         try:
             async with pooled_client() as client:
                 app.state.llm_client = client
                 yield
         finally:
+            bot_stop.set()
+            search_stop.set()
+            # Drain in-flight DB/network work before disposing the engine.
+            # Cancelling run_in_threadpool does not stop its underlying thread.
+            await asyncio.gather(*(task for task in (bot, search) if task is not None))
             if notifications is not None:
                 notifications.cancel()
                 with suppress(asyncio.CancelledError):
@@ -109,6 +120,10 @@ def create_app(database_url=None, storage_dir=None):
                 ("POST", "/api/auth/login"), ("POST", "/api/auth/logout"),
                 ("POST", "/api/auth/password-login"), ("POST", "/api/auth/register"),
             }
+            # Exact integration entry points authenticate their own bounded
+            # Mattermost token/state before resolving any application identity.
+            from .mattermost import INGRESS
+            public = public or (request.method, path) in INGRESS
             if api_path and not public:
                 authorization = request.headers.get("authorization", "")
                 scheme, _, token = authorization.partition(" ")
@@ -724,6 +739,8 @@ def create_app(database_url=None, storage_dir=None):
     install_ai_connection(app)
     from .coedit import install_coedit
     install_coedit(app, publish, doc_dict)
+    from .mattermost import install_mattermost
+    install_mattermost(app)
     app.add_middleware(RequestTelemetry, runtime=app)
     return app
 
