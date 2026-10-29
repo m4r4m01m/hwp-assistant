@@ -309,7 +309,7 @@ function App({
     );
   return (
     <div className="workspace-shell library-shell">
-      <WorkspaceNav active="documents" onNavigate={navigate} disabled={copying || uploading} footer={<><strong>{account.authentication_required ? account.user_id : "개인 작업 공간"}</strong><details className="library-account-note"><summary>이용 안내</summary><p>{account.authentication_required ? account.library_access_mode === "shared" ? "공용 문서함입니다. 저장·수정 작업은 로그인한 계정으로 기록됩니다." : "문서별 열람·편집·소유자 권한과 대화 공개 범위가 적용됩니다." : "현재 이 컴퓨터의 개인 문서함입니다. 사용자 간 공유는 서버 인증 설정 후 사용할 수 있습니다."}</p><p>저장본은 이전 버전을 보존합니다. 한컴 호환성은 실제 파일로 확인하세요.</p></details><AccountPasswordChange account={account} />{(account.authentication_required || account.is_admin) && <div className="workspace-account-actions">{account.authentication_required && <button onClick={async () => { await api("/auth/logout", { method: "POST" }); clearAccountWorkspaceState(); location.reload(); }}>로그아웃</button>}{account.is_admin && <button onClick={() => setManagingAccounts(true)}>계정 관리</button>}</div>}</>}>
+      <WorkspaceNav active="documents" onNavigate={navigate} disabled={copying || uploading} footer={<><strong>{account.authentication_required ? account.user_id : "개인 작업 공간"}</strong><details className="library-account-note"><summary>이용 안내</summary><p>{account.authentication_required ? account.library_access_mode === "shared" ? "새 문서는 비공개로 저장됩니다. 기존 공용 문서와 공유 문서는 각 문서의 권한을 따릅니다." : "문서별 열람·편집·소유자 권한과 대화 공개 범위가 적용됩니다." : "현재 이 컴퓨터의 개인 문서함입니다. 사용자 간 공유는 서버 인증 설정 후 사용할 수 있습니다."}</p><p>저장본은 이전 버전을 보존합니다. 한컴 호환성은 실제 파일로 확인하세요.</p></details><AccountPasswordChange account={account} />{(account.authentication_required || account.is_admin) && <div className="workspace-account-actions">{account.authentication_required && <button onClick={async () => { await api("/auth/logout", { method: "POST" }); clearAccountWorkspaceState(); location.reload(); }}>로그아웃</button>}{account.is_admin && <button onClick={() => setManagingAccounts(true)}>계정 관리</button>}</div>}</>}>
         <button className="primary workspace-nav-action" aria-label="빈 문서 만들기" disabled={uploading} onClick={() => setCreating(true)}><WorkspaceIcon name="plus"/><span>빈 문서 만들기</span></button>
         <label className="button workspace-nav-action" title="HWPX 업로드"><WorkspaceIcon name="upload"/><span>HWPX 업로드</span><input aria-label="HWPX 업로드" type="file" accept=".hwpx" disabled={uploading || !!uploadPending} onChange={event => { if (event.target.files?.[0]) void incoming(event.target.files[0]); event.target.value = ""; }} /></label>
         <p className="workspace-nav-note">문서를 만들거나 기존 HWPX를 가져와 작업하세요.</p>
@@ -362,7 +362,6 @@ function App({
         <option value="newest">최근 등록순</option><option value="oldest">오래된 등록순</option><option value="name">이름순</option>
       </select></label>
       <button aria-label="문서 목록 새로고침" title="문서 목록 새로고침" disabled={loading} onClick={refresh}><WorkspaceIcon name="refresh" size={18}/></button>
-      <button className="library-trash-button" disabled={copying || uploading} onClick={() => setTrashDialog({ document: null })}><WorkspaceIcon name="trash" size={18}/>휴지통</button>
       </div>
       {loading && docs.length > 0 && <p role="status">문서 목록을 갱신하는 중…</p>}
       {copyPending && <div className="notice">{copyPending.source.name}의 저장본 복제를 확인 중입니다.
@@ -407,9 +406,9 @@ function App({
                 </td>
                 <td>{new Date(d.created_at * 1000).toLocaleString("ko-KR")}</td>
                 <td className="library-document-actions">
-                  <button aria-label={`${d.name} 문서 정보`} onClick={()=>setSelectedFile(d.id)}><WorkspaceIcon name="review" size={17}/><span>정보</span></button>
+                  <button title="문서 정보·미리보기" aria-label={`${d.name} 문서 정보`} onClick={()=>setSelectedFile(d.id)}><WorkspaceIcon name="review" size={17}/><span>정보</span></button>
                   <SavedDownload document={d} />
-                  <button onClick={() => setBranchDocument(d)}><WorkspaceIcon name="history" size={17}/><span>문서 이력</span></button>
+                  <button title="문서 이력" onClick={() => setBranchDocument(d)}><WorkspaceIcon name="history" size={17}/><span>문서 이력</span></button>
                   <span className="library-delete-action" title={d.can_trash ? "휴지통으로 이동하며 나중에 복구할 수 있습니다." : account.library_access_mode === "shared" ? "이 문서를 삭제할 권한이 없습니다." : "개인 문서함에서는 문서 소유자만 삭제할 수 있습니다."}>
                     <button className="library-delete-button" aria-label={`${d.name} 삭제`}
                       aria-description={!d.can_trash ? account.library_access_mode === "shared" ? "이 문서를 삭제할 권한이 없습니다." : "개인 문서함에서는 문서 소유자만 삭제할 수 있습니다." : undefined}

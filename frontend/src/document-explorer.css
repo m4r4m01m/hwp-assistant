@@ -30,11 +30,14 @@
 .library-details .branch-preview-paper svg {width:100%;height:auto;}
 .library-files .library-space-filter {display:none;}
 .library-files .library-drop-hint {padding:12px;margin:10px 0;}
-.library-files .library-document-actions {white-space:normal;}
+.library-files .library-document-actions {white-space:nowrap;min-width:184px;}
+.library-files .library-document-actions :is(button,.button) {position:relative;flex-direction:row;min-width:30px;width:30px;height:34px;min-height:34px;padding:6px;margin:0;gap:0;}
+.library-files .library-document-actions :is(button:has(svg),a:has(svg)) > span {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
+.library-files .library-document-actions .saved-download-toggle {min-width:16px;width:16px;}
 .library-files .library-table {min-width:0;width:100%;}
 .library-files .library-table td,.library-files .library-table th {padding:12px 8px;}
-.library-files .library-table th:first-child {width:50%;}
-.library-files .library-table th:nth-child(2) {width:16%;}
+.library-files .library-table th:first-child {width:auto;}
+.library-files .library-table th:nth-child(2) {width:110px;}
 @media(max-width:1400px){.library-explorer.has-details{grid-template-columns:180px minmax(0,1fr)}.library-details{grid-column:2;position:static;max-height:none;}.library-details .branch-preview-paper{max-width:500px;margin:auto;}}
 @media(max-width:800px){.library-explorer,.library-explorer.has-details{grid-template-columns:minmax(0,1fr)}.library-locations{position:static;max-height:230px;}.library-details{grid-column:1}.library-files .library-table th:nth-child(2),.library-files .library-table td:nth-child(2){display:none}.library-files .library-table td{overflow-wrap:anywhere}.library-files .library-table .library-document-actions{width:42%}.library-explorer .library-table .library-expanded-actions td{display:table-cell}}
-@media(max-width:720px){.library-files .library-table .library-document-actions{width:100%}.library-locations{max-height:200px}.library-details{padding:12px}}
+@media(max-width:720px){.library-files .library-table .library-document-actions{width:100%;min-width:0;white-space:normal}.library-locations{max-height:200px}.library-details{padding:12px}}
