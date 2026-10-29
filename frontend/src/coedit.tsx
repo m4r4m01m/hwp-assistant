@@ -5,7 +5,7 @@ import "./coedit.css";
 
 type Sync = { current_version: string; participants: {id: string; user_id: string}[] };
 type Pending = {key: string; base: string; snapshot: ExportSnapshot};
-export function Coedit({ document: doc, onClose }: {document: Document; onClose: () => void}) {
+export function Coedit({ document: doc, onClose, onTimeline, onAdvanced }: {document: Document; onClose: () => void; onTimeline?:()=>void; onAdvanced?:(doc:Document)=>void}) {
   const host = useRef<HTMLDivElement>(null), adapter = useRef<EditorAdapter | null>(null);
   const token = useRef(""), version = useRef(doc.current_version), pending = useRef<Pending | null>(null);
   const dirty = useRef(false), lastEdit = useRef(0), paused = useRef(false), alive = useRef(false), locked = useRef(false), ready = useRef(false);
@@ -102,14 +102,23 @@ export function Coedit({ document: doc, onClose }: {document: Document; onClose:
     window.addEventListener("beforeunload", guard); window.addEventListener("pagehide", leave);
     return () => { alive.current = false; ready.current = false; controller.abort(); clearInterval(timer); off(); release(); token.current = ""; adapter.current?.destroy(); adapter.current = null; window.removeEventListener("beforeunload", guard); window.removeEventListener("pagehide", leave); };
   }, [doc.id, attempt]);
-  async function close() {
+  async function close(next=onClose) {
     if (locked.current) return;
     await cycle.current(true);
     if ((dirty.current || pending.current) && !confirm("내 변경이 아직 공동문서에 저장되지 않았습니다. 복구용 다운로드로 보관했나요? 저장하지 않고 나가시겠습니까?")) return;
-    onClose();
+    next();
+  }
+  async function advanced() {
+    if(locked.current || !onAdvanced) return;
+    await cycle.current(true);
+    if(paused.current || dirty.current || pending.current) return;
+    locked.current=true;freeze(true);
+    try { await api(`/documents/${doc.id}/coedit`,{method:'DELETE',headers:{'X-Coedit-Session':token.current}});onAdvanced({...doc,current_version:version.current}); }
+    catch(cause){fail(cause);} finally{locked.current=false;}
   }
   return <main className="coedit-workspace">
-    <header><button disabled={loading} onClick={() => void close()}>저장 후 나가기</button><strong>{doc.name}</strong><span>실시간 공동편집</span><button disabled={loading} onClick={recover}>내 편집 다운로드</button></header>
+    <header><button disabled={loading} onClick={() => void close()}>저장 후 나가기</button><strong>{doc.name}</strong><span>{doc.branch_source_id?'작업본 편집':'문서 편집'}</span>{onTimeline&&<button disabled={loading} onClick={()=>void close(onTimeline)}>문서 이력·검토</button>}{onAdvanced&&<button disabled={loading||participants.length>1||!!error} title={participants.length>1?'같은 작업본의 다른 참여자가 나간 뒤 사용할 수 있습니다.':'작업본을 저장하고 단독 편집 도구를 엽니다.'} onClick={()=>void advanced()}>AI·서식 도구</button>}<button disabled={loading} onClick={recover}>내 편집 다운로드</button></header>
+    {doc.branch_source_id&&<p className="coedit-help">수정은 이 작업본에 저장됩니다. 공통 문서에 반영하려면 ‘문서 이력·검토’에서 통합을 요청하세요. 이 작업본의 참여자는 자동으로 함께 편집합니다.</p>}
     <div className="coedit-status"><span role="status">{status}</span><span aria-label="공동편집 참여자">{new Set(participants.map(value => value.user_id)).size}명 · {participants.length}개 세션 · {[...new Set(participants.map(value => value.user_id))].join(", ")}</span></div>
     <details className="coedit-help"><summary>공동편집 안내</summary><p>입력을 잠시 멈추면 변경을 저장하고 약 2초마다 다른 참여자의 변경을 반영합니다. 겹치지 않는 본문 변경은 병합합니다. 같은 내용이나 복잡한 구조 변경이 충돌하면 내 편집을 보존한 채 멈춥니다. 동기화 중에는 입력을 잠시 멈추며, AI·표준 디자인 적용은 모두 나간 뒤 단독 편집에서 사용합니다.</p></details>
     {error && <div className="coedit-error" role="alert">{error}<button onClick={() => { paused.current = false; setError(""); if (ready.current) void cycle.current(true); else { setLoading(true); setAttempt(value => value + 1); } }}>{ready.current ? "같은 변경 다시 확인" : "다시 참여"}</button><button onClick={recover}>내 편집 다운로드</button><button onClick={() => {

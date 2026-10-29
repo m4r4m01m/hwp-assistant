@@ -108,13 +108,13 @@ test("MOCK history: uncertain restore preserves current head and receipt while b
   await expect(page.locator(".branch-notice")).toContainText("새 버전으로 복원");
   expect(keys).toHaveLength(2);expect(keys[0]).toBe(keys[1]);expect(urls[0]).toBe(urls[1]);expect(urls[0]).toContain("base_version=v2");
 });
-test("MOCK history: latest workcopy enters coedit and owner explicitly adds participants",async({page})=>{
+test("MOCK history: one edit entry and owner explicitly adds participants",async({page})=>{
   const calls:string[]=[];
   await page.route("**/branch-participants",route=>route.fulfill({json:[]}));
   await page.route("**/branch-participants/colleague",route=>{calls.push(route.request().method());return route.fulfill({json:{user_id:"colleague",role:"editor"}});});
   await load(page,{...flow,branches:[{...branch,can_manage_participants:true}]});
-  await page.locator('[data-version-id="b2"]').click();await page.getByRole("button",{name:"공동편집",exact:true}).click();
-  await expect(page.getByLabel("편집 문서")).toHaveText("coedit:branch");
+  await page.locator('[data-version-id="b2"]').click();await expect(page.getByRole("button",{name:"공동편집",exact:true})).toHaveCount(0);await page.getByRole("button",{name:"편집",exact:true}).click();
+  await expect(page.getByLabel("편집 문서")).toHaveText("branch");
   await page.locator('.history-more > summary').click();
   await page.getByText("작업본 참여자 관리",{exact:true}).click();await page.getByLabel("추가할 계정 ID").fill("colleague");await page.getByRole("button",{name:"참여자 추가"}).click();
   await expect.poll(()=>calls.length).toBe(1);expect(calls).toEqual(["PUT"]);

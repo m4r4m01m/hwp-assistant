@@ -22,9 +22,9 @@ type Review = { request: Integration; merged_sha256: string; changes: {path: str
 type Pending = { path: string; body: unknown; label: string; action: "create" | "submit" | "accept" | "reject" };
 const statusName = {pending: "검토 대기", merged: "통합 완료", rejected: "반려"};
 
-export function DocumentBranches({ document: doc, onClose, onOpen, onUpdated, onCoedit, onRestore }: {
+export function DocumentBranches({ document: doc, onClose, onOpen, onUpdated, onRestore }: {
   document: Document; onClose: () => void; onOpen: (document: Document) => void; onUpdated: () => void;
-  onCoedit?: (document: Document) => void; onRestore?: (document: Document, versionId: string, requestId: string) => Promise<Version>;
+  onRestore?: (document: Document, versionId: string, requestId: string) => Promise<Version>;
 }) {
   const dialog = useRef<HTMLElement>(null), locked = useRef(false), alive = useRef(true), pending = useRef<Pending | null>(null);
   const generation = useRef(0);
@@ -135,7 +135,7 @@ export function DocumentBranches({ document: doc, onClose, onOpen, onUpdated, on
   return <div className="branch-overlay"><section ref={dialog} role="dialog" aria-modal="true" aria-labelledby="branch-title" className="branch-dialog">
     <HistoryKeyboard dialog={dialog} onClose={close} />
     <header><div><h2 id="branch-title">문서 이력</h2><p>{flow?.source_document.name || doc.name}</p></div><button onClick={close} disabled={busy}>닫기</button></header>
-    <p className="branch-intro">기록을 선택하면 오른쪽에서 그때의 문서를 볼 수 있습니다. 최근 기록은 위에 있습니다.</p>
+    <p className="branch-intro">기록을 선택하면 그때의 문서를 볼 수 있습니다. 공유 문서의 편집은 내 작업본으로 이어지며, 검토한 변경을 기준 문서에 통합합니다. 최근 기록은 위에 있습니다.</p>
     {error && <p role="alert" className="branch-error">{error}</p>}
     {notice && <p role="status" className="branch-notice">{notice}</p>}
     {retry && <div className="branch-error"><p>처리 결과가 불확실합니다. 같은 요청으로 확인합니다.</p><button disabled={busy} onClick={() => pending.current && void mutate(pending.current)}>같은 요청으로 결과 확인</button></div>}
@@ -154,7 +154,6 @@ export function DocumentBranches({ document: doc, onClose, onOpen, onUpdated, on
             <header><div><h3>{selectedBranch ? selectedDocument.name : "기준 문서"}</h3><span>{selected.current ? "현재 사용 중인 버전" : selected.document === null ? "검토를 요청한 버전" : "이전 버전"} · {selected.author?.user_id || "수정자 기록 없음"} · {selected.created_at ? dateLabel(selected.created_at) : "기록 시각 미상"}</span></div></header>
             <div className="history-node-actions">
               {selected.current && selected.can_edit && <button className="history-primary" disabled={disabled} onClick={() => onOpen(selectedDocument)}>편집</button>}
-              {onCoedit && selected.current && selected.can_edit && <button disabled={disabled} onClick={() => onCoedit(selectedDocument)}>공동편집</button>}
               {onRestore && !selected.current && selected.can_restore && <button disabled={disabled} onClick={() => void restoreSelected(selectedDocument,selected.id)}>이 저장본 복원</button>}
               {selected.can_read && selected.document !== null && selected.base_version && <button disabled={disabled} onClick={()=>void compareSaved(selectedDocument,selected.base_version!,selected.id)}>변경 내용 보기</button>}
               {selected.document_id === flow.source_document.id && selected.kind === "version" && selected.can_read && <button disabled={disabled} aria-expanded={creatingFrom===selected.id} onClick={()=>setCreatingFrom(value=>value===selected.id?null:selected.id)}>작업본 만들기</button>}

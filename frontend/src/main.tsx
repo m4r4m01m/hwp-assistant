@@ -2,6 +2,7 @@ import { AccountGate, clearAccountWorkspaceState, type Account } from "./account
 import { SessionViewer } from "./session-viewer";
 import { TeamWorkspaces, type TeamSpace } from "./team-workspaces";
 import { DocumentBranches } from "./document-branches";
+import { DocumentEditEntry } from "./document-edit-entry";
 import { LibraryLocations, LibraryDetails, folderPath, libraryViews, type LibraryFolder } from "./document-explorer";
 import React, { useEffect, useRef, useState } from "react";
 const Coedit = React.lazy(() => import("./coedit").then(module => ({default: module.Coedit})));
@@ -86,6 +87,8 @@ function App({
     [reports, setReports] = useState(false);
   const [editorDesign, setEditorDesign] = useState<DesignChoice | null>(null);
   const [coeditDocument, setCoeditDocument] = useState<Document | null>(null);
+  const [openingDocument, setOpeningDocument] = useState<Document | null>(null);
+  const openDocument = (doc:Document) => { setActive(null); setBranchDocument(null); setOpeningDocument(doc); };
   const [branchDocument, setBranchDocument] = useState<Document | null>(null);
   const [spacePanel, setSpacePanel] = useState<{ document?: Document } | null>(null);
   const [spaces, setSpaces] = useState<TeamSpace[]>([]);
@@ -117,7 +120,7 @@ function App({
   const [searchQuery, flushSearch] = useDebouncedValue(query);
   const uploadBusy = useRef(false), dragDepth = useRef(0);
   const frozenUpload = useRef<{ bytes: Uint8Array; name: string; id: string; key: string } | null>(null);
-  const inLibrary = !active && !creating && !standardDesigner && !reports && !templates && !managingAccounts && !coeditDocument && !branchDocument && !spacePanel;
+  const inLibrary = !active && !openingDocument && !creating && !standardDesigner && !reports && !templates && !managingAccounts && !coeditDocument && !branchDocument && !spacePanel;
   useEffect(() => {
     if (!inLibrary) return;
     const controller = new AbortController();
@@ -278,6 +281,7 @@ function App({
     onApplyDesign={(doc, choice) => { setEditorDesign(choice); setTemplates(false); setRegisterTemplate(undefined); setActive(doc); }}
     onDesignStandard={() => { setTemplates(false); setRegisterTemplate(undefined); setStandardDesigner(true); }}
     onReport={() => { setTemplates(false); setRegisterTemplate(undefined); setReports(true); }} />, "templates");
+  if (openingDocument) return <DocumentEditEntry key={openingDocument.id} document={openingDocument} onClose={()=>{setOpeningDocument(null);refresh();}} onReady={target=>{setOpeningDocument(null);if(target.mode==='workcopy')setCoeditDocument(target.document);else setActive(target.document);}}/>;
   if (active?.role === "reader")
     return (
       <div className="workspace-shell"><WorkspaceNav active="documents" onNavigate={navigate} onBack={() => { setActive(null); refresh(); }} />
@@ -288,7 +292,7 @@ function App({
         <CollaborationPanel document={active} />
       </main></div>
     );
-  if (coeditDocument) return <React.Suspense fallback={<p role="status">공동편집 준비 중…</p>}><Coedit document={coeditDocument} onClose={() => { setCoeditDocument(null); refresh(); }} /></React.Suspense>;
+  if (coeditDocument) return <React.Suspense fallback={<p role="status">작업본 준비 중…</p>}><Coedit document={coeditDocument} onClose={() => { setCoeditDocument(null); refresh(); }} onTimeline={()=>{setBranchDocument(coeditDocument);setCoeditDocument(null);refresh();}} onAdvanced={doc=>{setCoeditDocument(null);setActive(doc);}} /></React.Suspense>;
   if (active || creating)
     return (
       <Editor
@@ -368,7 +372,7 @@ function App({
         <button disabled={copying} onClick={() => void copySaved(copyPending.source)}>{copying ? "복제 중…" : "같은 사본 생성 결과 재확인"}</button>
       </div>}
       {copyNotice && <div className="notice">{copyNotice.name} 사본을 저장했습니다. 원본의 대화·권한·버전 이력은 복사하지 않습니다.
-        <button onClick={() => setActive(copyNotice)}>사본 열기</button>
+        <button onClick={() => openDocument(copyNotice)}>사본 열기</button>
       </div>}
       {uploadPending && <div className="notice" role="status">{uploadPending}{uploading ? " 파일을 저장하는 중입니다." : " 파일의 저장 결과를 확인해야 합니다."}
         {!uploading && <button onClick={() => void incoming()}>업로드 결과 재확인</button>}
@@ -398,7 +402,7 @@ function App({
             {sortedDocs.map((d) => (
               <React.Fragment key={d.id}><tr aria-selected={selectedFile===d.id} draggable onDragStart={e=>e.dataTransfer.setData('application/x-hwp-document',d.id)} onClick={e=>{if(!(e.target as Element).closest('button, input, select, a, label'))setSelectedFile(d.id);}}>
                 <td className="library-document-name">
-                  <button className="link" onClick={() => setActive(d)}>
+                  <button className="link" onClick={() => openDocument(d)}>
                     <WorkspaceIcon name="documents"/><span>{d.name}</span>
                   </button>
                   {(d.workspace_name || d.branch_source_id) && <span className="library-space-tag">{d.branch_source_id ? "개인 작업본" : d.shared_with_me ? `${d.workspace_name} · 개별 공유 · ${d.role === "reader" ? "열람" : "편집"}` : d.workspace_name}</span>}
@@ -507,11 +511,11 @@ function App({
         </table></div>
       )}
       </section>
-      {selectedDocument&&<LibraryDetails key={selectedDocument.id} doc={selectedDocument} folders={folders} canShare={!!canShare(selectedDocument)} onClose={()=>setSelectedFile(null)} onOpen={()=>setActive(selectedDocument)} onHistory={()=>setBranchDocument(selectedDocument)} onShare={()=>setSharing(selectedDocument)} onMove={moveToFolder}/>}
+      {selectedDocument&&<LibraryDetails key={selectedDocument.id} doc={selectedDocument} folders={folders} canShare={!!canShare(selectedDocument)} onClose={()=>setSelectedFile(null)} onOpen={()=>openDocument(selectedDocument)} onHistory={()=>setBranchDocument(selectedDocument)} onShare={()=>setSharing(selectedDocument)} onMove={moveToFolder}/>}
       </div>
       {trashDialog && <DocumentTrashDialog document={trashDialog.document} shared={account.library_access_mode === "shared"} onClose={() => setTrashDialog(null)} onChanged={() => { setExpandedDocument(null); refresh(); }} />}
       {spacePanel && <TeamWorkspaces account={account} document={spacePanel.document} onClose={() => setSpacePanel(null)} onUpdated={() => { refresh(); void api<TeamSpace[]>("/workspaces").then(setSpaces).catch(e => setError(errorMessage(e))); }} />}
-      {branchDocument && <DocumentBranches document={branchDocument} onClose={() => setBranchDocument(null)} onOpen={setActive} onCoedit={setCoeditDocument} onRestore={restoreTimeline} onUpdated={refresh} />}
+      {branchDocument && <DocumentBranches document={branchDocument} onClose={() => setBranchDocument(null)} onOpen={openDocument} onRestore={restoreTimeline} onUpdated={refresh} />}
       {sharing && (
         <AccessPanel document={sharing} onClose={() => setSharing(null)} />
       )}

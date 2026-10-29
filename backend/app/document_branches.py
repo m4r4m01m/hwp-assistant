@@ -64,6 +64,21 @@ class Submit(BaseModel):
     target_version: uuid.UUID
 
 
+class WorkCopyEntry(Base):
+    """Durable open receipts: one automatic work copy reused across tabs/retries."""
+    __tablename__ = "work_copy_entries"
+    request_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    source_id: Mapped[str] = mapped_column(ForeignKey("documents.id"), index=True)
+    user_id: Mapped[str] = mapped_column(String(80), index=True)
+    document_id: Mapped[str] = mapped_column(ForeignKey("documents.id"))
+    created_at: Mapped[float] = mapped_column(Float)
+
+
+class OpenWorkCopy(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    request_id: uuid.UUID
+
+
 class Accept(BaseModel):
     model_config = ConfigDict(extra="forbid")
     merged_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -273,6 +288,59 @@ def install_document_branches(app, publish, doc_dict):
         if loss_warnings(before, merged):
             raise HTTPException(422, "통합 결과의 개체 손실이 감지됐습니다.")
         return before, merged
+
+    @app.post("/api/documents/{source_id}/edit-target")
+    def edit_target(source_id: str, value: OpenWorkCopy, request: Request):
+        user = request.state.user
+        with transaction(engine) as db:
+            source = require_access(db, source_id, user, lock=True, fresh=True)
+            role = document_role(db, source.id, user, fresh=True)
+            def response(doc, mode):
+                return {"document": document_dict(db, doc, document_role(db, doc.id, user)), "mode": mode}
+            if role == "reader":
+                return response(source, "view")
+            if db.get(DocumentBranch, source.id):
+                return response(source, "workcopy")
+            old = db.get(WorkCopyEntry, str(value.request_id))
+            if old:
+                if (old.source_id, old.user_id) != (source.id, user):
+                    raise HTTPException(409, "다른 문서 또는 계정에서 사용한 열기 요청입니다.")
+                return response(require_access(db, old.document_id, user, "editor", fresh=True), "workcopy")
+            from .workspaces import WorkspaceDocument
+            from .library_access import shared_library
+            from .document_library import PersonalDocument
+            shared = (db.get(WorkspaceDocument, source.id) is not None
+                or db.scalar(select(Access.user_id).where(Access.document_id == source.id, Access.user_id != user).limit(1)) is not None
+                or shared_library(db, user) and not db.get(PersonalDocument, source.id))
+            if not app.state.account_policy.enabled or not shared:
+                return response(source, "direct")
+            # The source row serializes concurrent first opens by the same user.
+            previous = db.scalar(select(WorkCopyEntry).where(WorkCopyEntry.source_id == source.id,
+                WorkCopyEntry.user_id == user, ~document_is_trashed(WorkCopyEntry.document_id))
+                .order_by(WorkCopyEntry.created_at.desc(), WorkCopyEntry.request_id).limit(1))
+            doc = db.get(Document, previous.document_id) if previous else None
+            if doc and db.scalar(select(IntegrationRequest.id).where(
+                    IntegrationRequest.branch_document_id == doc.id, IntegrationRequest.status == "merged",
+                    IntegrationRequest.source_version_id == doc.current_version).limit(1)):
+                # Never change the old branch's base or historical contents.
+                doc = None
+            if doc:
+                require_access(db, doc.id, user, "editor", fresh=True)
+            else:
+                data = read(db, source.current_version, source.id)
+                now = time.time()
+                name = f"{user} 작업본 · {source.name}"[:240]
+                doc = Document(id=str(uuid.uuid4()), name=name, created_at=now, lease_until=0)
+                db.add(doc); db.flush()
+                db.add(Access(document_id=doc.id, user_id=user, role="owner"))
+                db.add(DocumentBranch(document_id=doc.id, source_document_id=source.id,
+                    base_version_id=source.current_version, owner_id=user, name=name,
+                    created_at=now, request_id=str(value.request_id)))
+                publish(db, doc, data, None, None, "branch:" + str(value.request_id), "upload", author_id=user)
+            db.add(WorkCopyEntry(request_id=str(value.request_id), source_id=source.id,
+                user_id=user, document_id=doc.id, created_at=time.time()))
+            db.flush()
+            return response(doc, "workcopy")
 
     @app.post("/api/documents/{source_id}/branches")
     def create(source_id: str, value: CopyDocument, request: Request):

@@ -8,10 +8,12 @@ async function bytes(page: Page) { return Buffer.from(await (await frame(page)).
 async function content(page: Page) { return strFromU8(unzipSync(await bytes(page))["Contents/section0.xml"]); }
 async function open(page: Page, name: string) {
   await page.goto("/");
-  const row = page.getByRole("row").filter({has: page.getByRole("button", {name, exact: true})});
-  await row.getByRole("button", {name: "문서 이력", exact: true}).click();
-  await page.getByRole("dialog", {name: "문서 이력", exact: true}).getByRole("button", {name:"공동편집", exact:true}).click();
+  await page.getByRole("button", {name, exact: true}).click();
   await expect(page.getByRole("status")).toHaveText("공동 변경 저장 완료", {timeout: 90000});
+}
+async function workcopy(request: import('@playwright/test').APIRequestContext, doc: any, name: string) {
+  const response=await request.post(`/api/documents/${doc.id}/branches`,{data:{document_id:crypto.randomUUID(),request_id:crypto.randomUUID(),source_version:doc.current_version,name}});
+  expect(response.ok()).toBeTruthy();return (await response.json()).document;
 }
 async function type(page: Page, end: boolean, value: string) {
   const editor = await frame(page);
@@ -23,9 +25,9 @@ test("REAL rhwp: two native editors merge, converge, save and reopen", async ({p
   const original = await readFile(new URL("../../samples/paragraph-and-table.hwpx", import.meta.url));
   const name = `합성 공동편집 ${Date.now()}.hwpx`;
   const created = await request.post(`/api/documents?name=${encodeURIComponent(name)}&document_id=${crypto.randomUUID()}`, {data: original, headers:{"Idempotency-Key":crypto.randomUUID()}});
-  expect(created.ok()).toBeTruthy(); const doc = await created.json();
+  expect(created.ok()).toBeTruthy(); const doc = await workcopy(request,await created.json(),name+' 작업본');
   const peer = await context.newPage();
-  await open(page, name); await open(peer, name);
+  await open(page, doc.name); await open(peer, doc.name);
   await expect(page.getByLabel("공동편집 참여자")).toContainText("2개 세션");
   await Promise.all([type(page, false, "동시작성가나다 "), type(peer, true, " 동시작성라마바")]);
   await expect.poll(() => content(page), {timeout: 30000}).toContain("동시작성라마바");
@@ -40,7 +42,7 @@ test("REAL rhwp: two native editors merge, converge, save and reopen", async ({p
   await page.screenshot({path:info.outputPath("coedit-two-participants.png"), fullPage:true});
   await page.getByRole("button", {name:"저장 후 나가기",exact:true}).click();
   await peer.getByRole("button", {name:"저장 후 나가기",exact:true}).click();
-  await open(page, name);
+  await open(page, doc.name);
   expect(await content(page)).toContain("동시작성라마바"); expect(await content(page)).toContain("동시작성가나다");
   await page.getByRole("button", {name:"저장 후 나가기",exact:true}).click(); await peer.close();
 });
@@ -49,8 +51,8 @@ test("REAL rhwp: overlapping native input stops without losing either buffer", a
   const original = await readFile(new URL("../../samples/paragraph-and-table.hwpx", import.meta.url));
   const name = `합성 충돌 보존 ${Date.now()}.hwpx`;
   const response = await request.post(`/api/documents?name=${encodeURIComponent(name)}&document_id=${crypto.randomUUID()}`, {data:original,headers:{"Idempotency-Key":crypto.randomUUID()}});
-  expect(response.ok()).toBeTruthy(); const doc = await response.json(); const peer = await context.newPage();
-  await open(page, name); await open(peer, name);
+  expect(response.ok()).toBeTruthy(); const doc = await workcopy(request,await response.json(),name+' 작업본'); const peer = await context.newPage();
+  await open(page, doc.name); await open(peer, doc.name);
   let count = 0; let release!: () => void; const both = new Promise<void>(resolve => { release = resolve; });
   await context.route("**/coedit/changes?*", async route => { if (++count === 2) release(); await both; await route.continue(); });
   await Promise.all([type(page, false, "첫번째편집보존"), type(peer, false, "두번째편집보존")]);
@@ -85,8 +87,8 @@ test("REAL rhwp: opening a different native document never replaces the shared f
   const original = await readFile(new URL("../../samples/paragraph-and-table.hwpx", import.meta.url));
   const name = `합성 문서 식별 보호 ${Date.now()}.hwpx`;
   const response = await request.post(`/api/documents?name=${encodeURIComponent(name)}&document_id=${crypto.randomUUID()}`, {data:original,headers:{"Idempotency-Key":crypto.randomUUID()}});
-  expect(response.ok()).toBeTruthy(); const doc = await response.json();
-  await open(page, name);
+  expect(response.ok()).toBeTruthy(); const doc = await workcopy(request,await response.json(),name+' 작업본');
+  await open(page, doc.name);
   await (await frame(page)).evaluate(async () => { await (window as any).hwpAssistantBridge.newDocument(); });
   await expect(page.getByRole("alert")).toContainText("다른 문서",{timeout:15000});
   expect(await (await request.get(`/api/documents/${doc.id}/versions`)).json()).toHaveLength(1);
