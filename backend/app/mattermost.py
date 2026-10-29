@@ -355,7 +355,7 @@ def install_mattermost(app):
                     {"display_name": "공개자료 조회", "name": "research", "type": "select", "default": "off", "options": [
                         {"text": "입력한 자료로 작성", "value": "off"}, {"text": "공개자료 조회 포함", "value": "on"}]},
                 ]
-                await BotClient(config).open_dialog(trigger, config.public_app_url + DIALOG_PATH.lstrip("/"), state, elements)
+                await BotClient(config).open_dialog(trigger, config.callback_url, state, elements)
                 return ephemeral("초안 작성 입력창을 열었습니다. 작성 완료 후 웹에서 내용을 검토하세요.")
             external = fingerprint("\0".join((instance(config), config.team_id, body["user_id"], trigger)))
             if verb == "검색":

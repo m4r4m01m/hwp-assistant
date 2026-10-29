@@ -1,5 +1,15 @@
 # HWP Assistant 프로젝트 컨텍스트
 
+## 2026-10-30 — Mattermost 내부 통신과 입력창 콜백 분리
+
+사용자 제공 운영 로그에서 `/hwp` 요청은 처음 Mattermost의 내부 주소 제한(`address forbidden`)에 걸렸고, 호스트 허용 후에는 같은 호스트의 Tailscale HTTPS 주소 연결 시간 초과로 바뀌었다. SiteURL을 새 공개 주소로 반영한 화면과 Test Live URL 실패도 제공됐다. 후자는 서버가 자기 공개 ping URL을 조회하는 검사이며, 이 결과만으로 Tailscale ACL 차단을 단정하지 않는다. 실제 사용자 네트워크 조회에서 Mattermost와 HWP API가 이미 외부 bridge `hwp-mattermost-hook`에 함께 있고 각각 `mattermost`·`api` 별칭을 가진 것을 확인했다. 사용자 실행의 HWP → `http://mattermost:8065/mattermost/api/v4/system/ping`은 **HTTP 200 / status OK**였다. 이는 상태 조회 근거이며 명령·개인 메시지·실제 생성의 전체 성공은 아니다.
+
+이전 봇 항목의 미병합 설명은 당시 기록이다. GitHub에서 [PR #54](https://github.com/m4r4m01m/hwp-assistant/pull/54)가 merge commit `db6965a7ca3954c8957ccba9e4c983b1c06841ce`로 병합된 것을 읽기 전용으로 확인했다. 이번 기준은 fetch한 main **[`50babefdf739a680eb16c984693e5e7b602d6088`](https://github.com/m4r4m01m/hwp-assistant/commit/50babefdf739a680eb16c984693e5e7b602d6088)**다. 해당 커밋의 push 검사들과 [수동 게시·배포 run](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40864417122)의 python/frontend/UI·게시·deploy-home 성공을 확인했다. 이 관측을 이번 보완의 CI나 운영 반영 성공으로 바꿔 적지 않는다.
+
+깨끗한 기존 worktree를 재사용하여 `codex/mattermost-internal-callback-2026-10-30`를 기준 main에서 만들고 원래 브랜치는 보존했다. 제품 source는 **[`07d6790a8aa413e5eccb5dcc38d438b87a174d06`](https://github.com/m4r4m01m/hwp-assistant/commit/07d6790a8aa413e5eccb5dcc38d438b87a174d06)**다. 선택형 `HWP_MATTERMOST_CALLBACK_URL`로 서버용 입력창 제출 주소를 공개 웹 링크와 분리한다. 빈 값은 기존 공개 주소를 유지하며 기존 URL 검증·HTTP 명시 허용·고정 callback 검사와 입력창 상태/사용자/팀/채널/연결 세대 검증을 유지한다. 운영 Compose 전달, private env 예제와 [파일별 내부망 적용 안내](mattermost-bot-2026-10-28.md#같은-docker-호스트의-내부-통신)를 함께 보완했다. 봇 REST 기준 주소를 공개에서 내부로 바꾸면 인스턴스 식별 해시도 바뀌므로 `/hwp 연결`을 다시 수행해야 한다.
+
+검증 환경은 macOS arm64 / Python **3.14.7**이다. 봇·전송 집중 **99개**가 통과했다(98개 실행 뒤 마지막으로 추가한 빈 callback 호환성 1개를 별도 실행; 중복 합산 아님). 배포 workflow의 Python 계약은 **96 통과 / 2 환경별 skip**이다. CI wrapper의 두 subcase는 macOS 임시 경로 별칭으로 처음 실패했으며 `TMPDIR=/private/tmp`로 정규화한 재실행에서 17개 계약 전체가 통과했다. 공백 검사와 문서 상대 링크 검사도 통과했다. frontend·엔진·전체 backend 회귀와 실제 Mattermost/Codex 호출은 이 로컬 검증에 포함하지 않았다. 이번 보완의 main 병합·이미지 게시·운영 배포는 수행하지 않았다. 다음 단계는 PR 검사·검토 후 수정된 API 이미지와 짝이 맞는 Compose를 반영하고, 내부 명령·입력창 제출·개인 메시지·공개 웹 링크를 실제 서버에서 각각 검증하는 것이다.
+
 ## 2026-10-28 — 매터모스트 문서 검색·초안 봇 구현 브랜치
 
 사용자가 별도 브랜치 구현을 요청하여 기준 main **[`4b20b5f293ee81f158fe25d14a48955d47948373`](https://github.com/m4r4m01m/hwp-assistant/commit/4b20b5f293ee81f158fe25d14a48955d47948373)**의 격리 worktree에서 `codex/mattermost-document-bot-2026-10-28`로 진행한다. 기존 체크아웃·미커밋 작업·실행 서비스는 보존한다. 이 절은 구현 중인 브랜치의 설계·소스 상태이며 main 병합이나 운영 반영 기록이 아니다. [설정·사용 흐름·처리 한계](mattermost-bot-2026-10-28.md).
