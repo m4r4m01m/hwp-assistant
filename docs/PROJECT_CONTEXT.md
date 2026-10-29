@@ -1,5 +1,13 @@
 # HWP Assistant 프로젝트 컨텍스트
 
+## 2026-10-30 — 사이드바 계정 메뉴 간격 수정
+
+사용자가 봇 연결 성공과 함께 사이드바의 `비밀번호 변경`·`매터모스트 연결`이 붙어 보이는 화면을 제공했다. 최신 `origin/main` **`45bed7c9496524e1670515d210e9e613b4409f9b`**에서 `codex/sidebar-account-menu-spacing-2026-10-30`를 만들었다. 이전 절의 미병합·미배포 설명은 당시 상태이며, 이번에 [PR #55](https://github.com/m4r4m01m/hwp-assistant/pull/55)의 병합 및 같은 main SHA의 [수동 배포 run](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40899394306) 검사·게시·`deploy-home` 성공을 읽기 전용으로 확인했다. 사용자 보고의 봇 연결 성공을 검색·초안 생성 전체 검증으로 확대하지 않는다.
+
+제품 source **`56ef3a2ac87be0fe33bad574ec8d55fbd3df19ba`**는 `workspace-nav.css`의 footer 직접 자식 버튼에만 세로 배치·전체 너비·최소 높이 32px·단어 단위 줄바꿈을 적용한다. 펼침 상태는 왼쪽, 아이콘 상태는 가운데 정렬을 상속한다. 인증 조건·포털 대화상자·로그아웃/계정 관리 버튼 그룹은 변경하지 않았다.
+
+macOS / Node 22.19.0 / Chrome 합성 화면에서 1440px·390px 각각의 펼침/아이콘 모드 4개 배치를 확인했고, 두 메뉴의 화면 열기·폭 넘침 없음·겹침 없음을 확인했다. TypeScript, unit **40개**, Node 계약 **55개**, 모의 UI **107개**, 공개 경로·셸 문법·공백 검사가 통과했다. 마지막 단어 줄바꿈 보완 후 계정·봇·반응형 관련 **22개**를 다시 확인했으며 중복 합산하지 않는다. 화면 증거는 로컬 `.cache/sidebar-ui-20261030/`에 있다. 실제 엔진·모델 검증과 이 UI 수정의 운영 배포는 수행하지 않았으며, 다음 단계는 PR 검사·검토 후 웹 이미지 배포다.
+
 ## 2026-10-30 — Mattermost 내부 통신과 입력창 콜백 분리
 
 사용자 제공 운영 로그에서 `/hwp` 요청은 처음 Mattermost의 내부 주소 제한(`address forbidden`)에 걸렸고, 호스트 허용 후에는 같은 호스트의 Tailscale HTTPS 주소 연결 시간 초과로 바뀌었다. SiteURL을 새 공개 주소로 반영한 화면과 Test Live URL 실패도 제공됐다. 후자는 서버가 자기 공개 ping URL을 조회하는 검사이며, 이 결과만으로 Tailscale ACL 차단을 단정하지 않는다. 실제 사용자 네트워크 조회에서 Mattermost와 HWP API가 이미 외부 bridge `hwp-mattermost-hook`에 함께 있고 각각 `mattermost`·`api` 별칭을 가진 것을 확인했다. 사용자 실행의 HWP → `http://mattermost:8065/mattermost/api/v4/system/ping`은 **HTTP 200 / status OK**였다. 이는 상태 조회 근거이며 명령·개인 메시지·실제 생성의 전체 성공은 아니다.
