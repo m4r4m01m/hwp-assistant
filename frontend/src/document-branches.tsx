@@ -219,6 +219,8 @@ function VersionStructure({documentId,versionId}:{documentId:string;versionId:st
 }
 
 function HistoryTree({graph, source, branches, selected, disabled, onSelect}: {graph:Graph;source:Document;branches:Branch[];selected?:string;disabled:boolean;onSelect:(id:string)=>void}) {
+  const viewport=useRef<HTMLDivElement>(null),[availableWidth,setAvailableWidth]=useState(0);
+  useEffect(()=>{const element=viewport.current;if(!element)return;const observer=new ResizeObserver(()=>setAvailableWidth(element.clientWidth));observer.observe(element);setAvailableWidth(element.clientWidth);return()=>observer.disconnect();},[]);
   const lanes = [source.id,...branches.map(branch => branch.document_id)];
   // New children precede their actual parents. Private anchors have no timestamp;
   // sorting them as epoch zero would make fork lines grow backwards.
@@ -231,10 +233,15 @@ function HistoryTree({graph, source, branches, selected, disabled, onSelect}: {g
   while(ready.length){const node=ready.shift()!;if(!remaining.delete(node.id))continue;ordered.push(node);for(const parent of parents.get(node.id)!){children.get(parent)!.delete(node.id);if(!children.get(parent)!.size&&remaining.has(parent))ready.push(remaining.get(parent)!);}ready.sort(newest);}
   // Defensive fallback keeps every node visible even if malformed graph input cycles.
   ordered.push(...[...remaining.values()].sort(newest));
-  const laneWidth = 200, rowHeight = 88, width = Math.max(360,lanes.length*laneWidth), height = Math.max(240,ordered.length*rowHeight+90);
-  const positions = new Map(ordered.map((node,index) => [node.id,{x:Math.max(0,lanes.indexOf(node.document_id))*laneWidth+laneWidth/2,y:60+index*rowHeight}]));
+  const laneWidth = Math.max(150,Math.min(200,(availableWidth||lanes.length*200)/lanes.length)), rowHeight = 88, width = Math.max(360,lanes.length*laneWidth);
+  // Unrelated user lanes may share a row. Actual children always stay above
+  // their parents; never manufacture branch/merge edges for visual alignment.
+  const rows=new Map<string,number>(),occupied=new Map<string,Set<number>>();
+  for(const node of ordered){let row=Math.max(0,...graph.edges.filter(e=>e.from===node.id).map(e=>(rows.get(e.to)??-1)+1));const used=occupied.get(node.document_id)||new Set<number>();while(used.has(row))row++;used.add(row);occupied.set(node.document_id,used);rows.set(node.id,row);}
+  const height=Math.max(240,(Math.max(0,...rows.values())+1)*rowHeight+90),nodeWidth=Math.min(166,laneWidth-24),anchorWidth=Math.min(152,laneWidth-24);
+  const positions = new Map(ordered.map(node => [node.id,{x:Math.max(0,lanes.indexOf(node.document_id))*laneWidth+laneWidth/2,y:60+rows.get(node.id)!*rowHeight}]));
   const laneName = (identity:string) => identity === source.id ? "기준 문서" : branches.find(branch => branch.document_id === identity)?.name || "작업본";
-  return <div className="history-tree-scroll"><div className="history-tree" style={{width,height}}>
+  return <div ref={viewport} className="history-tree-scroll"><div className="history-tree" style={{width,height}}>
     {lanes.map((lane,index) => <div key={lane} className="history-lane-label" style={{left:index*laneWidth,width:laneWidth}}>{laneName(lane)}</div>)}
     <svg className="history-tree-edges" width={width} height={height} aria-hidden="true">{graph.edges.map((edge,index) => {
       const from=positions.get(edge.from),to=positions.get(edge.to);if(!from || !to) return null;
@@ -242,8 +249,8 @@ function HistoryTree({graph, source, branches, selected, disabled, onSelect}: {g
       return <path key={`${edge.from}-${edge.to}-${index}`} data-edge-kind={edge.kind} className={`edge-${edge.kind}`} d={`M ${from.x} ${from.y} C ${from.x} ${mid}, ${to.x} ${mid}, ${to.x} ${to.y}`} />;
     })}</svg>
     {ordered.map(node => {const position=positions.get(node.id)!; const label=node.kind === "anchor" ? "생략되거나 비공개인 이전 기록" : `${laneName(node.document_id)} · ${node.current ? "최신 저장" : "저장"} · ${node.created_at ? dateLabel(node.created_at) : "시각 미상"}`;
-      return node.kind === "anchor" ? <div key={node.id} data-anchor-id={node.id} className="history-anchor" style={{left:position.x-76,top:position.y-15}} title={label}>··· 이전 기록</div> :
-      <button key={node.id} type="button" className={`history-save-node ${selected===node.id ? "selected" : ""} ${node.current ? "current" : ""}`} data-version-id={node.id} aria-label={label} aria-pressed={selected===node.id} disabled={disabled} style={{left:position.x-83,top:position.y-24,width:166}} onClick={() => onSelect(node.id)}>
+      return node.kind === "anchor" ? <div key={node.id} data-anchor-id={node.id} className="history-anchor" style={{left:position.x-anchorWidth/2,top:position.y-15,width:anchorWidth}} title={label}>··· 이전 기록</div> :
+      <button key={node.id} type="button" className={`history-save-node ${selected===node.id ? "selected" : ""} ${node.current ? "current" : ""}`} data-version-id={node.id} aria-label={label} aria-pressed={selected===node.id} disabled={disabled} style={{left:position.x-nodeWidth/2,top:position.y-24,width:nodeWidth}} onClick={() => onSelect(node.id)}>
         <span className="history-save-dot"/><strong>{node.current ? "최신 저장" : node.cause === "restore" ? "복원 저장" : graph.edges.some(edge => edge.to===node.id && edge.kind==="merge") ? "통합 저장" : "저장"}</strong>
         <span>{node.created_at ? new Date(node.created_at*1000).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false}) : "시각 미상"}</span>
         <small>{node.author?.user_id || "수정자 미상"}</small>
