@@ -1,5 +1,5 @@
 .branch-overlay { position:fixed; inset:0; z-index:140; padding:24px; background:#15233380; display:grid; place-items:center; }
-.branch-dialog { width:min(1560px,100%); max-height:calc(100dvh - 48px); overflow:auto; background:#f7f9fc; border-radius:16px; padding:24px; box-shadow:0 16px 64px #15233340; color:#192b40; box-sizing:border-box; }
+.branch-dialog { width:min(1760px,100%); max-height:calc(100dvh - 48px); overflow:auto; background:#f7f9fc; border-radius:16px; padding:24px; box-shadow:0 16px 64px #15233340; color:#192b40; box-sizing:border-box; }
 .branch-dialog > header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
 .branch-dialog h2 { margin:0; font-size:23px; }.branch-dialog header p { margin:5px 0 0; overflow-wrap:anywhere; }
 .branch-dialog button { min-height:34px; border:1px solid #bdcbdc; border-radius:7px; background:white; padding:6px 12px; color:#214261; cursor:pointer; }
