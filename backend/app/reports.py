@@ -173,6 +173,42 @@ def run_report(engine, task_id, user, value, settings):
                 fail_report(row, exc)
 
 
+def create_report_task(app, value: CreateReport, user: str, *, admission_guard=None):
+    """Shared admission for web and verified integrations; no document editing."""
+    engine, folder = app.state.engine, app.state.folder
+    task_id = str(value.id)
+    if not codex_allowed(user):
+        raise HTTPException(403, "이 서버의 Codex 실행 사용자에게 보고서 작성을 요청하세요.")
+    # Omit an absent selection so legacy IDs retain their exact input hash.
+    body = value.model_dump(mode="json", exclude_none=True)
+    with ExecutionSlot(app.state.rewrite_capacity) as slot:
+        with transaction(engine) as db:
+            if engine.dialect.name == "postgresql":
+                db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": int(digest(task_id.encode())[:15], 16)})
+            if admission_guard is not None:
+                admission_guard(db)
+            if db.get(ReportTask, task_id):
+                row = lock_report(db, task_id, user)
+                if row.input_sha256 != report_hash(body):
+                    raise HTTPException(409, "같은 요청 ID에 다른 보고서 지시를 사용할 수 없습니다.")
+                return task_dict(row)
+            settings = capture_settings()
+            require_codex_ready(settings)
+            if value.template is not None:
+                validate_selection(value.template)
+            if value.visual_standard is not None:
+                validate_visual_selection(db, user, value.visual_standard, folder=folder)
+            slot.reserve()
+            reserve_codex_usage(db, "report:" + task_id, user)
+            row = ReportTask(id=task_id, owner_id=user, input=canonical(body), input_sha256=report_hash(body),
+                status="running", created_at=time.time(), execution=canonical({"executor": "codex-app-server", "model": settings.model,
+                "contract": CONTRACT, "research": body["research"], "input_sha256": report_hash(body), "context_used": False}))
+            db.add(row); db.flush(); result = task_dict(row)
+        slot.start(Thread, run_report, (engine, task_id, user, body, settings))
+    return result
+
+
+
 def install_reports(app, publish, check_lease, doc_dict):
     engine, folder = app.state.engine, app.state.folder
     install_visual_standards(app)
@@ -207,34 +243,7 @@ def install_reports(app, publish, check_lease, doc_dict):
 
     @app.post("/api/report-tasks")
     def create_report(value: CreateReport, request: Request):
-        user, task_id = request.state.user, str(value.id)
-        if not codex_allowed(user):
-            raise HTTPException(403, "이 서버의 Codex 실행 사용자에게 보고서 작성을 요청하세요.")
-        # Omit an absent selection so legacy IDs retain their exact input hash.
-        body = value.model_dump(mode="json", exclude_none=True)
-        with ExecutionSlot(app.state.rewrite_capacity) as slot:
-            with transaction(engine) as db:
-                if engine.dialect.name == "postgresql":
-                    db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": int(digest(task_id.encode())[:15], 16)})
-                if db.get(ReportTask, task_id):
-                    row = lock_report(db, task_id, user)
-                    if row.input_sha256 != report_hash(body):
-                        raise HTTPException(409, "같은 요청 ID에 다른 보고서 지시를 사용할 수 없습니다.")
-                    return task_dict(row)
-                settings = capture_settings()
-                require_codex_ready(settings)
-                if value.template is not None:
-                    validate_selection(value.template)
-                if value.visual_standard is not None:
-                    validate_visual_selection(db, user, value.visual_standard, folder=folder)
-                slot.reserve()
-                reserve_codex_usage(db, "report:" + task_id, user)
-                row = ReportTask(id=task_id, owner_id=user, input=canonical(body), input_sha256=report_hash(body),
-                    status="running", created_at=time.time(), execution=canonical({"executor": "codex-app-server", "model": settings.model,
-                    "contract": CONTRACT, "research": body["research"], "input_sha256": report_hash(body), "context_used": False}))
-                db.add(row); db.flush(); result = task_dict(row)
-            slot.start(Thread, run_report, (engine, task_id, user, body, settings))
-        return result
+        return create_report_task(app, value, request.state.user)
 
     @app.post("/api/report-tasks/{source_task_id}/revise")
     def revise_report(source_task_id: str, value: ReviseReport, request: Request):

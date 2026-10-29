@@ -37,6 +37,7 @@
 .workspace-nav-footer strong { display: block; color: #3d566e; font-weight: 600; }
 .workspace-nav-footer small { display: block; font-size: 10px; color: #8393a2; }
 .workspace-nav-footer button { padding: 4px 0; border: 0; background: transparent; font-size: 11px; color: #607b95; }
+.workspace-nav-footer > button { display: block; width: 100%; min-height: 32px; text-align: inherit; white-space: normal; word-break: keep-all; }
 .workspace-account-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 8px; }
 .workspace-nav-action { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 40px; font-size: 12px; }
 .workspace-nav-tools > .workspace-nav-note { padding: 0 7px; margin: 5px 0 10px; font-size: 10px; color: #8797a7; line-height: 1.7; }
@@ -82,3 +83,4 @@
 .workspace-nav-edge:focus-visible { outline: 2px solid #447cad; outline-offset: -3px; }
 @media (hover: none) { .workspace-nav-edge-zone .workspace-nav-edge { transform: translate(0, -50%); opacity: 1; pointer-events: auto; } }
 @media (prefers-reduced-motion: reduce) { .workspace-nav-edge { transition: none; } }
+

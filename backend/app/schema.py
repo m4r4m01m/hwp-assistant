@@ -13,6 +13,8 @@ from .workspaces import Workspace, WorkspaceMember, WorkspaceDocument, Workspace
 from .document_branches import DocumentBranch, IntegrationRequest, BranchParticipant, WorkCopyEntry
 from .document_library import PersonalDocument, LibraryFolder, FolderDocument
 from .organization import AccountAffiliation
+from .mattermost_store import MattermostLink, MattermostChallenge, MattermostRequest
+from .document_search import DocumentSearchIndex
 
 
 def migrate(engine, users):
@@ -65,3 +67,4 @@ def migrate(engine, users):
                 db.execute(update(Conversation).where(Conversation.owner_id == "local").values(owner_id=owner))
                 db.execute(update(VisualStandard).where(VisualStandard.owner_id == "local").values(owner_id=owner))
                 db.execute(update(DesignFragment).where(DesignFragment.owner_id == "local").values(owner_id=owner))
+

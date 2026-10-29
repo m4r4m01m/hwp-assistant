@@ -48,6 +48,8 @@ import { CapabilitiesProvider, CapabilityNotice, useFeature } from "./capabiliti
 import { useDebouncedValue, useMobileDrawerCanvas } from "./ui-state";
 import { AiConnectionProvider, useAiSetupLanding } from "./ai-connection";
 import { AccountPasswordChange } from "./account-password-change";
+import { captureExternalEntry, clearExternalEntryUrl, type ExternalEntry } from "./external-entry";
+import { MattermostLink, SavedDocumentEntry } from "./external-entry-view";
 
 class WorkspaceLoadBoundary extends React.Component<{ children: React.ReactNode; onBack: () => void }, { failed: boolean }> {
   state = { failed: false };
@@ -59,9 +61,9 @@ class WorkspaceLoadBoundary extends React.Component<{ children: React.ReactNode;
 }
 
 function App({
-  account,
+  account, entry, dismissEntry,
 }: {
-  account: Account;
+  account: Account; entry: ExternalEntry | null; dismissEntry: () => void;
 }) {
   const [docs, setDocs] = useState<Document[]>([]),
     [query, setQuery] = useState(""),
@@ -84,7 +86,8 @@ function App({
     [standardDesigner, setStandardDesigner] = useState(false),
     [reportStandard, setReportStandard] = useState<VisualSelection | undefined>(),
     [registerTemplate, setRegisterTemplate] = useState<Document | undefined>(),
-    [reports, setReports] = useState(false);
+    [reports, setReports] = useState(entry?.kind === "report");
+  const [mattermostSettings, setMattermostSettings] = useState(false);
   const [editorDesign, setEditorDesign] = useState<DesignChoice | null>(null);
   const [coeditDocument, setCoeditDocument] = useState<Document | null>(null);
   const [openingDocument, setOpeningDocument] = useState<Document | null>(null);
@@ -120,7 +123,7 @@ function App({
   const [searchQuery, flushSearch] = useDebouncedValue(query);
   const uploadBusy = useRef(false), dragDepth = useRef(0);
   const frozenUpload = useRef<{ bytes: Uint8Array; name: string; id: string; key: string } | null>(null);
-  const inLibrary = !active && !openingDocument && !creating && !standardDesigner && !reports && !templates && !managingAccounts && !coeditDocument && !branchDocument && !spacePanel;
+  const inLibrary = !entry && !mattermostSettings && !active && !openingDocument && !creating && !standardDesigner && !reports && !templates && !managingAccounts && !coeditDocument && !branchDocument && !spacePanel;
   useEffect(() => {
     if (!inLibrary) return;
     const controller = new AbortController();
@@ -187,6 +190,7 @@ function App({
   useEffect(() => { refresh(); return () => { listController.current?.abort(); listGeneration.current++; }; }, [searchQuery]);
   function navigate(section: WorkspaceSection) {
     setBranchDocument(null); setSpacePanel(null);
+    dismissEntry(); setMattermostSettings(false);
     setTrashDialog(null);
     setManagingAccounts(false);
     setEditorDesign(null);
@@ -270,11 +274,16 @@ function App({
   }
   const workspace = (child: React.ReactNode, key: string) => <WorkspaceLoadBoundary key={key} onBack={() => navigate("documents")}><React.Suspense fallback={<main className="drive"><p role="status">화면을 불러오는 중…</p></main>}>{child}</React.Suspense></WorkspaceLoadBoundary>;
 
+  if (entry?.kind === "document") return <SavedDocumentEntry entry={entry} onClose={dismissEntry}
+    onEdit={doc => { dismissEntry(); openDocument(doc); }} onCoedit={doc => { dismissEntry(); openDocument(doc); }} />;
+  if (entry?.kind === "mattermost" || mattermostSettings) return <MattermostLink account={account}
+    token={entry?.kind === "mattermost" ? entry.token : undefined} onClose={() => { dismissEntry(); setMattermostSettings(false); }} />;
+  if (entry?.kind === "error") return <main className="external-entry"><section><h1>링크를 열 수 없습니다</h1><p role="alert">{entry.message}</p><button onClick={dismissEntry}>문서함으로</button></section></main>;
   if (managingAccounts && account.is_admin) return workspace(<AccountManagement account={account} onClose={() => { setManagingAccounts(false); refresh(); }} />, "accounts");
 
   if (standardDesigner) return workspace(<StandardDesigner onNavigate={navigate} onClose={() => { setStandardDesigner(false); refresh(); }}
     onReport={standard => { setReportStandard(standard); setStandardDesigner(false); setReports(true); }} />, "standards");
-  if (reports) return workspace(<Reports onNavigate={navigate} initialVisualStandard={reportStandard} onClose={() => { setReports(false); setReportStandard(undefined); refresh(); }} onOpen={doc => { setReports(false); setReportStandard(undefined); setActive(doc); }} />, "reports");
+  if (reports) return workspace(<Reports initialTaskId={entry?.kind === "report" ? entry.taskId : undefined} onNavigate={navigate} initialVisualStandard={reportStandard} onClose={() => { dismissEntry(); setReports(false); setReportStandard(undefined); refresh(); }} onOpen={doc => { dismissEntry(); setReports(false); setReportStandard(undefined); setActive(doc); }} />, "reports");
   if (templates) return workspace(<TemplateMarket onNavigate={navigate} registerDocument={registerTemplate}
     onClose={() => { setTemplates(false); setRegisterTemplate(undefined); refresh(); }}
     onApply={doc => { setTemplates(false); setRegisterTemplate(undefined); setActive(doc); }}
@@ -313,7 +322,7 @@ function App({
     );
   return (
     <div className="workspace-shell library-shell">
-      <WorkspaceNav active="documents" onNavigate={navigate} disabled={copying || uploading} footer={<><strong>{account.authentication_required ? account.user_id : "개인 작업 공간"}</strong><details className="library-account-note"><summary>이용 안내</summary><p>{account.authentication_required ? account.library_access_mode === "shared" ? "새 문서는 비공개로 저장됩니다. 기존 공용 문서와 공유 문서는 각 문서의 권한을 따릅니다." : "문서별 열람·편집·소유자 권한과 대화 공개 범위가 적용됩니다." : "현재 이 컴퓨터의 개인 문서함입니다. 사용자 간 공유는 서버 인증 설정 후 사용할 수 있습니다."}</p><p>저장본은 이전 버전을 보존합니다. 한컴 호환성은 실제 파일로 확인하세요.</p></details><AccountPasswordChange account={account} />{(account.authentication_required || account.is_admin) && <div className="workspace-account-actions">{account.authentication_required && <button onClick={async () => { await api("/auth/logout", { method: "POST" }); clearAccountWorkspaceState(); location.reload(); }}>로그아웃</button>}{account.is_admin && <button onClick={() => setManagingAccounts(true)}>계정 관리</button>}</div>}</>}>
+      <WorkspaceNav active="documents" onNavigate={navigate} disabled={copying || uploading} footer={<><strong>{account.authentication_required ? account.user_id : "개인 작업 공간"}</strong><details className="library-account-note"><summary>이용 안내</summary><p>{account.authentication_required ? account.library_access_mode === "shared" ? "새 문서는 비공개로 저장됩니다. 기존 공용 문서와 공유 문서는 각 문서의 권한을 따릅니다." : "문서별 열람·편집·소유자 권한과 대화 공개 범위가 적용됩니다." : "현재 이 컴퓨터의 개인 문서함입니다. 사용자 간 공유는 서버 인증 설정 후 사용할 수 있습니다."}</p><p>저장본은 이전 버전을 보존합니다. 한컴 호환성은 실제 파일로 확인하세요.</p></details><AccountPasswordChange account={account} />{account.authentication_required && <button onClick={() => setMattermostSettings(true)}>매터모스트 연결</button>}{(account.authentication_required || account.is_admin) && <div className="workspace-account-actions">{account.authentication_required && <button onClick={async () => { await api("/auth/logout", { method: "POST" }); clearAccountWorkspaceState(); location.reload(); }}>로그아웃</button>}{account.is_admin && <button onClick={() => setManagingAccounts(true)}>계정 관리</button>}</div>}</>}>
         <button className="primary workspace-nav-action" aria-label="빈 문서 만들기" disabled={uploading} onClick={() => setCreating(true)}><WorkspaceIcon name="plus"/><span>빈 문서 만들기</span></button>
         <label className="button workspace-nav-action" title="HWPX 업로드"><WorkspaceIcon name="upload"/><span>HWPX 업로드</span><input aria-label="HWPX 업로드" type="file" accept=".hwpx" disabled={uploading || !!uploadPending} onChange={event => { if (event.target.files?.[0]) void incoming(event.target.files[0]); event.target.value = ""; }} /></label>
         <p className="workspace-nav-note">문서를 만들거나 기존 HWPX를 가져와 작업하세요.</p>
@@ -1693,6 +1702,12 @@ function Editor({
     </div>
   );
 }
-createRoot(document.getElementById("root")!).render(
-  <AccountGate>{account => <CapabilitiesProvider><AiConnectionProvider><App account={account} /></AiConnectionProvider></CapabilitiesProvider>}</AccountGate>,
-);
+function ApplicationRoot() {
+  // Capture and scrub linking secrets before authentication begins. Keep them in
+  // component memory only; login does not require a URL or storage credential.
+  const [entry, setEntry] = useState(() => captureExternalEntry(window));
+  const dismissEntry = () => { setEntry(null); clearExternalEntryUrl(); };
+  return <AccountGate>{account => <CapabilitiesProvider><AiConnectionProvider><App account={account} entry={entry} dismissEntry={dismissEntry} /></AiConnectionProvider></CapabilitiesProvider>}</AccountGate>;
+}
+createRoot(document.getElementById("root")!).render(<ApplicationRoot />);
+

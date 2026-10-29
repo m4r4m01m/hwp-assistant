@@ -40,11 +40,12 @@ function selectionSnapshot(value: VisualSelection): VisualSelection {
   return { id, revision, name, settings, settings_sha256, base_standard, preview_sha256 };
 }
 
-export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: { onClose: () => void; onOpen: (doc: Document) => void; initialVisualStandard?: VisualSelection; onNavigate?: (section: WorkspaceSection) => void }) {
+export function Reports({ onClose, onOpen, initialVisualStandard, initialTaskId, onNavigate }: { onClose: () => void; onOpen: (doc: Document) => void; initialVisualStandard?: VisualSelection; initialTaskId?: string; onNavigate?: (section: WorkspaceSection) => void }) {
   const feature = useFeature("reports"), visible = usePageVisible();
   const workspaceRoot = useRef<HTMLElement>(null);
   useMobileDrawerCanvas(workspaceRoot, ".report-workspace-canvas", ".report-workspace-drawer:not([hidden])");
   const [pollError, setPollError] = useState("");
+  const [externalLoad, setExternalLoad] = useState<"pending" | "failed" | "ready">(initialTaskId ? "pending" : "ready");
   const [workspacePanel, setWorkspacePanel] = useState<"request" | "content" | "history" | null>("request");
   const [previewTools, setPreviewTools] = useState<HTMLDivElement | null>(null);
   const [previewDetails, setPreviewDetails] = useState<HTMLDivElement | null>(null);
@@ -88,15 +89,17 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
     // An explicit registered standard starts a new report; the previous frozen
     // task remains available in recent requests rather than replacing this choice.
     if (initialVisualStandard) return;
-    const id = sessionStorage.getItem("hwp-report-task");
+    const id = initialTaskId || sessionStorage.getItem("hwp-report-task");
+    if (initialTaskId) setExternalLoad("pending");
     if (id) void api<Job>(`/report-tasks/${id}`).then(value => {
       if (stopped || active.current !== null) return;
-      if (value.approval?.saved_version) {
+      if (value.approval?.saved_version && !initialTaskId) {
         sessionStorage.removeItem("hwp-report-task"); // Keep new report creation reachable after saving.
-      } else selectJob(value);
+      } else { selectJob(value); if (initialTaskId) { setWorkspacePanel(null); setExternalLoad("ready"); } }
     }).catch(cause => {
       if (stopped || active.current !== null) return;
-      if (cause instanceof ApiError && cause.status === 404) sessionStorage.removeItem("hwp-report-task");
+      if (initialTaskId) { setExternalLoad("failed"); setRestoreTaskId(id); setError("연결된 보고서를 열 수 없습니다. 요청한 계정으로 로그인했는지 확인하세요. " + String(cause)); }
+      else if (cause instanceof ApiError && cause.status === 404) sessionStorage.removeItem("hwp-report-task");
       else { setRestoreTaskId(id); setError("이전 보고서를 불러오지 못했습니다. 요청과 보완 의견은 보존되어 있습니다. " + String(cause)); }
     });
     return () => { stopped = true; };
@@ -348,6 +351,9 @@ export function Reports({ onClose, onOpen, initialVisualStandard, onNavigate }: 
       ? "사용 안 함" : targets ? targets.join("·") : "모든 본문 항목";
     return `괄호 요약어: ${description} · 핵심 요약 ${settings?.show_core_summary === false ? "미포함" : "포함"}`;
   };
+  if (initialTaskId && externalLoad !== "ready" && !job) return <main className="external-entry"><section>
+    <h1>보고서 요청 열기</h1>{externalLoad === "pending" ? <p role="status">연결된 보고서와 접근 권한을 확인합니다.</p> : <><p role="alert">{error}</p><button onClick={() => { setError(""); setRestoreAttempt(value => value + 1); }}>다시 확인</button></>}
+    <button onClick={onClose}>문서함으로</button></section></main>;
   return <main ref={workspaceRoot} className="report-workspace report-editor-workspace">
     <WorkspaceNav active="reports" compact className="report-workspace-rail" label="보고서 작업 도구" onBack={onClose} onNavigate={onNavigate} disabled={locked || job?.status === "running"}>
       <button aria-label="작성 요청" title="새 보고서의 주제와 양식 선택" aria-expanded={workspacePanel === "request"} aria-controls="report-request-panel" onClick={() => setWorkspacePanel(value => value === "request" ? null : "request")}><WorkspaceIcon name="rename" /><span>작성 요청</span></button>

@@ -116,6 +116,39 @@ private 실행 스크립트/버전 영수증/실제 화면/복구 HWPX는 `.cach
 별도 검수 서버 **http://127.0.0.1:15350/** (API 18350), 합성 DB/파일/계정과 private 증거 `.cache/team-experiment-20261028/`. 테스트 계정 안내는 같은 폴더 `검수안내.txt`에만 둔다(비밀번호·DB·로그를 커밋하지 않는다). 최종 교체 전 실험 DB·문서도 함께 백업했다. 기존 15330 및 운영 서비스/사용자 문서는 건드리지 않았다.
 
 범위: 기존 단독/공동편집은 유지되므로 모든 기준 문서의 직접 수정을 강제로 승인 대상으로 바꾸지는 않는다. 전체 문서 단위 통합이며 줄별 충돌 수동 해결, 작업본 자동 재기준화, 다단계 결재, 조직 SSO, 공간 삭제/해제는 후속이다. 검토가 끝난 요청은 기록으로 남고 구식 요청은 자동 반영하지 않는다. 운영 채택 전에 실제 PostgreSQL 권한 회수/통합 경합 검증과 사용자 검수를 진행한다.
+## 2026-10-30 — 사이드바 계정 메뉴 간격 수정
+
+사용자가 봇 연결 성공과 함께 사이드바의 `비밀번호 변경`·`매터모스트 연결`이 붙어 보이는 화면을 제공했다. 최신 `origin/main` **`45bed7c9496524e1670515d210e9e613b4409f9b`**에서 `codex/sidebar-account-menu-spacing-2026-10-30`를 만들었다. 이전 절의 미병합·미배포 설명은 당시 상태이며, 이번에 [PR #55](https://github.com/m4r4m01m/hwp-assistant/pull/55)의 병합 및 같은 main SHA의 [수동 배포 run](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40899394306) 검사·게시·`deploy-home` 성공을 읽기 전용으로 확인했다. 사용자 보고의 봇 연결 성공을 검색·초안 생성 전체 검증으로 확대하지 않는다.
+
+제품 source **`56ef3a2ac87be0fe33bad574ec8d55fbd3df19ba`**는 `workspace-nav.css`의 footer 직접 자식 버튼에만 세로 배치·전체 너비·최소 높이 32px·단어 단위 줄바꿈을 적용한다. 펼침 상태는 왼쪽, 아이콘 상태는 가운데 정렬을 상속한다. 인증 조건·포털 대화상자·로그아웃/계정 관리 버튼 그룹은 변경하지 않았다.
+
+macOS / Node 22.19.0 / Chrome 합성 화면에서 1440px·390px 각각의 펼침/아이콘 모드 4개 배치를 확인했고, 두 메뉴의 화면 열기·폭 넘침 없음·겹침 없음을 확인했다. TypeScript, unit **40개**, Node 계약 **55개**, 모의 UI **107개**, 공개 경로·셸 문법·공백 검사가 통과했다. 마지막 단어 줄바꿈 보완 후 계정·봇·반응형 관련 **22개**를 다시 확인했으며 중복 합산하지 않는다. 화면 증거는 로컬 `.cache/sidebar-ui-20261030/`에 있다. 실제 엔진·모델 검증과 이 UI 수정의 운영 배포는 수행하지 않았으며, 다음 단계는 PR 검사·검토 후 웹 이미지 배포다.
+
+## 2026-10-30 — Mattermost 내부 통신과 입력창 콜백 분리
+
+사용자 제공 운영 로그에서 `/hwp` 요청은 처음 Mattermost의 내부 주소 제한(`address forbidden`)에 걸렸고, 호스트 허용 후에는 같은 호스트의 Tailscale HTTPS 주소 연결 시간 초과로 바뀌었다. SiteURL을 새 공개 주소로 반영한 화면과 Test Live URL 실패도 제공됐다. 후자는 서버가 자기 공개 ping URL을 조회하는 검사이며, 이 결과만으로 Tailscale ACL 차단을 단정하지 않는다. 실제 사용자 네트워크 조회에서 Mattermost와 HWP API가 이미 외부 bridge `hwp-mattermost-hook`에 함께 있고 각각 `mattermost`·`api` 별칭을 가진 것을 확인했다. 사용자 실행의 HWP → `http://mattermost:8065/mattermost/api/v4/system/ping`은 **HTTP 200 / status OK**였다. 이는 상태 조회 근거이며 명령·개인 메시지·실제 생성의 전체 성공은 아니다.
+
+이전 봇 항목의 미병합 설명은 당시 기록이다. GitHub에서 [PR #54](https://github.com/m4r4m01m/hwp-assistant/pull/54)가 merge commit `db6965a7ca3954c8957ccba9e4c983b1c06841ce`로 병합된 것을 읽기 전용으로 확인했다. 이번 기준은 fetch한 main **[`50babefdf739a680eb16c984693e5e7b602d6088`](https://github.com/m4r4m01m/hwp-assistant/commit/50babefdf739a680eb16c984693e5e7b602d6088)**다. 해당 커밋의 push 검사들과 [수동 게시·배포 run](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40864417122)의 python/frontend/UI·게시·deploy-home 성공을 확인했다. 이 관측을 이번 보완의 CI나 운영 반영 성공으로 바꿔 적지 않는다.
+
+깨끗한 기존 worktree를 재사용하여 `codex/mattermost-internal-callback-2026-10-30`를 기준 main에서 만들고 원래 브랜치는 보존했다. 제품 source는 **[`07d6790a8aa413e5eccb5dcc38d438b87a174d06`](https://github.com/m4r4m01m/hwp-assistant/commit/07d6790a8aa413e5eccb5dcc38d438b87a174d06)**다. 선택형 `HWP_MATTERMOST_CALLBACK_URL`로 서버용 입력창 제출 주소를 공개 웹 링크와 분리한다. 빈 값은 기존 공개 주소를 유지하며 기존 URL 검증·HTTP 명시 허용·고정 callback 검사와 입력창 상태/사용자/팀/채널/연결 세대 검증을 유지한다. 운영 Compose 전달, private env 예제와 [파일별 내부망 적용 안내](mattermost-bot-2026-10-28.md#같은-docker-호스트의-내부-통신)를 함께 보완했다. 봇 REST 기준 주소를 공개에서 내부로 바꾸면 인스턴스 식별 해시도 바뀌므로 `/hwp 연결`을 다시 수행해야 한다.
+
+검증 환경은 macOS arm64 / Python **3.14.7**이다. 봇·전송 집중 **99개**가 통과했다(98개 실행 뒤 마지막으로 추가한 빈 callback 호환성 1개를 별도 실행; 중복 합산 아님). 배포 workflow의 Python 계약은 **96 통과 / 2 환경별 skip**이다. CI wrapper의 두 subcase는 macOS 임시 경로 별칭으로 처음 실패했으며 `TMPDIR=/private/tmp`로 정규화한 재실행에서 17개 계약 전체가 통과했다. 공백 검사와 문서 상대 링크 검사도 통과했다. frontend·엔진·전체 backend 회귀와 실제 Mattermost/Codex 호출은 이 로컬 검증에 포함하지 않았다. 이번 보완의 main 병합·이미지 게시·운영 배포는 수행하지 않았다. 다음 단계는 PR 검사·검토 후 수정된 API 이미지와 짝이 맞는 Compose를 반영하고, 내부 명령·입력창 제출·개인 메시지·공개 웹 링크를 실제 서버에서 각각 검증하는 것이다.
+
+## 2026-10-28 — 매터모스트 문서 검색·초안 봇 구현 브랜치
+
+사용자가 별도 브랜치 구현을 요청하여 기준 main **[`4b20b5f293ee81f158fe25d14a48955d47948373`](https://github.com/m4r4m01m/hwp-assistant/commit/4b20b5f293ee81f158fe25d14a48955d47948373)**의 격리 worktree에서 `codex/mattermost-document-bot-2026-10-28`로 진행한다. 기존 체크아웃·미커밋 작업·실행 서비스는 보존한다. 이 절은 구현 중인 브랜치의 설계·소스 상태이며 main 병합이나 운영 반영 기록이 아니다. [설정·사용 흐름·처리 한계](mattermost-bot-2026-10-28.md).
+
+- 기존 API 안에 `/hwp` Slash Command 수신, 계정 연결 확인, 입력창 제출, DB 요청 처리와 봇 REST 개인 메시지를 추가한다. 별도 봇 컨테이너나 Outgoing Webhook은 필요하지 않다. 기존 가입 승인 Incoming Webhook 설정과 분리하고 기본 비활성을 유지한다. `/hwp-assistant/`와 API 1 worker·기존 3개 서비스/외부 볼륨을 보존한다.
+- 승인·활성 개인 계정을 웹에서 명시적으로 연결하고 현재 계정·문서 권한과 연결 세대를 다시 확인한다. 검색 결과는 개인 메시지로 전달하고 웹에서는 저장 버전을 읽기 전용으로 연다. 제목·본문의 단어 검색을 기본으로 하며 내부 임베딩 서버를 명시적으로 설정했을 때 의미 검색을 함께 사용한다. 원본을 바꾸지 않는 버전·해시 고정 파생 색인이며 현재 문서당 조각 수와 후보 수 한도가 있다.
+- 초안은 기존 보고서 접수·Codex 권한/한도와 revision 3 표준을 재사용한다. 기본 공개자료 조회는 꺼지고, 대화상자에서 선택할 수 있다. 내용 검토·서식 미리보기·명시적 서버 저장, 보완본 별도 생성과 원본 보존은 유지한다. 요청 영수증을 보존하며 재시작 때 이미 생성한 작업을 자동 재생성하거나 전송 여부가 불명인 개인 메시지를 자동 반복하지 않는다.
+
+제품 source는 **`f5941cef11447bbced1ab3221a002054298bbbbf`**다. macOS 14.6.1 arm64의 격리 환경(Python 3.14.7, Node 22.19.0)에서 봇·검색·전송 집중 **118개**와 마지막 입력창 호환성 변경의 관련 **1개 재확인**이 통과했다(중복 합산하지 않음). TypeScript, 프런트엔드 unit **40개**, 모의 UI **107개**, Node 계약 **55개**, 빌드/미리보기 fixture **7개**, 공개 경로·공백 검사가 통과했다. Python 배포 계약은 **96 통과/2 환경별 skip**이며, CI 계약 17개는 macOS 임시 디렉터리 별칭 때문에 처음 두 subcase가 실패한 후 정규화된 작업 전용 경로로 재실행해 모두 통과했다. CI의 Node 24.15.0/Linux 환경과 구분한다.
+
+수정 도중 시작한 전체 backend 실행은 **1,714 통과/2 실패(340.86초)**였다. 수정 전 검색 fixture import 실패는 현재 코드 재실행에서 통과했다. 변경하지 않은 `test_stdio_split_utf8_and_unterminated_final_event_are_decoded`는 `report_rpc.py`의 `os.killpg`에서 macOS `PermissionError`로 재실행도 실패했다. 전체 통과로 기록하지 않는다. 실제 Mattermost/내부 임베딩 모델/Codex 호출, PostgreSQL·실제 엔진 통합, 운영 배포는 수행하지 않았다. exact-head CI는 PR에서 별도로 확인하며 다음 단계는 해당 검사와 별도 환경의 합성 자료 연동 검수다.
+
+후속 검증: [Draft PR #54](https://github.com/m4r4m01m/hwp-assistant/pull/54)의 exact head **`1efc44a0e9f6ec31b3ec9b7b8c2de95b10c4af8c`**에서 [HWP CI](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40613120628)가 성공했다. Linux/Python 3.14 전체 **1,730 passed/2 warnings/514.24초**, Node 24.15.0 프런트엔드 검사, 모의 UI **107개**와 엄격 TLS **1개**가 통과했다. [빌드 경로](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40613120671)·[배포 전용 계약](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40613120556)도 성공했다. [PoC 통합](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40613120663)은 기존 실제 PostgreSQL·HTTPS·엔진의 계정/공동편집 브라우저 **3개**와 재시작 후 계정·세션·HWPX 해시 보존을 통과했다. 봇은 이 컨테이너 시험에서 기본 비활성이므로 실제 봇/Mattermost 연동 성공으로 확대하지 않는다. macOS 잔여 오류는 별도 추출한 기준 `4b20b5f`의 동일 시험에서도 재현되어 이번 변경 이전 문제로 구분했다.
+
+이 후속 기록은 문서만 갱신하며 위 제품 source를 바꾸지 않는다. main 병합·이미지 게시·운영 배포 job은 실행하지 않았고, PR의 게시/배포 job `skipped`를 성공으로 계산하지 않는다. 다음 단계는 검토와 별도 환경의 실제 Mattermost 및 내부 모델 연결이며 기존 사용자 자료·서비스는 보존한다.
 
 ## 2026-10-28 — 공동편집 main 병합과 최종 검증
 
@@ -871,3 +904,4 @@ GitHub workflow 파일은 변경하지 않았다. 현재 HWP deployment는 main-
 정확한 merge SHA를 확인하고 `hwp-deploy.yml`을 main·deploy=true로 한 번 실행했다. [run40376552141](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40376552141)의 Python/frontend/UI, 검증·이미지 게시, 운영 배포5개 job이 모두 성공했다. [운영 job121772217642](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40376552141/job/121772217642)의 백업·이미지 교체와 마지막 공개HTTPS smoke step 성공을 확인했다. private env/계정/Codex 인증을 수집·변경하지 않았으며 기존 백업·외부볼륨 보존 절차를 사용했다.
 
 배포 후 공개주소를 별도로 읽어 health200/ok=true와 제공된CSS의 `font-size:14px`, `margin-inline-start:40px`를 확인했다. 인증정보 없이 `scripts/deploy/smoke.py`를 재실행해 라우팅·문서API401·앱/편집기/비교 자원·WASM 해시가 통과했다. 운영 로그인/문서 쓰기/실제 모델 호출은 수행하지 않았고, CI의 합성 PostgreSQL/HTTPS/엔진 검증과 구분한다. [검증 영수증](evidence/kftc-title14-deployment-2026-10-27.json)에 정확한SHA와 run을 기록한다. 이후 문서만 병합되어 main SHA가 달라져도 실제 운영 이미지 source는 위54d19f9이며 문서 때문에 새 이미지를 게시·배포하지 않는다.
+

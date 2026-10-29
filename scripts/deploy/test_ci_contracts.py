@@ -73,13 +73,30 @@ class BuildCacheContracts(unittest.TestCase):
     def test_publication_and_production_gates_are_preserved(self):
         workflow = (ROOT / ".github/workflows/hwp-deploy.yml").read_text()
         self.assertIn("needs: [python-checks, frontend-checks, ui-lifecycle]", workflow)
-        self.assertIn("github.ref == 'refs/heads/main' && inputs.deploy", workflow)
+        self.assertIn("&& inputs.deploy", workflow)
         self.assertIn("runs-on: [self-hosted, linux, x64, hwp-deploy]", workflow)
         for scope in ("hwp-api", "hwp-web"):
             self.assertIn("cache-from: type=gha,scope=" + scope, workflow)
             self.assertIn("cache-to: type=gha,mode=max,scope=" + scope, workflow)
         self.assertLess(workflow.index("bash ../scripts/deploy/run-browser-checks.sh"), workflow.index("Authenticate to GHCR only after verification"))
         self.assertLess(workflow.index("--grep 'CI TLS:'"), workflow.index("  build-verify-publish:"))
+
+    def test_only_manual_allowlisted_branches_can_publish_or_deploy(self):
+        workflow = (ROOT / ".github/workflows/hwp-deploy.yml").read_text()
+        for job in ("build-verify-publish", "deploy-home"):
+            body = workflow.split(f"\n  {job}:\n", 1)[1]
+            condition = re.search(r"^    if: (.+)$", body, re.MULTILINE).group(1)
+            for event in ("workflow_dispatch", "pull_request", "push"):
+                for ref in ("refs/heads/main", "refs/heads/codex/experiment-team-workspaces-2026-10-28",
+                            "refs/heads/feature", "refs/heads/codex/experiment-unreviewed", "refs/pull/1/merge"):
+                    for deploy in (False, True):
+                        expression = condition.replace("github.event_name", repr(event)).replace("github.ref", repr(ref))
+                        expression = expression.replace("inputs.deploy", repr(deploy)).replace("&&", " and ").replace("||", " or ")
+                        allowed = event == "workflow_dispatch" and ref in {
+                            "refs/heads/main", "refs/heads/codex/experiment-team-workspaces-2026-10-28"}
+                        expected = allowed and (deploy or job != "deploy-home")
+                        with self.subTest(job=job, event=event, ref=ref, deploy=deploy):
+                            self.assertEqual(eval(expression, {"__builtins__": {}}, {}), expected)
 
     def test_both_container_workflows_prepare_the_webhook_network_before_startup(self):
         for filename, job in (("hwp-deploy.yml", "build-verify-publish"),
@@ -226,3 +243,4 @@ class BrowserTLSContracts(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
