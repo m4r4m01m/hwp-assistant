@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-29",
+  "branch": "codex/experiment-team-workspaces-2026-10-28",
+  "product_source": "add1ce08703e2fd586dd7242bb7f91e8d6a6817e",
+  "reproduced_bug": "Duplicate React sibling keys retained old details DOM after version selection; opening stale details made no API request and showed no content.",
+  "backend_changes": false,
+  "mock_ui": {"initial_suite_passed": 15, "later_added_targeted_case_passed": 1},
+  "typescript": "passed",
+  "frontend_build": "passed using the existing verified diagnostic engine",
+  "native_ui": {
+    "version_switches": 6,
+    "one_live_detail_and_preview": true,
+    "selected_api_version_and_visible_entries_match": true,
+    "secondary_actions_collapsed": true,
+    "actual_version_comparison": true,
+    "mobile_page_no_overflow": true,
+    "document_write_requests": 0,
+    "version_list_unchanged": true
+  },
+  "preview_url": "http://127.0.0.1:15350/",
+  "update_scope": "Frontend process only; existing API PID and start time preserved",
+  "remote_push_or_main_production_change": false,
+  "private_evidence": ".cache/history-ux-20261029/",
+  "limits": "No full pytest/E2E rerun, PostgreSQL, Hancom or human acceptance claim; no model calls."
+}

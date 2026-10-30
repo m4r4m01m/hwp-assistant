@@ -150,18 +150,20 @@ test("REAL rhwp, NO AI: three save/download/reupload/reopen cycles preserve tabl
   await page.screenshot({ path: info.outputPath("third-cycle.png"), fullPage: true });
   await page.getByRole("button", { name: "← 문서 목록", exact: true }).click();
   await page.getByRole("row").filter({ has: page.locator(`a[href="${url}"]`) })
-    .getByRole("button", { name: "버전 기록", exact: true }).click();
+    .getByRole("button", { name: "문서 이력", exact: true }).click();
+  await page.locator(`[data-version-id="${originalUrl.split("/").at(-2)}"]`).click();
   page.once("dialog", dialog => dialog.accept()); // Automated fixture restore, not a human action.
   const restoredResponse = page.waitForResponse(r => r.request().method() === "POST" && r.url().includes("/restore?"));
-  await page.locator(".history-table tbody tr").filter({ has: page.locator(`a[href="${originalUrl}"]`) })
-    .getByRole("button", { name: "이 버전 복원", exact: true }).click();
+  await page.getByRole("button", { name: "이 저장본 복원", exact: true }).click();
   const restoreResponse = await restoredResponse;
   expect(restoreResponse.ok(), await restoreResponse.text()).toBeTruthy();
   const restored = await restoreResponse.json();
   expect(restored.cause).toBe("restore"); expect(restored.id).not.toBe(originalUrl.split("/").at(-2));
   url = `${docPath}/versions/${restored.id}/file`;
   expect(await (await request.get(url)).body()).toEqual(original);
-  await expect(page.locator(".modal")).not.toBeVisible();
+  await expect(page.getByText("선택한 저장본을 새 버전으로 복원했습니다. 이전 이력은 보존됩니다.")).toBeVisible();
+  await expect(page.locator(`[data-version-id="${restored.id}"]`)).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("dialog", { name: "문서 이력", exact: true }).getByRole("button", { name: "닫기", exact: true }).click();
   expect((await openCurrent()).paragraphs).toEqual(baseline.paragraphs);
   const versions = await (await request.get(docPath + "/versions")).json();
   expect(versions).toHaveLength(8);

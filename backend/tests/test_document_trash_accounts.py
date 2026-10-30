@@ -23,6 +23,10 @@ def shared_accounts(accounts, monkeypatch):
     # Preserve an existing non-password identity's ownership and two versions.
     c.headers["Authorization"] = "Bearer " + TOKENS["owner"]
     doc = document(c)
+    # This fixture represents documents already shared before private defaults.
+    from app.document_library import PersonalDocument
+    with transaction(app.state.engine) as db:
+        db.delete(db.get(PersonalDocument, doc['id']))
     token = c.post(f"/api/documents/{doc['id']}/session").json()["token"]
     assert save(c, doc, token, package("공용 휴지통 보존 시험")).status_code == 200
     assert c.delete(f"/api/documents/{doc['id']}/session", headers={"X-Edit-Session": token}).status_code == 200

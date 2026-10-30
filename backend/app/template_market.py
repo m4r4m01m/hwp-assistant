@@ -141,10 +141,10 @@ def install_template_market(app, locked):
                 favorite: bool = False, sort: Literal["newest", "name", "relevance"] = "newest",
                 offset: int = Query(0, ge=0), limit: int = Query(24, ge=1, le=100)):
         with Session(engine) as db:
-            from .library_access import shared_library
-            query = select(Template).where(~document_is_trashed(Template.document_id))
-            if not shared_library(db, request.state.user):
-                query = query.join(Access, Access.document_id == Template.document_id).where(Access.user_id == request.state.user)
+            from .library_access import document_read_scope
+            from .db import Document
+            query = select(Template).where(~document_is_trashed(Template.document_id),
+                Template.document_id.in_(select(Document.id).where(document_read_scope(db, request.state.user))))
             rows = db.scalars(query)
             results = []
             for row in rows:

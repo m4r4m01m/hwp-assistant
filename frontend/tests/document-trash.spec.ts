@@ -109,15 +109,15 @@ test("MOCK library trash: shared delete confirmation and restore explain the com
   const remove = page.getByRole("button", { name: `${ownDocument.name} 삭제`, exact: true });
   await remove.click();
   const confirmation = page.getByRole("dialog", { name: "휴지통으로 이동", exact: true });
-  await expect(confirmation).toContainText("모든 공유 사용자가 열 수 없습니다");
+  await expect(confirmation).toContainText("공유 중인 사용자도 열 수 없습니다");
   await expect(confirmation).toContainText("원본과 버전 기록은 보존");
   expect(calls.deletions()).toBe(0);
   await confirmation.getByRole("button", { name: "휴지통으로 이동", exact: true }).click();
   await expect(remove).toHaveCount(0); expect(calls.deletions()).toBe(1);
   await page.getByRole("button", { name: "휴지통", exact: true }).click();
   const trash = page.getByRole("dialog", { name: "휴지통", exact: true });
-  await expect(trash).toContainText("공용 문서함에서 삭제한 문서가 표시됩니다");
-  await expect(trash).toContainText("공유 사용자 모두에게 문서가 다시 표시됩니다");
+  await expect(trash).toContainText("내가 복구할 권한이 있는 문서만 표시됩니다");
+  await expect(trash).toContainText("개인 문서가 다른 사람에게 자동 공개되지는 않습니다");
   await expect(trash).not.toContainText("내가 소유한 문서만");
   await trash.getByRole("button", { name: `${ownDocument.name} 복구`, exact: true }).click();
   await expect(trash.getByRole("status")).toContainText("복구했습니다"); expect(calls.restores()).toBe(1);

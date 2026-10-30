@@ -385,6 +385,7 @@ export function AccessPanel({
     [role, setRole] = useState("reader"),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
   const load = async () => setRows(await api(`/documents/${doc.id}/access`));
   useEffect(() => {
     void load().catch((e) => setError(e.message));
@@ -392,9 +393,11 @@ export function AccessPanel({
   async function change(task: () => Promise<unknown>) {
     setBusy(true);
     setError("");
+    setNotice("");
     try {
       await task();
       await load();
+      setNotice("공유 권한을 반영했습니다.");
     } catch (e) {
       setError(String(e));
     } finally {
@@ -408,13 +411,15 @@ export function AccessPanel({
           닫기
         </button>
         <h2 id="access-panel-title">{doc.name} · 공유 권한</h2>
+        {doc.workspace_id && <p><strong>다른 팀 사람에게 이 문서만 공유합니다.</strong> 문서함의 다른 문서는 공개되지 않습니다. 기존 문서함 구성원 권한은 유지되며, 아래 목록은 별도로 초대한 사람입니다.</p>}
         <p>
-          열람자는 문서 공유 대화·컨텍스트·버전을 볼 수 있습니다. 편집자는
-          저장·대화·제안을 작성합니다. 권한 변경 시 열린 편집 세션은 만료됩니다.
+          열람자는 저장본·버전 이력·문서 공유 대화를 볼 수 있습니다. 편집자는 수정·저장·공동편집도 할 수 있습니다. 편집 권한을 회수하면 해당 사용자의 편집은 중단됩니다.
         </p>
+        {doc.workspace_id && rows.length === 0 && <p>별도로 초대한 사람이 없습니다.</p>}
         {rows.map((r) => (
           <p key={r.user_id}>
-            {r.user_id} · {r.role}{" "}
+            {r.user_id} · {{ owner: "소유자", editor: "편집", reader: "열람" }[r.role] || r.role}{" "}
+            {r.role !== "owner" && <select aria-label={`${r.user_id} 공유 권한`} value={r.role} disabled={busy} onChange={e => void change(() => api(`/documents/${doc.id}/access`, jsonRequest("PUT", { user_id: r.user_id, role: e.target.value })))}><option value="reader">열람</option><option value="editor">편집</option></select>}
             {r.role !== "owner" && (
               <button
                 disabled={busy}
@@ -434,7 +439,8 @@ export function AccessPanel({
         ))}
         <input
           aria-label="공유 대상 사용자"
-          placeholder="서버에 등록된 사용자 ID"
+          placeholder="계정 ID · 예: test4"
+          maxLength={80}
           value={user}
           onChange={(e) => setUser(e.target.value)}
         />
@@ -447,12 +453,12 @@ export function AccessPanel({
           <option value="editor">편집</option>
         </select>
         <button
-          disabled={busy || !user}
+          disabled={busy || !user.trim()}
           onClick={() =>
             void change(() =>
               api(
                 `/documents/${doc.id}/access`,
-                jsonRequest("PUT", { user_id: user, role }),
+                jsonRequest("PUT", { user_id: user.trim().toLowerCase(), role }),
               ),
             )
           }
@@ -460,6 +466,7 @@ export function AccessPanel({
           권한 저장
         </button>
         {error && <p role="alert">{error}</p>}
+        {notice && <p role="status">{notice}</p>}
       </section>
     </div>
   );

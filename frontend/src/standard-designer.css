@@ -43,6 +43,10 @@
 .standard-designer-grid { --standard-settings-width: 332px; display: grid; grid-template-columns: 0 minmax(0, 1fr); min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .standard-designer-grid.settings-visible { grid-template-columns: var(--standard-settings-width) minmax(0, 1fr); }
 .standard-designer-grid.compact-layout.settings-visible { grid-template-columns: 260px minmax(360px, 1fr); }
+.standard-designer-grid.narrow-layout, .standard-designer-grid.narrow-layout.settings-visible { grid-template-columns: minmax(0, 1fr); overflow: hidden; }
+.standard-designer-grid.narrow-layout > .standard-preview { grid-column: 1; }
+.standard-designer-grid.narrow-layout.settings-visible > .standard-preview { display: none; }
+.standard-designer-grid.narrow-layout .standard-preview-toolbar { flex-wrap: wrap; }
 .standard-settings { width: auto; min-width: 0; min-height: 0; padding: 0; border-left: 0; display: flex; flex-direction: column; overflow: hidden; background: #fff; border-right: 1px solid #d9e2ea; }
 .standard-settings[hidden] { display: none; }
 .standard-settings-content { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
