@@ -105,6 +105,7 @@ test("BOT account link scrubs token before login, requires explicit confirmation
   await expect(page.getByRole("status")).toContainText("계정을 연결했습니다");
   expect(requests.filter(item => item.path === "/mattermost/link" && item.method === "POST").map(item => item.body)).toEqual([{ token: linkToken }]);
   await page.getByRole("button", { name: "문서함으로", exact: true }).click();
+  await page.getByLabel("설정 메뉴", { exact: true }).click();
   await page.getByRole("button", { name: "매터모스트 연결", exact: true }).click();
   await page.getByRole("button", { name: "연결 해제", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("연결을 해제했습니다");

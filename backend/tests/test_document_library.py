@@ -104,3 +104,26 @@ def test_return_to_private_revokes_team_and_invites_but_retry_keeps_later_share(
     assert c.put(path+'/workspace',json=body).status_code==200
     assert any(x['user_id']=='writer' for x in c.get(path+'/access').json())
     assert len(c.get(path+'/versions').json())==1
+
+
+def test_library_modified_date_tracks_published_version_not_folder_moves(spaces):
+    from test_storage import save
+    c, app, _, _ = spaces
+    doc, token = create(c)
+    path = f'/api/documents/{doc["id"]}'
+    def listed():
+        return next(d for d in c.get('/api/documents').json() if d['id'] == doc['id'])
+    original = c.get(path+'/versions').json()[0]
+    assert listed()['modified_at'] == original['created_at']
+    edited = save(c, doc, token).json()
+    assert listed()['modified_at'] == edited['created_at']
+    assert listed()['created_at'] == doc['created_at']
+    f = folder(c).json()
+    assert c.put(path+'/folder',json={'folder_id':f['id']}).status_code == 200
+    assert listed()['modified_at'] == edited['created_at']
+    restored = c.post(path+f'/versions/{original["id"]}/restore',
+        params={'base_version':edited['id']},
+        headers={'X-Edit-Session':token,'Idempotency-Key':str(uuid.uuid4())})
+    assert restored.status_code == 200
+    assert listed()['modified_at'] == restored.json()['created_at']
+    assert listed()['created_at'] == doc['created_at']

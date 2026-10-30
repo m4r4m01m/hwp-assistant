@@ -1,13 +1,15 @@
-import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useAiConnection } from "./ai-connection";
+import {useAccountIdentity,useOrganizationIdentity} from "./account-identity";
 import kftcLogo from "./assets/kftc-logo.png";
 import kftcSymbol from "./assets/kftc-symbol.png";
 import "./workspace-nav.css";
 
 export type WorkspaceSection = "documents" | "reports" | "templates" | "standards";
-export type WorkspaceIconName = WorkspaceSection | "back" | "plus" | "upload" | "search" | "refresh" | "download" | "history" | "copy" | "rename" | "share" | "settings" | "close" | "save" | "document" | "file" | "block" | "toc" | "conversation" | "review" | "help" | "undo" | "more" | "trash" | "page" | "font" | "heading" | "paragraph" | "table" | "note" | "layout" | "star" | "sidebar-expanded" | "sidebar-icons" | "sidebar-hidden";
+export type WorkspaceIconName = WorkspaceSection | "lock" | "back" | "plus" | "upload" | "search" | "refresh" | "download" | "history" | "copy" | "rename" | "share" | "settings" | "close" | "save" | "document" | "file" | "block" | "toc" | "conversation" | "review" | "help" | "undo" | "more" | "trash" | "page" | "font" | "heading" | "paragraph" | "table" | "note" | "layout" | "star" | "sidebar-expanded" | "sidebar-icons" | "sidebar-hidden";
 
 const paths: Record<WorkspaceIconName, ReactNode> = {
+  lock: <><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V6a4 4 0 0 1 8 0v4M12 14v3"/></>,
   documents: <><path d="M5 3h9l5 5v13H5z"/><path d="M14 3v5h5M8 12h8M8 16h6"/></>,
   reports: <><path d="M5 3h14v18H5zM8 16v-3m4 3V9m4 7v-5M8 6h8"/></>,
   templates: <><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></>,
@@ -83,7 +85,7 @@ function setMode(mode: SidebarMode) {
   modeListeners.forEach(listener => listener());
 }
 
-export function WorkspaceNav({ active, onNavigate, onBack, backLabel = "← 문서 목록", children, footer, disabled = false, className = "", label = "작업 공간" }: {
+export function WorkspaceNav({ active, onNavigate, onBack, backLabel = "← 문서 목록", children, management, navigation, navigationLabel="문서함", navigationIcon="file", footer, settings, disabled = false, className = "", label = "작업 공간" }: {
   active: WorkspaceSection;
   /** Retained for old callers; a screen must never override the user's sidebar choice. */
   compact?: boolean;
@@ -91,12 +93,24 @@ export function WorkspaceNav({ active, onNavigate, onBack, backLabel = "← 문�
   onBack?: () => void;
   backLabel?: string;
   children?: ReactNode;
+  management?: ReactNode;
+  navigation?: ReactNode;
+  navigationLabel?: string;
+  navigationIcon?: WorkspaceIconName;
   footer?: ReactNode;
+  settings?: ReactNode;
   disabled?: boolean;
   className?: string;
   label?: string;
 }) {
   const mode = useSyncExternalStore(subscribeMode, readMode, () => "expanded" as const);
+  const identity = useAccountIdentity();
+  const organization = useOrganizationIdentity();
+  const affiliationText=organization?.error?'소속 확인 필요':!organization?.value?'소속 확인 중…':[organization.value.department?.name,organization.value.team?.name].filter(Boolean).join(' / ')||'소속 미지정';
+  const settingsRef=useRef<HTMLDetailsElement>(null);
+  useEffect(()=>{const outside=(event:PointerEvent)=>{const el=settingsRef.current;if(el?.open&&!el.contains(event.target as Node))el.open=false;};const escape=(event:KeyboardEvent)=>{const el=settingsRef.current;if(event.key==='Escape'&&el?.open&&!document.querySelector('dialog[open]')){el.open=false;el.querySelector('summary')?.focus();}};document.addEventListener('pointerdown',outside);document.addEventListener('keydown',escape);return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape);};},[]);
+  const contextRef=useRef<HTMLDetailsElement>(null);
+  useEffect(()=>{const el=contextRef.current;if(!el||mode!=='expanded')return;const update=()=>{const summary=el.querySelector('summary');const padding=parseFloat(getComputedStyle(el).paddingTop)||0;el.style.setProperty('--context-scroll-height',`${Math.max(0,el.clientHeight-(summary?.getBoundingClientRect().height||0)-padding)}px`);};const observer=new ResizeObserver(update);observer.observe(el);el.addEventListener('toggle',update);update();return()=>{observer.disconnect();el.removeEventListener('toggle',update);};},[mode,navigation]);
   const aiConnection = useAiConnection();
   const [edgeY, setEdgeY] = useState(() => window.innerHeight / 2);
   const hidden = mode === "hidden";
@@ -106,16 +120,20 @@ export function WorkspaceNav({ active, onNavigate, onBack, backLabel = "← 문�
       <button className="workspace-nav-edge" style={{ top: edgeY }} aria-label="사이드바 열기" aria-expanded={false} title="클릭하여 사이드바 펼치기" onClick={() => chooseMode("expanded")}><WorkspaceIcon name="sidebar-expanded"/></button>
     </div>}
     <nav className={`workspace-nav ${className}`} data-mode={mode} data-hidden={hidden || undefined} aria-label={label}>
-    <div className="workspace-brand" title="금융결제원 · HWP Assistant"><img className="workspace-brand-logo" src={kftcLogo} alt="금융결제원" /><img className="workspace-brand-symbol" src={kftcSymbol} alt="금융결제원" /><span className="workspace-brand-name">HWP Assistant</span></div>
+    <div className="workspace-brand" title="금융결제원 · HWP Assistant"><img className="workspace-brand-logo" src={kftcLogo} alt="금융결제원" /><img className="workspace-brand-symbol" src={kftcSymbol} alt="금융결제원" /><div className="workspace-product-name"><span>HWP</span><strong>Assistant</strong></div></div>
     <div className="workspace-nav-mode" role="group" aria-label="사이드바 표시">
-      <button aria-label="사이드바 펼침" title="아이콘과 메뉴 이름 표시" aria-pressed={mode === "expanded"} onClick={() => chooseMode("expanded")}><WorkspaceIcon name="sidebar-expanded" size={18}/><span>펼침</span></button>
-      <button aria-label="사이드바 아이콘만" title="아이콘만 표시" aria-pressed={mode === "icons"} onClick={() => chooseMode("icons")}><WorkspaceIcon name="sidebar-icons" size={18}/><span>아이콘</span></button>
-      <button aria-label="사이드바 숨기기" title="사이드바 숨기기" aria-pressed={false} onClick={() => chooseMode("hidden")}><WorkspaceIcon name="sidebar-hidden" size={18}/><span>숨김</span></button>
+      <button aria-label="사이드바 펼침" title="아이콘과 메뉴 이름 표시" aria-pressed={mode==='expanded'} onClick={()=>chooseMode('expanded')}><WorkspaceIcon name="sidebar-expanded" size={18}/><span>펼침</span></button>
+      <button aria-label="사이드바 아이콘만" title="아이콘으로 표시" aria-pressed={mode==='icons'} onClick={()=>chooseMode('icons')}><WorkspaceIcon name="sidebar-icons" size={18}/><span>아이콘</span></button>
+      <button aria-label="사이드바 숨기기" title="사이드바 숨기기" onClick={()=>chooseMode('hidden')}><WorkspaceIcon name="sidebar-hidden" size={18}/><span>숨김</span></button>
     </div>
+    {identity&&<div className="workspace-identity" aria-label="현재 접속 계정" title={`${identity.name||identity.user_id} (${identity.user_id}) · ${affiliationText}`}><span className="workspace-identity-avatar" aria-hidden="true">{(identity.name||identity.user_id).slice(0,1)}</span><div><strong>{identity.name||identity.user_id}</strong><small className="workspace-identity-affiliation">{organization?.value?.team?.name||organization?.value?.department?.name||affiliationText}</small></div></div>}
     {onBack && !onNavigate && <button className="workspace-nav-back" aria-label={backLabel} title={backLabel} disabled={disabled} onClick={onBack}><WorkspaceIcon name="back"/><span>문서 목록으로</span></button>}
-    {onNavigate && <div className="workspace-nav-routes" role="group" aria-label="화면 이동">{sections.map(group => <div className="workspace-nav-section" key={group.title} role="group" aria-label={group.title}><p className="workspace-nav-caption">{group.title}</p>{group.items.map(section => <button key={section.id} className="workspace-nav-route" aria-label={section.label} title={section.label} aria-current={section.id === active ? "page" : undefined} disabled={disabled} onClick={() => { if (section.id !== active) onNavigate(section.id); }}><WorkspaceIcon name={section.id}/><span>{section.label}</span></button>)}</div>)}</div>}
+    {onNavigate && <div className="workspace-nav-routes" role="group" aria-label="화면 이동">{sections.map(group => <div className="workspace-nav-group workspace-nav-static" key={group.title}><p className="workspace-nav-group-title">{group.title}</p><div className="workspace-nav-group-content">{group.items.map(section => <button key={section.id} className="workspace-nav-route" aria-label={section.label} title={section.label} aria-current={section.id === active ? "page" : undefined} disabled={disabled} onClick={() => { if (section.id !== active) onNavigate(section.id); }}><WorkspaceIcon name={section.id}/><span>{section.label}</span></button>)}</div></div>)}</div>}
     {children && <div className="workspace-nav-tools" role="group" aria-label="현재 화면 도구"><p className="workspace-nav-caption">현재 화면 도구</p>{children}</div>}
-    {aiConnection.available && <div className="workspace-nav-connection"><button className="workspace-nav-route" type="button" aria-label="AI 연결" title="AI 연결 설정" onClick={aiConnection.open}><WorkspaceIcon name="settings"/><span>AI 연결</span></button></div>}
+    {navigation && <details ref={contextRef} className="workspace-nav-context" name={mode==="icons"?"workspace-side-popup":undefined} open={mode==='expanded'?true:undefined} key={mode}><summary title={navigationLabel} aria-label={`${navigationLabel} 열기`}><WorkspaceIcon name={navigationIcon}/><span>{navigationLabel}</span></summary><div className="workspace-nav-context-content">{navigation}</div></details>}
+    {management&&<div className="workspace-nav-group workspace-nav-static workspace-nav-management" role="group" aria-label="관리 메뉴"><p className="workspace-nav-group-title">관리</p><div className="workspace-nav-group-content">{management}</div></div>}
+    {<details ref={settingsRef} className="workspace-nav-settings" name={mode==="icons"?"workspace-side-popup":undefined}><summary title="설정" aria-label="설정 메뉴"><WorkspaceIcon name="settings"/><span>설정</span></summary><div className="workspace-settings-content">{identity&&<div className="workspace-account-info"><strong>{identity.name||identity.user_id}</strong><small>{identity.user_id}</small><small>{affiliationText}</small></div>}{aiConnection.available&&<button className="workspace-nav-route" type="button" aria-label="AI 연결" title="AI 연결 설정" onClick={aiConnection.open}><WorkspaceIcon name="settings"/><span>AI 연결 설정</span></button>}{settings}</div></details>}
     {footer && <div className="workspace-nav-footer">{footer}</div>}
+
   </nav></>;
 }

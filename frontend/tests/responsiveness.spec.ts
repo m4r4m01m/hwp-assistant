@@ -477,7 +477,6 @@ test("MOCK UI: template first page appears early; cache reuse still rechecks fil
   });
   await library(page);
   await page.getByRole("button", { name: "양식 보관함", exact: true }).click();
-  await page.getByText("문서 전체 양식", { exact: true }).click();
   await page.getByRole("button", { name: "기존 문서 양식", exact: true }).click();
   const select = async (name: string) => page.locator(".market-card").filter({ has: page.getByRole("heading", { name, exact: true }) }).getByRole("button", { name: "양식 보기", exact: true }).click();
   await select("양식 A");
@@ -526,7 +525,6 @@ test("MOCK UI: removing the last favorite on a later page returns to the remaini
   });
   await library(page);
   await page.getByRole("button", { name: "양식 보관함", exact: true }).click();
-  await page.getByText("문서 전체 양식", { exact: true }).click();
   await page.getByRole("button", { name: "기존 문서 양식", exact: true }).click();
   await page.getByRole("checkbox", { name: "즐겨찾기만", exact: true }).check();
   await page.getByRole("button", { name: "다음", exact: true }).click();

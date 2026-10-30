@@ -11,3 +11,13 @@
 .team-space-panel details { border-top:1px solid #dce4ee; padding-top:18px; margin-top:20px; }.team-space-panel summary { cursor:pointer; font-weight:650; }
 .team-space-assignment { background:#f3f7fc; border-radius:10px; padding:18px; margin-top:18px; }.library-space-filter { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:12px 0 18px; }.library-space-filter select { padding:9px; max-width:100%; }.library-space-tag { display:block; color:#526684; font-size:12px; margin-top:4px; }
 @media(max-width:600px) { .team-space-backdrop { padding:8px; }.team-space-panel { padding:18px; max-height:96dvh; }.team-member-form label,.team-create-form label { width:100%; }.team-members select { max-width:130px; } }
+.team-space-backdrop { justify-content:flex-end; padding:16px; background:#10243c55; }
+.team-space-panel { width:min(680px,100%); max-height:calc(100dvh - 32px); padding:24px; border:1px solid #dce4ed; border-radius:12px; box-sizing:border-box; color:#334e69; }
+.team-space-panel > header { padding-bottom:14px; border-bottom:1px solid #e3eaf1; }
+.team-space-panel h2 { font-size:20px; margin:4px 0 0; }
+.team-space-panel > p { font-size:13px; color:#62758a; }
+.team-space-panel :is(button,select,input) { min-height:36px; font-size:13px; }
+.team-space-panel button { border-radius:7px; }
+.team-space-panel .primary { background:#215c91; color:white; }
+.team-space-panel h3 { font-size:15px; }
+@media(max-width:600px){.team-space-backdrop{padding:8px;}.team-space-panel{padding:16px;max-height:calc(100dvh - 16px);}}

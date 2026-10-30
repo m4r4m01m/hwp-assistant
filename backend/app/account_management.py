@@ -3,6 +3,7 @@ import hashlib
 import re
 import secrets
 import time
+from typing import Literal
 
 from fastapi import HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -55,6 +56,11 @@ def protect_last_admin(db, row):
 class AccountAction(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     expected_revision: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+
+
+class RoleChange(AccountAction):
+    expected_revision: str = Field(pattern=r"^[0-9a-f]{64}$")
+    role: Literal["admin", "member"]
 
 
 class PasswordReset(AccountAction):
@@ -128,6 +134,14 @@ def install_account_management(app):
                     if row.approval_status != "approved" or row.is_active:
                         raise HTTPException(409, "비활성 승인 계정만 다시 활성화할 수 있습니다.")
                     row.is_active = True
+                elif action == "role":
+                    if row.kind != "member" or row.user_id in ("guest", "local") or not row.is_active or row.approval_status != "approved":
+                        raise HTTPException(422, "활성 승인된 개인 계정의 권한만 변경할 수 있습니다.")
+                    if row.role == value.role:
+                        return account_view(row)
+                    if row.role == "admin":
+                        protect_last_admin(db, row)
+                    row.role = value.role
                 elif action == "password":
                     row.password_hash = encoded
                 row.session_revision = secrets.token_hex(32)
@@ -160,3 +174,7 @@ def install_account_management(app):
     @app.post("/api/admin/accounts/{user_id}/password")
     async def password(user_id: str, request: Request):
         return await change(request, user_id, "password", PasswordReset)
+
+    @app.post("/api/admin/accounts/{user_id}/role")
+    async def role(user_id: str, request: Request):
+        return await change(request, user_id, "role", RoleChange)

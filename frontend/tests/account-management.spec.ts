@@ -39,6 +39,8 @@ async function fixture(page: Page, options: { isAdmin?: boolean; denyAdmin?: boo
   return { writes, reads };
 }
 
+async function revealAccountFilter(page:Page){if(!await page.getByLabel("계정 상태",{exact:true}).isVisible())await page.getByLabel("계정 필터 열기",{exact:true}).click();}
+
 async function openAdmin(page: Page) {
   await page.goto("/");
   await page.getByRole("button", { name: "계정 관리", exact: true }).click();
@@ -71,7 +73,7 @@ test("ADMIN UI: approval is explicit, fenced and refreshes pending list; account
   await expect(page.locator(".account-admin-notice")).toContainText("가입 승인했습니다");
   await expect(page.getByText("해당 상태의 계정이 없습니다.", { exact: true })).toBeVisible();
   expect(state.writes).toEqual([{ path: "/api/admin/accounts/applicant/approve", method: "POST", body: { expected_revision: pending.revision } }]);
-  await page.getByLabel("계정 상태", { exact: true }).selectOption("");
+  await revealAccountFilter(page); await page.getByLabel("계정 상태", { exact: true }).selectOption("");
   await expect(page.getByRole("button", { name: "admin 비활성화", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: /삭제/ })).toHaveCount(0);
   await expect(page.getByText(/비활성화해도 기존 문서와 수정 이력은 보존됩니다/)).toBeVisible();
@@ -85,7 +87,7 @@ test("ADMIN UI: guest password confirmation never stores credentials, AI policy 
   await expect.poll(async () => (await page.getByRole("heading", { name: "계정 관리", exact: true }).boundingBox())!.height).toBeLessThan(70);
   await expect(page.getByRole("navigation", { name: "작업 공간", exact: true })).toHaveAttribute("data-mode", "expanded");
   await page.getByRole("button", { name: "사이드바 아이콘만", exact: true }).click();
-  await page.getByLabel("계정 상태", { exact: true }).selectOption("");
+  await revealAccountFilter(page); await page.getByLabel("계정 상태", { exact: true }).selectOption("");
   await page.getByRole("button", { name: "guest 비밀번호 변경", exact: true }).click();
   await page.getByLabel("새 비밀번호", { exact: true }).fill("synthetic-new-password");
   await page.getByLabel("새 비밀번호 확인", { exact: true }).fill("synthetic-different-password");
@@ -176,7 +178,7 @@ test("ADMIN affiliation: account action saves the chosen user and revision witho
   await page.setViewportSize({ width: 390, height: 844 });
   await openAdmin(page);
   await expect(page.getByRole("button", { name: "applicant 소속 배치", exact: true })).toHaveCount(0);
-  await page.getByLabel("계정 상태", { exact: true }).selectOption("approved");
+  await revealAccountFilter(page); await page.getByLabel("계정 상태", { exact: true }).selectOption("approved");
   await page.getByRole("button", { name: "guest 소속 배치", exact: true }).click();
   const panel = page.getByRole("region", { name: "guest 소속 배치", exact: true });
   await expect(panel.getByLabel("소속 부서", { exact: true })).toHaveValue("");
@@ -201,7 +203,7 @@ test("ADMIN affiliation: switching accounts ignores an old delayed lookup", asyn
   let release!: () => void;
   const delayAdmin = new Promise<void>(resolve => { release = resolve; });
   const state = await organizationFixture(page, { delayAdmin });
-  await openAdmin(page); await page.getByLabel("계정 상태", { exact: true }).selectOption("approved");
+  await openAdmin(page); await revealAccountFilter(page); await page.getByLabel("계정 상태", { exact: true }).selectOption("approved");
   await page.getByRole("button", { name: "admin 소속 배치", exact: true }).click();
   await expect.poll(() => state.reads.includes("admin")).toBe(true);
   await page.getByRole("button", { name: "guest 소속 배치", exact: true }).click();
@@ -217,7 +219,7 @@ test("ADMIN affiliation: switching accounts ignores an old delayed lookup", asyn
 
 test("ADMIN affiliation: conflict requires a fresh lookup before another fenced save", async ({ page }) => {
   const state = await organizationFixture(page, { conflict: true });
-  await openAdmin(page); await page.getByLabel("계정 상태", { exact: true }).selectOption("approved");
+  await openAdmin(page); await revealAccountFilter(page); await page.getByLabel("계정 상태", { exact: true }).selectOption("approved");
   await page.getByRole("button", { name: "guest 소속 배치", exact: true }).click();
   const panel = page.getByRole("region", { name: "guest 소속 배치", exact: true });
   await panel.getByLabel("소속 부서", { exact: true }).selectOption("dep-b");
@@ -236,7 +238,7 @@ test("ADMIN affiliation: conflict requires a fresh lookup before another fenced 
 
 test("ADMIN affiliation: revoked admin authorization clears account and assignment controls", async ({ page }) => {
   const state = await organizationFixture(page, { deny: true });
-  await openAdmin(page); await page.getByLabel("계정 상태", { exact: true }).selectOption("approved");
+  await openAdmin(page); await revealAccountFilter(page); await page.getByLabel("계정 상태", { exact: true }).selectOption("approved");
   await page.getByRole("button", { name: "guest 소속 배치", exact: true }).click();
   const panel = page.getByRole("region", { name: "guest 소속 배치", exact: true });
   await panel.getByLabel("소속 부서", { exact: true }).selectOption("dep-a");
@@ -251,7 +253,7 @@ test("ADMIN affiliation: pending save freezes target and disables navigation unt
   let release!: () => void;
   const delaySave = new Promise<void>(resolve => { release = resolve; });
   const state = await organizationFixture(page, { delaySave });
-  await openAdmin(page); await page.getByLabel("계정 상태", { exact: true }).selectOption("approved");
+  await openAdmin(page); await revealAccountFilter(page); await page.getByLabel("계정 상태", { exact: true }).selectOption("approved");
   await page.getByRole("button", { name: "guest 소속 배치", exact: true }).click();
   const panel = page.getByRole("region", { name: "guest 소속 배치", exact: true });
   await panel.getByLabel("소속 부서", { exact: true }).selectOption("dep-a");
@@ -267,4 +269,17 @@ test("ADMIN affiliation: pending save freezes target and disables navigation unt
   await expect(page.getByRole("button", { name: "admin 소속 배치", exact: true })).toBeEnabled();
   await expect(page.getByRole("button", { name: "소속 배치 닫기", exact: true })).toBeEnabled();
   expect(state.requests).toEqual([{ user: "guest", body: { department_id: "dep-a", team_id: null, expected_revision: null } }]);
+});
+
+
+test("ADMIN organization: chart is outside the sidebar at desktop and mobile widths",async({page})=>{
+ await fixture(page);await page.route('**/api/organization/units',route=>route.fulfill({json:[{id:'dep',name:'합성 부서',kind:'department',parent_id:null,revision:'v1'}]}));
+ await page.goto('/');await page.getByRole('button',{name:'조직도·권한',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'조직도·권한',exact:true})).toBeVisible();
+ await expect(page.locator('.workspace-nav').getByRole('navigation',{name:'조직도',exact:true})).toHaveCount(0);
+ await expect(page.locator('main').getByRole('navigation',{name:'조직도',exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'합성 부서',exact:true})).toBeVisible();
+ await page.setViewportSize({width:430,height:900});await page.getByRole('button',{name:'사이드바 아이콘만',exact:true}).click();
+ await expect(page.getByRole('button',{name:'합성 부서',exact:true})).toBeVisible();
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBeTruthy();
 });

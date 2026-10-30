@@ -37,7 +37,17 @@ def add(c, space, user, role):
     assert r.status_code == 200, r.text
 
 
+def affiliate(c, space, user="manager"):
+    current = c.get(f"/api/organization/accounts/{user}").json()
+    value = {"department_id":space["parent_id"] if space["kind"]=="team" else space["id"],
+             "team_id":space["id"] if space["kind"]=="team" else None,
+             "expected_revision":current.get("revision")}
+    response=c.put(f"/api/organization/accounts/{user}",json=value)
+    assert response.status_code==200,response.text
+
+
 def scoped_doc(c, space):
+    affiliate(c, space)
     doc, token = create(c, package("비공개 공간 문서"))
     assert c.delete(f"/api/documents/{doc['id']}/session", headers={"X-Edit-Session": token}).status_code == 200
     response = c.put(f"/api/documents/{doc['id']}/workspace", json={"workspace_id": space["id"], "expected_version": doc["current_version"]})
@@ -116,9 +126,10 @@ def test_membership_revocation_blocks_held_session_and_all_read_paths(spaces):
         assert writer.get("/api/documents?q=비공개").json() == []
 
 
-def test_assignment_requires_original_owner_target_manager_and_no_lease(spaces):
+def test_assignment_requires_original_owner_affiliated_editor_and_no_lease(spaces):
     c, _, _, _ = spaces
     space, _ = new_space(c); add(c, space, "writer", "manager")
+    affiliate(c, space)
     doc, token = create(c)
     payload = {"workspace_id": space["id"], "expected_version": doc["current_version"]}
     assert c.put(f"/api/documents/{doc['id']}/workspace", json=payload).status_code == 409
@@ -349,6 +360,7 @@ def test_document_move_clears_invites_and_never_revives_legacy_acl(spaces):
         db.add(Access(document_id=doc['id'],user_id='outsider',role='owner'))
     assert c.put(path+'/access',json={'user_id':'outsider','role':'reader'}).status_code == 200
     for space in [second,first]:
+        affiliate(c,space)
         assert c.put(path+'/workspace',json={'workspace_id':space['id'],'expected_version':doc['current_version']}).status_code == 200
         assert c.get(path+'/access').json() == []
         with TestClient(app,base_url='https://testserver') as invited:

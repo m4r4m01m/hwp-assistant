@@ -79,6 +79,20 @@ class OpenWorkCopy(BaseModel):
     request_id: uuid.UUID
 
 
+class VersionMilestone(Base):
+    """A name on an immutable saved version, not a replacement for its history."""
+    __tablename__ = "version_milestones"
+    version_id: Mapped[str] = mapped_column(ForeignKey("versions.id"), primary_key=True)
+    name: Mapped[str] = mapped_column(String(80))
+    author_id: Mapped[str] = mapped_column(String(80))
+    created_at: Mapped[float] = mapped_column(Float)
+
+
+class NameVersion(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    name: str = Field(min_length=1, max_length=80)
+
+
 class Accept(BaseModel):
     model_config = ConfigDict(extra="forbid")
     merged_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -190,7 +204,9 @@ def install_document_branches(app, publish, doc_dict):
             edges[(parent, child, kind)] = {"from": parent, "to": child, "kind": kind}
 
         def node(item, doc, role, file_url=None):
+            milestone = db.get(VersionMilestone, item.id)
             nodes[item.id] = {**version_dict(item), "kind": "version", "current": item.id == doc.current_version if role else False,
+                "milestone": {"name": milestone.name, "author_id": milestone.author_id} if milestone and role else None,
                 "can_read": True, "can_edit": role in ("editor", "owner") and item.id == doc.current_version,
                 "can_restore": role in ("editor", "owner"),
                 "file_url": file_url or f"/documents/{doc.id}/versions/{item.id}/file",
@@ -314,33 +330,28 @@ def install_document_branches(app, publish, doc_dict):
                 or shared_library(db, user) and not db.get(PersonalDocument, source.id))
             if not app.state.account_policy.enabled or not shared:
                 return response(source, "direct")
-            # The source row serializes concurrent first opens by the same user.
-            previous = db.scalar(select(WorkCopyEntry).where(WorkCopyEntry.source_id == source.id,
-                WorkCopyEntry.user_id == user, ~document_is_trashed(WorkCopyEntry.document_id))
-                .order_by(WorkCopyEntry.created_at.desc(), WorkCopyEntry.request_id).limit(1))
-            doc = db.get(Document, previous.document_id) if previous else None
-            if doc and db.scalar(select(IntegrationRequest.id).where(
-                    IntegrationRequest.branch_document_id == doc.id, IntegrationRequest.status == "merged",
-                    IntegrationRequest.source_version_id == doc.current_version).limit(1)):
-                # Never change the old branch's base or historical contents.
-                doc = None
-            if doc:
-                require_access(db, doc.id, user, "editor", fresh=True)
-            else:
-                data = read(db, source.current_version, source.id)
-                now = time.time()
-                name = f"{user} 작업본 · {source.name}"[:240]
-                doc = Document(id=str(uuid.uuid4()), name=name, created_at=now, lease_until=0)
-                db.add(doc); db.flush()
-                db.add(Access(document_id=doc.id, user_id=user, role="owner"))
-                db.add(DocumentBranch(document_id=doc.id, source_document_id=source.id,
-                    base_version_id=source.current_version, owner_id=user, name=name,
-                    created_at=now, request_id=str(value.request_id)))
-                publish(db, doc, data, None, None, "branch:" + str(value.request_id), "upload", author_id=user)
-            db.add(WorkCopyEntry(request_id=str(value.request_id), source_id=source.id,
-                user_id=user, document_id=doc.id, created_at=time.time()))
-            db.flush()
-            return response(doc, "workcopy")
+            # Ordinary opens never fork. Preserve old receipts for clients retrying
+            # an already completed automatic-copy request across this upgrade.
+            return response(source, "coedit")
+
+    @app.post("/api/documents/{doc_id}/versions/{version_id}/milestone")
+    def name_version(doc_id: str, version_id: str, value: NameVersion, request: Request):
+        with transaction(engine) as db:
+            require_access(db, doc_id, request.state.user, "editor", lock=True, fresh=True)
+            version = db.get(Version, version_id)
+            if not version or version.document_id != doc_id:
+                raise HTTPException(404, "저장된 버전을 찾을 수 없습니다.")
+            old = db.get(VersionMilestone, version_id)
+            if old and old.name != value.name:
+                raise HTTPException(409, "이미 이름을 남긴 버전입니다. 이력을 새로 확인하세요.")
+            if not old:
+                old = VersionMilestone(version_id=version_id, name=value.name,
+                    author_id=request.state.user, created_at=time.time())
+                db.add(old)
+                from .audit import record_event
+                record_event(db, request.state.user, "document.version.name", "document", doc_id,
+                    version_id=version_id)
+            return {"version_id": version_id, "name": old.name, "author_id": old.author_id}
 
     @app.post("/api/documents/{source_id}/branches")
     def create(source_id: str, value: CopyDocument, request: Request):

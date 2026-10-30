@@ -2,17 +2,31 @@ import { useEffect, useRef, useState } from "react";
 import { api, downloadBytes, downloadFile, errorMessage, fileUrl, jsonRequest, type Document } from "./api";
 import { EditorAdapter, type ExportSnapshot } from "./editor";
 import "./coedit.css";
+import {DocumentWorkcopySwitcher} from "./document-workcopy-switcher";
+import {CoeditLive} from "./coedit-live";
+import {WorkspaceNav,WorkspaceIcon} from "./workspace-nav";
 
 type Sync = { current_version: string; participants: {id: string; user_id: string}[] };
 type Pending = {key: string; base: string; snapshot: ExportSnapshot};
-export function Coedit({ document: doc, onClose, onTimeline, onAdvanced }: {document: Document; onClose: () => void; onTimeline?:()=>void; onAdvanced?:(doc:Document)=>void}) {
+export function Coedit({ document: doc, onClose, onTimeline, onAdvanced, onWorkcopy, onSwitchDocument }: {document: Document; onClose: () => void; onTimeline?:()=>void; onAdvanced?:(doc:Document)=>void; onWorkcopy?:(doc:Document)=>void; onSwitchDocument?:(doc:Document)=>void}) {
   const host = useRef<HTMLDivElement>(null), adapter = useRef<EditorAdapter | null>(null);
   const token = useRef(""), version = useRef(doc.current_version), pending = useRef<Pending | null>(null);
   const dirty = useRef(false), lastEdit = useRef(0), paused = useRef(false), alive = useRef(false), locked = useRef(false), ready = useRef(false);
+  const liveEpoch = useRef<number|null>(null);
+  const liveBaseline = useRef<{base:string;page:number;text:string}|null>(null);
   const joinId = useRef(crypto.randomUUID()), cycle = useRef<(force?: boolean) => Promise<void>>(async () => {});
   const [status, setStatus] = useState("공동편집 참여 중…"), [error, setError] = useState("");
   const [participants, setParticipants] = useState<Sync["participants"]>([]), [loading, setLoading] = useState(true);
   const [attempt, setAttempt] = useState(0);
+  const [hasChanges,setHasChanges]=useState(false),[working,setWorking]=useState(false),[leaving,setLeaving]=useState(false);
+  const destination=useRef<()=>void>(onClose);
+  const [revisionRetry,setRevisionRetry]=useState(false);
+  const revisionDestination=useRef<(()=>void)|undefined>(undefined);
+  const reloadLatest=useRef<()=>Promise<void>>(async()=>{});
+  const [discarding,setDiscarding]=useState(false);
+  const discardDestination=useRef<(()=>void)|undefined>(undefined);
+  const [remoteUpdate,setRemoteUpdate]=useState<'waiting'|'received'|null>(null);
+  const [liveControls,setLiveControls]=useState<HTMLDivElement|null>(null);
   function freeze(value: boolean) { if (host.current) host.current.inert = value; }
   function recover() { const source = adapter.current?.exportHwpx(); if (source) downloadBytes(source.bytes, "공동편집-복구-" + doc.name); }
   function fail(cause: unknown) { paused.current = true; freeze(true); setError(errorMessage(cause)); setStatus("동기화 중단 · 내 편집 보존"); }
@@ -33,23 +47,27 @@ export function Coedit({ document: doc, onClose, onTimeline, onAdvanced }: {docu
       if (Array.isArray(position) && position.length === 3) {
         try { await current.sdk.hwpctrl.call("SetPos", position); } catch { /* Document structure may have changed. */ }
       }
-      expectedEpoch = current.exportHwpx().epoch;
-      version.current = next; dirty.current = false;
+      expectedEpoch = current.exportHwpx().epoch; liveEpoch.current = expectedEpoch;
+      version.current = next; dirty.current = false; setHasChanges(false);liveBaseline.current=null;setRemoteUpdate(null);
+      try {const context=await current.sdk.getSelectionContext();const svg=await current.sdk.getPageSvg(context.page-1);const text=Array.from(new DOMParser().parseFromString(svg,"image/svg+xml").querySelectorAll("text")).map(node=>node.textContent||"").join("").replace(/\s/g,"");if(text.length<=20000)liveBaseline.current={base:next,page:context.page,text};}catch{/* Missing baseline falls back to explicitly labelled observation diff. */}
     }
+    reloadLatest.current = async () => {
+      const latest = await api<Document>(`/documents/${doc.id}`, {signal:controller.signal});
+      await load(latest.current_version);
+    };
     cycle.current = async (force = false) => {
+      if(force){const deadline=Date.now()+11000;while(locked.current&&alive.current&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,40));}
       if (!alive.current || !ready.current || locked.current || paused.current) return;
-      const typing = composing || (dirty.current && Date.now() - lastEdit.current < 800);
-      if (!force && typing && Date.now() - lastPoll < 20000) return;
-      if (force && composing) return;
-      if (!force && !dirty.current && !pending.current && Date.now() - lastPoll < 2000) return;
+      if (force && composing) {setStatus("입력 중인 글자를 완성한 후 반영하세요.");return;}
+      if (!force && Date.now() - lastPoll < 2000) return;
       locked.current = true;
       try {
         if (adapter.current!.bridge.documentState().documentEpoch !== expectedEpoch)
           throw new Error("편집기에서 다른 문서가 열렸습니다. 원래 공동문서에 덮어쓰지 않습니다. 현재 내용을 다운로드하고 문서함에서 다시 여세요.");
-        if ((dirty.current && (!typing || force)) || pending.current) {
+        if (force && (dirty.current || pending.current)) {
           // Freeze only the short publish/rebase transaction. Never reload over
           // typing that occurred after the captured snapshot, including IME.
-          freeze(true); setStatus("공동 변경 저장 중…");
+          freeze(true); setWorking(true); setStatus("변경사항 반영 중…");
           if (!pending.current) {
             const snapshot = adapter.current!.exportHwpx();
             if (snapshot.contentLoss.count) throw new Error("엔진의 내용 손실 경고가 있어 동기화를 중단했습니다. 내 편집을 다운로드하세요.");
@@ -72,10 +90,13 @@ export function Coedit({ document: doc, onClose, onTimeline, onAdvanced }: {docu
         if (result.current_version !== version.current && !dirty.current && !composing) {
           if (adapter.current!.bridge.documentState().documentEpoch !== expectedEpoch) throw new Error("동기화 중 다른 문서가 열렸습니다. 현재 내용을 다운로드하세요.");
           freeze(true); await load(result.current_version);
+          if(alive.current)setRemoteUpdate('received');
+        } else if(result.current_version !== version.current) {
+          setRemoteUpdate('waiting');
         }
-        if (alive.current) setStatus(dirty.current ? "내 변경 동기화 대기" : "공동 변경 저장 완료");
+        if (alive.current) setStatus(dirty.current || pending.current ? "미반영 변경 있음" : "미반영 변경 없음");
       } catch (cause) { if (alive.current) fail(cause); }
-      finally { locked.current = false; if (alive.current && !paused.current) freeze(false); }
+      finally { locked.current = false; if(alive.current)setWorking(false); if (alive.current && !paused.current) freeze(false); }
     };
     void (async () => {
       const joined = await api<{token: string; document: Document}>(`/documents/${doc.id}/coedit`, jsonRequest("POST", {request_id: joinId.current}));
@@ -90,7 +111,7 @@ export function Coedit({ document: doc, onClose, onTimeline, onAdvanced }: {docu
       frame?.addEventListener("compositionstart", compositionStart, true); frame?.addEventListener("compositionend", compositionEnd, true);
       const unsubscribe = opened.bridge.subscribe(() => {
         if (!alive.current || loadingBuffer) return;
-        dirty.current = true; lastEdit.current = Date.now(); setStatus("내 변경 동기화 대기");
+        dirty.current = true; setHasChanges(true); lastEdit.current = Date.now(); setStatus("미반영 변경 있음");setRemoteUpdate(value=>value==='received'?null:value);
       });
       off = () => { unsubscribe(); frame?.removeEventListener("compositionstart", compositionStart, true); frame?.removeEventListener("compositionend", compositionEnd, true); };
       ready.current = true; setLoading(false); freeze(false); await cycle.current(true);
@@ -102,28 +123,76 @@ export function Coedit({ document: doc, onClose, onTimeline, onAdvanced }: {docu
     window.addEventListener("beforeunload", guard); window.addEventListener("pagehide", leave);
     return () => { alive.current = false; ready.current = false; controller.abort(); clearInterval(timer); off(); release(); token.current = ""; adapter.current?.destroy(); adapter.current = null; window.removeEventListener("beforeunload", guard); window.removeEventListener("pagehide", leave); };
   }, [doc.id, attempt]);
-  async function close(next=onClose) {
-    if (locked.current) return;
-    await cycle.current(true);
-    if ((dirty.current || pending.current) && !confirm("내 변경이 아직 공동문서에 저장되지 않았습니다. 복구용 다운로드로 보관했나요? 저장하지 않고 나가시겠습니까?")) return;
+  function close(next=onClose) {
+    if (locked.current || working) return;
+    if(dirty.current || pending.current){destination.current=next;setLeaving(true);return;}
     next();
+  }
+  async function applyAndLeave(){
+    if(revisionRetry){await preserveRevision(destination.current);return;}
+    paused.current=false;setError("");await cycle.current(true);
+    if(!dirty.current&&!pending.current&&!paused.current){setLeaving(false);destination.current();}
+  }
+  async function preserveRevision(next?:()=>void){
+    if(locked.current||doc.branch_source_id)return;
+    if(!revisionRetry)revisionDestination.current=next;
+    locked.current=true;setWorking(true);freeze(true);setError("");
+    try{
+      if(!pending.current){const snapshot=adapter.current!.exportHwpx();if(snapshot.contentLoss.count||snapshot.epoch!==liveEpoch.current)throw new Error("편집 문서의 보존 상태를 확인할 수 없습니다. 작성 내용을 파일로 백업해 주세요.");pending.current={key:crypto.randomUUID(),base:version.current,snapshot};}
+      const sent=pending.current;setRevisionRetry(true);
+      const saved=await api<{document:Document}>(`/documents/${doc.id}/coedit/revision?base_version=${encodeURIComponent(sent.base)}&request_id=${sent.key}`,{method:'POST',headers:{'X-Coedit-Session':token.current,'Content-Type':'application/hwp+zip'},body:new Uint8Array(sent.snapshot.bytes),timeoutMs:20000});
+      dirty.current=false;pending.current=null;setRevisionRetry(false);setHasChanges(false);setLeaving(false);
+      if(revisionDestination.current)revisionDestination.current();
+      else if(onWorkcopy)onWorkcopy({...saved.document,branch_source_id:doc.id});
+      else onClose();
+    }catch(cause){fail(cause);}finally{locked.current=false;setWorking(false);if(!paused.current)freeze(false);}
+  }
+  async function discardAndReload(){
+    if(locked.current||!ready.current)return;
+    locked.current=true;setWorking(true);freeze(true);paused.current=true;setError("");
+    try{
+      // Retain the frozen bytes until the replacement has actually loaded.
+      if(!pending.current){const snapshot=adapter.current!.exportHwpx();pending.current={key:crypto.randomUUID(),base:version.current,snapshot};}
+      await reloadLatest.current();
+      if(!alive.current)return;
+      pending.current=null;dirty.current=false;paused.current=false;
+      setRevisionRetry(false);revisionDestination.current=undefined;setError("");setDiscarding(false);setLeaving(false);
+      setHasChanges(false);setStatus("미반영 변경 없음");
+      const next=discardDestination.current;discardDestination.current=undefined;next?.();
+    }catch(cause){if(alive.current)fail(cause);}
+    finally{locked.current=false;if(alive.current){setWorking(false);if(!paused.current)freeze(false);}}
   }
   async function advanced() {
     if(locked.current || !onAdvanced) return;
-    await cycle.current(true);
-    if(paused.current || dirty.current || pending.current) return;
+    if(dirty.current || pending.current){close(()=>void advanced());return;}
+    if(paused.current) return;
     locked.current=true;freeze(true);
     try { await api(`/documents/${doc.id}/coedit`,{method:'DELETE',headers:{'X-Coedit-Session':token.current}});onAdvanced({...doc,current_version:version.current}); }
     catch(cause){fail(cause);} finally{locked.current=false;}
   }
-  return <main className="coedit-workspace">
-    <header><button disabled={loading} onClick={() => void close()}>저장 후 나가기</button><strong>{doc.name}</strong><span>{doc.branch_source_id?'작업본 편집':'문서 편집'}</span>{onTimeline&&<button disabled={loading} onClick={()=>void close(onTimeline)}>문서 이력·검토</button>}{onAdvanced&&<button disabled={loading||participants.length>1||!!error} title={participants.length>1?'같은 작업본의 다른 참여자가 나간 뒤 사용할 수 있습니다.':'작업본을 저장하고 단독 편집 도구를 엽니다.'} onClick={()=>void advanced()}>AI·서식 도구</button>}<button disabled={loading} onClick={recover}>내 편집 다운로드</button></header>
-    {doc.branch_source_id&&<p className="coedit-help">수정은 이 작업본에 저장됩니다. 공통 문서에 반영하려면 ‘문서 이력·검토’에서 통합을 요청하세요. 이 작업본의 참여자는 자동으로 함께 편집합니다.</p>}
-    <div className="coedit-status"><span role="status">{status}</span><span aria-label="공동편집 참여자">{new Set(participants.map(value => value.user_id)).size}명 · {participants.length}개 세션 · {[...new Set(participants.map(value => value.user_id))].join(", ")}</span></div>
-    <details className="coedit-help"><summary>공동편집 안내</summary><p>입력을 잠시 멈추면 변경을 저장하고 약 2초마다 다른 참여자의 변경을 반영합니다. 겹치지 않는 본문 변경은 병합합니다. 같은 내용이나 복잡한 구조 변경이 충돌하면 내 편집을 보존한 채 멈춥니다. 동기화 중에는 입력을 잠시 멈추며, AI·표준 디자인 적용은 모두 나간 뒤 단독 편집에서 사용합니다.</p></details>
-    {error && <div className="coedit-error" role="alert">{error}<button onClick={() => { paused.current = false; setError(""); if (ready.current) void cycle.current(true); else { setLoading(true); setAttempt(value => value + 1); } }}>{ready.current ? "같은 변경 다시 확인" : "다시 참여"}</button><button onClick={recover}>내 편집 다운로드</button><button onClick={() => {
-      if (confirm("저장되지 않은 내 편집은 버리고 최신 공동문서로 다시 엽니다. 필요한 내용은 먼저 다운로드하세요.")) { dirty.current = false; pending.current = null; onClose(); }
-    }}>미저장 편집을 버리고 나가기</button></div>}
+  return <main className="workspace-shell coedit-workspace">
+    <WorkspaceNav active="documents" label="문서 작업" onBack={()=>close()} backLabel="문서함으로" disabled={loading||working} navigationLabel="함께 작업" navigationIcon="share" navigation={<><p className="coedit-people-count" aria-label="공동편집 참여자">{new Set(participants.map(value=>value.user_id)).size}명 · {participants.length}개 세션 · {[...new Set(participants.map(value=>value.user_id))].join(', ')}</p><div ref={setLiveControls}/></>}>
+      <button className="workspace-nav-route coedit-apply" aria-label="변경사항 반영" title="변경사항 반영" disabled={loading||working||!hasChanges||!!error} onClick={()=>void cycle.current(true)}><WorkspaceIcon name="save"/><span>변경사항 반영</span></button>
+      {onTimeline&&<button className="workspace-nav-route" aria-label="문서 이력" title="문서 이력" disabled={loading||working} onClick={()=>close(onTimeline)}><WorkspaceIcon name="history"/><span>문서 이력</span></button>}
+      {onAdvanced&&<button className="workspace-nav-route" aria-label="AI·서식 도구" disabled={loading||working||participants.length>1||!!error} title={participants.length>1?'다른 참여자가 나간 뒤 사용할 수 있습니다.':'AI·서식 도구'} onClick={()=>void advanced()}><WorkspaceIcon name="conversation"/><span>AI·서식 도구</span></button>}
+      <button className="workspace-nav-route" aria-label="현재 내용 파일로 저장" title="현재 내용 파일로 저장" disabled={loading} onClick={recover}><WorkspaceIcon name="download"/><span>파일 다운로드</span></button>
+      <details className="coedit-help"><summary aria-label="공동편집 안내" title="공동편집 안내"><WorkspaceIcon name="help"/><span>편집 안내</span></summary><p>‘변경사항 반영’을 눌러 저장합니다. 내 미반영 내용이 없을 때 다른 참여자의 반영본을 받아옵니다. 충돌하면 내 편집을 보존하고 별도 수정안으로 보관할 수 있습니다.</p>{doc.branch_source_id&&<p>이 수정안은 원본에 바로 반영되지 않습니다. 문서 이력에서 검토를 요청하세요.</p>}</details>
+    </WorkspaceNav>
+    <header className="coedit-document-header"><strong title={doc.name}>{doc.name}</strong>{onSwitchDocument&&<DocumentWorkcopySwitcher document={doc} disabled={loading||working||leaving||discarding} onSelect={target=>close(()=>onSwitchDocument(target))}/>}<span role="status">{status}</span></header>
+    <div className="coedit-notices">
+    {remoteUpdate&&<p className={`coedit-remote-update ${remoteUpdate}`} aria-live="polite">{remoteUpdate==='waiting'?'다른 참여자가 새 변경을 반영했습니다. 내 편집은 보존 중이며, ‘변경사항 반영’을 누르면 함께 병합합니다. 충돌하면 선택할 수 있도록 멈춥니다.':'다른 참여자의 변경을 이 문서에 반영했습니다.'}</p>}
+    {error && <div className="coedit-error" role="alert"><div className="coedit-error-message"><strong>변경사항을 반영하지 못했습니다</strong><p>{error}</p><p>내 편집은 이 창에 남아 있습니다. 별도 작업본으로 이어서 작성하거나, 내 편집을 버리고 최신본을 열 수 있습니다.</p></div>
+      {!doc.branch_source_id&&(hasChanges||pending.current)&&<button disabled={working} onClick={()=>void preserveRevision()}>{revisionRetry?"작업본 저장 다시 확인":"내 작업본으로 분리해 계속 작성"}</button>}
+      {ready.current&&<button disabled={working} onClick={()=>{discardDestination.current=undefined;setDiscarding(true);}}>내 편집 버리고 최신본 열기</button>}
+      {!revisionRetry&&<button disabled={working} onClick={() => { paused.current = false; setError(""); if(revisionRetry)void preserveRevision();else if (ready.current) void cycle.current(true); else { setLoading(true); setAttempt(value => value + 1); } }}>다시 시도</button>}
+      <button disabled={working||loading} onClick={recover}>내 편집 파일로 백업</button>
+    </div>}
+    </div>
+    {leaving&&<div className="coedit-leave-overlay"><section role="dialog" aria-modal="true" aria-label="미반영 변경 처리"><h2>아직 반영하지 않은 변경이 있습니다</h2>{error&&<p>{error}</p>}<p>공통 문서에 반영하거나 별도 수정안으로 보관할 수 있습니다.</p><button disabled={working} onClick={()=>void applyAndLeave()}>반영 후 이동</button>{!doc.branch_source_id&&<button disabled={working} onClick={()=>void preserveRevision(destination.current)}>내 작업본으로 보관 후 이동</button>}<button disabled={working} onClick={()=>setLeaving(false)}>계속 작성</button><button disabled={working} onClick={()=>{discardDestination.current=destination.current;setLeaving(false);setDiscarding(true);}}>변경을 버리고 이동</button></section></div>}
+    {discarding&&<div className="coedit-leave-overlay"><section role="dialog" aria-modal="true" aria-label="내 편집 버리기 확인"><h2>내 편집을 버리고 최신본을 열까요?</h2><p>아직 반영하지 않은 내 변경만 버립니다. 다른 참여자가 반영한 내용과 기존 문서 이력은 유지됩니다.</p><p>내 내용을 남기려면 취소 후 ‘내 작업본으로 분리해 계속 작성’을 선택하세요.</p>{working?<p>최신 문서를 불러오는 중…</p>:error&&<p role="alert">{error}</p>}<button disabled={working} onClick={()=>void discardAndReload()}>내 편집 버리고 최신본 열기</button><button disabled={working} onClick={()=>setDiscarding(false)}>취소</button></section></div>}
+    <section className="coedit-editor-area" aria-label="문서 편집 영역">
     <div className="coedit-canvas" ref={host} inert={loading} />
+    <CoeditLive document={doc} adapter={adapter} token={token} version={version} epoch={liveEpoch} lastEdit={lastEdit} dirty={dirty} baseline={liveBaseline} enabled={!loading&&!error} controlsTarget={liveControls}/>
+    </section>
   </main>;
 }

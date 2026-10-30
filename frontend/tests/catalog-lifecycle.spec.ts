@@ -29,9 +29,8 @@ test("MOCK catalogs: design-library navigation preserves an unfinished template 
     return respond(route, { detail: `Unexpected request: ${path}` }, 404);
   });
   await page.goto("/catalog-lifecycle-test.html?screen=templates");
-  await page.getByText("문서 전체 양식", { exact: true }).click();
   await page.getByRole("button", { name: "기존 문서 양식", exact: true }).click();
-  const back = page.getByRole("button", { name: "← 표·제목 디자인 보관함", exact: true });
+  const back = page.getByRole("button", { name: "표·제목 디자인 보관함", exact: true });
   await expect(back).toBeEnabled();
   await page.getByRole("button", { name: "양식 등록", exact: true }).click();
   await expect(back).toBeDisabled();

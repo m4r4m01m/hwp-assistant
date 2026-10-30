@@ -1,0 +1,6 @@
+import React,{useState} from 'react';
+import {createRoot} from 'react-dom/client';
+import {CoeditFocus} from '../../src/coedit-focus';
+import '../../src/coedit.css';
+function Fixture(){const [step,setStep]=useState(1),[full,setFull]=useState(false),[pageStep,setPageStep]=useState(0),[shownPage,setShownPage]=useState(1),[following,setFollowing]=useState(true);const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1100" viewBox="0 0 800 1100"><rect width="800" height="1100" fill="white"/><text x="20" y="100">유지</text>${step===3?'':`<text x="90" y="100">기준</text>`}<text x="150" y="${shownPage===1?100:700}">가</text>${step===2?'<text x="600" y="350">나</text>':''}</svg>`;return <><button onClick={()=>setStep(2)}>범위 넓히기</button><button onClick={()=>setStep(3)}>삭제 표시</button><button onClick={()=>setFull(!full)}>전체 전환</button><button onClick={()=>setShownPage(2)}>작성 쪽 변경</button><span data-testid="following">{following?"따라가기":"고정"}</span><span data-testid="page-step">{pageStep}</span><div style={{width:320}}><CoeditFocus svg={svg} paragraph="가" baselineText="유지기준" focusKey={`page-${shownPage}`} following={following} onManual={kind=>{if(kind==="pan")setFollowing(false);}} fullPage={full} onPageStep={setPageStep}/></div></>;}
+createRoot(document.getElementById('root')!).render(<Fixture/>);

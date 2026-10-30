@@ -407,11 +407,12 @@ def create_app(database_url=None, storage_dir=None):
         with Session(engine) as db:
             management = document_management_scope(db, request.state.user)
             result = []
-            for d, can_trash in db.execute(select(Document, management)
+            for d, can_trash, modified_at in db.execute(select(Document, management, Version.created_at)
+                    .outerjoin(Version, (Version.id == Document.current_version) & (Version.document_id == Document.id))
                     .where(document_read_scope(db, request.state.user), ~document_is_trashed(Document.id))
                     .where(Document.name.contains(q, autoescape=True)).order_by(Document.created_at.desc())):
                 branch = db.get(DocumentBranch, d.id)
-                result.append({**doc_dict(d), "role": document_role(db, d.id, request.state.user), "can_trash": bool(can_trash),
+                result.append({**doc_dict(d), "modified_at": modified_at, "role": document_role(db, d.id, request.state.user), "can_trash": bool(can_trash),
                     **document_workspace_info(db, d.id, request.state.user), **library_info(db, d.id, request.state.user), "branch_source_id": branch.source_document_id if branch else None})
             return result
 
@@ -747,6 +748,8 @@ def create_app(database_url=None, storage_dir=None):
     install_organization(app)
     from .document_library import install_document_library
     install_document_library(app)
+    from .workspace_folders import install_workspace_folders
+    install_workspace_folders(app)
     from .mattermost import install_mattermost
     install_mattermost(app)
     app.add_middleware(RequestTelemetry, runtime=app)
