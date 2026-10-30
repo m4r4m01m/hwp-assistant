@@ -10,7 +10,9 @@
 
 첫 Linux CI에서 TypeScript/unit/Node 계약과 배포 계약·빌드 경로는 통과했다. [HWP run 40976429334](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40976429334)은 Python **1,798 passed / 5 failed**, 모의 UI **122 passed / 13 failed**였다. 실패는 기존 공용문서 fixture와 새 비공개 기본값의 구분, 재시작 목록의 새 메타데이터, 새 `edit-target` 모의 응답 누락으로 확인해 시험을 보완했다. 새 Mattermost 검색 격리·저장본 링크 시험은 통과했다. [PoC run 40976429258](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40976429258)은 실제 API/web 이미지·PostgreSQL 기동·TLS/저장본 엔진 검증을 통과했지만 계정/공동편집 시험이 제거된 버튼을 기다려 실패했다. 이를 문서 열기→자동 작업본 재사용→두 탭 저장→원본 불변 검사로 갱신했다.
 
-이 기록 작성 시 보완본의 최종 CI는 진행 전이다. 이 환경의 GitHub 연결에는 새 workflow dispatch 도구가 없고 CLI 인증도 없었다. 웹 대체 경로는 로그인 요청이 취소되어 사용할 수 없었다. 실제 서버 배포, 운영 Mattermost 메시지/실제 Codex 호출은 아직 수행하지 않았다. 최종 성공 근거와 실험 브랜치 반영 여부는 후속 기록으로 구분한다.
+보완 코드는 `42cf6b7270264fc7972efa801ca3f5226591aede`다. [HWP run 40984258488](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40984258488)은 최초 실행 및 실패 job 재시도 모두 runner 배정 전 종료됐다(`runner_id=0`, 실행 단계 없음, 로그 blob 없음). 같은 SHA의 PoC/배포 계약/빌드 경로 workflow도 실행 단계 없이 종료됐다. 조회 가능한 API는 상세 annotation 내용을 제공하지 않아 원인을 확정하지 않았다. **수정 후 전체 회귀 통과를 확인하지 못했으며 배포 가능 판정이 아니다.** 실행 환경 문제를 해결한 뒤 같은 제품 SHA의 전체 CI를 다시 실행해야 한다.
+
+이 환경의 GitHub 연결에는 새 workflow dispatch 도구가 없고 CLI 인증도 없었다. 웹 대체 경로는 로그인 요청이 취소되어 사용할 수 없었다. 실제 서버 배포, 운영 Mattermost 메시지/실제 Codex 호출은 수행하지 않았다. 아래 절차로 실험 브랜치의 수동 전체 검사·배포를 실행하고, 성공한 실행 SHA 및 운영 검증 증거를 별도로 기록해야 한다. 이 문서 변경은 제품 코드를 바꾸지 않는다.
 
 ## 2026-10-30 — 최신 main 비교와 실험 브랜치 게시
 
