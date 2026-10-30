@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 from app.db import Version, transaction
 from app.document_library import PersonalDocument
-from test_workspaces import spaces, new_space, add, scoped_doc
+from test_workspaces import spaces, new_space, add, scoped_doc, affiliate
 from test_accounts import accounts, login
 from test_storage import create, package
 
@@ -86,6 +86,7 @@ def test_workspace_assignment_preserves_original_private_marker_without_granting
     doc=fresh(c);path=f'/api/documents/{doc["id"]}'
     assert c.put(path+'/access',json={'user_id':'outsider','role':'editor'}).status_code==200
     team,_=new_space(c)
+    affiliate(c,team)
     assert c.put(path+'/workspace',json={'workspace_id':team['id'],'expected_version':doc['current_version']}).status_code==200
     assert login(c,'outsider').status_code==200
     assert c.get(path).status_code==404
