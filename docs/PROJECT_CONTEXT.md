@@ -1,5 +1,17 @@
 # HWP Assistant 프로젝트 컨텍스트
 
+## 2026-10-30 — main을 팀 문서함 실험으로 통합, 배포 준비
+
+사용자가 최신 main을 `codex/experiment-team-workspaces-2026-10-28`에 병합하고 전체 회귀·기존 서버 배포를 요청했다. 기준 main은 `d9683d85498cb856fee67c5ba657182793fcdae9`, 실험 원본은 `ae2c97f9c317d35bccddd1b230a0348c55af4d2b`다. 검증용 `codex/integrate-team-workspaces-2026-10-30`에서 두 이력을 보존한 merge commit `852169ef73a30c5b8a51a2573538b89621241d2c`을 만들고 [Draft PR #57](https://github.com/m4r4m01m/hwp-assistant/pull/57)을 열었다. 이 PR은 CI 확인용이며 main 병합 요청이 아니다.
+
+충돌 6개 파일을 양쪽 기능 보존 방향으로 해결했다. 공통 문서 권한을 사용하지 않던 main의 Mattermost 검색을 `document_read_scope`로 연결해 개인·팀·미공유 작업본과 권한 회수를 반영했다. 검색 결과 재검사와 전송 직전 `require_access(..., fresh=True)`를 유지한다. 외부 링크는 지정 저장본을 읽기 전용으로 열며 공동편집 중이어도 자동 참가하지 않는다. 명시적 편집은 자동 작업본 진입을 사용한다.
+
+수동 `hwp-deploy.yml` 게시/배포는 main 및 정확한 실험 브랜치만 허용한다. PR/push/다른 브랜치는 게시·운영 runner에 진입하지 않는다. 기존 runner·환경·백업·세 외부 볼륨·동일 SHA 이미지 검사·직렬 배포를 유지하며 서버 설정을 수동 변경하지 않았다. [배포·검수·복구 절차](team-workspaces-deployment-2026-10-30.md). 추가 권한 테이블을 기존 main이 해석하지 못하므로 실험 자료 작성 후 단순 이미지 롤백을 안전한 복구로 가정하지 않는다.
+
+첫 Linux CI에서 TypeScript/unit/Node 계약과 배포 계약·빌드 경로는 통과했다. [HWP run 40976429334](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40976429334)은 Python **1,798 passed / 5 failed**, 모의 UI **122 passed / 13 failed**였다. 실패는 기존 공용문서 fixture와 새 비공개 기본값의 구분, 재시작 목록의 새 메타데이터, 새 `edit-target` 모의 응답 누락으로 확인해 시험을 보완했다. 새 Mattermost 검색 격리·저장본 링크 시험은 통과했다. [PoC run 40976429258](https://github.com/m4r4m01m/hwp-assistant/actions/runs/40976429258)은 실제 API/web 이미지·PostgreSQL 기동·TLS/저장본 엔진 검증을 통과했지만 계정/공동편집 시험이 제거된 버튼을 기다려 실패했다. 이를 문서 열기→자동 작업본 재사용→두 탭 저장→원본 불변 검사로 갱신했다.
+
+이 기록 작성 시 보완본의 최종 CI는 진행 전이다. 이 환경의 GitHub 연결에는 새 workflow dispatch 도구가 없고 CLI 인증도 없었다. 웹 대체 경로는 로그인 요청이 취소되어 사용할 수 없었다. 실제 서버 배포, 운영 Mattermost 메시지/실제 Codex 호출은 아직 수행하지 않았다. 최종 성공 근거와 실험 브랜치 반영 여부는 후속 기록으로 구분한다.
+
 ## 2026-10-30 — 최신 main 비교와 실험 브랜치 게시
 
 사용자가 현재 작업본과 main의 간단한 기능 비교 및 실험 브랜치 push를 요청했다. `origin`은 `https://github.com/m4r4m01m/hwp-assistant.git`. fetch로 확인한 main은 **`d9683d85498cb856fee67c5ba657182793fcdae9`**, 비교한 실험 HEAD는 **`07683090626219243ee6f469f2ebbd5df6a203a1`**이며 각각만 가진 커밋은 main 11개/실험 20개였다(이 기록 커밋 전). 두 브랜치를 병합하지 않고 `codex/experiment-team-workspaces-2026-10-28`에 현재 작업을 게시한다.

@@ -137,7 +137,7 @@ def test_disabled_account_feature_keeps_legacy_report_worker_contract(managed_wo
 
 
 # Import the established real-account fixture; worker execution remains synthetic.
-from test_account_audit_policy import policy_app
+from test_account_audit_policy import policy_app, mark_legacy_shared
 from test_accounts import accounts, login
 from test_collaboration import document, snapshot, thread
 
@@ -164,6 +164,7 @@ def test_shared_member_without_explicit_grant_can_create_and_poll_assistant_and_
     monkeypatch.setattr("app.local_rewrite.run_local_rewrite", lambda *args: None)
     assert login(client).status_code == 200
     original = document(client)
+    mark_legacy_shared(app.state.engine, original)
     conversation = thread(client, original)
     assert login(client, "alice").status_code == 200
     with Session(app.state.engine) as db:
@@ -198,3 +199,4 @@ def test_shared_member_without_explicit_grant_can_create_and_poll_assistant_and_
     # Run only the captured no-op targets so owned admission/budgets are released.
     for target, args in queued:
         target(*args)
+

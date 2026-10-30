@@ -29,6 +29,8 @@ async function mockApi(page: Page, handler?: Handler) {
     if (path === "/auth/me") return json(route, { user_id: "test-user", authentication_required: true });
     if (path === "/capabilities") return json(route, capabilities);
     if (path === "/documents") return json(route, [documentRow]);
+    if (path === "/documents/document-one/edit-target") return json(route, { document: documentRow, mode: "direct" });
+    if (["/folders", "/workspaces"].includes(path)) return json(route, []);
     if (path === "/workspaces") return json(route, []);
     if (path.endsWith("/branches")) return json(route, timelineFlow());
     if (path === "/documents/document-one/session") return json(route, route.request().method() === "POST" ? { token: "local-test-lease", document: { ...documentRow, name: "서버의 현재 문서.hwpx", current_version: "version-lease" } } : {});
@@ -566,3 +568,4 @@ test("MOCK UI: report polling backs off, pauses in hidden pages, and resumes to 
   await page.clock.runFor(15000);
   expect(reads).toBe(completedReads);
 });
+

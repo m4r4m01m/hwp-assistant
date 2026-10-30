@@ -35,7 +35,7 @@
 - Production uses **standalone** `compose.deploy.yaml`, never merged with development `compose.yaml`. Preserve `/hwp-assistant/`, loopback web port `23000`, unexposed API/DB ports, and all three external volumes (`metadata`, `documents`, `codex-state`). Never delete/prune production volumes or rerun first-install initialization on an existing server.
 - Keep `/opt/hwp-assistant/production.env` private. Compose defaults can produce `local`/empty even when those ACL keys are absent from that file. Environment changes need container recreation; a restart alone does not apply them. Pin the currently running image for an environment-only change; see the handoff procedure.
 - Back up DB and document files together before replacement. Preserve private env separately; the normal backup excludes Codex credentials. Restore into isolated volumes and verify before cutover; no automatic schema downgrade or destructive restore.
-- PR/main checks do not publish/deploy. Heavy image build/publication and home deployment are manual workflows, main-only; PR code must never execute on the production runner. A merged PR, published image, successful deployment job, authenticated Codex and real model success are different evidence.
+- PR/main checks do not publish/deploy. Heavy image build/publication and home deployment are manual workflows; `hwp-deploy.yml` allows only `main` and the user-approved `codex/experiment-team-workspaces-2026-10-28` experiment, while deployment-only remains main-only; PR code must never execute on the production runner. A merged PR, published image, successful deployment job, authenticated Codex and real model success are different evidence.
 
 ## Setup and verification commands
 
@@ -76,3 +76,4 @@ npm run build
 - [Collaboration/MCP](docs/collaboration-and-mcp.md), [local model](docs/local-model-rewrite.md), [storage audit](docs/storage-audit.md), [version comparison](docs/version-comparison.md): technical details; check their dates against current code.
 - [Deployment runbook](docs/deployment-runbook.md), [first activation](docs/deployment-first-activation.md), [published-image deployment](docs/deploy-published-images.md), [accounts/Codex/prewarm](docs/poc-codex-accounts-prewarm-2026-10-25.md): operational details and historical scope notes.
 - Update `docs/PROJECT_CONTEXT.md` after meaningful decisions/merges/verification: date, exact source SHA and links, observed environment, actual checks, remaining limits and next steps. Never convert a chat assertion into verified completion without evidence.
+
