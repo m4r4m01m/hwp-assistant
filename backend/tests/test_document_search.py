@@ -15,6 +15,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import schema  # Register every table used by the shared document access scope.
 from app import document_search as search
 from app import document_search_embeddings as embeddings
 from app.accounts import UserAccount
@@ -413,3 +414,4 @@ def test_shutdown_stops_before_second_document(corpus, monkeypatch):
         return result
     monkeypatch.setattr(search, "extract_search_chunks", stop_after_first)
     assert search.refresh_search_index(*corpus, max_documents=2, stop_event=event)["indexed"] == 1
+

@@ -71,6 +71,7 @@
 }
 .workspace-nav[data-mode="icons"] .workspace-nav-footer { padding: 10px 0 0; text-align: center; }
 .workspace-nav[data-mode="icons"] .workspace-account-actions { flex-direction: column; gap: 4px; margin-top: 0; }
+.workspace-nav[data-mode="icons"] .workspace-nav-footer button { width: 100%; min-width: 0; white-space: normal; overflow-wrap: anywhere; padding: 6px 2px; line-height: 1.5; }
 .workspace-nav.workspace-nav[data-mode="hidden"] { width: 0; padding: 0; border: 0; overflow: visible; }
 .workspace-nav[data-mode="hidden"] > * { display: none; }
 /* A narrow edge hit area reveals only the opener; clicking restores the sidebar. */
@@ -82,3 +83,4 @@
 .workspace-nav-edge:focus-visible { outline: 2px solid #447cad; outline-offset: -3px; }
 @media (hover: none) { .workspace-nav-edge-zone .workspace-nav-edge { transform: translate(0, -50%); opacity: 1; pointer-events: auto; } }
 @media (prefers-reduced-motion: reduce) { .workspace-nav-edge { transition: none; } }
+

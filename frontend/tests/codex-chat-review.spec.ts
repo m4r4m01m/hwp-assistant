@@ -22,6 +22,8 @@ async function setup(page: Page, options: { provider?: string; allowed?: boolean
     if (path === "/auth/me") return json(route, { user_id: "synthetic-owner", authentication_required: true });
     if (path === "/capabilities") return json(route, { features: Object.fromEntries(["chat", "review", "rewrite", "reports"].map(name => [name, feature])) });
     if (path === "/documents") return json(route, [documentRow]);
+    if (path === "/documents/synthetic-document/edit-target") return json(route, { document: documentRow, mode: "direct" });
+    if (["/folders", "/workspaces"].includes(path)) return json(route, []);
     if (path === "/documents/synthetic-document/session") return json(route, route.request().method() === "POST" ? { token: "synthetic-lease", document: documentRow } : {});
     if (path.endsWith("/file")) return route.fulfill({ body: "synthetic bytes" });
     if (path === "/documents/synthetic-document/versions" && route.request().method() === "POST") return json(route, { id: "version-two" });
@@ -156,3 +158,4 @@ for (const provider of ["codex", "llm"]) {
     }
   });
 }
+

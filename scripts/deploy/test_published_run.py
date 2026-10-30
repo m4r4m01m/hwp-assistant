@@ -175,6 +175,14 @@ class WorkflowContracts(unittest.TestCase):
         self.assertIn("environment: hwp-production", self.host)
         self.assertIn("runs-on: [self-hosted, linux, x64, hwp-deploy]", self.host)
 
+    def test_both_deployments_check_the_current_public_funnel_route(self):
+        for filename in ("hwp-deploy.yml", "hwp-deploy-only.yml"):
+            with self.subTest(workflow=filename):
+                workflow = (ROOT / ".github/workflows" / filename).read_text()
+                host = workflow.split("  deploy-home:\n", 1)[1]
+                self.assertEqual(re.findall(r"--url\s+(https://\S+)", host),
+                                 ["https://pwsb-svr.taile7b6c4.ts.net/hwp-assistant/"])
+
     def test_preflight_before_login_and_replacement(self):
         self.assertLess(self.host.index("Read-only production preflight"), self.host.index("docker login"))
         self.assertLess(self.host.index("check-host.py"), self.host.index("deploy.sh pull"))

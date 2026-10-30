@@ -57,3 +57,14 @@
 }
 
 .account-admin-notifications { margin-top: 28px; padding-top: 20px; border-top: 1px solid #dbe4ed; font-size: 13px; line-height: 1.7; }
+
+.account-admin-card dd { overflow-wrap: anywhere; }
+.account-admin-affiliation { padding: 20px; margin: 16px 0; border: 1px solid #afc3d9; border-radius: 10px; background: #f4f8fc; }
+.account-admin-affiliation > header { display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 12px; }
+.account-admin-affiliation h2 { margin: 0; overflow-wrap: anywhere; }
+.account-admin-affiliation p { font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.account-admin-affiliation form { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-bottom: 12px; }
+.account-admin-affiliation label { display: grid; gap: 6px; min-width: 0; flex: 1 1 180px; font-size: 13px; font-weight: 600; }
+.account-admin-affiliation select { width: 100%; min-width: 0; font: inherit; border: 1px solid #bdcddd; border-radius: 7px; padding: 9px 12px; background: #fff; color: inherit; }
+.account-admin-affiliation form > p { flex-basis: 100%; margin: 0; }
+.account-admin-affiliation button { max-width: 100%; overflow-wrap: anywhere; }

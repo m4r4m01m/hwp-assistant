@@ -223,6 +223,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
   const [deleting, setDeleting] = useState(false);
   const [inputNotice, setInputNotice] = useState("");
   const [compactLayout, setCompactLayout] = useState(() => window.innerWidth < 1180);
+  const [narrowLayout, setNarrowLayout] = useState(() => window.innerWidth < 684);
   const [zoom, setZoom] = useState<"page" | "fit" | "actual">("page");
   const [pageIndex, setPageIndex] = useState(0);
   const [paneSize, setPaneSize] = useState<PageSize>({ width: 0, height: 0 });
@@ -287,9 +288,11 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
     const element = layout.current;
     if (!element) return;
     setCompactLayout(element.clientWidth < 960);
+    setNarrowLayout(element.clientWidth < 620);
     const observer = new ResizeObserver(entries => {
       const compact = entries[0].contentRect.width < 960;
       setCompactLayout(compact);
+      setNarrowLayout(entries[0].contentRect.width < 620);
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -934,7 +937,7 @@ export function StandardDesigner({ onClose, onRegistered, onReport, onNavigate }
     <WorkspaceNav active="standards" compact className="standard-workspace-rail" label="표준 편집 도구" onBack={close} onNavigate={onNavigate ? section => requestChange({ type: "leave", section }) : undefined} disabled={locked}>
       <button aria-label={`문서 표준 설정 ${settingsOpen ? "닫기" : "열기"}`} aria-expanded={settingsOpen} aria-controls="standard-settings-panel" onClick={() => setSettingsOpen(value => !value)}><WorkspaceIcon name="settings" /><span>설정</span></button>
     </WorkspaceNav>
-    <div ref={layout} className={`standard-designer-grid${settingsOpen ? " settings-visible" : ""}${compactLayout ? " compact-layout" : ""}`}>
+    <div ref={layout} className={`standard-designer-grid${settingsOpen ? " settings-visible" : ""}${compactLayout ? " compact-layout" : ""}${narrowLayout ? " narrow-layout" : ""}`}>
       <aside id="standard-settings-panel" className="standard-settings" hidden={!settingsOpen} aria-label="문서 표준 설정">
         <header className="standard-designer-header"><div className="standard-heading-row"><h1>문서 표준 편집{changedSettings ? " *" : ""}</h1><button onClick={() => setSettingsOpen(false)}>설정 접기</button></div><p>같은 예시로 서식을 비교하세요.</p>
           <div className="standard-preview-toolbar">

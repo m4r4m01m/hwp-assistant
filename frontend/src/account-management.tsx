@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { api, ApiError, errorMessage, isAbortError, jsonRequest } from "./api";
 import type { Account } from "./account-gate";
 import { WorkspaceNav } from "./workspace-nav";
+import { OrganizationSettings, type Affiliation } from "./organization";
 import "./account-management.css";
 
 type ManagedAccount = {
   user_id: string; name: string; kind: string; is_admin: boolean; is_active: boolean;
   approval_status: "pending" | "approved" | "rejected"; status: string; revision: string;
-  created_at: number; last_login_at: number | null;
+  created_at: number; last_login_at: number | null; affiliation?: Affiliation;
 };
 type AccountList = { items: ManagedAccount[]; total: number };
 type AccessPolicy = "allowlist" | "approved_accounts";
@@ -22,6 +23,7 @@ const statusLabels: Record<string, string> = { pending: "승인 대기", approve
 const actionLabels: Record<string, string> = {
   "account.login": "로그인", "account.logout": "로그아웃", "account.signup": "가입 신청",
   "account.create": "계정 생성", "account.create-admin": "관리자 계정 생성", "account.promote-admin": "관리자 지정",
+  "account.affiliation": "소속 부서·팀 변경",
   "account.approve": "가입 승인", "account.reject": "가입 거절", "account.disable": "계정 비활성화",
   "account.enable": "계정 활성화", "account.password": "비밀번호 변경", "account.password_reset": "비밀번호 변경", "account.password_change": "본인 비밀번호 변경",
   "document.upload": "파일 추가", "document.create": "문서 생성", "document.delete": "파일 삭제",
@@ -46,10 +48,12 @@ export function AccountManagement({ account, onClose }: { account: Account; onCl
   const [loading, setLoading] = useState(false), [busy, setBusy] = useState(false), [forbidden, setForbidden] = useState(!account.is_admin);
   const [error, setError] = useState(""), [notice, setNotice] = useState(""), [sessionEnded, setSessionEnded] = useState(false);
   const [passwordAccount, setPasswordAccount] = useState<ManagedAccount | null>(null), [password, setPassword] = useState(""), [confirmation, setConfirmation] = useState("");
+  const [affiliationAccount, setAffiliationAccount] = useState<ManagedAccount | null>(null);
   const alive = useRef(true), lock = useRef(false), generation = useRef(0);
   useEffect(() => { alive.current = true; return () => { alive.current = false; generation.current++; }; }, []);
   function failure(cause: unknown) {
     if (cause instanceof ApiError && (cause.status === 401 || cause.status === 403)) {
+      setAffiliationAccount(null);
       setForbidden(true); setAccounts({ items: [], total: 0 }); setAudit({ items: [], next_before: null }); setSettings(null);
       setPasswordAccount(null); setPassword(""); setConfirmation("");
     }
@@ -81,6 +85,7 @@ export function AccountManagement({ account, onClose }: { account: Account; onCl
   }, [account.is_admin, tab, filter, offset, auditQuery, before, refresh, forbidden, sessionEnded]);
   function changeTab(next: Tab) {
     if (lock.current) return;
+    setAffiliationAccount(null);
     setTab(next); setError(""); setNotice(""); setPasswordAccount(null); setPassword(""); setConfirmation("");
   }
   async function mutate(path: string, body: unknown, message: string, ownPassword = false) {
@@ -104,6 +109,7 @@ export function AccountManagement({ account, onClose }: { account: Account; onCl
     if (lock.current) return;
     const words = { approve: "가입 승인", reject: "가입 거절", enable: "활성화", disable: "비활성화" };
     if (!window.confirm(`${row.user_id} 계정을 ${words[operation]}하시겠습니까?${operation === "disable" ? " 기존 로그인은 종료되며 문서와 이력은 보존됩니다." : ""}`)) return;
+    setAffiliationAccount(null);
     void mutate(`/admin/accounts/${encodeURIComponent(row.user_id)}/${operation}`, { expected_revision: row.revision }, `${row.user_id} 계정을 ${words[operation]}했습니다.`);
   }
   async function savePolicy(event: React.FormEvent) {
@@ -119,7 +125,7 @@ export function AccountManagement({ account, onClose }: { account: Account; onCl
   return <div className="workspace-shell account-admin-shell">
     <WorkspaceNav active="documents" onBack={onClose} disabled={busy} footer={<strong>{account.user_id} · 관리자</strong>} />
     <main className="drive drive-workspace account-admin" aria-label="계정 관리">
-      <header className="account-admin-heading"><div><span className="account-eyebrow">관리자</span><h1>계정 관리</h1><p>가입 승인과 계정 상태, AI 이용 권한, 작업 기록을 확인합니다.</p></div><button disabled={busy} onClick={onClose}>문서함으로</button></header>
+      <header className="account-admin-heading"><div><span className="account-eyebrow">관리자</span><h1>계정 관리</h1><p>가입 승인과 소속 부서·팀, 계정 상태, AI 이용 권한, 작업 기록을 관리합니다.</p></div><button disabled={busy} onClick={onClose}>문서함으로</button></header>
       {forbidden ? <section className="account-admin-message" role="alert"><h2>관리자 권한이 필요합니다</h2><p>{error || "관리자 계정으로 다시 로그인해 주세요."}</p><button onClick={() => location.reload()}>로그인 상태 다시 확인</button></section>
       : sessionEnded ? <section className="account-admin-message" role="status"><h2>다시 로그인해 주세요</h2><p>현재 계정의 비밀번호를 변경하여 기존 로그인을 종료했습니다.</p><button className="primary" onClick={() => location.reload()}>로그인 화면으로</button></section>
       : <>
@@ -130,14 +136,23 @@ export function AccountManagement({ account, onClose }: { account: Account; onCl
         {error && <p className="error" role="alert">{error}</p>}
         <section role="tabpanel" id={`admin-panel-${tab}`} aria-labelledby={`admin-tab-${tab}`} className="account-admin-panel">
           {tab === "accounts" && <>
-            <div className="account-admin-toolbar"><label>계정 상태<select aria-label="계정 상태" value={filter} disabled={busy} onChange={event => { setFilter(event.target.value); setOffset(0); }}><option value="pending">승인 대기</option><option value="approved">사용 중</option><option value="disabled">비활성</option><option value="rejected">가입 거절</option><option value="">전체</option></select></label><button disabled={busy || loading} onClick={() => setRefresh(value => value + 1)}>새로고침</button><span>총 {accounts.total}개</span></div>
+            <div className="account-admin-toolbar"><label>계정 상태<select aria-label="계정 상태" value={filter} disabled={busy} onChange={event => { setAffiliationAccount(null); setFilter(event.target.value); setOffset(0); }}><option value="pending">승인 대기</option><option value="approved">사용 중</option><option value="disabled">비활성</option><option value="rejected">가입 거절</option><option value="">전체</option></select></label><button disabled={busy || loading} onClick={() => setRefresh(value => value + 1)}>새로고침</button><span>총 {accounts.total}개</span></div>
             <p className="account-admin-help">비활성화해도 기존 문서와 수정 이력은 보존됩니다. guest는 여러 체험자가 함께 사용하는 계정이므로 감사 로그도 guest로 기록됩니다.</p>
+            {affiliationAccount && <div className="account-admin-affiliation">
+              <header><h2>{affiliationAccount.user_id} 소속 부서·팀</h2><button type="button" disabled={busy} onClick={() => setAffiliationAccount(null)}>소속 배치 닫기</button></header>
+              <OrganizationSettings key={affiliationAccount.user_id} userId={affiliationAccount.user_id}
+                onBusyChange={value => { lock.current = value; setBusy(value); }}
+                onForbidden={failure} onUpdated={() => setRefresh(value => value + 1)} />
+            </div>}
             {passwordAccount && <form className="account-admin-password" aria-label={`${passwordAccount.user_id} 비밀번호 변경`} onSubmit={event => {
               event.preventDefault(); if (password !== confirmation) { setError("비밀번호 확인이 일치하지 않습니다."); return; }
               void mutate(`/admin/accounts/${encodeURIComponent(passwordAccount.user_id)}/password`, { password, expected_revision: passwordAccount.revision }, `${passwordAccount.user_id} 계정의 비밀번호를 변경했습니다. 기존 로그인은 종료됩니다.`, passwordAccount.user_id === account.user_id);
             }}><h2>{passwordAccount.user_id} 비밀번호 변경</h2><p>8~128자의 새 비밀번호를 지정하세요. 해당 계정의 기존 로그인은 종료됩니다.</p><label>새 비밀번호<input type="password" autoComplete="new-password" name="new-password" minLength={8} maxLength={128} required value={password} disabled={busy} onChange={event => setPassword(event.target.value)} /></label><label>새 비밀번호 확인<input type="password" autoComplete="new-password" minLength={8} maxLength={128} required value={confirmation} disabled={busy} onChange={event => setConfirmation(event.target.value)} /></label><div className="account-admin-actions"><button className="primary" disabled={busy}>비밀번호 변경 저장</button><button type="button" disabled={busy} onClick={() => { setPasswordAccount(null); setPassword(""); setConfirmation(""); }}>취소</button></div></form>}
-            {loading ? <p role="status">계정 목록을 불러오는 중…</p> : accounts.items.length === 0 ? <p className="account-admin-empty">해당 상태의 계정이 없습니다.</p> : <ul className="account-admin-list">{accounts.items.map(row => <li key={row.user_id} className="account-admin-card"><div className="account-admin-identity"><strong>{row.user_id}</strong><span>{row.name}</span><span className={`account-admin-badge ${row.status}`}>{statusLabels[row.status] || row.status}</span>{row.is_admin && <span className="account-admin-badge">관리자</span>}</div><dl><div><dt>가입 요청</dt><dd>{date(row.created_at)}</dd></div><div><dt>최근 로그인</dt><dd>{date(row.last_login_at)}</dd></div></dl><div className="account-admin-actions">{row.approval_status === "pending" ? <><button className="primary" disabled={busy} onClick={() => manage(row, "approve")}>{row.user_id} 승인</button><button disabled={busy} onClick={() => manage(row, "reject")}>{row.user_id} 거절</button></> : row.approval_status === "approved" && <>{row.is_active ? <button disabled={busy || row.user_id === account.user_id} onClick={() => manage(row, "disable")}>{row.user_id} 비활성화</button> : <button disabled={busy} onClick={() => manage(row, "enable")}>{row.user_id} 활성화</button>}<button disabled={busy} onClick={() => { setPasswordAccount(row); setPassword(""); setConfirmation(""); setError(""); }}>{row.user_id} 비밀번호 변경</button></>}</div></li>)}</ul>}
-            <div className="account-admin-actions"><button disabled={busy || loading || offset === 0} onClick={() => setOffset(value => Math.max(0, value - 100))}>이전 계정</button><button disabled={busy || loading || offset + 100 >= accounts.total} onClick={() => setOffset(value => value + 100)}>다음 계정</button></div>
+            {loading ? <p role="status">계정 목록을 불러오는 중…</p> : accounts.items.length === 0 ? <p className="account-admin-empty">해당 상태의 계정이 없습니다.</p> : <ul className="account-admin-list">{accounts.items.map(row => <li key={row.user_id} className="account-admin-card"><div className="account-admin-identity"><strong>{row.user_id}</strong><span>{row.name}</span><span className={`account-admin-badge ${row.status}`}>{statusLabels[row.status] || row.status}</span>{row.is_admin && <span className="account-admin-badge">관리자</span>}</div><dl><div><dt>가입 요청</dt><dd>{date(row.created_at)}</dd></div><div><dt>최근 로그인</dt><dd>{date(row.last_login_at)}</dd></div><div><dt>소속 부서</dt><dd>{row.affiliation?.department?.name || "미지정"}</dd></div><div><dt>소속 팀</dt><dd>{row.affiliation?.team?.name || "미지정"}</dd></div></dl><div className="account-admin-actions">{row.approval_status === "pending" ? <><button className="primary" disabled={busy} onClick={() => manage(row, "approve")}>{row.user_id} 승인</button><button disabled={busy} onClick={() => manage(row, "reject")}>{row.user_id} 거절</button></> : row.approval_status === "approved" && <>{row.is_active ? <button disabled={busy || row.user_id === account.user_id} onClick={() => manage(row, "disable")}>{row.user_id} 비활성화</button> : <button disabled={busy} onClick={() => manage(row, "enable")}>{row.user_id} 활성화</button>}<button disabled={busy} onClick={() => { setAffiliationAccount(null); setPasswordAccount(row); setPassword(""); setConfirmation(""); setError(""); }}>{row.user_id} 비밀번호 변경</button>{row.is_active && <button disabled={busy} aria-expanded={affiliationAccount?.user_id === row.user_id} onClick={() => {
+                if (lock.current) return;
+                setAffiliationAccount(row); setPasswordAccount(null); setPassword(""); setConfirmation(""); setError(""); setNotice("");
+              }}>{row.user_id} 소속 배치</button>}</>}</div></li>)}</ul>}
+            <div className="account-admin-actions"><button disabled={busy || loading || offset === 0} onClick={() => { setAffiliationAccount(null); setOffset(value => Math.max(0, value - 100)); }}>이전 계정</button><button disabled={busy || loading || offset + 100 >= accounts.total} onClick={() => { setAffiliationAccount(null); setOffset(value => value + 100); }}>다음 계정</button></div>
           </>}
           {tab === "settings" && <>
             <h2>서버 AI 이용 권한</h2><p className="account-admin-help">가입 승인과 AI 이용 권한을 함께 관리합니다. 계정을 비활성화하면 이 설정과 관계없이 접속할 수 없습니다.</p>

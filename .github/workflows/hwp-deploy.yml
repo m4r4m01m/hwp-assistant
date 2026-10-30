@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       deploy:
-        description: 'Deploy after verification (requires the hwp-deploy self-hosted runner and production env)'
+        description: 'Deploy main or the approved team-workspaces experiment after verification and backup'
         type: boolean
         default: false
 
@@ -99,9 +99,10 @@ jobs:
           bash scripts/deploy/run-browser-checks.sh --grep 'CI TLS:'
 
   # Heavy Rust/WASM build is explicitly requested, not repeated on every push.
+  # Only main and the explicitly approved experiment may be manually published.
   # PR code never runs on the home server and never receives package write access.
   build-verify-publish:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/experiment-team-workspaces-2026-10-28')
     needs: [python-checks, frontend-checks, ui-lifecycle]
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -214,7 +215,7 @@ jobs:
           fi
 
   deploy-home:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.deploy
+    if: github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/experiment-team-workspaces-2026-10-28') && inputs.deploy
     needs: build-verify-publish
     runs-on: [self-hosted, linux, x64, hwp-deploy]
     environment: hwp-production
@@ -247,3 +248,4 @@ jobs:
         run: |
           python3 scripts/deploy/smoke.py \
             --url https://pwsb-svr.taile7b6c4.ts.net/hwp-assistant/
+

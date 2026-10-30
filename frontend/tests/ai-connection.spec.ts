@@ -49,6 +49,8 @@ async function mockedApp(page: Page, initial = status()) {
     if (path === "/auth/me") return json(route, { user_id: "local-test-user", authentication_required: false });
     if (path === "/capabilities") return json(route, { features: Object.fromEntries(["chat", "rewrite", "review", "reports"].map(id => [id, { configured: false, reachable: null, allowed: true, reason_code: "not_configured", message: "합성 시험에서는 AI를 호출하지 않습니다.", supports_stream: false }])) });
     if (path === "/documents") return json(route, [documentRow]);
+    if (path === "/documents/setup-document/edit-target") return json(route, { document: documentRow, mode: "direct" });
+    if (["/folders", "/workspaces"].includes(path)) return json(route, []);
     if (path === "/documents/setup-document/session") {
       if (request.method() === "POST") { state.leases++; return json(route, { token: "synthetic-lease", document: documentRow }); }
       if (request.method() === "DELETE") state.releases++;
@@ -290,3 +292,4 @@ test("MOCK AI setup: opening, checking and saving settings preserves mounted edi
   expect(state.setups).toEqual(["codex"]);
   expect(state.modelCalls).toBe(0);
 });
+

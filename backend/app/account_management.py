@@ -85,8 +85,11 @@ def install_account_management(app):
                 if status == "approved":
                     query = query.where(UserAccount.is_active.is_(True))
             total = db.scalar(select(func.count()).select_from(query.subquery()))
-            rows = db.scalars(query.order_by(UserAccount.created_at.desc(), UserAccount.user_id).limit(limit).offset(offset))
-            return {"items": [account_view(row) for row in rows], "total": total}
+            rows = list(db.scalars(query.order_by(UserAccount.created_at.desc(), UserAccount.user_id).limit(limit).offset(offset)))
+            from .organization import affiliation_views
+            affiliations = affiliation_views(db, [row.user_id for row in rows])
+            return {"items": [{**account_view(row), "affiliation": affiliations[row.user_id]}
+                              for row in rows], "total": total}
 
     async def change(request, user_id, action, model=AccountAction):
         from .accounts import hash_password

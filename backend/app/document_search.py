@@ -17,9 +17,9 @@ from fastapi import HTTPException
 from sqlalchemy import Float, ForeignKey, String, Text, and_, false, or_, select
 from sqlalchemy.orm import Mapped, Session, defer, mapped_column
 
-from .db import Access, Base, Document, Version, document_is_trashed, transaction
+from .db import Base, Document, Version, document_is_trashed, transaction
 from .hwpx import digest, validate
-from .library_access import shared_library
+from .library_access import document_read_scope
 from .document_search_embeddings import EmbeddingUnavailable, embed_texts, embedding_settings
 
 MAX_FILE_BYTES = 10 * 1024 * 1024
@@ -158,11 +158,7 @@ def _scope(db, user):
     account = db.get(UserAccount, user, populate_existing=True)
     if account is not None and (not account.is_active or account.approval_status != "approved"):
         return false()
-    if shared_library(db, user):
-        return ~document_is_trashed(Document.id)
-    return and_(~document_is_trashed(Document.id), select(Access.document_id).where(
-        Access.document_id == Document.id, Access.user_id == user,
-        Access.role.in_(("reader", "editor", "owner"))).exists())
+    return and_(~document_is_trashed(Document.id), document_read_scope(db, user))
 
 
 def _current_index():
@@ -380,3 +376,4 @@ def search_documents(engine, folder, user, query, *, limit=5, offset=0):
         warnings.append("검색 처리 범위에 도달했습니다. 검색어를 구체화해 주세요. 전체 문서 결과 수가 아닙니다.")
     return {"results": results[offset:offset + limit], "total": len(results), "has_more": offset + limit < len(results),
             "semantic_available": semantic_available, "indexing": indexing, "search_limited": limited, "warning": " ".join(warnings)}
+

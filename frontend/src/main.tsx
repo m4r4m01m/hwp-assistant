@@ -1,5 +1,9 @@
 import { AccountGate, clearAccountWorkspaceState, type Account } from "./account-gate";
 import { SessionViewer } from "./session-viewer";
+import { TeamWorkspaces, type TeamSpace } from "./team-workspaces";
+import { DocumentBranches } from "./document-branches";
+import { DocumentEditEntry } from "./document-edit-entry";
+import { LibraryLocations, LibraryDetails, folderPath, libraryViews, type LibraryFolder } from "./document-explorer";
 import React, { useEffect, useRef, useState } from "react";
 const Coedit = React.lazy(() => import("./coedit").then(module => ({default: module.Coedit})));
 import { createRoot } from "react-dom/client";
@@ -86,17 +90,26 @@ function App({
   const [mattermostSettings, setMattermostSettings] = useState(false);
   const [editorDesign, setEditorDesign] = useState<DesignChoice | null>(null);
   const [coeditDocument, setCoeditDocument] = useState<Document | null>(null);
+  const [openingDocument, setOpeningDocument] = useState<Document | null>(null);
+  const openDocument = (doc:Document) => { setActive(null); setBranchDocument(null); setOpeningDocument(doc); };
+  const [branchDocument, setBranchDocument] = useState<Document | null>(null);
+  const [spacePanel, setSpacePanel] = useState<{ document?: Document } | null>(null);
+  const [spaces, setSpaces] = useState<TeamSpace[]>([]);
+  const [spaceFilter, setSpaceFilter] = useState("");
+  const [folders, setFolders] = useState<LibraryFolder[]>([]);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const reloadFolders = () => void api<LibraryFolder[]>("/folders").then(setFolders).catch(e => setError(errorMessage(e)));
   const [trashDialog, setTrashDialog] = useState<{ document: Document | null } | null>(null);
   const [managingAccounts, setManagingAccounts] = useState(false);
   const listGeneration = useRef(0), listController = useRef<AbortController | null>(null);
-  const libraryRestore = useRef<{ document: string; version: string; key: string; token: string; expired?: boolean } | null>(null);
+  const libraryRestore = useRef<{ document: string; version: string; key: string; token: string; base?: string; expired?: boolean } | null>(null);
   useEffect(() => {
-    if (history && !active) return;
+    if ((history || branchDocument) && !active && !coeditDocument) return;
     const frozen = libraryRestore.current; libraryRestore.current = null;
     if (frozen) void api(`/documents/${frozen.document}/session`, { method: "DELETE", headers: { "X-Edit-Session": frozen.token } }).catch(() => {});
-  }, [history, active]);
+  }, [history, branchDocument, active, coeditDocument]);
   useEffect(() => {
-    if (!history || active) return;
+    if ((!history && !branchDocument) || active || coeditDocument) return;
     const interval = setInterval(() => {
       const frozen = libraryRestore.current;
       if (!frozen || frozen.expired) return;
@@ -106,11 +119,18 @@ function App({
         });
     }, 30000);
     return () => clearInterval(interval);
-  }, [history?.id, active]);
+  }, [history?.id, branchDocument?.id, active, coeditDocument]);
   const [searchQuery, flushSearch] = useDebouncedValue(query);
   const uploadBusy = useRef(false), dragDepth = useRef(0);
   const frozenUpload = useRef<{ bytes: Uint8Array; name: string; id: string; key: string } | null>(null);
-  const inLibrary = !entry && !mattermostSettings && !coeditDocument && !active && !creating && !standardDesigner && !reports && !templates && !managingAccounts;
+  const inLibrary = !entry && !mattermostSettings && !active && !openingDocument && !creating && !standardDesigner && !reports && !templates && !managingAccounts && !coeditDocument && !branchDocument && !spacePanel;
+  useEffect(() => {
+    if (!inLibrary) return;
+    const controller = new AbortController();
+    void api<TeamSpace[]>("/workspaces", { signal: controller.signal }).then(setSpaces).catch(e => { if (!controller.signal.aborted) setError(errorMessage(e)); });
+    void api<LibraryFolder[]>("/folders", { signal: controller.signal }).then(setFolders).catch(e => { if (!controller.signal.aborted) setError(errorMessage(e)); });
+    return () => controller.abort();
+  }, [inLibrary]);
   useAiSetupLanding(inLibrary && !loading && !copying && !uploading && !history && !sharing && !trashDialog);
   useEffect(() => {
     if (!inLibrary) return;
@@ -120,7 +140,7 @@ function App({
       if (!filesDragged(event)) return;
       event.preventDefault();
       if (event.type === "drop") clearDrag();
-      else if (!(event.target instanceof Element) || !event.target.closest(".library-drop-target") || history || sharing || trashDialog)
+      else if (!(event.target instanceof Element) || !event.target.closest(".library-drop-target") || history || sharing || trashDialog || branchDocument || spacePanel)
         event.dataTransfer!.dropEffect = "none";
     };
     const escape = (event: KeyboardEvent) => { if (event.key === "Escape") clearDrag(); };
@@ -135,7 +155,7 @@ function App({
       dragDepth.current = 0;
     };
   }, [inLibrary, history, sharing, trashDialog]);
-  const sortedDocs = [...docs].sort((a, b) => sort === "name" ? a.name.localeCompare(b.name, "ko", { numeric: true }) || a.id.localeCompare(b.id)
+  const sortedDocs = docs.filter(d => !spaceFilter || (spaceFilter.startsWith("folder:") ? d.folder_id === spaceFilter.slice(7) : spaceFilter === "mine" ? d.personal_document && d.owned_by_me && !d.workspace_id && !d.branch_source_id : spaceFilter === "branches" ? !!d.branch_source_id : spaceFilter === "shared-with-me" ? d.shared_with_me || d.individually_shared : spaceFilter === "unassigned" ? !d.workspace_id && !d.personal_document && !d.branch_source_id : d.workspace_id === spaceFilter)).sort((a, b) => sort === "name" ? a.name.localeCompare(b.name, "ko", { numeric: true }) || a.id.localeCompare(b.id)
     : sort === "oldest" ? a.created_at - b.created_at || a.id.localeCompare(b.id) : b.created_at - a.created_at || a.id.localeCompare(b.id));
   const refresh = () => {
     const generation = ++listGeneration.current;
@@ -147,8 +167,29 @@ function App({
       .catch((e) => { if (generation === listGeneration.current && !isAbortError(e)) setError(errorMessage(e)); })
       .finally(() => { if (generation === listGeneration.current) setLoading(false); });
   };
+  const selectedDocument = docs.find(d => d.id === selectedFile);
+  const activeFolder = folders.find(f => "folder:" + f.id === spaceFilter);
+  const canShare = (d: Document) => account.authentication_required && (d.workspace_id || d.personal_document || account.library_access_mode !== "shared") && d.role === "owner" && !d.branch_source_id;
+  const selectLocation = (value: string) => { setSpaceFilter(value); setSelectedFile(null); setExpandedDocument(null); };
+  async function moveToFolder(id: string, folder: string | null) {
+    await api(`/documents/${id}/folder`, jsonRequest("PUT", { folder_id: folder })); refresh();
+  }
+  async function editFolder(remove = false) {
+    if (!activeFolder) return;
+    try {
+      if (remove) {
+        if (!confirm("폴더를 삭제할까요? 문서와 공유 권한은 그대로 유지됩니다.")) return;
+        await api(`/folders/${activeFolder.id}`, { method: "DELETE" }); selectLocation("mine");
+      } else {
+        const name = prompt("폴더 이름", activeFolder.name); if (!name) return;
+        await api(`/folders/${activeFolder.id}`, jsonRequest("PUT", { name, parent_id: activeFolder.parent_id }));
+      }
+      reloadFolders(); refresh();
+    } catch(e) { setError(errorMessage(e)); }
+  }
   useEffect(() => { refresh(); return () => { listController.current?.abort(); listGeneration.current++; }; }, [searchQuery]);
   function navigate(section: WorkspaceSection) {
+    setBranchDocument(null); setSpacePanel(null);
     dismissEntry(); setMattermostSettings(false);
     setTrashDialog(null);
     setManagingAccounts(false);
@@ -159,6 +200,35 @@ function App({
     setTemplates(section === "templates"); setReports(section === "reports");
     setStandardDesigner(section === "standards");
     if (section === "documents") refresh();
+  }
+  async function restoreTimeline(target: Document, versionId: string, requestId: string): Promise<Version> {
+    let token = "", release = false, releaseDocument = target.id;
+    try {
+      const previous = libraryRestore.current;
+      if (previous?.expired) {
+        token = previous.token; releaseDocument = previous.document;
+        throw new ApiError(409, "복원 확인 세션이 만료됐습니다. 갱신된 문서 이력에서 저장 결과를 확인하세요.");
+      }
+      if (previous && (previous.document !== target.id || previous.version !== versionId || previous.key !== requestId))
+        throw new ApiError(409, "확인되지 않은 복원 요청이 있습니다. 같은 요청부터 재확인하세요.");
+      if (!previous) {
+        const lease = await api<{token: string; document: Document}>(`/documents/${target.id}/session`, {method:"POST"});
+        token = lease.token;
+        if (lease.document.current_version !== target.current_version) { release = true; throw new ApiError(409, "최신 버전이 변경됐습니다. 문서 이력을 다시 불러온 뒤 선택하세요."); }
+        libraryRestore.current = { document:target.id, version:versionId, key:requestId, token, base:target.current_version };
+      } else token = previous.token;
+      const frozen = libraryRestore.current!;
+      const result = await api<Version>(`/documents/${frozen.document}/versions/${frozen.version}/restore?base_version=${frozen.base}`, {
+        method:"POST", headers:{"X-Edit-Session":token,"Idempotency-Key":frozen.key}
+      });
+      release = true; refresh(); return result;
+    } catch(cause) {
+      if (cause instanceof ApiError && [401,403,409].includes(cause.status) && libraryRestore.current) libraryRestore.current.expired = true;
+      release ||= cause instanceof ApiError && cause.status < 500;
+      throw cause;
+    } finally {
+      if (release && token) { libraryRestore.current = null; await api(`/documents/${releaseDocument}/session`, {method:"DELETE",headers:{"X-Edit-Session":token}}).catch(() => {}); }
+    }
   }
   async function copySaved(source: Document) {
     if (copying) return;
@@ -205,7 +275,7 @@ function App({
   const workspace = (child: React.ReactNode, key: string) => <WorkspaceLoadBoundary key={key} onBack={() => navigate("documents")}><React.Suspense fallback={<main className="drive"><p role="status">화면을 불러오는 중…</p></main>}>{child}</React.Suspense></WorkspaceLoadBoundary>;
 
   if (entry?.kind === "document") return <SavedDocumentEntry entry={entry} onClose={dismissEntry}
-    onEdit={doc => { dismissEntry(); setActive(doc); }} onCoedit={doc => { dismissEntry(); setCoeditDocument(doc); }} />;
+    onEdit={doc => { dismissEntry(); openDocument(doc); }} onCoedit={doc => { dismissEntry(); openDocument(doc); }} />;
   if (entry?.kind === "mattermost" || mattermostSettings) return <MattermostLink account={account}
     token={entry?.kind === "mattermost" ? entry.token : undefined} onClose={() => { dismissEntry(); setMattermostSettings(false); }} />;
   if (entry?.kind === "error") return <main className="external-entry"><section><h1>링크를 열 수 없습니다</h1><p role="alert">{entry.message}</p><button onClick={dismissEntry}>문서함으로</button></section></main>;
@@ -220,6 +290,7 @@ function App({
     onApplyDesign={(doc, choice) => { setEditorDesign(choice); setTemplates(false); setRegisterTemplate(undefined); setActive(doc); }}
     onDesignStandard={() => { setTemplates(false); setRegisterTemplate(undefined); setStandardDesigner(true); }}
     onReport={() => { setTemplates(false); setRegisterTemplate(undefined); setReports(true); }} />, "templates");
+  if (openingDocument) return <DocumentEditEntry key={openingDocument.id} document={openingDocument} onClose={()=>{setOpeningDocument(null);refresh();}} onReady={target=>{setOpeningDocument(null);if(target.mode==='workcopy')setCoeditDocument(target.document);else setActive(target.document);}}/>;
   if (active?.role === "reader")
     return (
       <div className="workspace-shell"><WorkspaceNav active="documents" onNavigate={navigate} onBack={() => { setActive(null); refresh(); }} />
@@ -230,7 +301,7 @@ function App({
         <CollaborationPanel document={active} />
       </main></div>
     );
-  if (coeditDocument) return <React.Suspense fallback={<p role="status">공동편집 준비 중…</p>}><Coedit document={coeditDocument} onClose={() => { setCoeditDocument(null); refresh(); }} /></React.Suspense>;
+  if (coeditDocument) return <React.Suspense fallback={<p role="status">작업본 준비 중…</p>}><Coedit document={coeditDocument} onClose={() => { setCoeditDocument(null); refresh(); }} onTimeline={()=>{setBranchDocument(coeditDocument);setCoeditDocument(null);refresh();}} onAdvanced={doc=>{setCoeditDocument(null);setActive(doc);}} /></React.Suspense>;
   if (active || creating)
     return (
       <Editor
@@ -244,31 +315,32 @@ function App({
           refresh();
         }}
         onHistory={setHistory}
+        onTimeline={doc => { setActive(null); setBranchDocument(doc); refresh(); }}
         history={history}
         closeHistory={() => setHistory(null)}
       />
     );
   return (
     <div className="workspace-shell library-shell">
-      <WorkspaceNav active="documents" onNavigate={navigate} disabled={copying || uploading} footer={<><strong>{account.authentication_required ? account.user_id : "개인 작업 공간"}</strong><details className="library-account-note"><summary>이용 안내</summary><p>{account.authentication_required ? account.library_access_mode === "shared" ? "공용 문서함입니다. 저장·수정 작업은 로그인한 계정으로 기록됩니다." : "문서별 열람·편집·소유자 권한과 대화 공개 범위가 적용됩니다." : "현재 이 컴퓨터의 개인 문서함입니다. 사용자 간 공유는 서버 인증 설정 후 사용할 수 있습니다."}</p><p>저장본은 이전 버전을 보존합니다. 한컴 호환성은 실제 파일로 확인하세요.</p></details><AccountPasswordChange account={account} />{account.authentication_required && <button onClick={() => setMattermostSettings(true)}>매터모스트 연결</button>}{(account.authentication_required || account.is_admin) && <div className="workspace-account-actions">{account.authentication_required && <button onClick={async () => { await api("/auth/logout", { method: "POST" }); clearAccountWorkspaceState(); location.reload(); }}>로그아웃</button>}{account.is_admin && <button onClick={() => setManagingAccounts(true)}>계정 관리</button>}</div>}</>}>
+      <WorkspaceNav active="documents" onNavigate={navigate} disabled={copying || uploading} footer={<><strong>{account.authentication_required ? account.user_id : "개인 작업 공간"}</strong><details className="library-account-note"><summary>이용 안내</summary><p>{account.authentication_required ? account.library_access_mode === "shared" ? "새 문서는 비공개로 저장됩니다. 기존 공용 문서와 공유 문서는 각 문서의 권한을 따릅니다." : "문서별 열람·편집·소유자 권한과 대화 공개 범위가 적용됩니다." : "현재 이 컴퓨터의 개인 문서함입니다. 사용자 간 공유는 서버 인증 설정 후 사용할 수 있습니다."}</p><p>저장본은 이전 버전을 보존합니다. 한컴 호환성은 실제 파일로 확인하세요.</p></details><AccountPasswordChange account={account} />{account.authentication_required && <button onClick={() => setMattermostSettings(true)}>매터모스트 연결</button>}{(account.authentication_required || account.is_admin) && <div className="workspace-account-actions">{account.authentication_required && <button onClick={async () => { await api("/auth/logout", { method: "POST" }); clearAccountWorkspaceState(); location.reload(); }}>로그아웃</button>}{account.is_admin && <button onClick={() => setManagingAccounts(true)}>계정 관리</button>}</div>}</>}>
         <button className="primary workspace-nav-action" aria-label="빈 문서 만들기" disabled={uploading} onClick={() => setCreating(true)}><WorkspaceIcon name="plus"/><span>빈 문서 만들기</span></button>
         <label className="button workspace-nav-action" title="HWPX 업로드"><WorkspaceIcon name="upload"/><span>HWPX 업로드</span><input aria-label="HWPX 업로드" type="file" accept=".hwpx" disabled={uploading || !!uploadPending} onChange={event => { if (event.target.files?.[0]) void incoming(event.target.files[0]); event.target.value = ""; }} /></label>
         <p className="workspace-nav-note">문서를 만들거나 기존 HWPX를 가져와 작업하세요.</p>
       </WorkspaceNav>
     <main className={`drive drive-workspace library-drop-target${dragOver ? " is-file-dragging" : ""}`}
       onDragEnter={event => {
-        if (!Array.from(event.dataTransfer.types).includes("Files") || history || sharing || trashDialog) return;
+        if (!Array.from(event.dataTransfer.types).includes("Files") || history || sharing || trashDialog || branchDocument || spacePanel) return;
         event.preventDefault(); dragDepth.current++; setDragOver(true);
       }}
       onDragOver={event => {
         if (!Array.from(event.dataTransfer.types).includes("Files")) return;
-        event.preventDefault(); event.dataTransfer.dropEffect = history || sharing || trashDialog || uploading || uploadPending ? "none" : "copy";
+        event.preventDefault(); event.dataTransfer.dropEffect = history || sharing || trashDialog || branchDocument || spacePanel || uploading || uploadPending ? "none" : "copy";
       }}
       onDragLeave={() => { dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragOver(false); }}
       onDrop={event => {
         if (!Array.from(event.dataTransfer.types).includes("Files")) return;
         event.preventDefault(); event.stopPropagation(); dragDepth.current = 0; setDragOver(false);
-        if (history || sharing || trashDialog) return;
+        if (history || sharing || trashDialog || branchDocument || spacePanel) return;
         const files = Array.from(event.dataTransfer.files);
         if (files.length !== 1) { setError("한 번에 HWPX 파일 한 개씩 가져오세요. 여러 파일이나 폴더는 업로드하지 않았습니다."); return; }
         void incoming(files[0]);
@@ -276,10 +348,16 @@ function App({
       <header className="library-heading">
         <div>
           <h1>HWPX 문서함</h1>
-          <p>문서 이름을 눌러 열고 편집하세요.</p>
+          <p>내 문서를 정리하고 필요한 사람에게 공유하세요.</p>
         </div>
-        <span className="library-document-count">{docs.length}개 문서</span>
+        <span className="library-document-count">{sortedDocs.length}개 문서</span>
       </header>
+      <div className={`library-explorer${selectedDocument ? " has-details" : ""}`}>
+      <LibraryLocations folders={folders} spaces={spaces} value={spaceFilter} onSelect={selectLocation} onUpdated={reloadFolders} onMove={moveToFolder} onManage={() => setSpacePanel({})} onTrash={() => setTrashDialog({document:null})}/>
+      <section className="library-files" aria-label="현재 위치의 문서">
+      <nav className="library-breadcrumb" aria-label="현재 위치"><strong>{activeFolder ? `내 폴더 / ${folderPath(folders,activeFolder.id)}` : libraryViews[spaceFilter] || spaces.find(s=>s.id===spaceFilter)?.name || "문서함"}</strong>{activeFolder&&<><button onClick={()=>selectLocation(activeFolder.parent_id?'folder:'+activeFolder.parent_id:'mine')}>상위 폴더</button><button onClick={()=>void editFolder()}>폴더 이름 변경</button><button onClick={()=>void editFolder(true)}>폴더 삭제</button></>}</nav>
+      {(spaceFilter==='mine'||activeFolder)&&<div className="library-folder-cards">{folders.filter(f=>f.parent_id===(activeFolder?.id||null)).map(f=><button key={f.id} onClick={()=>selectLocation('folder:'+f.id)}><WorkspaceIcon name="file"/>{f.name}</button>)}</div>}
+      <p className="hint">새 업로드·보고서는 내 문서함에 비공개로 저장됩니다. 공유 문서함 공개는 더보기 → 공간 지정에서 선택하세요.</p>
       <div className="library-drop-hint" role="region" aria-label="HWPX 파일 놓기" aria-busy={uploading}>
         <WorkspaceIcon name="upload" size={22}/><div><strong>{uploading ? "파일을 업로드하고 있습니다…" : dragOver ? "여기에 놓아 새 문서로 가져오세요" : "HWPX 파일을 이 문서함에 끌어 놓으세요"}</strong>
           <p>파일 한 개씩 · 최대 30MB · 기존 문서는 그대로 유지됩니다.</p></div>
@@ -297,14 +375,13 @@ function App({
         <option value="newest">최근 등록순</option><option value="oldest">오래된 등록순</option><option value="name">이름순</option>
       </select></label>
       <button aria-label="문서 목록 새로고침" title="문서 목록 새로고침" disabled={loading} onClick={refresh}><WorkspaceIcon name="refresh" size={18}/></button>
-      <button className="library-trash-button" disabled={copying || uploading} onClick={() => setTrashDialog({ document: null })}><WorkspaceIcon name="trash" size={18}/>휴지통</button>
       </div>
       {loading && docs.length > 0 && <p role="status">문서 목록을 갱신하는 중…</p>}
       {copyPending && <div className="notice">{copyPending.source.name}의 저장본 복제를 확인 중입니다.
         <button disabled={copying} onClick={() => void copySaved(copyPending.source)}>{copying ? "복제 중…" : "같은 사본 생성 결과 재확인"}</button>
       </div>}
       {copyNotice && <div className="notice">{copyNotice.name} 사본을 저장했습니다. 원본의 대화·권한·버전 이력은 복사하지 않습니다.
-        <button onClick={() => setActive(copyNotice)}>사본 열기</button>
+        <button onClick={() => openDocument(copyNotice)}>사본 열기</button>
       </div>}
       {uploadPending && <div className="notice" role="status">{uploadPending}{uploading ? " 파일을 저장하는 중입니다." : " 파일의 저장 결과를 확인해야 합니다."}
         {!uploading && <button onClick={() => void incoming()}>업로드 결과 재확인</button>}
@@ -317,9 +394,9 @@ function App({
       )}
       {loading && docs.length === 0 ? (
         <p role="status">문서 목록을 불러오는 중…</p>
-      ) : docs.length === 0 ? (
+      ) : sortedDocs.length === 0 ? (
         <div className="empty">
-          {query ? "검색 결과가 없습니다. 다른 이름으로 검색해 보세요." : "아직 저장한 문서가 없습니다. 보고서를 작성하거나 HWPX 파일을 가져오세요."}
+          {query ? "검색 결과가 없습니다. 다른 이름으로 검색해 보세요." : "이 위치에 문서가 없습니다. 내 문서함에 새 문서를 만들거나 문서 정보에서 폴더를 지정하세요."}
         </div>
       ) : (
         <div className="library-table-wrap"><table className="library-table">
@@ -332,17 +409,19 @@ function App({
           </thead>
           <tbody>
             {sortedDocs.map((d) => (
-              <React.Fragment key={d.id}><tr>
+              <React.Fragment key={d.id}><tr aria-selected={selectedFile===d.id} draggable onDragStart={e=>e.dataTransfer.setData('application/x-hwp-document',d.id)} onClick={e=>{if(!(e.target as Element).closest('button, input, select, a, label'))setSelectedFile(d.id);}}>
                 <td className="library-document-name">
-                  <button className="link" onClick={() => setActive(d)}>
+                  <button className="link" onClick={() => openDocument(d)}>
                     <WorkspaceIcon name="documents"/><span>{d.name}</span>
                   </button>
+                  {(d.workspace_name || d.branch_source_id) && <span className="library-space-tag">{d.branch_source_id ? "개인 작업본" : d.shared_with_me ? `${d.workspace_name} · 개별 공유 · ${d.role === "reader" ? "열람" : "편집"}` : d.workspace_name}</span>}
+                  {!d.workspace_id&&!d.branch_source_id&&<span className="library-space-tag">{d.personal_document ? d.individually_shared ? '공유받은 개인 문서' : '개인 문서' : '기존 문서함'}</span>}
                 </td>
                 <td>{new Date(d.created_at * 1000).toLocaleString("ko-KR")}</td>
                 <td className="library-document-actions">
+                  <button title="문서 정보·미리보기" aria-label={`${d.name} 문서 정보`} onClick={()=>setSelectedFile(d.id)}><WorkspaceIcon name="review" size={17}/><span>정보</span></button>
                   <SavedDownload document={d} />
-                  {d.role !== "reader" && <button onClick={() => setCoeditDocument(d)}><WorkspaceIcon name="conversation" size={17}/><span>공동편집</span></button>}
-                  <button aria-label="버전 기록" title="버전 기록" onClick={() => setHistory(d)}><WorkspaceIcon name="history" size={17}/><span>버전 기록</span></button>
+                  <button title="문서 이력" onClick={() => setBranchDocument(d)}><WorkspaceIcon name="history" size={17}/><span>문서 이력</span></button>
                   <span className="library-delete-action" title={d.can_trash ? "휴지통으로 이동하며 나중에 복구할 수 있습니다." : account.library_access_mode === "shared" ? "이 문서를 삭제할 권한이 없습니다." : "개인 문서함에서는 문서 소유자만 삭제할 수 있습니다."}>
                     <button className="library-delete-button" aria-label={`${d.name} 삭제`}
                       aria-description={!d.can_trash ? account.library_access_mode === "shared" ? "이 문서를 삭제할 권한이 없습니다." : "개인 문서함에서는 문서 소유자만 삭제할 수 있습니다." : undefined}
@@ -378,6 +457,7 @@ function App({
                     <WorkspaceIcon name="rename" size={17}/><span>이름 변경</span>
                   </button>
                   <button aria-label="저장본 복제" title="저장본 복제" disabled={copying || !!copyPending} onClick={() => void copySaved(d)}><WorkspaceIcon name="copy" size={17}/><span>저장본 복제</span></button>
+                  {d.role === "owner" && !d.branch_source_id && <button onClick={() => setSpacePanel({ document: d })}>공간 지정</button>}
                   <label className="button" title="새 버전 업로드">
                     <WorkspaceIcon name="upload" size={17}/><span>새 버전 업로드</span>
                     <input
@@ -422,7 +502,7 @@ function App({
                       }}
                     />
                   </label>
-                  {account.authentication_required && account.library_access_mode !== "shared" && d.role === "owner" && (
+                  {canShare(d) && (
                     <button aria-label="공유 권한" title="공유 권한" onClick={() => setSharing(d)}><WorkspaceIcon name="share" size={17}/><span>공유 권한</span></button>
                   )}
                   {d.role !== "reader" && (
@@ -439,7 +519,12 @@ function App({
           </tbody>
         </table></div>
       )}
+      </section>
+      {selectedDocument&&<LibraryDetails key={selectedDocument.id} doc={selectedDocument} folders={folders} canShare={!!canShare(selectedDocument)} onClose={()=>setSelectedFile(null)} onOpen={()=>openDocument(selectedDocument)} onHistory={()=>setBranchDocument(selectedDocument)} onShare={()=>setSharing(selectedDocument)} onMove={moveToFolder}/>}
+      </div>
       {trashDialog && <DocumentTrashDialog document={trashDialog.document} shared={account.library_access_mode === "shared"} onClose={() => setTrashDialog(null)} onChanged={() => { setExpandedDocument(null); refresh(); }} />}
+      {spacePanel && <TeamWorkspaces account={account} document={spacePanel.document} onClose={() => setSpacePanel(null)} onUpdated={() => { refresh(); void api<TeamSpace[]>("/workspaces").then(setSpaces).catch(e => setError(errorMessage(e))); }} />}
+      {branchDocument && <DocumentBranches document={branchDocument} onClose={() => setBranchDocument(null)} onOpen={openDocument} onRestore={restoreTimeline} onUpdated={refresh} />}
       {sharing && (
         <AccessPanel document={sharing} onClose={() => setSharing(null)} />
       )}
@@ -516,6 +601,7 @@ function Editor({
   initialDesign,
   onClose,
   onHistory,
+  onTimeline,
   history,
   closeHistory,
 }: {
@@ -524,6 +610,7 @@ function Editor({
   initialDesign?: DesignChoice | null;
   onClose: () => void;
   onHistory: (d: Document) => void;
+  onTimeline: (d: Document) => void;
   history: Document | null;
   closeHistory: () => void;
 }) {
@@ -1149,8 +1236,10 @@ function Editor({
             if ((event.target as Element).closest("button, a") && fileMenu.current) fileMenu.current.open = false;
           }}>
         <button
-          disabled={!ready || blockHolding}
+          disabled={!ready || blockHolding || !!initial?.workspace_id || !!initial?.branch_source_id}
+          title={initial?.workspace_id || initial?.branch_source_id ? "공간·작업본 접근 범위를 보존하려면 문서함의 작업본·통합 또는 저장본 복제를 사용하세요." : undefined}
           onClick={async () => {
+            if (initial?.workspace_id || initial?.branch_source_id) return;
             if (blockHold.current || busy.current || pending.current || applied.current) { setError("진행 중인 저장·승인·블록 준비를 먼저 완료하세요."); return; }
             const n = prompt("다른 이름으로 저장", name);
             if (!n) return;
@@ -1182,8 +1271,13 @@ function Editor({
         >
           복구용 다운로드
         </button>
-        <button disabled={!doc.current} onClick={() => onHistory(doc.current!)}>
-          버전 기록
+        <button disabled={!doc.current || !ready} onClick={() => {
+          if (dirtyRef.current || contextDraftDirty.current || busy.current || pending.current || applied.current || blockHold.current || assistantHold.current || restoring.current) {
+            setError("문서 이력을 열기 전에 변경사항을 저장하고 진행 중인 작업을 마무리하세요."); return;
+          }
+          onTimeline({ ...doc.current!, workspace_id: initial?.workspace_id, workspace_name: initial?.workspace_name, branch_source_id: initial?.branch_source_id });
+        }}>
+          문서 이력
         </button>
           <p>다운로드는 서버 저장과 별개입니다. 미저장 내용은 복구용 다운로드에 포함됩니다.</p>
           </div>
@@ -1616,3 +1710,4 @@ function ApplicationRoot() {
   return <AccountGate>{account => <CapabilitiesProvider><AiConnectionProvider><App account={account} entry={entry} dismissEntry={dismissEntry} /></AiConnectionProvider></CapabilitiesProvider>}</AccountGate>;
 }
 createRoot(document.getElementById("root")!).render(<ApplicationRoot />);
+

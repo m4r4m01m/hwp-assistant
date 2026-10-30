@@ -161,16 +161,38 @@ async function history(page: Page, name: string) {
   const row = page
     .getByRole("row")
     .filter({ has: page.getByRole("button", { name, exact: true }) });
-  await row.getByRole("button", { name: "버전 기록", exact: true }).click();
+  await row.getByRole("button", { name: "문서 이력", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "문서 이력", exact: true })).toBeVisible();
+  await expect(page.locator(".history-save-node").first()).toBeVisible();
+}
+async function chooseVersion(page: Page, ordinal: number) {
+  // These fixtures have one linear document and no branches. The tree is newest
+  // first; assertions below still use immutable IDs rather than display dates.
+  const nodes = page.locator(".history-save-node");
+  const node = nodes.nth(await nodes.count() - ordinal);
+  await node.click();
+  await expect(node).toHaveAttribute("aria-pressed", "true");
+  return (await node.getAttribute("data-version-id"))!;
+}
+async function preparePair(page: Page, left: number, right: number) {
+  const leftId = await chooseVersion(page, left);
+  const more = page.locator(".history-more");
+  if (await more.getAttribute("open") === null) {
+    await more.locator(":scope > summary").click();
+  }
+  await page.getByRole("button", { name: "비교 기준으로 지정", exact: true }).click();
+  const rightId = await chooseVersion(page, right);
+  return {leftId, rightId};
 }
 async function openPair(page: Page, left = 1, right = 3) {
-  for (const checkbox of await page.getByRole("checkbox").all())
-    await checkbox.uncheck();
-  await page.getByLabel(`버전 ${left} 선택`, { exact: true }).check();
-  await page.getByLabel(`버전 ${right} 선택`, { exact: true }).check();
+  const {leftId, rightId} = await preparePair(page, left, right);
+  const response = page.waitForResponse(r => r.url().includes("/compare?") && r.request().method() === "GET");
   await page
-    .getByRole("button", { name: "선택한 두 버전 비교", exact: true })
+    .getByRole("button", { name: "선택한 두 저장본 비교", exact: true })
     .click();
+  const comparisonUrl = new URL((await response).url());
+  expect(comparisonUrl.searchParams.get("left")).toBe(leftId);
+  expect(comparisonUrl.searchParams.get("right")).toBe(rightId);
   await expect(
     page.locator('.comparison-pane[data-render-ready="true"]'),
   ).toHaveCount(2, { timeout: 90000 });
@@ -188,50 +210,28 @@ test("REAL rhwp: arbitrary pair, per-paragraph savers, native pages, reverse and
   await save(request, doc, finalBytes, "alice");
   await login(page, "reader");
   await history(page, doc.name);
+  await chooseVersion(page, 1);
   await expect(
-    page.getByRole("button", { name: "이 버전 복원" }).first(),
-  ).toBeDisabled();
-  await expect(page.locator(".history-table th")).toHaveText([
-    "선택",
-    "저장 버전",
-    "저장한 사용자",
-    "작업",
-  ]);
-  await expect(page.locator(".history-table input:checked")).toHaveCount(0);
-  const choose = (number: number) =>
-    page.getByLabel(`버전 ${number} 선택`, { exact: true });
-  const selectionRole = (number: number) =>
-    page
-      .getByRole("row")
-      .filter({ has: choose(number) })
-      .locator(".history-selection-role");
+    page.getByRole("button", { name: "이 저장본 복원", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.locator(".history-save-node")).toHaveCount(3);
   const compareButton = page.getByRole("button", {
-    name: "선택한 두 버전 비교",
+    name: "선택한 두 저장본 비교",
     exact: true,
   });
-  await expect(compareButton).toBeDisabled();
-  await choose(2).check();
-  await expect(selectionRole(2)).toHaveText("1 · 기준");
-  await expect(compareButton).toBeDisabled();
-  await choose(1).check();
-  await expect(selectionRole(1)).toHaveText("2 · 비교");
+  await expect(compareButton).toHaveCount(0);
+  await preparePair(page, 2, 2);
+  await expect(compareButton).toBeDisabled(); // A version cannot be compared with itself.
+  await chooseVersion(page, 1);
   await expect(compareButton).toBeEnabled();
-  await choose(3).click();
-  await expect(page.getByRole("alert")).toContainText(
-    "두 버전까지만 선택할 수 있습니다.",
-  );
-  await expect(choose(3)).not.toBeChecked();
-  await expect(choose(2)).toBeChecked();
-  await expect(choose(1)).toBeChecked();
+  await chooseVersion(page, 3);
+  await expect(page.locator('.history-save-node[aria-pressed="true"]')).toHaveCount(1);
+  await expect(compareButton).toBeEnabled();
   await page
-    .locator(".history-modal")
-    .screenshot({ path: "test-results/version-selection-limit.png" });
-  await choose(2).uncheck();
-  await expect(selectionRole(1)).toHaveText("1 · 기준");
-  await expect(page.getByRole("alert")).toHaveCount(0);
-  await expect(compareButton).toBeDisabled();
-  await choose(3).check();
-  await expect(selectionRole(3)).toHaveText("2 · 비교");
+    .getByRole("dialog", { name: "문서 이력", exact: true })
+    .screenshot({ path: "test-results/version-baseline-selection.png" });
+  await page.getByRole("button", { name: "기준 해제", exact: true }).click();
+  await expect(compareButton).toHaveCount(0);
   const writes: string[] = [],
     external: string[] = [],
     errors: string[] = [];
@@ -328,9 +328,9 @@ test("REAL rhwp: formatting-only comparison and single-selection guard", async (
   await save(request, doc, bold(base), "bob");
   await login(page, "alice");
   await history(page, doc.name);
-  await page.getByLabel("버전 2 선택", { exact: true }).check();
+  await preparePair(page, 2, 2);
   await expect(
-    page.getByRole("button", { name: "선택한 두 버전 비교" }),
+    page.getByRole("button", { name: "선택한 두 저장본 비교" }),
   ).toBeDisabled();
   await openPair(page, 1, 2);
   await expect(
@@ -385,7 +385,7 @@ test("REAL rhwp: table cell diff locates native cell and identifies saver", asyn
   ).toBeVisible();
 });
 
-test("REAL rhwp: history comparison preserves an open editor's unsaved document and lease", async ({
+test("REAL rhwp: history protects unsaved editing, then releases the editor and compares saved versions without writes", async ({
   page,
   request,
 }) => {
@@ -415,13 +415,9 @@ test("REAL rhwp: history comparison preserves an open editor's unsaved document 
     };
   });
   await page.getByLabel("파일 작업", { exact: true }).click();
-  await page.getByRole("button", { name: "버전 기록", exact: true }).click();
-  await openPair(page, 1, 2);
-  await page.getByRole("button", { name: "비교 닫기" }).click();
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "닫기", exact: true })
-    .click();
+  await page.getByRole("button", { name: "문서 이력", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("문서 이력을 열기 전에 변경사항을 저장");
+  await expect(page.getByRole("dialog", { name: "문서 이력", exact: true })).toHaveCount(0);
   const after = await editor.evaluate(() => {
     const b = (window as any).hwpAssistantBridge;
     return {
@@ -433,6 +429,21 @@ test("REAL rhwp: history comparison preserves an open editor's unsaved document 
   expect(after).toEqual(before);
   await page.getByRole("button", { name: "저장", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("저장 완료");
+  const savedUrl = (await page.getByRole("link", { name: "저장본 다운로드", exact: true }).getAttribute("href"))!;
+  const savedBytes = await (await client(request, "alice", savedUrl, "GET")).body();
+  expect(strFromU8(unzipSync(savedBytes)["Contents/section0.xml"])).toContain("아직 저장하지 않은 메모");
+  await page.getByLabel("파일 작업", { exact: true }).click();
+  await page.getByRole("button", { name: "문서 이력", exact: true }).click();
+  await expect(page.locator(".block-editor-slot.active iframe")).toHaveCount(0);
+  await expect.poll(async () => (await (await client(request, "alice", `/api/documents/${doc.id}/session`, "GET")).json()).active).toBe(false);
+  await openPair(page, 1, 2);
+  await page.getByRole("button", { name: "비교 닫기" }).click();
+  await page.getByRole("dialog", { name: "문서 이력", exact: true }).getByRole("button", { name: "닫기", exact: true }).click();
+  expect(await (await client(request, "alice", savedUrl, "GET")).body()).toEqual(savedBytes);
+  expect(await (await client(request, "alice", `/api/documents/${doc.id}/versions`, "GET")).json()).toHaveLength(3);
+  await page.getByRole("button", { name: doc.name, exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("저장 완료", { timeout: 90000 });
+  await expect(page.getByRole("link", { name: "저장본 다운로드", exact: true })).toHaveAttribute("href", savedUrl);
 });
 
 test("comparison handles permission errors and closing while loading without stale results", async ({
@@ -443,8 +454,7 @@ test("comparison handles permission errors and closing while loading without sta
   await save(request, doc, edit(base, "1,000", "1,500"), "bob");
   await login(page, "reader");
   await history(page, doc.name);
-  await page.getByLabel("버전 1 선택", { exact: true }).check();
-  await page.getByLabel("버전 2 선택", { exact: true }).check();
+  await preparePair(page, 1, 2);
   await page.route("**/api/documents/*/compare?*", (route) =>
     route.fulfill({
       status: 404,
@@ -452,7 +462,7 @@ test("comparison handles permission errors and closing while loading without sta
       body: JSON.stringify({ detail: "문서를 찾을 수 없습니다." }),
     }),
   );
-  await page.getByRole("button", { name: "선택한 두 버전 비교" }).click();
+  await page.getByRole("button", { name: "선택한 두 저장본 비교" }).click();
   await expect(page.getByRole("alert")).toContainText(
     "문서를 찾을 수 없습니다",
   );
@@ -463,10 +473,10 @@ test("comparison handles permission errors and closing while loading without sta
     await new Promise((resolve) => setTimeout(resolve, 800));
     await route.continue().catch(() => {});
   });
-  await page.getByRole("button", { name: "선택한 두 버전 비교" }).click();
+  await page.getByRole("button", { name: "선택한 두 저장본 비교" }).click();
   await page.getByRole("button", { name: "비교 닫기" }).click();
   await expect(
-    page.getByRole("heading", { name: `${doc.name} · 버전 기록` }),
+    page.getByRole("heading", { name: "문서 이력", exact: true }),
   ).toBeVisible();
   await expect(page.locator(".comparison-modal")).toHaveCount(0);
 });

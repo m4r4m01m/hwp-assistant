@@ -11,7 +11,7 @@ const report = { id: taskId, input: { prompt: "매터모스트에서 요청한 �
   created_at: 1, draft_sha256: "a".repeat(64), execution: {}, draft: { title: "연결한 합성 보고서", summary: "검토용 합성 요약", sources: [], notes: [], limitations: [], emphasis: [],
     sections: ["개요", "현황", "계획"].map(heading => ({ heading, paragraphs: ["□ 합성 내용"], tables: [], diagrams: [] })) } };
 
-async function setup(page: Page, options: { login?: boolean; reportDenied?: boolean; user?: string } = {}) {
+async function setup(page: Page, options: { login?: boolean; reportDenied?: boolean; user?: string; collaborative?: boolean } = {}) {
   let authenticated = !options.login, linked = false;
   const requests: { method: string; path: string; body: any }[] = [];
   await page.route("**/rhwp/build-info.json", route => route.fulfill({ status: 503, body: "synthetic unavailable" }));
@@ -30,10 +30,11 @@ async function setup(page: Page, options: { login?: boolean; reportDenied?: bool
       if (request.method() === "DELETE") { linked = false; return respond({ linked }); }
       return respond({ enabled: true, linked });
     }
-    if (path === "/documents") return respond([]);
+    if (["/documents", "/workspaces", "/folders"].includes(path)) return respond([]);
     if (path === `/documents/${docId}`) return respond({ id: docId, name: "합성 검색 결과.hwpx", current_version: otherTask, role: "owner", created_at: 1 });
-    if (path === `/documents/${docId}/session` && request.method() === "GET") return respond({ active: false, editor: null, mode: "exclusive" });
+    if (path === `/documents/${docId}/session` && request.method() === "GET") return respond({ active: !!options.collaborative, editor: options.collaborative ? "other-editor" : null, mode: options.collaborative ? "collaborative" : "exclusive" });
     if (path === `/documents/${docId}/versions/${versionId}/file`) return route.fulfill({ body: "synthetic saved snapshot" });
+    if (path === `/documents/${docId}/edit-target`) return respond({ detail: "synthetic edit target reached" }, 409);
     if (path === "/report-tasks") return respond([]);
     if (path === `/report-tasks/${taskId}`) return respond(options.reportDenied ? { detail: "보고서 작업을 찾을 수 없습니다." } : report, options.reportDenied ? 404 : 200);
     if (path === "/report-templates") return respond({ items: [{ id: "standard-business", revision: 1, values: { name: "합성 업무보고", description: "", writing_criteria: [] } }], default_id: "standard-business" });
@@ -119,4 +120,17 @@ test("BOT invalid entry is inert and guest cannot confirm a link", async ({ page
   await expect(page.getByRole("alert")).toContainText("승인된 개인 계정");
   await expect(page.getByRole("button", { name: "이 계정으로 연결", exact: true })).toHaveCount(0);
   expect(requests.filter(item => item.method !== "GET")).toEqual([]);
+});
+
+
+test("BOT saved link never autojoins active editing and explicit edit uses a work-copy entry", async ({ page }) => {
+  const requests = await setup(page, { collaborative: true });
+  await page.goto(`/?document=${docId}&version=${versionId}`);
+  await expect(page.locator(".session-viewer-page")).toContainText("합성 저장본");
+  await expect(page.getByText("읽기 전용 · 저장본", { exact: true })).toBeVisible();
+  expect(requests.filter(item => item.method !== "GET")).toEqual([]);
+  await page.getByRole("button", { name: "최신 저장본 편집", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("synthetic edit target reached");
+  expect(requests.filter(item => item.method === "POST").map(item => item.path)).toEqual([`/documents/${docId}/edit-target`]);
+  expect(requests.some(item => item.method === "POST" && /\/(session|coedit)$/.test(item.path))).toBe(false);
 });

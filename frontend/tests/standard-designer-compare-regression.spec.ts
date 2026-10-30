@@ -93,6 +93,21 @@ async function mountDesigner(page: Page) {
   return { previews, registered };
 }
 
+test("MOCK standards: narrow workspace gives settings and preview the full available width", async ({ page }) => {
+  await page.setViewportSize({width:430,height:800});
+  await mountDesigner(page);
+  const grid=page.locator('.standard-designer-grid'), settings=page.locator('.standard-settings'), preview=page.locator('.standard-preview');
+  await expect(grid).toHaveClass(/narrow-layout/);
+  await expect(preview).toBeHidden();
+  expect((await settings.boundingBox())!.width).toBeCloseTo((await grid.boundingBox())!.width,0);
+  await page.getByRole('button',{name:'설정 접기',exact:true}).click();
+  await expect(preview).toBeVisible();await expect(settings).toBeHidden();
+  expect((await preview.boundingBox())!.width).toBeCloseTo((await grid.boundingBox())!.width,0);
+  await page.getByRole('button',{name:'설정 열기',exact:true}).click();await expect(settings).toBeVisible();
+  await page.setViewportSize({width:1440,height:900});
+  await expect(grid).not.toHaveClass(/narrow-layout/);await expect(preview).toBeVisible();await expect(settings).toBeVisible();
+});
+
 test("MOCK standards: saving resets comparison, restored values clear marks, and save options stay usable", async ({ page }, info) => {
   const { previews, registered } = await mountDesigner(page);
   const compare = page.getByRole("button", { name: "변경 전·후 비교", exact: true });

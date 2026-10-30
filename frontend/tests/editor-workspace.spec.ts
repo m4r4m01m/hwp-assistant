@@ -74,9 +74,13 @@ test("REAL rhwp workspace: visible document status and side rail keep the editor
   const download = await recovery;
   expect(hash(await readFile((await download.path())!))).toBe(hash(Uint8Array.from(initial)));
   await page.getByLabel("파일 작업", { exact: true }).click();
-  await page.getByRole("button", { name: "버전 기록", exact: true }).click();
-  await expect(page.locator(".modal")).toContainText("버전 기록");
-  await page.locator(".modal").getByRole("button", { name: "닫기", exact: true }).click();
+  await page.getByRole("button", { name: "문서 이력", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "문서 이력", exact: true })).toBeVisible();
+  await expect(page.locator(".block-editor-slot.active iframe")).toHaveCount(0);
+  await page.getByRole("dialog", { name: "문서 이력", exact: true }).getByRole("button", { name: "닫기", exact: true }).click();
+  await page.getByRole("button", { name: state.name, exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("저장 완료", { timeout: 90000 });
+  state.frame = page.frames().find(candidate => candidate.url().includes("/rhwp/"))!;
   await page.getByLabel("파일 작업", { exact: true }).click();
   page.once("dialog", dialog => dialog.accept(`화면 검증 사본 ${Date.now()}.hwpx`));
   const copyResult = page.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname === "/api/documents");

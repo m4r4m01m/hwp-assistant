@@ -164,6 +164,13 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
     def access_list(doc_id: str, request: Request):
         with Session(engine) as db:
             require_access(db, doc_id, request.state.user, "owner")
+            from .workspaces import WorkspaceDocument, WorkspaceShare
+            scoped = db.get(WorkspaceDocument, doc_id)
+            if scoped:
+                return [fields(a, "user_id", "role") for a in db.scalars(select(WorkspaceShare).where(
+                    WorkspaceShare.document_id == doc_id, WorkspaceShare.workspace_id == scoped.workspace_id))]
+            from .library_access import require_individual_grants
+            require_individual_grants(db, doc_id)
             return [fields(a, "user_id", "role") for a in db.scalars(select(Access).where(Access.document_id == doc_id))]
 
     @app.put("/api/documents/{doc_id}/access")
@@ -174,8 +181,14 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
             raise HTTPException(422, "서버에 등록된 사용자에게만 권한을 부여할 수 있습니다.")
         with transaction(engine) as db:
             doc = locked(db, doc_id, request.state.user, "owner")
+            from .workspaces import change_document_share
+            if change_document_share(db, doc, value.user_id, request.state.user, value.role):
+                return {"ok": True}
+            from .library_access import require_individual_grants
+            require_individual_grants(db, doc_id)
             from .library_access import shared_library
-            if shared_library(db, request.state.user):
+            from .document_library import PersonalDocument
+            if shared_library(db, request.state.user) and not db.get(PersonalDocument, doc_id):
                 raise HTTPException(409, "공용 문서함은 모든 활성 승인 계정이 함께 사용합니다.")
             row = db.get(Access, (doc_id, value.user_id))
             if row and row.role == "owner":
@@ -196,8 +209,14 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
     def revoke(doc_id: str, user_id: str, request: Request):
         with transaction(engine) as db:
             doc = locked(db, doc_id, request.state.user, "owner")
+            from .workspaces import change_document_share
+            if change_document_share(db, doc, user_id, request.state.user):
+                return {"ok": True}
+            from .library_access import require_individual_grants
+            require_individual_grants(db, doc_id)
             from .library_access import shared_library
-            if shared_library(db, request.state.user):
+            from .document_library import PersonalDocument
+            if shared_library(db, request.state.user) and not db.get(PersonalDocument, doc_id):
                 raise HTTPException(409, "공용 문서함은 모든 활성 승인 계정이 함께 사용합니다.")
             row = db.get(Access, (doc_id, user_id))
             if row and row.role == "owner":
@@ -434,6 +453,8 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
         template_id = str(value.id or uuid.uuid4())
         with transaction(engine) as db:
             locked(db, value.document_id, request.state.user)
+            from .workspaces import require_copyable_source
+            require_copyable_source(db, value.document_id, request.state.user)
             if engine.dialect.name == "postgresql":
                 db.execute(text("SELECT pg_advisory_xact_lock(:key)"),
                            {"key": int(digest(("template:" + template_id).encode())[:15], 16)})
@@ -462,11 +483,10 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
     @app.get("/api/templates")
     def recommend(request: Request, q: str = Query("", max_length=200)):
         with Session(engine) as db:
-            from .library_access import shared_library
+            from .library_access import document_read_scope
             from .db import document_is_trashed
-            query = select(Template).where(~document_is_trashed(Template.document_id))
-            if not shared_library(db, request.state.user):
-                query = query.join(Access, Access.document_id == Template.document_id).where(Access.user_id == request.state.user)
+            query = select(Template).where(~document_is_trashed(Template.document_id),
+                Template.document_id.in_(select(Document.id).where(document_read_scope(db, request.state.user))))
             rows = db.scalars(query)
             results = []
             for row in rows:
@@ -490,6 +510,9 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
                 raise HTTPException(404, "템플릿을 찾을 수 없습니다.")
             # The template always inherits current source-document read access.
             locked(db, template.document_id, request.state.user, "reader")
+            from .workspaces import require_copyable_source, inherit_copy_scope, require_copy_retry, document_workspace_info
+            from .library_access import document_role
+            require_copyable_source(db, template.document_id, request.state.user)
             version = source_version(db, template)
             data = verified_bytes(folder, version)
             if engine.dialect.name == "postgresql":
@@ -498,7 +521,7 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
             # Bind retries to both template and client request, within Version's 64-character key.
             key = digest((template_id + ":" + value.request_id).encode())
             if doc:
-                require_access(db, destination, request.state.user, "owner", lock=True)
+                require_copy_retry(db, destination, request.state.user)
                 if not db.scalar(select(Version).where(Version.document_id == destination, Version.request_id == key)):
                     raise HTTPException(409, "다른 문서 ID로 템플릿을 적용하세요.")
             else:
@@ -507,6 +530,8 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
                 db.add(doc)
                 db.flush()
                 db.add(Access(document_id=destination, user_id=request.state.user, role="owner"))
+                inherit_copy_scope(db, template.document_id, destination, request.state.user)
             publish(db, doc, data, None, None, key, "upload", author_id=request.state.user)
-            result = {**doc_dict(doc), "role": "owner", "template_id": template.id, "source_version": version.id}
+            result = {**doc_dict(doc), "role": document_role(db, doc.id, request.state.user),
+                      **document_workspace_info(db, doc.id), "template_id": template.id, "source_version": version.id}
         return result

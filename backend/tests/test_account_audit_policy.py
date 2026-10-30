@@ -37,6 +37,15 @@ def policy_app(accounts, monkeypatch):
         yield client, app, url, folder
 
 
+def mark_legacy_shared(engine, document):
+    """Model an existing shared document from before private-by-default uploads."""
+    from app.document_library import PersonalDocument
+    with transaction(engine) as db:
+        marker = db.get(PersonalDocument, document["id"])
+        assert marker is not None
+        db.delete(marker)
+
+
 def receipts(engine, doc_id):
     with Session(engine) as db:
         return [{key: getattr(row, key) for key in ("id", "actor_id", "action", "document_id", "version_id", "document_name", "details")}
@@ -48,6 +57,7 @@ def test_shared_library_preserves_grants_and_attributes_file_actions_to_each_act
     assert login(client).status_code == 200
     original_bytes = package("SYNTHETIC-CONTENT-NOT-FOR-AUDIT")
     document, lease = create(client, original_bytes)
+    mark_legacy_shared(app.state.engine, document)
     doc_id, first_version = document["id"], document["current_version"]
     assert client.delete(f"/api/documents/{doc_id}/session", headers={"X-Edit-Session": lease}).status_code == 200
     with Session(app.state.engine) as db:
@@ -150,6 +160,7 @@ def test_private_mode_remains_isolated_without_rewriting_shared_history(policy_a
     client, app, url, folder = policy_app
     assert login(client).status_code == 200
     document, _ = create(client)
+    mark_legacy_shared(app.state.engine, document)
     assert login(client, "alice").status_code == 200
     assert client.get("/api/documents").json()[0]["id"] == document["id"]
     monkeypatch.setenv("HWP_LIBRARY_ACCESS_MODE", "private")
@@ -304,9 +315,11 @@ def test_shared_mode_rejects_personal_grant_mutations_without_changing_historica
     client, app, _, _ = policy_app
     assert login(client).status_code == 200
     document, _ = create(client)
+    mark_legacy_shared(app.state.engine, document)
     assert login(client, "alice").status_code == 200
     doc_id = document["id"]
     assert client.put(f"/api/documents/{doc_id}/access", json={"user_id": "alice", "role": "reader"}).status_code == 409
     assert client.delete(f"/api/documents/{doc_id}/access/guest").status_code == 409
     with Session(app.state.engine) as db:
         assert [(row.user_id, row.role) for row in db.scalars(select(Access).where(Access.document_id == doc_id))] == [("guest", "owner")]
+
