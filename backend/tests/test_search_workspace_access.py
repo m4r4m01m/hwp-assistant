@@ -1,12 +1,11 @@
 """Merged Mattermost search uses the same live scopes as the document library."""
-import uuid
-
 from app import document_search as search
 from app.db import Access, transaction
 from app.document_library import PersonalDocument
 from test_accounts import accounts, login
 from test_document_library import fresh
 from test_workspaces import spaces, new_space, add, scoped_doc
+from test_work_copy_entry import separate
 
 
 def hits(app, user, query):
@@ -61,10 +60,8 @@ def test_search_keeps_work_copies_private_and_rechecks_source_access(spaces):
     add(c, space, "writer", "editor")
     source = scoped_doc(c, space)
     assert login(c, "writer").status_code == 200
-    response = c.post(f"/api/documents/{source['id']}/edit-target", json={"request_id": str(uuid.uuid4())})
-    assert response.status_code == 200, response.text
-    branch = response.json()["document"]
-    assert response.json()["mode"] == "workcopy"
+    branch = separate(c, source)
+    assert branch["id"] != source["id"]
     index(app)
     assert hits(app, "writer", "비공개 공간") == {source["id"], branch["id"]}
     assert hits(app, "manager", "비공개 공간") == {source["id"]}

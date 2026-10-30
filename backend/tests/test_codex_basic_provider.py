@@ -110,7 +110,9 @@ def test_invalid_model_json_never_echoes_content(rpc, raw):
 def test_deadline_kills_the_owned_child_and_does_not_retry(rpc):
     folder, selected, provider = rpc
     selected[0] = "wait"
-    provider.settings = CodexSettings(sys.executable, "synthetic-model", "http://127.0.0.1:8000", (), timeout=.15)
+    # Windows can spend more than 150ms starting Python. Exercise cleanup after
+    # the synthetic child starts; the separate timeout tests still cover .15s.
+    provider.settings = CodexSettings(sys.executable, "synthetic-model", "http://127.0.0.1:8000", (), timeout=1 if os.name == "nt" else .15)
     started = time.monotonic()
     with pytest.raises(HTTPException) as failure:
         ask(provider)
