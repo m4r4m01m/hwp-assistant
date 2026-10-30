@@ -266,8 +266,11 @@ test("MOCK AI setup: opening, checking and saving settings preserves mounted edi
   // Opening by keyboard leaves the editor's own menu open underneath. Escape
   // must dismiss only the modal, without reaching the document key listener.
   const fileMenu = page.getByLabel("파일 작업", { exact: true }).locator("..");
-  await openSettings(page); await page.getByLabel("파일 작업", { exact: true }).click();
+  await page.getByLabel("파일 작업", { exact: true }).click();
   await expect(fileMenu).toHaveJSProperty("open", true);
+  await page.getByLabel("설정 메뉴", { exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator('.workspace-nav-settings')).toHaveJSProperty("open", true);
   await connection(page).focus();
   await page.keyboard.press("Enter");
   await expect(dialog(page)).toBeVisible();

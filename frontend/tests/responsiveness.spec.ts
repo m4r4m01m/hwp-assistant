@@ -109,6 +109,7 @@ for (const expired of [false, true]) test(`MOCK UI: lost timeline restore ${expi
   await library(page);
   await page.getByRole("button", { name: "문서 이력", exact: true }).click();
   const timeline = page.getByRole("dialog", { name: "문서 이력", exact: true });
+  await timeline.getByRole("button", { name: "분기 보기", exact: true }).click();
   await timeline.locator('[data-version-id="version-original"]').click();
   page.on("dialog", dialog => dialog.accept());
   await timeline.getByRole("button", { name: "이 저장본 복원", exact: true }).click();
@@ -160,6 +161,7 @@ test("MOCK UI: stale timeline restore releases its lease, reloads, and allows a 
   await library(page);
   await page.getByRole("button", { name: "문서 이력", exact: true }).click();
   const timeline = page.getByRole("dialog", { name: "문서 이력", exact: true });
+  await timeline.getByRole("button", { name: "분기 보기", exact: true }).click();
   await timeline.locator('[data-version-id="version-original"]').click();
   page.on("dialog", dialog => dialog.accept());
   const restore = timeline.getByRole("button", { name: "이 저장본 복원", exact: true });
@@ -234,6 +236,7 @@ test("MOCK UI: timeline shows loading until its response and sharing dialog rest
   await expect(timeline.getByRole("status")).toContainText("문서 이력을 불러오는 중");
   await expect(timeline.locator('[data-version-id]')).toHaveCount(0);
   finish();
+  await timeline.getByRole("button", { name: "분기 보기", exact: true }).click();
   await expect(timeline.locator('[data-version-id]')).toHaveCount(2);
   await expect(timeline.getByRole("status").filter({ hasText: "문서 이력을 불러오는 중" })).toHaveCount(0);
   await page.keyboard.press("Escape");
