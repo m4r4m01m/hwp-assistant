@@ -20,7 +20,7 @@ def test_primary_affiliation_is_independent_of_shared_access(spaces):
     result = assign(c, 'writer', dep['id'], team['id'])
     assert result.status_code == 200, result.text
     assert c.get('/api/workspaces').json() == original_memberships
-    assert c.get('/api/organization/me').json()['team'] is None  # manager is not in every team
+    assert c.get('/api/organization/me').json()['team']['id'] == other['id']  # assigning writer does not change manager's affiliation
     login(c, 'writer')
     affiliation = c.get('/api/organization/me').json()
     assert affiliation['team']['id'] == team['id']

@@ -17,7 +17,8 @@ from test_document_search import document, new_version
 from test_mattermost_bot import (
     FakeBot, MM_OTHER, PASSWORD, command, link, login, process, request_id, setup,
 )
-from test_workspaces import add, new_space
+from test_workspaces import add, new_space, affiliate
+from test_work_copy_entry import separate
 
 
 QUERY = "문서범위검수"
@@ -36,6 +37,7 @@ def scoped_bot(setup, monkeypatch):
     login(client, "manager")
     department, _ = new_space(client, "합성 부서")
     team, _ = new_space(client, "합성 팀", "team", department["id"])
+    affiliate(client, team)
     corpus = (app.state.engine, app.state.folder)
     source, version = document(corpus, QUERY + " 팀 문서.hwpx", TEAM_TEXT, "manager")
     private, _ = document(corpus, QUERY + " 개인 문서.hwpx", PRIVATE_TEXT, "manager")
@@ -127,13 +129,12 @@ def test_bot_rechecks_workspace_access_after_remote_dm_preflight(scoped_bot, mon
     branch = None
     if change == "membership":
         login(client)
-        response = client.post(f"/api/documents/{source}/edit-target",
-                               json={"request_id": str(uuid.uuid4())})
-        assert response.status_code == 200, response.text
-        branch = response.json()["document"]["id"]
+        branch = separate(client, {"id": source, "current_version": version})["id"]
         new_version((app.state.engine, app.state.folder), branch, BRANCH_TEXT)
         login(client, "manager")
     destination = new_space(client, "다른 합성 팀", "team", department["id"])[0] if change == "workspace_move" else None
+    if destination:
+        affiliate(client, destination)
     indexed(app)
     captured = observe_search(monkeypatch)
     original_send = FakeBot.send_dm
@@ -168,10 +169,7 @@ def test_bot_source_reader_keeps_source_but_loses_invited_private_work_copy(scop
     add(client, team, "alice", "editor")
     add(client, team, "bob", "editor")
     login(client)
-    response = client.post(f"/api/documents/{source}/edit-target",
-                           json={"request_id": str(uuid.uuid4())})
-    assert response.status_code == 200, response.text
-    branch = response.json()["document"]["id"]
+    branch = separate(client, {"id": source, "current_version": version})["id"]
     response = client.put(f"/api/documents/{branch}/branch-participants/bob")
     assert response.status_code == 200, response.text
     new_version((app.state.engine, app.state.folder), branch, BRANCH_TEXT)
