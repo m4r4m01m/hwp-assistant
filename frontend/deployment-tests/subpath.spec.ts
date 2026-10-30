@@ -76,6 +76,7 @@ test("HTTPS subpath login, real Studio and immutable comparison renderer", async
   expect(escaped).toEqual([]);
   expect(errors).toEqual([]);
   await page.goto(base);
+  await page.getByLabel("설정 메뉴", { exact: true }).click();
   await page.getByRole("button", { name: "로그아웃", exact: true }).click();
   await expect(page.getByRole("heading", { name: "HWPX 문서함 로그인" })).toBeVisible();
 });
