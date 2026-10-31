@@ -113,7 +113,7 @@ test('MOCK send copy freezes destination, version and id after response loss',as
 
 test("MOCK spaces: original owner with workspace editor access can return a document privately", async ({ page }) => {
   await setup(page);
-  await page.route("**/api/documents", route => route.fulfill({ json: [{
+  await page.route(/\/api\/documents(?:\?.*)?$/, route => route.fulfill({ json: [{
     ...doc, role: "editor", owned_by_me: true, workspace_id: space.id, workspace_name: space.name,
   }] }));
   const placements: unknown[] = [];
