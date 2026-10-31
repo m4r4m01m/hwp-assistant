@@ -85,6 +85,26 @@ def test_affiliated_editor_can_send_but_foreign_manager_and_reassigned_retry_can
     assert sent.status_code==200,sent.text
     assert copy(c,source,body).json()==sent.json()
     assert c.put(f"/api/documents/{source['id']}/workspace",json={'workspace_id':dep['id'],'expected_version':source['current_version']}).status_code==200
+
+    path=f"/api/documents/{source['id']}"
+    versions=c.get(path+'/versions').json()
+    original=c.get(path+'/versions/'+source['current_version']+'/file').content
+    placement={'workspace_id':dep['id'],'expected_version':source['current_version']}
+    assert c.get(path).json()['role']=='editor'
+    assert c.put(path+'/workspace',json=placement).status_code==200  # lost-response retry
+    assert c.put(path+'/workspace',json={**placement,'workspace_id':team['id']}).status_code==200
+    assert c.put(path+'/workspace',json={**placement,'workspace_id':None}).status_code==200
+    assert c.get(path).json()['personal_document']
+    assert c.put(path+'/workspace',json=placement).status_code==200
+    login(c,'manager')
+    assert c.put(path+'/workspace',json={**placement,'workspace_id':team['id']}).status_code==403
+    add(c,dep,'writer','reader')
+    login(c,'writer')
+    assert c.put(path+'/workspace',json={**placement,'workspace_id':team['id']}).status_code==403
+    assert c.put(path+'/workspace',json={**placement,'workspace_id':None}).status_code==403
+    login(c,'manager');add(c,dep,'writer','editor');login(c,'writer')
+    assert c.get(path+'/versions').json()==versions
+    assert c.get(path+'/versions/'+source['current_version']+'/file').content==original
     login(c,'manager');affiliate(c,other,'writer');login(c,'writer')
     assert copy(c,source,body).status_code==403
     assert [s['id'] for s in c.get('/api/workspaces/send-targets').json()]==[other['id']]

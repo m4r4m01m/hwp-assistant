@@ -331,7 +331,9 @@ def install_workspaces(app):
     def assign_document(doc_id: str, value: AssignWorkspace, request: Request):
         with transaction(engine) as db:
             membership_lock(db)
-            doc = require_access(db, doc_id, request.state.user, "owner", lock=True, fresh=True)
+            # Source editing access and the original-owner grant are separate:
+            # an owner sent to an editor workspace must still be able to retry or return it.
+            doc = require_access(db, doc_id, request.state.user, "editor", lock=True, fresh=True)
             from .document_branches import DocumentBranch
             if db.get(DocumentBranch, doc_id):
                 raise HTTPException(409, "개인 작업본은 공간으로 이동할 수 없습니다. 통합 요청을 사용하세요.")

@@ -479,7 +479,7 @@ function App({
                   </button>
                   <button aria-label="저장본 복제" title="저장본 복제" disabled={copying || !!copyPending || d.confidential} onClick={() => void copySaved(d)}><WorkspaceIcon name="copy" size={17}/><span>저장본 복제</span></button>
                   {(d.owned_by_me??d.role==='owner') && !d.branch_source_id && <button disabled={d.confidential} title={d.confidential?'비밀 문서는 부서·팀으로 보낼 수 없습니다.':undefined} onClick={() => setSendDocument(d)}><WorkspaceIcon name="share" size={17}/>부서·팀으로 보내기</button>}
-                  {d.role === "owner" && d.workspace_id && !d.branch_source_id && <button onClick={() => setSpacePanel({ document: d })}>내 문서함으로 이동</button>}
+                  {(d.owned_by_me ?? d.role === "owner") && d.role !== "reader" && d.workspace_id && !d.branch_source_id && <button onClick={() => setSpacePanel({ document: d })}>내 문서함으로 이동</button>}
                   <label className="button" title="새 버전 업로드">
                     <WorkspaceIcon name="upload" size={17}/><span>새 버전 업로드</span>
                     <input

@@ -137,19 +137,21 @@ export function Coedit({ document: doc, onClose, onTimeline, onAdvanced, onWorkc
     if(locked.current||doc.branch_source_id)return;
     if(!revisionRetry)revisionDestination.current=next;
     locked.current=true;setWorking(true);freeze(true);setError("");
+    let completed: (()=>void)|undefined;
     try{
       if(!pending.current){const snapshot=adapter.current!.exportHwpx();if(snapshot.contentLoss.count||snapshot.epoch!==liveEpoch.current)throw new Error("편집 문서의 보존 상태를 확인할 수 없습니다. 작성 내용을 파일로 백업해 주세요.");pending.current={key:crypto.randomUUID(),base:version.current,snapshot};}
       const sent=pending.current;setRevisionRetry(true);
       const saved=await api<{document:Document}>(`/documents/${doc.id}/coedit/revision?base_version=${encodeURIComponent(sent.base)}&request_id=${sent.key}`,{method:'POST',headers:{'X-Coedit-Session':token.current,'Content-Type':'application/hwp+zip'},body:new Uint8Array(sent.snapshot.bytes),timeoutMs:20000});
       dirty.current=false;pending.current=null;setRevisionRetry(false);setHasChanges(false);setLeaving(false);
-      if(revisionDestination.current)revisionDestination.current();
-      else if(onWorkcopy)onWorkcopy({...saved.document,branch_source_id:doc.id});
-      else onClose();
+      completed=revisionDestination.current || (onWorkcopy ? () => onWorkcopy({...saved.document,branch_source_id:doc.id}) : onClose);
+      revisionDestination.current=undefined;
     }catch(cause){fail(cause);}finally{locked.current=false;setWorking(false);if(!paused.current)freeze(false);}
+    if(alive.current)completed?.();
   }
   async function discardAndReload(){
     if(locked.current||!ready.current)return;
     locked.current=true;setWorking(true);freeze(true);paused.current=true;setError("");
+    let completed: (()=>void)|undefined;
     try{
       // Retain the frozen bytes until the replacement has actually loaded.
       if(!pending.current){const snapshot=adapter.current!.exportHwpx();pending.current={key:crypto.randomUUID(),base:version.current,snapshot};}
@@ -158,9 +160,10 @@ export function Coedit({ document: doc, onClose, onTimeline, onAdvanced, onWorkc
       pending.current=null;dirty.current=false;paused.current=false;
       setRevisionRetry(false);revisionDestination.current=undefined;setError("");setDiscarding(false);setLeaving(false);
       setHasChanges(false);setStatus("미반영 변경 없음");
-      const next=discardDestination.current;discardDestination.current=undefined;next?.();
+      completed=discardDestination.current;discardDestination.current=undefined;
     }catch(cause){if(alive.current)fail(cause);}
     finally{locked.current=false;if(alive.current){setWorking(false);if(!paused.current)freeze(false);}}
+    if(alive.current)completed?.();
   }
   async function advanced() {
     if(locked.current || !onAdvanced) return;

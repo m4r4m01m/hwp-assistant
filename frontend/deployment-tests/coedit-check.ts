@@ -49,6 +49,42 @@ export async function checkCoedit(page: Page, context: BrowserContext, base: str
     const bytes = await (await page.request.get(base + `api/documents/${work.id}/versions/${saved.current_version}/file`)).body();
     const xml = strFromU8(unzipSync(bytes)["Contents/section0.xml"]);
     expect(xml).toContain("공동입력가나다"); expect(xml).toContain("공동입력라마바");
+
+    // Leaving dirty coedit must finish its cleanup before the advanced editor starts.
+    // Exercise both destinations with the real engine and preserve the source history.
+    const versionsBefore = await (await page.request.get(base + `api/documents/${doc.id}/versions`)).json();
+    for (const mode of ["discard", "preserve"] as const) {
+      await open(page);
+      const frame = await (await page.locator(".coedit-canvas iframe").elementHandle())!.contentFrame();
+      await frame!.getByRole("textbox", {name:"문서 편집 입력",exact:true}).focus();
+      await page.keyboard.press("Control+End");
+      const marker = mode === "discard" ? " 버릴미반영변경" : " 보관할미반영변경";
+      await page.keyboard.insertText(marker);
+      await expect(page.getByRole("status")).toHaveText("미반영 변경 있음");
+      await expect(page.getByRole("button", {name:"AI·서식 도구",exact:true})).toBeEnabled();
+      await page.getByRole("button", {name:"AI·서식 도구",exact:true}).click();
+      const leaving = page.getByRole("dialog", {name:"미반영 변경 처리",exact:true});
+      if (mode === "discard") {
+        await leaving.getByRole("button", {name:"변경을 버리고 이동",exact:true}).click();
+        await page.getByRole("dialog", {name:"내 편집 버리기 확인",exact:true})
+          .getByRole("button", {name:"내 편집 버리고 최신본 열기",exact:true}).click();
+      } else {
+        await leaving.getByRole("button", {name:"내 작업본으로 보관 후 이동",exact:true}).click();
+      }
+      await expect(page.getByLabel("현재 문서와 저장 상태").getByRole("status"))
+        .toHaveText("저장 완료", {timeout:90000});
+      expect(await (await page.request.get(base + `api/documents/${doc.id}/versions`)).json()).toEqual(versionsBefore);
+      expect(await (await page.request.get(base + `api/documents/${doc.id}/versions/${saved.current_version}/file`)).body()).toEqual(bytes);
+      const all = await (await page.request.get(base + "api/documents")).json();
+      const revisions = all.filter((item: {branch_source_id?: string}) => item.branch_source_id === doc.id);
+      expect(revisions).toHaveLength(mode === "preserve" ? 1 : 0);
+      if (mode === "preserve") {
+        const revision = revisions[0];
+        const preserved = await (await page.request.get(base + `api/documents/${revision.id}/versions/${revision.current_version}/file`)).body();
+        expect(strFromU8(unzipSync(preserved)["Contents/section0.xml"])).toContain(marker.trim());
+      }
+      await page.getByRole("button", {name:"← 문서 목록",exact:true}).click();
+    }
   } finally { await peer.close(); }
 }
 

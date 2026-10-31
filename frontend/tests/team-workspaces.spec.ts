@@ -21,7 +21,7 @@ async function setup(page: Page) {
   });
   await page.route("**/rhwp/**", route => route.fulfill({ status: 503, body: "synthetic" }));
   await page.goto("/");
-  if(!await page.getByRole("navigation",{name:"문서함",exact:true}).isVisible())await page.getByLabel("문서함 열기",{exact:true}).click();
+  await expect(page.getByRole("navigation", { name: "문서함", exact: true })).toBeVisible();
   return changes;
 }
 test("MOCK spaces: manager cannot remove the last manager; accessible dialog fits mobile", async ({ page }) => {
@@ -108,4 +108,26 @@ test('MOCK send copy freezes destination, version and id after response loss',as
  await dialog.getByLabel('받는 문서함').selectOption('team1');await dialog.getByRole('radio',{name:/사본 보내기/}).check();await dialog.getByLabel('사본 이름').fill('공유용 사본.hwpx');
  await dialog.getByRole('button',{name:'사본 보내기',exact:true}).click();await expect(dialog.getByRole('alert')).toBeVisible();await expect(dialog.getByLabel('받는 문서함')).toBeDisabled();
  await dialog.getByRole('button',{name:'전송 결과 다시 확인'}).click();await expect(dialog).toHaveCount(0);expect(calls[0]).toEqual(calls[1]);expect(calls[0]).toMatchObject({workspace_id:'team1',source_version:'v1',name:'공유용 사본.hwpx'});await expect(page.getByRole('status').filter({hasText:'원본은 그대로'})).toBeVisible();
+});
+
+
+test("MOCK spaces: original owner with workspace editor access can return a document privately", async ({ page }) => {
+  await setup(page);
+  await page.route("**/api/documents", route => route.fulfill({ json: [{
+    ...doc, role: "editor", owned_by_me: true, workspace_id: space.id, workspace_name: space.name,
+  }] }));
+  const placements: unknown[] = [];
+  await page.route("**/api/documents/doc1/workspace", route => {
+    placements.push(route.request().postDataJSON());
+    return route.fulfill({ json: { ok: true, workspace_id: null } });
+  });
+  await page.reload();
+  await page.getByRole("button", { name: doc.name + " 더보기" }).click();
+  await page.getByRole("button", { name: "내 문서함으로 이동", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "문서함 이동", exact: true });
+  await dialog.getByLabel("문서함 선택").selectOption("");
+  page.once("dialog", prompt => prompt.accept());
+  await dialog.getByRole("button", { name: "내 문서함으로 이동", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(placements).toEqual([{ workspace_id: null, expected_version: "v1" }]);
 });
