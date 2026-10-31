@@ -1,5 +1,15 @@
 # HWP Assistant 프로젝트 컨텍스트
 
+## 2026-10-31 — 누적 QA main 병합 및 배포 확인 경로
+
+[PR #59](https://github.com/m4r4m01m/hwp-assistant/pull/59)는 source `7217298f4b0a613bf762e7a24c2062ade1cb2fb8`를 보존한 merge commit `b02d8b31a1a6abba0d09a3796840798fba517e6c`로 main에 병합됐다. 로컬 QA checkout도 이 커밋으로 fast-forward했다. 아래의 미병합·검증 중 기록은 당시 상태이며 현재 병합 결과를 대신하지 않는다.
+
+정확한 main 커밋의 [전체 검사 41154691194](https://github.com/m4r4m01m/hwp-assistant/actions/runs/41154691194)는 성공했다. Python 전체 1,835개 통과, frontend-checks와 ui-lifecycle 성공. 최종 source의 [실제 컨테이너 검사 41153277800](https://github.com/m4r4m01m/hwp-assistant/actions/runs/41153277800)도 성공했다. 이 결과는 모의 UI와 실제 PostgreSQL/엔진 검사를 구분하며 실제 모델 추론·Hancom 검수 완료를 뜻하지 않는다.
+
+운영 이미지의 고정 source는 `b02d8b31a1a6abba0d09a3796840798fba517e6c`, 수동 배포 확인 경로는 [HWP deployment 41157918907](https://github.com/m4r4m01m/hwp-assistant/actions/runs/41157918907)이다. 이 기록 시점에는 frontend-checks와 모의 UI 163개 및 별도 TLS 1개가 통과했고 Python 재검사가 진행 중이었다. 완료 판정에는 같은 실행의 build-verify-publish와 deploy-home 성공, 운영 DB·문서 공동 백업, SHA 일치 및 실제 공개 HTTPS smoke가 필요하다. main push 검사의 skipped 배포 작업을 배포 성공으로 해석하지 않는다. 최종 확인 결과는 해당 실행 및 PR #59의 배포 검증 기록을 참조한다. 이 단락을 추가하는 문서 전용 커밋은 배포 대상 애플리케이션 코드를 변경하지 않는다.
+
+로컬은 2026-10-31 11:01 KST에 DB와 143개 불변 파일을 함께 백업해 55문서/143버전, DB integrity 및 파일 SHA 일치를 확인했다. 비공개 증거는 `.cache/main-qa-20261030/before-shutdown-20261031T110129`와 배포 전후 공개 자원 확인 파일에 보존하며 커밋하지 않는다. 로컬 프런트엔드 diagnostic 빌드는 성공했으나 운영 최적화 엔진 검증과 구분한다. 사용자 요청은 검증 완료 후 PC 종료이며 운영 서버는 별도 Linux 호스트다.
+
 ## 2026-10-31 — QA 통합 전 CI 경합과 이동 회귀 수정
 
 검토 기준은 main `4aae45667d8f900c81d6367609b11b81e81233ac`, [PR #59](https://github.com/m4r4m01m/hwp-assistant/pull/59)의 source `e83cbf13a7498c99313ab2fdbc10d7c5bf2ad6f0`다. source는 main보다 6개 커밋 앞서고 뒤처진 커밋은 없었다. [수동 실행 41151828140](https://github.com/m4r4m01m/hwp-assistant/actions/runs/41151828140)의 모의 UI는 161개 통과/1개 실패였다. 인증 화면 준비 전에 즉시 isVisible을 판정해 현재 화면에서 없어진 문서함 열기 버튼을 찾던 시험을 실제 문서함 표시 대기로 고쳤다. 같은 source의 이전 PR CI 성공은 이 간헐적 경합을 배제하지 않는다.
