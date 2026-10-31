@@ -107,6 +107,7 @@ test("ACCOUNTS: real PostgreSQL approval, isolated documents, save/reopen and wa
   await page.screenshot({ path: info.outputPath("guest-real-editor.png") });
   await reopen(page, guest);
   await page.getByRole("button", { name: "← 문서 목록", exact: true }).click();
+  await page.getByLabel("설정 메뉴", { exact: true }).click();
   await page.getByRole("button", { name: "로그아웃", exact: true }).click();
   await expect(page.getByRole("button", { name: /계정 만들기/ })).toBeVisible();
   expect((await page.request.get(new URL(guest.href, base).href)).status()).toBe(401);

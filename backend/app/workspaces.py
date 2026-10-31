@@ -162,6 +162,9 @@ def document_workspace_info(db, document_id, user=None):
 
 
 def require_copyable_source(db, document_id, user=None):
+    from .document_library import is_confidential
+    if is_confidential(db, document_id):
+        raise HTTPException(409, "비밀 문서는 일반 사본·양식으로 등록할 수 없습니다. 원 소유자가 비밀 문서 설정을 먼저 해제해야 합니다.")
     from .document_branches import DocumentBranch
     if db.get(DocumentBranch, document_id):
         raise HTTPException(409, "개인 작업본은 사본이나 양식으로 공개하지 않습니다. 통합 요청을 사용하세요.")
@@ -191,7 +194,7 @@ def workspace_access(db, workspace_id, user, *, manager=False, lock=False):
     query = select(Workspace).where(Workspace.id == workspace_id).execution_options(populate_existing=True)
     space = db.scalar(query.with_for_update() if lock else query)
     member = db.get(WorkspaceMember, (workspace_id, user), populate_existing=True)
-    if not space or not member:
+    if not space or space.kind == "division" or not member:
         raise HTTPException(404, "공간을 찾을 수 없습니다.")
     if manager and member.role != "manager":
         raise HTTPException(403, "공간 관리자 권한이 필요합니다.")
@@ -205,15 +208,44 @@ def membership_lock(db):
         db.execute(text("SELECT pg_advisory_xact_lock(706281001)"))
 
 
+def send_target_access(db, workspace_id, user):
+    """Caller holds membership_lock, shared with affiliation and ACL updates."""
+    from .organization import AccountAffiliation
+    affiliation = db.get(AccountAffiliation, user, populate_existing=True)
+    if not affiliation or workspace_id not in (affiliation.department_id, affiliation.team_id):
+        raise HTTPException(403, "자기 소속 부서·팀 문서함으로만 보낼 수 있습니다.")
+    space, member = workspace_access(db, workspace_id, user, lock=True)
+    if member.role not in ("manager", "editor"):
+        raise HTTPException(403, "받는 문서함의 편집 권한이 필요합니다.")
+    return space, member
+
+
 def install_workspaces(app):
     engine = app.state.engine
+
+    @app.get("/api/workspaces/send-targets")
+    def send_targets(request: Request):
+        from .organization import AccountAffiliation
+        with Session(engine) as db:
+            affiliation = db.get(AccountAffiliation, request.state.user)
+            ids = [affiliation.department_id, affiliation.team_id] if affiliation else []
+            result = []
+            for identifier in ids:
+                if not identifier:
+                    continue
+                space = db.get(Workspace, identifier)
+                member = db.get(WorkspaceMember, (identifier, request.state.user))
+                if space and space.kind in ("department", "team"):
+                    result.append({"id": space.id, "name": space.name, "kind": space.kind,
+                                   "parent_id": space.parent_id, "role": member.role if member else None})
+            return result
 
     @app.get("/api/workspaces")
     def list_workspaces(request: Request):
         with Session(engine) as db:
             rows = list(db.execute(select(Workspace, WorkspaceMember.role).join(
                 WorkspaceMember, WorkspaceMember.workspace_id == Workspace.id).where(
-                WorkspaceMember.user_id == request.state.user).order_by(Workspace.created_at, Workspace.id)))
+                WorkspaceMember.user_id == request.state.user, Workspace.kind != "division").order_by(Workspace.created_at, Workspace.id)))
             visible = {space.id for space, _ in rows}
             return [{"id": space.id, "name": space.name, "kind": space.kind,
                      "parent_id": space.parent_id if space.parent_id in visible else None,
@@ -299,10 +331,15 @@ def install_workspaces(app):
     def assign_document(doc_id: str, value: AssignWorkspace, request: Request):
         with transaction(engine) as db:
             membership_lock(db)
-            doc = require_access(db, doc_id, request.state.user, "owner", lock=True, fresh=True)
+            # Source editing access and the original-owner grant are separate:
+            # an owner sent to an editor workspace must still be able to retry or return it.
+            doc = require_access(db, doc_id, request.state.user, "editor", lock=True, fresh=True)
             from .document_branches import DocumentBranch
             if db.get(DocumentBranch, doc_id):
                 raise HTTPException(409, "개인 작업본은 공간으로 이동할 수 없습니다. 통합 요청을 사용하세요.")
+            from .document_library import is_confidential
+            if value.workspace_id and is_confidential(db, doc_id):
+                raise HTTPException(409, "비밀 문서는 부서·팀 문서함으로 이동할 수 없습니다. 공유 권한에서 사람을 직접 지정하세요.")
             grant = db.get(Access, (doc_id, request.state.user), populate_existing=True)
             if not grant or grant.role != "owner":
                 raise HTTPException(403, "문서의 원 소유자만 공간을 지정할 수 있습니다.")
@@ -315,6 +352,8 @@ def install_workspaces(app):
                     return {"ok": True, "workspace_id": None}
                 if doc.lease_token and doc.lease_until > time.time():
                     raise HTTPException(409, "편집 중인 문서는 이동할 수 없습니다. 저장 후 편집을 종료하세요.")
+                from .workspace_folders import WorkspaceFolderDocument
+                db.execute(delete(WorkspaceFolderDocument).where(WorkspaceFolderDocument.document_id == doc_id))
                 if row: db.delete(row)
                 db.execute(delete(WorkspaceShare).where(WorkspaceShare.document_id == doc_id))
                 db.execute(delete(Access).where(Access.document_id == doc_id, Access.user_id != request.state.user))
@@ -322,11 +361,13 @@ def install_workspaces(app):
                     db.add(PersonalDocument(document_id=doc_id, owner_id=request.state.user))
                 record_event(db, request.state.user, "document.make_private", "document", doc_id, document_id=doc_id)
                 return {"ok": True, "workspace_id": None}
-            space, _ = workspace_access(db, str(value.workspace_id), request.state.user, manager=True, lock=True)
+            space, _ = send_target_access(db, str(value.workspace_id), request.state.user)
             if row and row.workspace_id == space.id:
                 return {"ok": True, "workspace_id": space.id}
             if doc.lease_token and doc.lease_until > time.time():
                 raise HTTPException(409, "편집 중인 문서는 이동할 수 없습니다. 저장 후 편집을 종료하세요.")
+            from .workspace_folders import WorkspaceFolderDocument
+            db.execute(delete(WorkspaceFolderDocument).where(WorkspaceFolderDocument.document_id == doc_id))
             # Moving a document never revives invitations from an earlier space.
             db.execute(delete(WorkspaceShare).where(WorkspaceShare.document_id == doc_id))
             if row: row.workspace_id, row.assigned_by, row.assigned_at = space.id, request.state.user, time.time()

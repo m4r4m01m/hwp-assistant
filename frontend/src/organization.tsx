@@ -3,7 +3,7 @@ import { api, ApiError, errorMessage, isAbortError, jsonRequest } from "./api";
 
 type Unit = { id: string; name: string; can_access: boolean };
 export type Affiliation = { user_id: string; department: Unit | null; team: Unit | null; revision: string | null };
-type CatalogUnit = { id: string; name: string; kind: "department" | "team"; parent_id: string | null };
+type CatalogUnit = { id: string; name: string; kind: "division" | "department" | "team"; parent_id: string | null };
 type Props = {
   onUpdated: () => void;
   userId?: string;
@@ -74,7 +74,7 @@ export function OrganizationSettings({ onUpdated, userId, onBusyChange, onForbid
         timeoutMs: 20000,
       });
       if (!alive.current || sequence !== generation.current) return;
-      load(value); setNotice("소속을 저장했습니다. 문서 공유 권한은 그대로 유지됩니다.");
+      load(value); window.dispatchEvent(new Event("hwp-organization-updated")); setNotice("소속을 저장했습니다. 문서 공유 권한은 그대로 유지됩니다.");
       callbacks.current.onUpdated();
     } catch (cause) {
       if (!alive.current || sequence !== generation.current) return;

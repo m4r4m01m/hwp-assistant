@@ -4,6 +4,7 @@ import { scheduleEngineWarmup, startEngineWarmup, subscribeWarmup, warmState } f
 import kftcLogo from "./assets/kftc-logo.png";
 import { WorkspaceIcon } from "./workspace-nav";
 import "./account-gate.css";
+import {AccountIdentityProvider} from './account-identity';
 
 export type Account = { user_id: string; authentication_required: boolean; name?: string; kind?: string; is_admin?: boolean; can_change_password?: boolean; library_access_mode?: "private" | "shared" };
 type SampleAccount = { user_id: string; label: string };
@@ -93,7 +94,7 @@ export function AccountGate({ children }: { children: (account: Account) => Reac
       setError(errorMessage(cause) + (unknownRegistration ? " · 가입 요청이 접수됐을 수 있습니다. 다시 가입하지 말고 관리자에게 확인하거나 승인 후 같은 아이디로 로그인하세요." : ""));
     } finally { lock.current = false; setBusy(false); }
   }
-  if (account) return children(account);
+  if (account) return <AccountIdentityProvider account={account}>{children(account)}</AccountIdentityProvider>;
   if (loading) return <main className="drive auth-screen"><p role="status">문서함 연결 중…</p><WarmupNotice /></main>;
   const legacy = !policy?.accounts_enabled || mode === "token";
   const samples = policy?.sample_accounts || [];

@@ -114,6 +114,7 @@ test("MOCK library trash: shared delete confirmation and restore explain the com
   expect(calls.deletions()).toBe(0);
   await confirmation.getByRole("button", { name: "휴지통으로 이동", exact: true }).click();
   await expect(remove).toHaveCount(0); expect(calls.deletions()).toBe(1);
+  await page.getByRole("navigation", { name: "문서함", exact: true }).getByText("더보기", { exact: true }).click();
   await page.getByRole("button", { name: "휴지통", exact: true }).click();
   const trash = page.getByRole("dialog", { name: "휴지통", exact: true });
   await expect(trash).toContainText("내가 복구할 권한이 있는 문서만 표시됩니다");

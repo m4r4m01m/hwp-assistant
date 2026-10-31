@@ -14,7 +14,7 @@ const flow = {graph,source_document: source, branches: [branch], requests: [], v
 const review = {request, changes: [{path: "Contents/section0.xml"}], before_text: "대응방안을 검토할 예정이다.", after_text: "우선 대응방안 검토 예정", merged_sha256: "a".repeat(64), truncated: false};
 async function load(page: Page, value: unknown = flow) {
   await page.route("**/api/documents/source/branches", route => route.fulfill({json: value}));
-  await page.goto("/tests/fixtures/document-branches.html");
+  await page.goto("/tests/fixtures/document-branches.html"); await page.getByRole("button", {name:"분기 보기",exact:true}).click();
   await expect(page.getByRole("dialog", {name: "문서 이력"})).toBeVisible();
 }
 test("MOCK branches: uncertain creation retains exact frozen request and blocks duplicate actions", async ({page}) => {
@@ -27,15 +27,15 @@ test("MOCK branches: uncertain creation retains exact frozen request and blocks 
     if (bodies.length === 1) { await wait; return route.fulfill({status: 503, json: {detail: "synthetic failure"}}); }
     return route.fulfill({json: {document: {...source, id: "new"}}});
   });
-  await page.goto("/tests/fixtures/document-branches.html");
-  await page.getByRole("button", {name: "작업본 만들기", exact:true}).click();
-  await page.getByLabel("새 작업본 이름").fill("위험 분석");
-  await page.getByRole("button", {name: "이 저장본에서 작업본 만들기"}).click();
+  await page.goto("/tests/fixtures/document-branches.html"); await page.getByRole("button", {name:"분기 보기",exact:true}).click();
+  await page.getByRole("button", {name: "별도 수정안 만들기", exact:true}).click();
+  await page.getByLabel("수정안 이름").fill("위험 분석");
+  await page.getByRole("button", {name: "이 버전에서 수정안 만들기"}).click();
   await expect(page.getByRole("button", {name: "닫기", exact:true})).toBeDisabled();
   await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toBeVisible();
   release();
   await expect(page.getByRole("button", {name: "같은 요청으로 결과 확인"})).toBeVisible();
-  await expect(page.getByLabel("새 작업본 이름")).toBeDisabled();
+  await expect(page.getByLabel("수정안 이름")).toBeDisabled();
   await page.getByRole("button", {name: "같은 요청으로 결과 확인"}).click();
   await expect(page.getByLabel("목록 갱신 횟수")).toHaveText("1");
   expect(bodies).toHaveLength(2); expect(bodies[0]).toEqual(bodies[1]);
@@ -49,7 +49,7 @@ test("MOCK branches: graph opens only own branch and submission freezes saved so
   await page.locator('[data-version-id="b2"]').click();
   await page.getByRole("button", {name:"편집",exact:true}).click();
   await expect(page.getByLabel("편집 문서")).toHaveText("branch");
-  await page.getByRole("button", {name:"통합 요청",exact:true}).click();
+  await page.getByRole("button", {name:"검토 요청",exact:true}).click();
   await expect(page.getByLabel("목록 갱신 횟수")).toHaveText("1");
   expect(submitted).toMatchObject({source_version:"b2",target_version:"v2"});
   await page.setViewportSize({width:430,height:800});
@@ -65,9 +65,9 @@ test("MOCK branches: reviewer must inspect candidate and acceptance sends review
   await page.getByRole("button",{name:"수정안 검토"}).click();
   await expect(page.locator(".branch-text-changes del")).not.toHaveCount(0);
   await expect(page.locator(".branch-text-changes ins")).not.toHaveCount(0);
-  await expect(page.getByRole("button",{name:"승인·통합"})).toBeDisabled();
+  await expect(page.getByRole("button",{name:"승인 후 반영"})).toBeDisabled();
   await page.getByLabel("수정안을 확인했습니다.").check();
-  await page.getByRole("button",{name:"승인·통합"}).click();
+  await page.getByRole("button",{name:"승인 후 반영"}).click();
   await expect(page.locator(".branch-notice")).toContainText("새 버전으로 통합");
   expect(accepted).toEqual({merged_sha256:review.merged_sha256});
 });
@@ -75,16 +75,16 @@ test("MOCK branches: author cannot self approve; stale target permits a fresh su
   await page.route("**/api/integration-requests/request/review", route => route.fulfill({json:{...review,request:{...request,can_review:false}}}));
   await load(page,{...flow,source_document:{...source,current_version:"v3"},requests:[{...request,can_review:false}]});
   await page.locator('[data-version-id="b2"]').click();
-  await expect(page.getByRole("button",{name:"통합 요청",exact:true})).toBeEnabled();
+  await expect(page.getByRole("button",{name:"검토 요청",exact:true})).toBeEnabled();
   await page.getByRole("button",{name:"제출 내용 확인"}).click();
-  await expect(page.getByRole("button",{name:"승인·통합"})).toHaveCount(0);
+  await expect(page.getByRole("button",{name:"승인 후 반영"})).toHaveCount(0);
   await expect(page.getByText("수정안 작성·편집 참여자는 직접 승인할 수 없습니다.",{exact:false})).toBeVisible();
 });
 test("MOCK history: actual save nodes ascend, selection fetches only saved bytes and historical fork pins selected version", async ({page}, info) => {
   const writes: unknown[] = [], files:string[]=[];
   await page.route("**/api/**/file",route=>{files.push(new URL(route.request().url()).pathname);return route.fulfill({status:503,json:{detail:"synthetic preview unavailable"}});});
   await page.route("**/api/documents/source/branches",route=>{if(route.request().method()==="POST"){writes.push(route.request().postDataJSON());return route.fulfill({json:{document:source}});}return route.fulfill({json:flow});});
-  await page.goto("/tests/fixtures/document-branches.html");
+  await page.goto("/tests/fixtures/document-branches.html"); await page.getByRole("button", {name:"분기 보기",exact:true}).click();
   const old=page.locator('[data-version-id="v1"]'),latest=page.locator('[data-version-id="v2"]');
   await expect(old).toBeVisible();
   expect((await latest.boundingBox())!.y).toBeLessThan((await old.boundingBox())!.y);
@@ -92,8 +92,8 @@ test("MOCK history: actual save nodes ascend, selection fetches only saved bytes
   await old.click();await expect(page.getByRole("button",{name:"편집",exact:true})).toHaveCount(0);
   await expect(page.getByRole("button",{name:"이 저장본 복원",exact:true})).toBeEnabled();
   await expect.poll(()=>files.includes("/api/documents/source/versions/v1/file")).toBeTruthy();expect(writes).toHaveLength(0);
-  await page.getByRole("button",{name:"작업본 만들기",exact:true}).click();
-  await page.getByRole("button",{name:"이 저장본에서 작업본 만들기"}).click();
+  await page.getByRole("button",{name:"별도 수정안 만들기",exact:true}).click();
+  await page.getByRole("button",{name:"이 버전에서 수정안 만들기"}).click();
   await expect.poll(()=>writes.length).toBe(1);expect(writes[0]).toMatchObject({source_version:"v1"});
   await page.screenshot({path:info.outputPath("history-tree-desktop.png")});
 });
@@ -150,7 +150,7 @@ test("MOCK history: stale restore reloads graph and unlocks selection without an
   let reads=0;
   await page.route("**/api/documents/source/branches",route=>{reads++;return route.fulfill({json:flow});});
   await page.route("**/versions/v1/restore?*",route=>route.fulfill({status:409,json:{detail:"최신 문서가 변경됐습니다."}}));
-  await page.goto("/tests/fixtures/document-branches.html");page.on("dialog",dialog=>dialog.accept());
+  await page.goto("/tests/fixtures/document-branches.html"); await page.getByRole("button", {name:"분기 보기",exact:true}).click();page.on("dialog",dialog=>dialog.accept());
   await page.locator('[data-version-id="v1"]').click();await page.getByRole("button",{name:"이 저장본 복원"}).click();
   await expect(page.getByRole("alert").filter({hasText:"최신 문서가 변경"})).toBeVisible();
   await expect.poll(()=>reads).toBe(2);await expect(page.locator('[data-version-id="b2"]')).toBeEnabled();
@@ -176,7 +176,7 @@ test("MOCK history: repeated node switches keep one live diagnostic and one matc
     return route.fulfill({json:{version:nodes.find(node=>node.id===id),recorded:true,entries:[{path:`Contents/${id}.xml`,before_sha256:"before",after_sha256:"after"}]}});
   });
   await load(page);
-  await expect(page.getByLabel("새 작업본 이름")).toHaveCount(0);
+  await expect(page.getByLabel("수정안 이름")).toHaveCount(0);
   expect(fetched).toEqual([]);
   for(const id of ["v1","v2","v1","v2","v1","v2"]){
     await page.locator(`[data-version-id="${id}"]`).click();
@@ -231,16 +231,54 @@ test("MOCK history: selection scopes requests and merged navigation clears revie
   await page.locator('[data-version-id="b2"]').click();
   await expect(page.locator('.history-integration-list article')).toHaveCount(2);
   await expect(page.locator('.history-integration-list')).not.toContainText("previous-writer");
-  await expect(page.getByRole("button",{name:"통합 요청",exact:true})).toHaveCount(0);
+  await expect(page.getByRole("button",{name:"검토 요청",exact:true})).toHaveCount(0);
   await page.getByRole("button",{name:"수정안 검토",exact:true}).click();
   const reviewPanel=page.getByRole("region",{name:"통합 수정안 검토",exact:true});
   await expect(reviewPanel).toBeVisible();await reviewPanel.getByLabel("수정안을 확인했습니다.").check();
   await page.getByRole("button",{name:"통합된 문서 보기",exact:true}).click();
   await expect(page.locator('[data-version-id="v2"]')).toHaveAttribute("aria-pressed","true");
-  await expect(reviewPanel).toHaveCount(0);await expect(page.getByRole("button",{name:"승인·통합",exact:true})).toHaveCount(0);
+  await expect(reviewPanel).toHaveCount(0);await expect(page.getByRole("button",{name:"승인 후 반영",exact:true})).toHaveCount(0);
   await expect(page.locator('.history-integration-list article')).toHaveCount(1);
   await expect(page.locator('.history-integration-list')).toContainText("independent-reviewer 승인");
   await page.locator('[data-version-id="b2"]').click();await page.getByRole("button",{name:"수정안 검토",exact:true}).click();
   await expect(reviewPanel.getByLabel("수정안을 확인했습니다.")).not.toBeChecked();
-  await expect(reviewPanel.getByRole("button",{name:"승인·통합",exact:true})).toBeDisabled();
+  await expect(reviewPanel.getByRole("button",{name:"승인 후 반영",exact:true})).toBeDisabled();
+});
+
+test("MOCK history: default list separates named versions from author records; selection never restores",async({page})=>{
+  const writes:string[]=[];
+  await page.route("**/api/documents/source/branches",route=>route.fulfill({json:{...flow,graph:{...graph,nodes:nodes.map(node=>({...node,author:{user_id:node.id==='v1'?'test1':'test2'},milestone:node.id==='v1'?{name:'초안',author_id:'test1'}:null}))}}}));
+  await page.route("**/api/**/restore**",route=>{writes.push(route.request().url());return route.fulfill({status:500});});
+  await page.goto("/tests/fixtures/document-branches.html");
+  await expect(page.getByRole('button',{name:'버전 목록',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(page.locator('path[data-edge-kind]')).toHaveCount(0);
+  await page.getByRole('button',{name:/초안/}).click();
+  await expect(page.locator('.history-milestone-name')).toHaveText('초안');
+  expect(writes).toHaveLength(0);
+  await expect(page.getByRole('button',{name:'이 저장본 복원',exact:true})).toBeVisible();
+  await expect(page.getByLabel('별도 수정안', {exact:true})).toContainText('대응방안 수정');
+});
+
+test("MOCK history: naming a saved version freezes retries and shows the saved milestone",async({page})=>{
+  const writes:unknown[]=[];let named=false;
+  await page.route("**/api/documents/source/branches",route=>route.fulfill({json:{...flow,graph:{...graph,nodes:nodes.map(node=>({...node,milestone:named&&node.id==='v2'?{name:'검토 반영본',author_id:'test1'}:null}))}}}));
+  await page.route("**/api/documents/source/versions/v2/milestone",route=>{writes.push(route.request().postDataJSON());if(writes.length===1)return route.abort();named=true;return route.fulfill({json:{version_id:'v2',name:'검토 반영본'}});});
+  await page.goto("/tests/fixtures/document-branches.html");
+  await page.getByLabel('버전 이름',{exact:true}).fill('검토 반영본');
+  await page.getByRole('button',{name:'버전 이름 남기기',exact:true}).click();
+  await expect(page.getByLabel('버전 이름',{exact:true})).toBeDisabled();
+  await page.getByRole('button',{name:'같은 요청으로 결과 확인'}).click();
+  await expect(page.locator('.history-milestone-name')).toHaveText('검토 반영본');
+  expect(writes).toEqual([{name:'검토 반영본'},{name:'검토 반영본'}]);
+});
+
+test('MOCK history: named version compares all changes since the previous named version',async({page})=>{
+  let compared='';
+  const namedNodes=[{...nodes[0],milestone:{name:'초안',author_id:'test1'}},{...nodes[2],id:'middle',created_at:2,current:false},{...nodes[2],base_version:'middle',milestone:{name:'검토본',author_id:'test2'}}];
+  await page.route('**/api/documents/source/branches',route=>route.fulfill({json:{...flow,graph:{...graph,nodes:namedNodes}}}));
+  await page.route('**/api/documents/source/versions',route=>route.fulfill({json:namedNodes}));
+  await page.route('**/api/documents/source/compare?*',route=>{compared=route.request().url();return route.fulfill({status:503,json:{detail:'synthetic preview'}});});
+  await page.goto('/tests/fixtures/document-branches.html');
+  await page.getByRole('button',{name:'변경 내용 보기',exact:true}).click();
+  await expect.poll(()=>compared).toContain('left=v1&right=v2');
 });

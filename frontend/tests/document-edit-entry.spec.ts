@@ -6,7 +6,7 @@ test('MOCK automatic entry keeps open request identity after a lost response',as
   await expect(page.getByRole('alert')).toBeVisible();await page.getByRole('button',{name:'같은 열기 요청 다시 확인'}).click();
   await expect(page.getByLabel('편집 대상')).toHaveText('workcopy:mine');expect(calls).toHaveLength(2);expect(calls[0]).toEqual(calls[1]);
 });
-for(const mode of ['direct','view'])test(`MOCK automatic entry retains ${mode} routing`,async({page})=>{
+for(const mode of ['direct','view','coedit'])test(`MOCK automatic entry retains ${mode} routing`,async({page})=>{
   await page.route('**/api/documents/source/edit-target',route=>route.fulfill({json:{mode,document:{id:'source'}}}));
   await page.goto('/tests/fixtures/document-edit-entry.html');await expect(page.getByLabel('편집 대상')).toHaveText(mode+':source');
 });

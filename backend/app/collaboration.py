@@ -158,7 +158,8 @@ def install_collaboration(app, locked, check_lease, publish, doc_dict, version_d
         with Session(engine) as db:
             doc = require_access(db, doc_id, request.state.user)
             from .library_access import document_role
-            return {**doc_dict(doc), "role": document_role(db, doc_id, request.state.user)}
+            from .document_library import library_info
+            return {**doc_dict(doc), "role": document_role(db, doc_id, request.state.user), **library_info(db, doc_id, request.state.user)}
 
     @app.get("/api/documents/{doc_id}/access")
     def access_list(doc_id: str, request: Request):

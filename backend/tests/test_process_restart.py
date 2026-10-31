@@ -73,10 +73,14 @@ def test_real_server_process_restart(tmp_path):
         assert response.status_code == 200, response.text
         doc = response.json()
         listed = client.get("/api/documents").json()[0]
+        saved = client.get(f"/api/documents/{doc['id']}/versions").json()[0]
         assert listed == {**doc, "can_trash": True, "branch_source_id": None,
                           "workspace_id": None, "workspace_name": None, "shared_with_me": False,
                           "personal_document": False, "owned_by_me": True,
-                          "individually_shared": False, "folder_id": None}
+                          "individually_shared": False, "folder_id": None,
+                          "folder_path": [], "workspace_folder_id": None, "workspace_folder_path": [],
+                          "confidential": False, "confidential_revision": None, "can_set_confidential": False,
+                          "modified_at": saved["created_at"]}
         tid = str(uuid.uuid4())
         assert client.post(f"/api/documents/{doc['id']}/threads", json={"id": tid, "title": "재시작 기록", "visibility": "private"}).is_success
         assert client.put(f"/api/threads/{tid}/context", json={"expected_revision": 0, "base_version": doc['current_version'], "facts": "영속 사실"}).is_success

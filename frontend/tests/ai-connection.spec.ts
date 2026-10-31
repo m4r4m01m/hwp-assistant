@@ -66,6 +66,8 @@ async function mockedApp(page: Page, initial = status()) {
 }
 const dialog = (page: Page) => page.getByRole("dialog", { name: "AI 연결 설정", exact: true });
 const connection = (page: Page) => page.getByRole("button", { name: "AI 연결", exact: true });
+async function openSettings(page:Page){const settings=page.locator('.workspace-nav-settings');await expect(settings).toBeVisible();if(!await settings.evaluate(el=>(el as HTMLDetailsElement).open))await page.getByLabel('설정 메뉴',{exact:true}).click();}
+
 const check = (page: Page) => dialog(page).getByRole("button", { name: "연결 상태 확인", exact: true });
 const useCodex = (page: Page) => dialog(page).getByRole("button", { name: "이 PC의 Codex 사용", exact: true });
 async function library(page: Page) {
@@ -99,9 +101,9 @@ test("MOCK AI setup: explicit ChatGPT check is single-flight, Codex choice persi
   await expect(dialog(page)).not.toBeVisible();
   expect(state.setups).toEqual(["codex"]);
   await page.reload();
-  await expect(connection(page)).toBeVisible();
+  await openSettings(page); await expect(connection(page)).toBeVisible();
   await expect(dialog(page)).not.toBeVisible();
-  await connection(page).click();
+  await openSettings(page); await connection(page).click();
   await expect(dialog(page)).toBeVisible();
   expect(state.checks).toBe(1);
   expect(state.modelCalls).toBe(0);
@@ -135,9 +137,9 @@ test("MOCK AI setup: compact keyboard onboarding can defer and remains deferred 
   expect(state.setups).toEqual(["later"]);
   expect(state.checks).toBe(0);
   await page.reload();
-  await expect(connection(page)).toBeVisible();
+  await openSettings(page); await expect(connection(page)).toBeVisible();
   await expect(dialog(page)).not.toBeVisible();
-  await connection(page).click();
+  await openSettings(page); await connection(page).click();
   await expect(dialog(page)).toBeVisible();
   await dialog(page).getByRole("button", { name: "닫기", exact: true }).click();
   await expect(connection(page)).toBeFocused();
@@ -166,9 +168,9 @@ test("MOCK AI setup: missing CLI, signed-out account and timeout stay recoverabl
 test("MOCK AI setup: server mode is information-only and never probes or configures the browser PC", async ({ page }, info) => {
   const state = await mockedApp(page, status(null, "unchecked", true));
   await library(page);
-  await expect(connection(page)).toBeVisible();
+  await openSettings(page); await expect(connection(page)).toBeVisible();
   await expect(dialog(page)).not.toBeVisible();
-  await connection(page).click();
+  await openSettings(page); await connection(page).click();
   await expect(dialog(page)).toContainText("서버의 AI 연결");
   await expect(useCodex(page)).toHaveCount(0);
   await expect(check(page)).toHaveCount(0);
@@ -187,13 +189,13 @@ test("MOCK AI setup: closed dialog ignores a late check after reopening and setu
   const state = await mockedApp(page, status("later")), pending = deferred(), released = deferred();
   state.check = async route => { await pending.promise; await json(route, status("later", "chatgpt")).catch(() => {}); released.resolve(); };
   await library(page);
-  await connection(page).click();
+  await openSettings(page); await connection(page).click();
   await check(page).click();
   await expect.poll(() => state.checks).toBe(1);
   await dialog(page).getByRole("button", { name: "닫기", exact: true }).click();
   await expect(dialog(page)).not.toBeVisible();
   state.value = status("later", "signed_out");
-  await connection(page).click();
+  await openSettings(page); await connection(page).click();
   await expect(dialog(page)).toContainText(statusMessages.signed_out);
   pending.resolve();
   await released.promise;
@@ -219,7 +221,7 @@ test("MOCK AI setup: unavailable status leaves the library usable and manual ret
   await library(page);
   await expect(dialog(page)).not.toBeVisible();
   await expect(page.getByRole("button", { name: documentRow.name, exact: true })).toBeEnabled();
-  await connection(page).click();
+  await openSettings(page); await connection(page).click();
   await expect(dialog(page).getByRole("alert")).toContainText(serverError);
   await expect(dialog(page)).not.toContainText("합성 연결 상태 조회 실패");
   state.read = async () => state.value;
@@ -266,6 +268,9 @@ test("MOCK AI setup: opening, checking and saving settings preserves mounted edi
   const fileMenu = page.getByLabel("파일 작업", { exact: true }).locator("..");
   await page.getByLabel("파일 작업", { exact: true }).click();
   await expect(fileMenu).toHaveJSProperty("open", true);
+  await page.getByLabel("설정 메뉴", { exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator('.workspace-nav-settings')).toHaveJSProperty("open", true);
   await connection(page).focus();
   await page.keyboard.press("Enter");
   await expect(dialog(page)).toBeVisible();
@@ -274,7 +279,7 @@ test("MOCK AI setup: opening, checking and saving settings preserves mounted edi
   await expect(dialog(page)).not.toBeVisible();
   await expect(fileMenu).toHaveJSProperty("open", true);
   await expect(connection(page)).toBeFocused();
-  await connection(page).click();
+  await openSettings(page); await connection(page).click();
   await expect(dialog(page)).toBeVisible();
   expect(await page.evaluate(() => (window as any).__setupEngineMounts)).toBe(1);
   await check(page).click();

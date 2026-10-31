@@ -68,3 +68,8 @@
 .account-admin-affiliation select { width: 100%; min-width: 0; font: inherit; border: 1px solid #bdcddd; border-radius: 7px; padding: 9px 12px; background: #fff; color: inherit; }
 .account-admin-affiliation form > p { flex-basis: 100%; margin: 0; }
 .account-admin-affiliation button { max-width: 100%; overflow-wrap: anywhere; }
+.workspace-nav .account-admin-side-tabs { flex-direction:column;flex-wrap:nowrap;padding:0;border:0;gap:5px; }
+.workspace-nav .account-admin-side-tabs button { text-align:left;width:100%; }
+.workspace-nav .account-admin-side-tabs [aria-selected="true"] { color:#205787;background:#e8f1fa;border-color:#c1d7ed; }
+.workspace-nav .account-admin-toolbar { flex-direction:column;align-items:stretch;gap:8px;font-size:12px; }
+.workspace-nav .account-admin-toolbar select { width:100%; }

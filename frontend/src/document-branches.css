@@ -25,3 +25,14 @@
 .history-inspector > header { margin-bottom:14px; }.history-node-actions { margin:12px 0; }.branch-dialog .history-primary { background:#2864a0; color:white; border-color:#2864a0; }
 .history-more { margin:12px 0; font-size:13px; }.history-more > summary { display:inline-block; border:1px solid #bdcbdc; padding:7px 12px; border-radius:7px; cursor:pointer; color:#465f79; background:#fff; }.history-more > summary::after { content:" ▾"; }.history-more[open] > summary::after { content:" ▴"; }.history-more-content { padding:4px 12px 10px; margin-top:8px; background:#f4f7fb; border:1px solid #dce5ef; border-radius:8px; }.history-more-content .history-structure-detail { border-top:1px solid #dce5ef; padding-top:10px; }.history-structure-detail code { overflow-wrap:anywhere; }.history-structure-detail ul { padding-left:18px; }.history-structure-detail p { line-height:1.6; }.history-inspector .branch-create { padding:12px; background:#f4f7fb; border:1px solid #dce5ef; border-radius:8px; }.history-inspector .branch-create p { margin:0; font-size:13px; width:100%; color:#52677e; }.history-inspector .branch-preview { margin-top:12px; }
 @media(max-width:950px) { .history-workspace { grid-template-columns:minmax(0,1fr); }.history-tree-scroll { max-height:360px; }.history-inspector { max-height:none; }.branch-dialog { max-height:calc(100dvh - 12px); }.history-tree-legend { gap:10px; } }
+
+.history-view-toggle { display:flex; gap:8px; margin-bottom:12px; }
+.history-view-toggle button[aria-pressed="true"], .history-list button[aria-pressed="true"] { background:#e8f1fc; border-color:#3572b4; }
+.history-list { max-height:65vh; overflow:auto; padding:4px; }
+.history-list article { border-bottom:1px solid #dce5ef; padding:12px 0; }
+.history-list button { width:100%; display:flex; flex-direction:column; align-items:flex-start; gap:5px; text-align:left; margin:5px 0; overflow-wrap:anywhere; }
+.history-list p,.history-list span,.history-list small { font-size:12px; color:#52677e; }
+.history-list details { margin:10px 0; }.history-list summary { cursor:pointer; font-size:13px; }
+.history-milestone-form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; margin:12px 0; }
+.history-milestone-form label { display:grid; gap:4px; flex:1; min-width:180px; font-size:13px; }
+.history-milestone-form input { padding:8px; border:1px solid #bccbdb; border-radius:6px; width:100%; box-sizing:border-box; }

@@ -1,9 +1,11 @@
+import {DocumentUsage} from "./document-usage";
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, errorMessage, isAbortError, jsonRequest } from "./api";
 import type { Account } from "./account-gate";
-import { WorkspaceNav } from "./workspace-nav";
+import { WorkspaceNav,WorkspaceIcon,type WorkspaceIconName } from "./workspace-nav";
 import { OrganizationSettings, type Affiliation } from "./organization";
 import "./account-management.css";
+import {OrganizationManager} from "./organization-manager";
 
 type ManagedAccount = {
   user_id: string; name: string; kind: string; is_admin: boolean; is_active: boolean;
@@ -18,11 +20,12 @@ type AuditEntry = {
   target_id: string | null; document_id: string | null; version_id: string | null; document_name?: string | null;
 };
 type AuditPage = { items: AuditEntry[]; next_before: number | null };
-type Tab = "accounts" | "settings" | "audit";
+type Tab = "accounts" | "organization" | "usage" | "settings" | "audit";
 const statusLabels: Record<string, string> = { pending: "승인 대기", approved: "사용 중", rejected: "가입 거절", disabled: "비활성" };
 const actionLabels: Record<string, string> = {
   "account.login": "로그인", "account.logout": "로그아웃", "account.signup": "가입 신청",
   "account.create": "계정 생성", "account.create-admin": "관리자 계정 생성", "account.promote-admin": "관리자 지정",
+  "account.role": "계정 권한 변경", "organization.create": "조직 생성", "organization.rename": "조직 이름 변경", "organization.delete": "빈 조직 삭제",
   "account.affiliation": "소속 부서·팀 변경",
   "account.approve": "가입 승인", "account.reject": "가입 거절", "account.disable": "계정 비활성화",
   "account.enable": "계정 활성화", "account.password": "비밀번호 변경", "account.password_reset": "비밀번호 변경", "account.password_change": "본인 비밀번호 변경",
@@ -38,8 +41,8 @@ function date(value: number | null) {
   return new Intl.DateTimeFormat("ko-KR", { dateStyle: "short", timeStyle: "medium", timeZone: "Asia/Seoul" }).format(new Date(value * 1000));
 }
 
-export function AccountManagement({ account, onClose }: { account: Account; onClose: () => void }) {
-  const [tab, setTab] = useState<Tab>("accounts"), [filter, setFilter] = useState("pending"), [offset, setOffset] = useState(0);
+export function AccountManagement({ account, onClose, initialTab="accounts" }: { account: Account; onClose: () => void; initialTab?:Tab }) {
+  const [tab, setTab] = useState<Tab>(initialTab), [filter, setFilter] = useState("pending"), [offset, setOffset] = useState(0);
   const [accounts, setAccounts] = useState<AccountList>({ items: [], total: 0 });
   const [settings, setSettings] = useState<Settings | null>(null), [choice, setChoice] = useState<AccessPolicy>("allowlist");
   const [audit, setAudit] = useState<AuditPage>({ items: [], next_before: null });
@@ -60,7 +63,7 @@ export function AccountManagement({ account, onClose }: { account: Account; onCl
     setError(errorMessage(cause));
   }
   useEffect(() => {
-    if (!account.is_admin || forbidden || sessionEnded) return;
+    if (!account.is_admin || forbidden || sessionEnded || (tab === "organization" || tab === "usage")) return;
     const controller = new AbortController(), current = ++generation.current;
     setLoading(true); setError("");
     const query = new URLSearchParams();
@@ -123,20 +126,22 @@ export function AccountManagement({ account, onClose }: { account: Account; onCl
     finally { lock.current = false; if (alive.current) setBusy(false); }
   }
   return <div className="workspace-shell account-admin-shell">
-    <WorkspaceNav active="documents" onBack={onClose} disabled={busy} footer={<strong>{account.user_id} · 관리자</strong>} />
+    <WorkspaceNav active="documents" onBack={onClose} backLabel="문서함으로" disabled={busy} navigationLabel="계정 필터" navigation={tab==="accounts"?(<div className="account-admin-toolbar"><label>계정 상태<select aria-label="계정 상태" value={filter} disabled={busy} onChange={event => { setAffiliationAccount(null); setFilter(event.target.value); setOffset(0); if(event.currentTarget.closest(".workspace-nav")?.getAttribute("data-mode")==="icons")event.currentTarget.closest("details")?.removeAttribute("open"); }}><option value="pending">승인 대기</option><option value="approved">사용 중</option><option value="disabled">비활성</option><option value="rejected">가입 거절</option><option value="">전체</option></select></label><button disabled={busy || loading} onClick={() => setRefresh(value => value + 1)}>새로고침</button></div>):undefined}>{!forbidden&&!sessionEnded&&(<div className="account-admin-tabs account-admin-side-tabs" role="tablist" aria-label="관리 항목" aria-orientation="vertical">
+          {([['accounts', '계정 및 가입 승인'], ['organization', '조직도·권한'], ['usage', '문서 사용 현황'], ['settings', 'AI 이용 권한'], ['audit', '감사 로그']] as const).map(([id, label]) => <button id={`admin-tab-${id}`} className="workspace-nav-route" title={label} aria-label={label} type="button" key={id} role="tab" aria-selected={tab === id} aria-controls={`admin-panel-${id}`} disabled={busy} onClick={() => changeTab(id)}><WorkspaceIcon name={(({accounts:"settings",organization:"share",usage:"table",settings:"conversation",audit:"history"}) as Record<Tab,WorkspaceIconName>)[id]}/><span>{label}</span></button>)}
+        </div>)}</WorkspaceNav>
     <main className="drive drive-workspace account-admin" aria-label="계정 관리">
-      <header className="account-admin-heading"><div><span className="account-eyebrow">관리자</span><h1>계정 관리</h1><p>가입 승인과 소속 부서·팀, 계정 상태, AI 이용 권한, 작업 기록을 관리합니다.</p></div><button disabled={busy} onClick={onClose}>문서함으로</button></header>
+      <header className="account-admin-heading"><div><span className="account-eyebrow">관리자</span><h1>{tab==="usage"?"문서 사용 현황":tab==="organization"?"조직도·권한":tab==="settings"?"AI 이용 권한":tab==="audit"?"감사 로그":"계정 관리"}</h1><p>{tab==="usage"?"부서·팀 문서함의 문서 수와 저장 용량을 확인합니다.":"가입 승인과 소속 부서·팀, 계정 상태, AI 이용 권한, 작업 기록을 관리합니다."}</p></div></header>
       {forbidden ? <section className="account-admin-message" role="alert"><h2>관리자 권한이 필요합니다</h2><p>{error || "관리자 계정으로 다시 로그인해 주세요."}</p><button onClick={() => location.reload()}>로그인 상태 다시 확인</button></section>
       : sessionEnded ? <section className="account-admin-message" role="status"><h2>다시 로그인해 주세요</h2><p>현재 계정의 비밀번호를 변경하여 기존 로그인을 종료했습니다.</p><button className="primary" onClick={() => location.reload()}>로그인 화면으로</button></section>
       : <>
-        <div className="account-admin-tabs" role="tablist" aria-label="관리 항목">
-          {([['accounts', '계정 및 가입 승인'], ['settings', 'AI 이용 권한'], ['audit', '감사 로그']] as const).map(([id, label]) => <button id={`admin-tab-${id}`} type="button" key={id} role="tab" aria-selected={tab === id} aria-controls={`admin-panel-${id}`} disabled={busy} onClick={() => changeTab(id)}>{label}</button>)}
-        </div>
+
         {notice && <p className="account-admin-notice" role="status">{notice}</p>}
         {error && <p className="error" role="alert">{error}</p>}
         <section role="tabpanel" id={`admin-panel-${tab}`} aria-labelledby={`admin-tab-${tab}`} className="account-admin-panel">
+          {tab === "usage" && <DocumentUsage onForbidden={failure}/>}
+          {tab === "organization" && <OrganizationManager account={account} onBusyChange={value=>{lock.current=value;setBusy(value);}} onForbidden={failure}/>}
           {tab === "accounts" && <>
-            <div className="account-admin-toolbar"><label>계정 상태<select aria-label="계정 상태" value={filter} disabled={busy} onChange={event => { setAffiliationAccount(null); setFilter(event.target.value); setOffset(0); }}><option value="pending">승인 대기</option><option value="approved">사용 중</option><option value="disabled">비활성</option><option value="rejected">가입 거절</option><option value="">전체</option></select></label><button disabled={busy || loading} onClick={() => setRefresh(value => value + 1)}>새로고침</button><span>총 {accounts.total}개</span></div>
+            <p className="account-admin-help">총 {accounts.total}개 계정</p>
             <p className="account-admin-help">비활성화해도 기존 문서와 수정 이력은 보존됩니다. guest는 여러 체험자가 함께 사용하는 계정이므로 감사 로그도 guest로 기록됩니다.</p>
             {affiliationAccount && <div className="account-admin-affiliation">
               <header><h2>{affiliationAccount.user_id} 소속 부서·팀</h2><button type="button" disabled={busy} onClick={() => setAffiliationAccount(null)}>소속 배치 닫기</button></header>

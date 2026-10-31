@@ -477,13 +477,13 @@ function DocumentTemplateMarket({
   return (
     <div className="workspace-shell market-shell">
       <WorkspaceNav active="templates" onNavigate={onNavigate} onBack={onClose} backLabel="← 문서함" disabled={locked || registering || editing}>
+        {onDesignLibrary && <button className="workspace-nav-route" aria-label="표·제목 디자인 보관함" title="표·제목 디자인 보관함" disabled={locked || registering || editing} onClick={() => {
+          if (!locked && !registering && !editing && !operationBusy.current) onDesignLibrary();
+        }}><WorkspaceIcon name="back"/><span>표·제목 디자인 보관함</span></button>}
         <button className="primary workspace-nav-action" disabled={locked || registering || editing} onClick={registration}><WorkspaceIcon name="plus"/><span>양식 등록</span></button>
       </WorkspaceNav>
     <main className="template-market market-workspace" data-detail-open={!!selected || registering}>
       <header>
-        {onDesignLibrary && <button className="market-design-return" disabled={locked || registering || editing} onClick={() => {
-          if (!locked && !registering && !editing && !operationBusy.current) onDesignLibrary();
-        }}>← 표·제목 디자인 보관함</button>}
         <div>
           <h1>양식 보관함</h1>
           <p>
@@ -874,6 +874,7 @@ export function TemplateMarket(props: Omit<Parameters<typeof DocumentTemplateMar
   onApplyDesign?: (document: Document, choice: DesignChoice) => void;
 }) {
   const [documents, setDocuments] = useState(!!props.registerDocument);
+  const designManagement=useRef<HTMLDetailsElement>(null);
   const [designCatalogRevision, setDesignCatalogRevision] = useState(0);
   const [designCatalog, setDesignCatalog] = useState<DesignCatalog | null>(null),
     [designCatalogLoading, setDesignCatalogLoading] = useState(true), [designCatalogError, setDesignCatalogError] = useState("");
@@ -919,13 +920,18 @@ export function TemplateMarket(props: Omit<Parameters<typeof DocumentTemplateMar
     return () => controller.abort();
   }, [design?.id]);
   if (documents) return <DocumentTemplateMarket {...props} onDesignLibrary={() => { refreshDesignCatalog(); setDocuments(false); }} />;
-  return <div className="workspace-shell"><WorkspaceNav active="templates" onNavigate={props.onNavigate} onBack={props.onClose} backLabel="← 문서함" />
+  return <div className="workspace-shell"><WorkspaceNav active="templates" onNavigate={props.onNavigate} onBack={props.onClose} backLabel="← 문서함">
+      {design&&<button className="workspace-nav-route" aria-label="예시 목록으로" title="예시 목록으로" onClick={()=>setDesign(null)}><WorkspaceIcon name="back"/><span>예시 목록으로</span></button>}
+      <button className="workspace-nav-route" aria-label="저장한 디자인 관리" title="저장한 디자인 관리" onClick={()=>{if(designManagement.current){designManagement.current.open=true;designManagement.current.scrollIntoView({block:'start'});}}}><WorkspaceIcon name="settings"/><span>저장한 디자인 관리</span></button>
+      <button className="workspace-nav-route" aria-label="기존 문서 양식" title="기존 문서 양식" onClick={()=>setDocuments(true)}><WorkspaceIcon name="document"/><span>문서 전체 양식</span></button>
+      {props.onDesignStandard&&<button className="workspace-nav-route" aria-label="새 디자인 만들기" title="새 디자인 만들기" onClick={props.onDesignStandard}><WorkspaceIcon name="plus"/><span>새 디자인 만들기</span></button>}
+    </WorkspaceNav>
     <main className="design-library-page"><h1>양식 보관함</h1><p>예시를 고르고, 편집 중인 문서의 표나 제목에 적용하세요.</p>
       {designCatalogError && <div role="alert"><p>디자인 목록을 새로 확인하지 못했습니다. {designCatalogError}</p><button onClick={refreshDesignCatalog}>디자인 목록 다시 확인</button></div>}
       {design && designCatalogLoading && <p role="status">디자인을 새로 확인하는 중…</p>}
       {design ? <section className="design-document-picker" aria-label="디자인을 적용할 문서">
         <h2>‘{design.name}’을 사용할 문서</h2><p>문서를 열고 {design.kind === "table" ? "표 안" : "제목 문단"}에 커서를 놓은 뒤 선택한 디자인을 적용합니다.</p>
-        <button onClick={() => setDesign(null)}>예시 목록으로</button>
+
         {error && <p role="alert">{error}</p>}{loading && <p role="status">문서 불러오는 중…</p>}
         {!loading && !error && !targets.length && <p>편집할 문서가 없습니다. 문서함에서 HWPX를 가져오거나 새 문서를 저장하세요.</p>}
         <ul>{targets.map(document => <li key={document.id}><button disabled={designCatalogLoading || !!designCatalogError} onClick={() => {
@@ -935,8 +941,8 @@ export function TemplateMarket(props: Omit<Parameters<typeof DocumentTemplateMar
       </section> : <EditorDesignShelf catalog={designCatalog} loading={designCatalogLoading} onUse={props.onApplyDesign && !designCatalogError ? item => {
         if (designCatalogFresh.current && confirmedDesignCatalog.current?.designs.some(current => current.id === item.id && current.sha256 === item.sha256)) setDesign(item);
       } : undefined} />}
-      <details className="design-library-management"><summary>저장한 디자인 관리</summary><DesignLibrary onChanged={refreshDesignCatalog} />
-        <button onClick={props.onDesignStandard}>새 디자인 만들기</button><p>문서 표준 편집에서 표·제목 모양을 조절한 뒤 디자인으로 저장하면 이 보관함에서도 선택할 수 있습니다.</p></details>
-      <details className="design-library-management"><summary>문서 전체 양식</summary><p>등록 당시의 내용과 서식을 복사해 새 문서로 시작합니다.</p><button onClick={() => setDocuments(true)}>기존 문서 양식</button></details>
+      <details ref={designManagement} className="design-library-management"><summary>보관된 디자인</summary><DesignLibrary onChanged={refreshDesignCatalog} />
+        <p>문서 표준 편집에서 표·제목 모양을 조절한 뒤 디자인으로 저장하면 이 보관함에서도 선택할 수 있습니다.</p></details>
+
     </main></div>;
 }

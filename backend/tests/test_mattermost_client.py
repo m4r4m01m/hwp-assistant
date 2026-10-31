@@ -245,7 +245,8 @@ def test_preflight_permission_change_can_suppress_post_mutation(configured, post
     assert len(requests) == (3 if post_id else 2)
 
 
-@pytest.mark.parametrize("message", ["", "가" * 6000, "\ud800", {"message": "wrong type"}])
+@pytest.mark.parametrize("message", ["", "가" * 6000, "\ud800", {"message": "wrong type"}],
+                         ids=["empty", "oversized", "unpaired-surrogate", "wrong-type"])
 def test_final_message_is_validated_before_post(configured, message):
     requests = []
     def handler(request):
